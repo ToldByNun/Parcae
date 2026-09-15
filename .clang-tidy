@@ -1,0 +1,36 @@
+# Baseline clang-tidy config: useful checks, not a full noisy suite.
+# Expand gradually; do not enable bugprone-*/clang-analyzer-* wholesale yet.
+
+Checks: >
+  -*,
+  misc-definitions-in-headers,
+  misc-unused-using-decls,
+  modernize-use-noexcept,
+  modernize-use-nullptr,
+  modernize-use-override,
+  performance-unnecessary-copy-initialization,
+  readability-braces-around-statements,
+  readability-container-size-empty,
+  readability-identifier-naming
+
+WarningsAsErrors: ''
+HeaderFilterRegex: 'include/parcae/.*'
+FormatStyle: file
+
+CheckOptions:
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.ConstantCase
+    value: lower_case
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.EnumConstantCase
+    value: CamelCase

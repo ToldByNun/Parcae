@@ -46,18 +46,22 @@ open source polish   →  packaging, contribution docs
 
 ## Build (skeleton)
 
-Requires CMake ≥ 3.25 and a C++20 compiler.
+Requires CMake ≥ 3.25, a C++20 compiler, and network on first configure
+(FetchContent pulls Catch2 `v3.7.1` and nlohmann/json `v3.11.3`).
 
 ```bash
 cmake -S . -B build -DPARCAE_BUILD_TESTS=ON -DPARCAE_BUILD_TOOLS=ON
 cmake --build build
+ctest --test-dir build --output-on-failure
 ```
 
 Options:
 
 | Option | Default | Meaning |
 |--------|---------|---------|
-| `PARCAE_BUILD_TESTS` | `ON` | Build unit tests (Catch2 arrives with the test target wiring) |
+| `PARCAE_BUILD_TESTS` | `ON` | Fetch Catch2 and build `parcae_tests` |
 | `PARCAE_BUILD_TOOLS` | `ON` | Build CLI tools under `tools/` when they exist |
 
-The tree is still a skeleton: libraries and tests land in follow-up commits.
+Style: [`.clang-format`](.clang-format) (LLVM-ish, 4-space) and a light
+[`.clang-tidy`](.clang-tidy) baseline. CI runs on Ubuntu and Windows
+(`.github/workflows/ci.yml`).

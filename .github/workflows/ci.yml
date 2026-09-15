@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu
+            os: ubuntu-latest
+            cmake_args: -G Ninja -DCMAKE_BUILD_TYPE=Release
+            build_args: ""
+            test_args: ""
+          - name: windows
+            os: windows-latest
+            cmake_args: -G "Visual Studio 17 2022" -A x64
+            build_args: --config Release
+            test_args: --build-config Release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Ninja
+        if: matrix.name == 'ubuntu'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: cmake -S . -B build ${{ matrix.cmake_args }} -DPARCAE_BUILD_TESTS=ON -DPARCAE_BUILD_TOOLS=ON
+
+      - name: Build
+        run: cmake --build build ${{ matrix.build_args }}
+
+      - name: Test
+        run: ctest --test-dir build ${{ matrix.test_args }} --output-on-failure

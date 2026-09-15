@@ -1,0 +1,38 @@
+BasedOnStyle: LLVM
+Language: Cpp
+Standard: c++20
+
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+
+AccessModifierOffset: -4
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakTemplateDeclarations: Yes
+BreakBeforeBraces: Attach
+BreakConstructorInitializers: BeforeColon
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
+NamespaceIndentation: None
+PointerAlignment: Left
+ReferenceAlignment: Left
+SpaceAfterCStyleCast: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeParens: ControlStatements
+SpacesInAngles: Never
+SpacesInParentheses: false
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+
+# Keep project headers grouped ahead of system headers when possible.
+IncludeCategories:
+  - Regex: '^"parcae/'
+    Priority: 1
+  - Regex: '^<'
+    Priority: 3
+  - Regex: '.*'
+    Priority: 2

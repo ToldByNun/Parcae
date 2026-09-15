@@ -1,6 +1,12 @@
 # Prerequisites
 *.d
 
+# Build trees
+build/
+cmake-build-*/
+out/
+.cache/
+
 # Compiled Object files
 *.slo
 *.lo
@@ -30,9 +36,15 @@
 *.exe
 *.out
 *.app
+
+# Compile commands / IDE
+compile_commands.json
+.vs/
+.vscode/
 *.db
 *.db-shm
 *.db-wal
 *.opendb
 *.ipch
 *.vsidx
+CMakeUserPresets.json
