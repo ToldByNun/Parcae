@@ -1,7 +1,7 @@
 # Gematria Primus — Frozen Profile Narrative
 
 **Profile id (planned data file):** `gematria-primus-v0`  
-**Status:** Phase 0 research freeze. Implementation lands in Phase 2 as JSON under `data/profiles/`.
+**Status:** Research freeze. Implementation lands as JSON under `data/profiles/`.
 
 ## What it is
 
@@ -85,10 +85,10 @@ Cicada solved plaintext is English written through this alphabet:
 - **Digraphs:** `TH`, `EO`, `OE`, `AE`, `ING`/`NG`, `IA`/`IO`, `EA` are single runes
 - Multi-letter preferred labels are still **one** index in `0..28`
 
-For validation hashing in later phases, Parcae will document a single **preferred
-label** fold (this table’s Preferred column) so fixture digests are stable.
+For validation hashing, Parcae documents a single **preferred label** fold (this
+table’s Preferred column) so fixture digests are stable.
 
-## Validation rules for the profile (Phase 2 loader)
+## Validation rules for the profile loader
 
 A valid `gematria-primus-v0` profile must have:
 
@@ -103,8 +103,8 @@ A valid `gematria-primus-v0` profile must have:
 ## Glyph variants
 
 Some fonts or transcriptions use variant forms (e.g. alternate J-rune glyphs).
-Phase 0 freezes the table above as canonical. Unknown glyphs are **errors in
-strict mode**, not silent aliases, until a separate glyph-variant profile exists.
+The table above is canonical. Unknown glyphs are **errors in strict mode**, not
+silent aliases, until a separate glyph-variant profile exists.
 
 ## What primes are *not*
 

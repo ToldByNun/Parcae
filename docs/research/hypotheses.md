@@ -1,8 +1,8 @@
 # Modulo-29 Hypotheses — Plausible vs Constrained
 
-**Status:** Phase 0 research freeze.  
-**Purpose:** Decide which transform families Phase 2 must implement, which Phase 1
-should specify as generators, and which claims to avoid wasting cycles on.
+**Status:** Research freeze.  
+**Purpose:** Decide which transform families the CPU reference must implement,
+which specs should define as generators, and which claims to avoid wasting cycles on.
 
 All discussion assumes Gematria **indices** in \(\mathbb{Z}_{29}\).
 
@@ -10,7 +10,7 @@ All discussion assumes Gematria **indices** in \(\mathbb{Z}_{29}\).
 
 ## Tier A — Confirmed on solved Liber Primus material
 
-These **must** exist as CPU transforms in Phase 2 and match published plaintexts.
+These **must** exist as CPU transforms and match published plaintexts.
 
 | Family | Definition (decrypt-oriented) | Attested on |
 |--------|-------------------------------|-------------|
@@ -31,9 +31,8 @@ p = a^{-1}(c - b) \pmod{29}
 \]
 
 Caesar is affine with `a = 1`. Atbash is affine with `a = 28 ≡ -1`, `b = 28`
-under suitable encoding, or simply the dedicated map `28 - x`. Phase 2 should
-implement affine as a **generator primitive** even if no single famous page is
-“affine-only.”
+under suitable encoding, or simply the dedicated map `28 - x`. Implement affine
+as a **generator primitive** even if no single famous page is “affine-only.”
 
 ### Beaufort
 
@@ -46,10 +45,10 @@ shared implementation; avoids the historical sign-error class of bugs.
 
 ---
 
-## Tier B — Plausible for generators / later search (not Phase 2 solve targets)
+## Tier B — Plausible for generators / later search (not solve targets yet)
 
-Safe to **specify** in Phase 1 and optionally stub-enumerate in Phase 2, but not
-to claim as solutions for LP2 `0`–`55`:
+Safe to **specify** and optionally stub-enumerate, but not to claim as solutions
+for LP2 `0`–`55`:
 
 | Hypothesis | Why it is plausible |
 |------------|---------------------|
@@ -62,24 +61,24 @@ to claim as solutions for LP2 `0`–`55`:
 | Variable interrupt policies | F-skip is proven; other interrupters are conceivable |
 | Fixed unknown permutation alphabets | Speculative; sometimes motivated by unverified anti-repeat essays (Tier C) |
 
-Phase 2 stance: implement **applicators** and small **bounded generators**
-(Caesar 29, affine 28×29, explicit key from caller). Do **not** build a full
-dictionary attack engine yet.
+Stance for the CPU reference: implement **applicators** and small **bounded
+generators** (Caesar 29, affine 28×29, explicit key from caller). Do **not** build
+a full dictionary attack engine in the first cut.
 
 ---
 
 ## Tier C — Unverified single-source constraints (LP2 0–55)
 
-**Confidence: unverified single-source — not a Phase 0 fact freeze.**
+**Confidence: unverified single-source — not a project fact freeze.**
 
-Source checked 2026-03-15: [One Bit of Structure: the Liber Primus, measured](https://artwaste.land/strata/liber-primus-measured/).
+Source checked: [One Bit of Structure: the Liber Primus, measured](https://artwaste.land/strata/liber-primus-measured/).
 
 | Check | Result |
 |-------|--------|
 | Domain / URL reachable? | **Yes** — page returned a long essay (~39 KB text extract) |
 | Claims independently recomputed by Parcae? | **No** |
-| Peer-reviewed / multi-source corroboration? | **Not established** in this research pass |
-| Allowed to block Phase 2 architecture? | **No** |
+| Peer-reviewed / multi-source corroboration? | **Not established** |
+| Allowed to block architecture? | **No** |
 | Allowed as optional later heuristic / score idea? | **Yes**, if labeled |
 
 The essay asserts, among other things, measurements on an unsolved rune body
@@ -94,9 +93,9 @@ The essay asserts, among other things, measurements on an unsolved rune body
 | Engineered anti-bigram alphabets as surviving speculative class | Speculative |
 | OTP / running-key statistical neighborhood | Unverified hypothesis |
 
-### Practical consequence for Parcae
+### Practical consequence
 
-1. Phase 2 validates **Tier A** oracles only — unaffected by Tier C.  
+1. The CPU reference validates **Tier A** oracles only — unaffected by Tier C.  
 2. Optional: later add a self-repeat / diagonal-rate **score** for exploration.  
 3. Do **not** discard Vigenère-style generators for unsolved pages solely because of
    this essay.  
@@ -119,7 +118,7 @@ The essay asserts, among other things, measurements on an unsolved rune body
 
 ---
 
-## Generator priority for Phase 1 / early Phase 2
+## Generator priority
 
 1. Identity, Atbash, Caesar, Affine  
 2. InterruptPolicy + explicit-key Vigenère / Beaufort  

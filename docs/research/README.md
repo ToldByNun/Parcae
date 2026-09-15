@@ -1,15 +1,15 @@
-# Phase 0 — Research
+# Research
 
-Parcae is a Liber Primus / Cicada 3301 cryptanalysis toolkit. Phase 0 freezes the
-facts we will build against so later phases do not re-litigate alphabet order,
-separator grammar, or solved-page methods.
+Parcae is a Liber Primus / Cicada 3301 cryptanalysis toolkit. This folder records
+the background facts the rest of the project builds on: alphabet order, separator
+grammar, solved-page methods, and what is still unverified.
 
-## Confidence labels used in this folder
+## Confidence labels
 
 | Label | Meaning |
 |-------|---------|
-| **Frozen fact** | Independently attested across primary community sources (wiki methods, Boxentriq tools, multiple transcriptions) and required for Phase 2 oracles |
-| **Working assumption** | Widely used convention; must be locked for tooling but can be revisited if fixtures fail |
+| **Frozen fact** | Independently attested across primary community sources (wiki methods, Boxentriq tools, multiple transcriptions) and required for solved-page oracles |
+| **Working assumption** | Widely used convention; locked for tooling but revisable if fixtures fail |
 | **Unverified single-source** | Live page exists and was read; claims are **not** independently reproduced by Parcae yet — must not gate architecture as hard fact |
 
 ## Why these 29 runes (not Elder Futhark / another set)
@@ -27,7 +27,7 @@ glyph→value map for this puzzle.
 1. What known properties does Liber Primus / Gematria Primus have?
 2. Which transforms over \(\mathbb{Z}_{29}\) are actually attested or plausible?
 3. Which modulo-29 hypotheses are confirmed, open, or statistically constrained?
-4. Which sections make good Phase 2 test material (solved oracles)?
+4. Which sections make good solved-oracle / test material?
 
 ## Documents in this folder
 
@@ -37,13 +37,15 @@ glyph→value map for this puzzle.
 | [separators.md](separators.md) | Transcript separator grammar (ASCII + Unicode maps) |
 | [solved-methods.md](solved-methods.md) | Catalog of solved pages and exact decrypt methods |
 | [hypotheses.md](hypotheses.md) | Plausible vs implausible mod-29 transform families |
-| [test-material.md](test-material.md) | Fixture IDs selected for Phase 2 |
-| [phase0-exit.md](phase0-exit.md) | Exit criteria for Phase 0 |
+| [test-material.md](test-material.md) | Fixture IDs for the CPU reference oracles |
+| [checklist.md](checklist.md) | Research completeness checklist |
 
-## Non-goals (Phase 0)
+Normative implementation contracts: [`docs/spec/`](../spec/README.md).
+
+## Non-goals (this folder)
 
 - No implementation code
-- No CUDA, agents, or search engine design beyond noting constraints
+- No CUDA, agents, or search-engine design beyond noting constraints
 - No solve attempts on unsolved LP2 pages `0.jpg`–`55.jpg`
 - No claim of new plaintext
 
@@ -64,9 +66,9 @@ glyph→value map for this puzzle.
 
 ### Secondary / unverified single-source
 
-| Source | Verification (2026-03-15 session) | Use |
-|--------|-----------------------------------|-----|
-| [artwaste — One Bit of Structure](https://artwaste.land/strata/liber-primus-measured/) | **Page exists** (~39 KB essay; claims ~0.664% self-follow, OTP-class battery, plaintext-F interrupt table). **Not** independently recomputed or peer-reviewed in Parcae. | Optional background for unsolved-page search heuristics only. **Not** a Phase 0/2 freeze fact. See [hypotheses.md](hypotheses.md) Tier C. |
+| Source | Verification | Use |
+|--------|--------------|-----|
+| [artwaste — One Bit of Structure](https://artwaste.land/strata/liber-primus-measured/) | **Page exists** (~39 KB essay; claims ~0.664% self-follow, OTP-class battery, plaintext-F interrupt table). **Not** independently recomputed or peer-reviewed in Parcae. | Optional background for unsolved-page search heuristics only. **Not** a project freeze fact. See [hypotheses.md](hypotheses.md) Tier C. |
 
 ## Corpus split (community convention)
 
@@ -77,14 +79,10 @@ glyph→value map for this puzzle.
 
 Page numbering differs across archives (e.g. scream314 complete-set ids vs LP2 numeric names). Fixture IDs in Parcae are stable names, not raw JPG filenames.
 
-## Phase boundaries
+## Doc map
 
 ```text
-Phase 0  research facts (this folder)
-    ↓
-Phase 1  mathematical / tool specifications
-    ↓
-Phase 2  CPU reference implementation + solved fixtures
-    ↓
-Phase 3+ CUDA parity, agents, search (out of scope here)
+docs/research/   background facts (this folder)
+docs/spec/       normative contracts for the C++ toolkit
+(implementation, CUDA, agents — elsewhere as they land)
 ```

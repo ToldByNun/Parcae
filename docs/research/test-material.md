@@ -1,11 +1,12 @@
-# Phase 2 Test Material and Fixture IDs
+# Test Material and Fixture IDs
 
-**Status:** Phase 0 selection freeze.  
-**Scope decision:** Solved-page fixtures only (no full LP2 `0`–`55` corpus in-repo for Phase 2).
+**Status:** Selection freeze.  
+**Scope:** Solved-page fixtures only (no full LP2 `0`–`55` corpus in-repo for the
+CPU reference).
 
 ## Selection criteria
 
-A section is good Phase 2 test material if it:
+A section is good oracle / regression material if it:
 
 1. Has a **community-accepted** plaintext and method  
 2. Exercises a **distinct** transform or policy (identity, Atbash, compose, Vigenère+skips, totient+skips)  
@@ -28,7 +29,7 @@ Use these exact ids in manifests, Catch2 tags, and CLI filters.
 | `an-end` | Totient stream + F pass-through | Aperiodic stream; hardest interrupt semantics |
 | `lp2-57-identity` | Identity | Tiny LP2 control |
 
-## Planned on-disk layout (Phase 2)
+## Planned on-disk layout
 
 ```text
 data/fixtures/solved/
@@ -55,7 +56,12 @@ data/fixtures/solved/
     ...
 ```
 
-### Manifest fields (preview; formal schema in Phase 1)
+### Manifest fields
+
+Formal schema: [`docs/spec/fixtures.md`](../spec/fixtures.md)
+(`parcae.fixture_manifest.v0`).
+
+Summary:
 
 - `id` — fixture id above  
 - `method` — enum / string matching transform registry  
@@ -64,37 +70,14 @@ data/fixtures/solved/
 - `rune_index_base` — `0`  
 - `ciphertext_sha256` / `plaintext_sha256` — locked digests after normalization  
 - `source_attribution` — wiki / rtkd / etc.  
-- `non_rune_literal_regions` — **required for Phase 1 schema** (see below)
+- `non_rune_literal_regions` — required for pages like `an-end` (hex hash) and number grids  
 
-#### Non-rune literal regions (Phase 1 must specify)
-
-Pages such as `an-end` mix runes with long hex / decimal literals in plaintext
-(and sometimes ciphertext-adjacent grids on identity pages). The tokenizer already
-classifies `numeric_literal` / `hex_literal_candidate`, but fixtures need an
-explicit manifest field so hashing and validation do not accidentally:
-
-- feed hex digits into Index29 transforms, or  
-- drop / reflow the deep-web hash string when comparing plaintext
-
-**Phase 1 `docs/spec/fixtures.md` must define** something equivalent to:
-
-```json
-"non_rune_literal_regions": [
-  {
-    "kind": "hex_string",
-    "role": "plaintext_embedded",
-    "value_file": "literals/deep-web-hash.txt",
-    "compare": "exact"
-  }
-]
-```
-
-Until that schema exists, treat `an-end`’s hash announcement as a known special
-case in research only — not as an implementable silent default.
+Until fixtures are committed, treat `an-end`’s hash announcement as covered by that
+schema — not as a silent default without a manifest.
 
 ## Synthetic unit vectors (in addition to full pages)
 
-Before full-page fixtures, Phase 2 tests should include **hand-computed** micro strings:
+Before full-page fixtures, tests should include **hand-computed** micro strings:
 
 | Vector id | Purpose |
 |-----------|---------|
@@ -116,7 +99,7 @@ These live under `tests/data/synthetic/` (or Catch2 embedded literals), not nece
 
 These prove the interrupt policy is the documented plaintext-F rule.
 
-## Explicitly deferred (not Phase 2 fixtures)
+## Explicitly deferred (not CPU-reference fixtures)
 
 | Material | Reason |
 |----------|--------|

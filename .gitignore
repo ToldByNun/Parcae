@@ -30,7 +30,6 @@
 *.exe
 *.out
 *.app
-docs/research/phase0-exit.md
 *.db
 *.db-shm
 *.db-wal

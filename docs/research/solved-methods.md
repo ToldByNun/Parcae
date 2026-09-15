@@ -1,7 +1,7 @@
 # Solved Pages and Exact Methods
 
-**Status:** Phase 0 research freeze. These methods are the only **confirmed** Liber
-Primus decrypt paths Parcae must reproduce in Phase 2.
+**Status:** Research freeze. These methods are the only **confirmed** Liber Primus
+decrypt paths the CPU reference must reproduce.
 
 Cipher arithmetic uses Gematria **indices** `0..28` modulo 29. See
 [gematria-primus.md](gematria-primus.md).
@@ -27,8 +27,8 @@ docs describe the same pass-through for An End.
 
 **Secondary essay:** [artwaste measured analysis](https://artwaste.land/strata/liber-primus-measured/)
 argues the same plaintext-F vs ciphertext-F distinction with a periodicity table.
-That page **exists** and was fetched for Phase 0, but it is a **single secondary
-analysis** — treat its extra statistics as unverified (see [hypotheses.md](hypotheses.md)).
+That page **exists** and was fetched, but it is a **single secondary analysis** —
+treat its extra statistics as unverified (see [hypotheses.md](hypotheses.md)).
 Do not cite artwaste alone as proof of interrupt semantics.
 
 ### Risk: skip index lists are not yet recomputed oracles
@@ -46,8 +46,8 @@ ciphertext + key + skip_indices  →  exact published plaintext
 | Transcript differs from the wiki’s source transcription | Same skip numbers apply to the wrong rune stream |
 | Wiki list incomplete/outdated relative to another archive | Silent wrong plaintext “pass” if we also copy plaintext from the same page |
 
-**Gate before locking Phase 2 golden hashes:** recompute Welcome and Koan 2 from a
-named transcript file + key; derive or confirm `skip_indices` by matching known
+**Gate before locking golden hashes:** recompute Welcome and Koan 2 from a named
+transcript file + key; derive or confirm `skip_indices` by matching known
 plaintext; only then freeze manifests. Until that gate passes, lists are
 **unverified inherited constants** (confidence: working draft, not frozen fact).
 
@@ -113,8 +113,9 @@ advance/skip rule.
 | Formula | `t = 28 - c`; `p = (t + 3) mod 29` |
 | Interrupts | none |
 
-Equivalent single map: `p = (3 - c) mod 29` after simplifying, but Phase 2 should
-implement **composition** explicitly to match the documented solution path.
+Equivalent single map: `p = (3 - c) mod 29` after simplifying, but the reference
+implementation should implement **composition** explicitly to match the documented
+solution path.
 
 ---
 
@@ -199,11 +200,11 @@ transliteration.
 
 LP1 is widely reported as **17 solved pages**. Beyond the high-traffic methods
 above, remaining LP1 material is generally the same families: identity, Atbash
-(± shifts), and Vigenère-with-interrupts. Phase 2 **minimum** oracle set is the
-nine fixture ids in this document. Additional LP1 pages may be added later without
+(± shifts), and Vigenère-with-interrupts. The **minimum** oracle set is the nine
+fixture ids in this document. Additional LP1 pages may be added later without
 changing the method taxonomy.
 
-## Unsolved material (not Phase 2 oracles)
+## Unsolved material (not oracle fixtures)
 
 | Range | Status |
 |-------|--------|

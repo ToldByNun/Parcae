@@ -1,7 +1,7 @@
 # Separator Grammar and Transcript Conventions
 
 **Grammar id (planned data file):** `rtkd-separator-grammar-v0`  
-**Status:** Phase 0 research freeze. Phase 2 fixtures use the **ASCII rtkd-style** convention.
+**Status:** Research freeze. Solved fixtures use the **ASCII rtkd-style** convention.
 
 ## Why separators matter
 
@@ -13,7 +13,7 @@ only to **rune tokens**. Separators must be preserved as first-class tokens so t
 - Consumable masks exclude non-runes
 - Interrupt indices refer to positions in the **consumable rune stream**, not raw bytes
 
-## Canonical ASCII classes (Parcae Phase 2 default)
+## Canonical ASCII classes (project default)
 
 | Class | Token | Role |
 |-------|-------|------|
@@ -44,11 +44,11 @@ Some transcriptions (e.g. LiberPrayground) use typographic separators:
 |---------|-----------------|-----------------|
 | `•` (U+2022) | Word / space | `word_separator` |
 | `⁘` (U+2058) | Period | `clause_separator` |
-| `⁚` (U+205A) | Comma | treat as clause-adjacent separator (map policy in Phase 2 loader) |
+| `⁚` (U+205A) | Comma | treat as clause-adjacent separator (map policy in the loader) |
 | `⁖` (U+205D) | Semicolon | clause-adjacent separator |
 | `⁜` (U+205C) | Chapter mark | `chapter_separator` |
 
-Phase 0 decision: **solved fixtures committed in Phase 2 use ASCII `-` `.` `/` `%` `&`**.
+**Decision:** solved fixtures use ASCII `-` `.` `/` `%` `&`.
 A Unicode→ASCII normalizer may be added later; it is not required to start CPU work.
 
 ## Example (ASCII)
@@ -72,7 +72,7 @@ Only runes enter Index29 streams for transforms.
 
 Skip lists published for Welcome / Koan 2 / An End count **consumable runes** in
 reading order (typically 0-based in modern tooling). Separators do **not** advance
-that index. Fixture manifests in Phase 2 must state the indexing base explicitly
+that index. Fixture manifests must state the indexing base explicitly
 (`rune_index_base: 0`).
 
 ## Numbers and mixed pages
