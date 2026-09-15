@@ -2,6 +2,8 @@
 #define CORE_HPP
 
 #include "parcae/core/index29.hpp"
+#include "parcae/core/status.hpp"
+#include "parcae/core/status_or.hpp"
 #include "parcae/core/version.hpp"
 #include "parcae/core/z29.hpp"
 
