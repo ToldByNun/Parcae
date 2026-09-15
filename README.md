@@ -1,2 +1,63 @@
 # Parcae
 
+C++20 toolkit for Liber Primus / Cicada 3301 cryptanalysis. The **main goal** is
+to push the still-unsolved LP2 pages (`0.jpg`–`55.jpg`) forward — new structure,
+stronger hypotheses, and eventually real decrypts — with a deterministic,
+GPU-ready core and agent-callable tools.
+
+License: [MIT](LICENSE).
+
+## Goals
+
+1. **Advance unsolved Liber Primus (LP2 `0`–`55`)** — systematic search, scoring,
+   and hypothesis tooling aimed at new discoveries, not museum reproduction.
+2. **Ground truth from solved pages** — reproduce known methods (Atbash, Vigenère
+   + cleartext-F skips, totient / prime−1 stream, identity) as regression oracles
+   so the pipeline cannot silently drift.
+3. **CPU reference → CUDA parity** — every hot transform is a pure function on
+   `Index29` streams so GPU batches can match CPU bit-for-bit.
+4. **Deterministic tools for agents** — tokenize / decode / score / validate only;
+   no LLM inside the crypto core.
+5. **C++-first** — no Python orchestration plane.
+
+## Non-goals (for now)
+
+- Shipping CUDA kernels or agent runtimes before the CPU reference is solid
+- Embedding original puzzle JPGs
+- Publishing unverified “solutions” without reproducible fixture-grade evidence
+
+## Documentation map
+
+| Area | Location |
+|------|----------|
+| Research (alphabet, solved methods, hypotheses) | [docs/research/](docs/research/README.md) |
+| Normative specs (Z29, tokens, transforms, fixtures, tools, parity) | [docs/spec/](docs/spec/README.md) |
+
+## Roadmap (high level)
+
+```text
+research + specs     →  docs/research, docs/spec
+CPU reference        →  libs, fixtures, scores, CLIs (correctness first)
+CUDA parity          →  same kernels, bit-identical batch search
+AI tooling           →  agents call deterministic tools only
+search on LP2 0–55   →  candidates ↔ hypotheses → new discoveries
+open source polish   →  packaging, contribution docs
+```
+
+## Build (skeleton)
+
+Requires CMake ≥ 3.25 and a C++20 compiler.
+
+```bash
+cmake -S . -B build -DPARCAE_BUILD_TESTS=ON -DPARCAE_BUILD_TOOLS=ON
+cmake --build build
+```
+
+Options:
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `PARCAE_BUILD_TESTS` | `ON` | Build unit tests (Catch2 arrives with the test target wiring) |
+| `PARCAE_BUILD_TOOLS` | `ON` | Build CLI tools under `tools/` when they exist |
+
+The tree is still a skeleton: libraries and tests land in follow-up commits.
