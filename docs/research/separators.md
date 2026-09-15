@@ -1,6 +1,8 @@
 # Separator Grammar and Transcript Conventions
 
-**Grammar id (planned data file):** `rtkd-separator-grammar-v0`  
+**Grammar id:** `rtkd-separator-grammar-v0`  
+**Data file:** [`data/profiles/separators/rtkd-separator-grammar-v0.json`](../../data/profiles/separators/rtkd-separator-grammar-v0.json)  
+**SHA-256 (UTF-8, LF, no BOM):** `f0bc7c72e0e449e6686f701e0248e5f6d8313570f091ee7a64d2f3e4931d5db7`  
 **Status:** Research freeze. Solved fixtures use the **ASCII rtkd-style** convention.
 
 ## Why separators matter

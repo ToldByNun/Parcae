@@ -1,0 +1,34 @@
+{
+  "schema": "parcae.fixture_manifest.v0",
+  "id": "synth-identity",
+  "method": {
+    "transform_id": "identity",
+    "direction": "decrypt",
+    "params": {}
+  },
+  "files": {
+    "ciphertext": "ciphertext.txt",
+    "plaintext": "plaintext.txt"
+  },
+  "non_rune_literal_regions": [],
+  "hashes": {
+    "ciphertext_sha256": null,
+    "plaintext_sha256": null,
+    "normalized_plaintext_sha256": null
+  },
+  "normalization": {
+    "newline_policy": "lf",
+    "latin_label_profile": "gematria-primus-v0-preferred",
+    "collapse_spaces": false
+  },
+  "verification": {
+    "status": "draft",
+    "skip_indices_provenance": "synthetic",
+    "recomputed_ok": false,
+    "notes": "Synthetic draft fixture for loader/tokenizer tests"
+  },
+  "attribution": {
+    "sources": ["parcae-synthetic"],
+    "license_note": "Synthetic test material"
+  }
+}

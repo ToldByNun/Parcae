@@ -1,0 +1,15 @@
+{
+  "grammar_id": "rtkd-separator-grammar-v0",
+  "schema": "parcae.separator_grammar.v0",
+  "notes": "ASCII rtkd-style separators used by Parcae solved fixtures.",
+  "separators": [
+    {"kind": "word_separator", "token": "-", "token_kind": "WordSep"},
+    {"kind": "clause_separator", "token": ".", "token_kind": "ClauseSep"},
+    {"kind": "paragraph_separator", "token": "&", "token_kind": "ParaSep"},
+    {"kind": "line_separator", "token": "/", "token_kind": "LineSep"},
+    {"kind": "page_separator_or_marker", "token": "%", "token_kind": "PageMark"},
+    {"kind": "chapter_separator", "token": "§", "token_kind": "ChapterSep"}
+  ],
+  "whitespace": [" ", "\t"],
+  "newline": ["\n", "\r\n"]
+}
