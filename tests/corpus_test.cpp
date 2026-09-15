@@ -98,6 +98,41 @@ TEST_CASE("Tokenizer golden ASCII separators and runes", "[tokenizer]") {
     REQUIRE(stream.value().text() == "ᚱ-ᚠ.ᛖ/");
 }
 
+TEST_CASE("Tokenizer preserves byte ranges and consumable rune indices", "[tokenizer]") {
+    const GematriaProfile profile = load_profile();
+    const SeparatorGrammar grammar = load_grammar();
+    const Tokenizer tokenizer(profile, grammar);
+
+    // ᚱ = 3 UTF-8 bytes, then ASCII '-', then ᚠ = 3 bytes.
+    const std::string text = "ᚱ-ᚠ";
+    StatusOr<TokenStream> stream = tokenizer.tokenize(text, true);
+    REQUIRE(stream.ok());
+    REQUIRE(stream.value().size() == 3);
+
+    const Token& first = stream.value().at(0);
+    const Token& sep = stream.value().at(1);
+    const Token& second = stream.value().at(2);
+
+    REQUIRE(first.is_rune());
+    REQUIRE(first.byte_begin() == 0);
+    REQUIRE(first.byte_end() == 3);
+    REQUIRE(first.consumable_index() == 0);
+    REQUIRE(first.index29() == Index29{4});  // ᚱ
+
+    REQUIRE(sep.kind() == TokenKind::WordSep);
+    REQUIRE(sep.byte_begin() == 3);
+    REQUIRE(sep.byte_end() == 4);
+    REQUIRE_FALSE(sep.consumable_index().has_value());
+
+    REQUIRE(second.is_rune());
+    REQUIRE(second.byte_begin() == 4);
+    REQUIRE(second.byte_end() == 7);
+    REQUIRE(second.consumable_index() == 1);
+    REQUIRE(second.index29() == Index29{0});  // ᚠ
+
+    REQUIRE(stream.value().text() == text);
+}
+
 TEST_CASE("Tokenizer strict mode rejects unknown symbols", "[tokenizer]") {
     const GematriaProfile profile = load_profile();
     const SeparatorGrammar grammar = load_grammar();

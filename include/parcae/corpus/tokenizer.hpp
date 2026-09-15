@@ -22,7 +22,9 @@ public:
     Tokenizer(const GematriaProfile& profile, const SeparatorGrammar& grammar)
         : profile_(&profile), grammar_(&grammar), rune_codec_(profile) {}
 
-    /// ASCII grammar first. Strict mode rejects unknown non-separator symbols.
+    /// ASCII separator grammar first.
+    /// Each token keeps source byte `[begin, end)` and runes get contiguous
+    /// `consumable_index` values among consumable runes only (separators do not advance it).
     [[nodiscard]] StatusOr<TokenStream> tokenize(const std::string& text, bool strict = true) const {
         std::vector<Token> tokens;
         std::size_t offset = 0;
