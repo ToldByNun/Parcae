@@ -1,7 +1,22 @@
 # Gematria Primus — Frozen Profile Narrative
 
-**Profile id (planned data file):** `gematria-primus-v0`  
-**Status:** Research freeze. Implementation lands as JSON under `data/profiles/`.
+**Profile id:** `gematria-primus-v0`  
+**Data file:** [`data/profiles/gematria/gematria-primus-v0.json`](../../data/profiles/gematria/gematria-primus-v0.json)  
+**SHA-256 (UTF-8, LF newlines, no BOM):** `26a7f145b4aa3baf1d10e05a822e2be3a0031692cdf707b376329dcfc5a94607`  
+**Checksum file:** [`gematria-primus-v0.sha256`](../../data/profiles/gematria/gematria-primus-v0.sha256)  
+**Status:** Research freeze. Profile JSON is committed; loader code lands separately.
+
+Verify:
+
+```bash
+sha256sum -c data/profiles/gematria/gematria-primus-v0.sha256
+```
+
+On Windows (PowerShell):
+
+```powershell
+(Get-FileHash -Algorithm SHA256 data\profiles\gematria\gematria-primus-v0.json).Hash.ToLower()
+```
 
 ## What it is
 
