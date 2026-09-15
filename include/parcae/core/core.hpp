@@ -1,12 +1,16 @@
-#pragma once
+#ifndef CORE_HPP
+#define CORE_HPP
 
-// Public entry for parcae::core. Concrete types land in sibling headers.
-// This header keeps the interface library usable before the rest of the core exists.
-
+#include "parcae/core/index29.hpp"
 #include "parcae/core/version.hpp"
+#include "parcae/core/z29.hpp"
 
-namespace parcae {
+/// Umbrella for the public core surface.
+class Core {
+public:
 
-// Intentionally empty for now — Index29, Status, etc. arrive in follow-up commits.
+private:
+    Core() = delete;
+};
 
-}  // namespace parcae
+#endif // CORE_HPP

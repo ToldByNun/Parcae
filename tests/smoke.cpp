@@ -4,9 +4,9 @@
 #include <nlohmann/json.hpp>
 
 TEST_CASE("parcae_core version macros are wired", "[smoke]") {
-    REQUIRE(parcae::core::version_major == PARCAE_VERSION_MAJOR);
-    REQUIRE(parcae::core::version_minor == PARCAE_VERSION_MINOR);
-    REQUIRE(parcae::core::version_patch == PARCAE_VERSION_PATCH);
+    REQUIRE(Version::major == PARCAE_VERSION_MAJOR);
+    REQUIRE(Version::minor == PARCAE_VERSION_MINOR);
+    REQUIRE(Version::patch == PARCAE_VERSION_PATCH);
 }
 
 TEST_CASE("nlohmann_json is available through parcae::core", "[smoke]") {

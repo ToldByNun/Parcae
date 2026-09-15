@@ -1,6 +1,6 @@
-#pragma once
+#ifndef VERSION_HPP
+#define VERSION_HPP
 
-// Project version macros. Prefer these over scattering string literals.
 // Values are injected by CMake when building against parcae::core; the
 // fallbacks keep the header usable for tooling that only parses includes.
 
@@ -20,10 +20,13 @@
 #define PARCAE_VERSION_STRING "0.1.0"
 #endif
 
-namespace parcae::core {
+class Version {
+public:
+    static constexpr int major = PARCAE_VERSION_MAJOR;
+    static constexpr int minor = PARCAE_VERSION_MINOR;
+    static constexpr int patch = PARCAE_VERSION_PATCH;
 
-inline constexpr int version_major = PARCAE_VERSION_MAJOR;
-inline constexpr int version_minor = PARCAE_VERSION_MINOR;
-inline constexpr int version_patch = PARCAE_VERSION_PATCH;
+private:
+};
 
-}  // namespace parcae::core
+#endif // VERSION_HPP

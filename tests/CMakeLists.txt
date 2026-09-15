@@ -2,6 +2,7 @@ include(Catch)
 
 add_executable(parcae_tests
   smoke.cpp
+  z29_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE
