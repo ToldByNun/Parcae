@@ -1,0 +1,37 @@
+{
+  "schema": "parcae.fixture_manifest.v0",
+  "id": "lp2-57-identity",
+  "method": {
+    "transform_id": "identity",
+    "direction": "decrypt",
+    "params": {}
+  },
+  "files": {
+    "ciphertext": "ciphertext.txt",
+    "plaintext": "plaintext.txt"
+  },
+  "non_rune_literal_regions": [],
+  "hashes": {
+    "ciphertext_sha256": null,
+    "plaintext_sha256": null,
+    "normalized_plaintext_sha256": null
+  },
+  "normalization": {
+    "newline_policy": "lf",
+    "latin_label_profile": "gematria-primus-v0-preferred",
+    "collapse_spaces": false
+  },
+  "verification": {
+    "status": "draft",
+    "skip_indices_provenance": "n/a",
+    "recomputed_ok": false,
+    "notes": "LP2 57.jpg short identity control (Parable). Preferred-label plaintext."
+  },
+  "attribution": {
+    "sources": [
+      "https://uncovering-cicada.fandom.com/wiki/How_the_solved_pages_of_the_Liber_Primus_were_solved",
+      "https://github.com/yo-yo-yo-jbo/cicada_tools/tree/main/liber_primus/017_parable"
+    ],
+    "license_note": "Community research transcript; not a claim of ownership of Cicada artwork"
+  }
+}

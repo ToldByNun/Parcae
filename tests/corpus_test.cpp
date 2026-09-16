@@ -7,7 +7,9 @@
 #include <parcae/gematria/rune_codec.hpp>
 
 #include <catch2/catch_test_macros.hpp>
+#include <nlohmann/json.hpp>
 
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -584,5 +586,80 @@ TEST_CASE("FixtureLoader loads an-end totient page with hex literal and skip", "
     REQUIRE(loaded.literal_regions()[0].role() == "plaintext_embedded");
     REQUIRE(loaded.literal_regions()[0].value_file() == "literals/deep-web-hash.txt");
     REQUIRE(loaded.literal_regions()[0].compare() == "exact");
+}
+
+TEST_CASE("FixtureLoader loads draft lp2-57-identity", "[fixture]") {
+    StatusOr<Fixture> fixture = FixtureLoader::load_directory(
+        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/lp2-57-identity");
+    REQUIRE(fixture.ok());
+    REQUIRE(fixture.value().id() == "lp2-57-identity");
+    REQUIRE(fixture.value().transform_id() == "identity");
+    REQUIRE(fixture.value().verification_status() == "draft");
+    REQUIRE(fixture.value().ciphertext().find("ᛈᚪᚱᚪᛒᛚᛖ") != std::string::npos);
+    REQUIRE(fixture.value().plaintext().find("PARABLE") != std::string::npos);
+    REQUIRE(fixture.value().plaintext().find("FIND THE DIVINITY WITHIN AND EMERGE") !=
+            std::string::npos);
+    REQUIRE(fixture.value().skip_indices().empty());
+}
+
+TEST_CASE("All solved fixture manifests parse with hash fields present", "[fixture]") {
+    const std::filesystem::path solved_root =
+        std::filesystem::path(PARCAE_TEST_DATA_DIR) / "fixtures" / "solved";
+    REQUIRE(std::filesystem::is_directory(solved_root));
+
+    std::size_t fixture_count = 0;
+    for (const std::filesystem::directory_entry& entry :
+         std::filesystem::directory_iterator(solved_root)) {
+        if (!entry.is_directory()) {
+            continue;
+        }
+
+        const std::filesystem::path manifest_path = entry.path() / "manifest.json";
+        if (!std::filesystem::exists(manifest_path)) {
+            continue;
+        }
+
+        ++fixture_count;
+        INFO(entry.path().filename().string());
+
+        std::ifstream manifest_input(manifest_path, std::ios::binary);
+        REQUIRE(manifest_input);
+        nlohmann::json root;
+        REQUIRE_NOTHROW(manifest_input >> root);
+
+        REQUIRE(root.contains("schema"));
+        REQUIRE(root.at("schema") == "parcae.fixture_manifest.v0");
+        REQUIRE(root.contains("id"));
+        REQUIRE(root.at("id").get<std::string>() == entry.path().filename().string());
+        REQUIRE(root.contains("method"));
+        REQUIRE(root.at("method").contains("transform_id"));
+        REQUIRE(root.contains("files"));
+        REQUIRE(root.at("files").contains("ciphertext"));
+        REQUIRE(root.at("files").contains("plaintext"));
+        REQUIRE(root.contains("verification"));
+        REQUIRE(root.at("verification").contains("status"));
+
+        REQUIRE(root.contains("hashes"));
+        REQUIRE(root.at("hashes").is_object());
+        REQUIRE(root.at("hashes").contains("ciphertext_sha256"));
+        REQUIRE(root.at("hashes").contains("plaintext_sha256"));
+        REQUIRE(root.at("hashes").contains("normalized_plaintext_sha256"));
+
+        StatusOr<Fixture> fixture = FixtureLoader::load_directory(entry.path().string());
+        REQUIRE(fixture.ok());
+        REQUIRE(fixture.value().id() == entry.path().filename().string());
+        REQUIRE_FALSE(fixture.value().ciphertext().empty());
+        REQUIRE_FALSE(fixture.value().plaintext().empty());
+        REQUIRE_FALSE(fixture.value().transform_id().empty());
+
+        // Draft fixtures may leave digests null; locked ones must have all three.
+        if (fixture.value().verification_status() == "locked") {
+            REQUIRE(fixture.value().hashes().ciphertext_sha256().has_value());
+            REQUIRE(fixture.value().hashes().plaintext_sha256().has_value());
+            REQUIRE(fixture.value().hashes().normalized_plaintext_sha256().has_value());
+        }
+    }
+
+    REQUIRE(fixture_count >= 10);
 }
 
