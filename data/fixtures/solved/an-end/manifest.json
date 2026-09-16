@@ -1,0 +1,56 @@
+{
+  "schema": "parcae.fixture_manifest.v0",
+  "id": "an-end",
+  "method": {
+    "transform_id": "totient_prime_stream",
+    "direction": "decrypt",
+    "params": {
+      "prime_start_index": 0,
+      "shift_mode": "prime_minus_one_mod_29"
+    },
+    "interrupt": {
+      "policy_id": "explicit_skip_indices_v0",
+      "rune_index_base": 0,
+      "skip_indices": [56]
+    }
+  },
+  "files": {
+    "ciphertext": "ciphertext.txt",
+    "plaintext": "plaintext.txt"
+  },
+  "non_rune_literal_regions": [
+    {
+      "kind": "hex_string",
+      "role": "plaintext_embedded",
+      "value_file": "literals/deep-web-hash.txt",
+      "compare": "exact",
+      "optional_anchor": {
+        "after_plaintext_substring": "HASHES TO"
+      }
+    }
+  ],
+  "hashes": {
+    "ciphertext_sha256": null,
+    "plaintext_sha256": null,
+    "normalized_plaintext_sha256": null
+  },
+  "normalization": {
+    "newline_policy": "lf",
+    "latin_label_profile": "gematria-primus-v0-preferred",
+    "collapse_spaces": false
+  },
+  "verification": {
+    "status": "draft",
+    "skip_indices_provenance": "cicada_tools-016_an_end",
+    "recomputed_ok": false,
+    "notes": "LP2 56.jpg totient stream. See INTERRUPT.md. Skip [56] inherited; recompute before hash lock. Hex hash is a non-rune literal."
+  },
+  "attribution": {
+    "sources": [
+      "https://uncovering-cicada.fandom.com/wiki/How_the_solved_pages_of_the_Liber_Primus_were_solved",
+      "https://github.com/yo-yo-yo-jbo/cicada_tools/tree/main/liber_primus/016_an_end",
+      "https://www.boxentriq.com/ciphers/cicada-3301-totient-cipher"
+    ],
+    "license_note": "Community research transcript; not a claim of ownership of Cicada artwork"
+  }
+}

@@ -540,3 +540,49 @@ TEST_CASE("FixtureLoader loads welcome with DIVINITY skip indices", "[fixture]")
             std::string::npos);
 }
 
+TEST_CASE("FixtureLoader loads koan-2 with FIRFUMFERENFE skip indices", "[fixture]") {
+    StatusOr<Fixture> fixture = FixtureLoader::load_directory(
+        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/koan-2");
+    REQUIRE(fixture.ok());
+
+    const Fixture& loaded = fixture.value();
+    REQUIRE(loaded.id() == "koan-2");
+    REQUIRE(loaded.transform_id() == "vigenere_key");
+    REQUIRE(loaded.key_latin().has_value());
+    REQUIRE(loaded.key_latin().value() == "FIRFUMFERENFE");
+    REQUIRE(loaded.key_indices().has_value());
+    REQUIRE(loaded.key_indices().value() ==
+            std::vector<int>{0, 10, 4, 0, 1, 19, 0, 28, 4, 28, 9, 0, 28});
+    REQUIRE(loaded.skip_indices() == std::vector<std::size_t>{49, 56});
+    REQUIRE(loaded.ciphertext().find("ᚪ-ᛋᚹᚪᛁ") != std::string::npos);
+    REQUIRE(loaded.plaintext().find("THE I IS THE VOICE OF THE CIRCUMFERENCE") !=
+            std::string::npos);
+}
+
+TEST_CASE("FixtureLoader loads an-end totient page with hex literal and skip", "[fixture]") {
+    StatusOr<Fixture> fixture = FixtureLoader::load_directory(
+        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/an-end");
+    REQUIRE(fixture.ok());
+
+    const Fixture& loaded = fixture.value();
+    REQUIRE(loaded.id() == "an-end");
+    REQUIRE(loaded.transform_id() == "totient_prime_stream");
+    REQUIRE(loaded.direction() == "decrypt");
+    REQUIRE(loaded.verification_status() == "draft");
+    REQUIRE_FALSE(loaded.recomputed_ok());
+    REQUIRE(loaded.skip_indices() == std::vector<std::size_t>{56});
+
+    REQUIRE(loaded.ciphertext().find("ᚫᛄ-ᛟᛋᚱ") != std::string::npos);
+    REQUIRE(loaded.ciphertext().find("36367763ab73783c7af284446c") != std::string::npos);
+    REQUIRE(loaded.plaintext().find("HASHES TO") != std::string::npos);
+    REQUIRE(loaded.plaintext().find(
+                "36367763ab73783c7af284446c59466b4cd653239a311cb7116d4618dee09a8425893dc7500b464fdaf1672d7bef5e891c6e2274568926a49fb4f45132c2a8b4") !=
+            std::string::npos);
+
+    REQUIRE(loaded.literal_regions().size() == 1);
+    REQUIRE(loaded.literal_regions()[0].kind() == "hex_string");
+    REQUIRE(loaded.literal_regions()[0].role() == "plaintext_embedded");
+    REQUIRE(loaded.literal_regions()[0].value_file() == "literals/deep-web-hash.txt");
+    REQUIRE(loaded.literal_regions()[0].compare() == "exact");
+}
+

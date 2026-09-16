@@ -1,0 +1,46 @@
+{
+  "schema": "parcae.fixture_manifest.v0",
+  "id": "koan-2",
+  "method": {
+    "transform_id": "vigenere_key",
+    "direction": "decrypt",
+    "params": {
+      "key_latin": "FIRFUMFERENFE",
+      "key_indices": [0, 10, 4, 0, 1, 19, 0, 28, 4, 28, 9, 0, 28]
+    },
+    "interrupt": {
+      "policy_id": "explicit_skip_indices_v0",
+      "rune_index_base": 0,
+      "skip_indices": [49, 56]
+    }
+  },
+  "files": {
+    "ciphertext": "ciphertext.txt",
+    "plaintext": "plaintext.txt"
+  },
+  "non_rune_literal_regions": [],
+  "hashes": {
+    "ciphertext_sha256": null,
+    "plaintext_sha256": null,
+    "normalized_plaintext_sha256": null
+  },
+  "normalization": {
+    "newline_policy": "lf",
+    "latin_label_profile": "gematria-primus-v0-preferred",
+    "collapse_spaces": false
+  },
+  "verification": {
+    "status": "draft",
+    "skip_indices_provenance": "uncovering-cicada-wiki",
+    "recomputed_ok": false,
+    "notes": "Key is CIRCUMFERENCE with every C→F (FIRFUMFERENFE). Skip indices 49,56 inherited from wiki; cicada_tools lists 49,58 — recompute against this transcript before hash lock."
+  },
+  "attribution": {
+    "sources": [
+      "https://uncovering-cicada.fandom.com/wiki/How_the_solved_pages_of_the_Liber_Primus_were_solved",
+      "https://github.com/rtkd/iddqd/tree/master/liber-primus__transcription--master",
+      "https://github.com/yo-yo-yo-jbo/cicada_tools/tree/main/liber_primus/005_a_koan"
+    ],
+    "license_note": "Community research transcript; not a claim of ownership of Cicada artwork"
+  }
+}
