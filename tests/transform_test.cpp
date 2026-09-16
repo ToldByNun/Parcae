@@ -1,4 +1,6 @@
 #include <parcae/interrupt/policy.hpp>
+#include <parcae/transform/atbash_transform.hpp>
+#include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/identity_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
@@ -92,4 +94,74 @@ TEST_CASE("IdentityTransform via Transform interface", "[transform]") {
     REQUIRE(out.value().size() == input.size());
     REQUIRE(out.value()[0] == Index29{3});
     REQUIRE(out.value()[1] == Index29{5});
+}
+
+TEST_CASE("AtbashTransform is 28 - x and an involution", "[transform]") {
+    const AtbashTransform transform;
+    REQUIRE(transform.id() == TransformId::atbash());
+
+    const std::vector<Index29> input{Index29{0}, Index29{1}, Index29{14}, Index29{28}};
+    StatusOr<std::vector<Index29>> once = transform.apply(
+        input,
+        nlohmann::json::object(),
+        TransformDirection::Decrypt);
+    REQUIRE(once.ok());
+    REQUIRE(once.value() == std::vector<Index29>{Index29{28}, Index29{27}, Index29{14}, Index29{0}});
+
+    StatusOr<std::vector<Index29>> twice = transform.apply(
+        once.value(),
+        nlohmann::json::object(),
+        TransformDirection::Encrypt);
+    REQUIRE(twice.ok());
+    REQUIRE(twice.value() == input);
+}
+
+TEST_CASE("AtbashTransform rejects non-empty params", "[transform]") {
+    const AtbashTransform transform;
+    StatusOr<std::vector<Index29>> bad = transform.apply(
+        std::vector<Index29>{Index29{2}},
+        nlohmann::json{{"shift", 1}},
+        TransformDirection::Decrypt);
+    REQUIRE_FALSE(bad.ok());
+}
+
+TEST_CASE("CaesarTransform encrypt adds and decrypt subtracts shift", "[transform]") {
+    const CaesarTransform transform;
+    REQUIRE(transform.id() == TransformId::caesar());
+
+    const std::vector<Index29> plain{Index29{0}, Index29{26}, Index29{28}};
+    const nlohmann::json params{{"shift", 3}};
+
+    StatusOr<std::vector<Index29>> cipher =
+        transform.apply(plain, params, TransformDirection::Encrypt);
+    REQUIRE(cipher.ok());
+    REQUIRE(cipher.value() == std::vector<Index29>{Index29{3}, Index29{0}, Index29{2}});
+
+    StatusOr<std::vector<Index29>> recovered =
+        transform.apply(cipher.value(), params, TransformDirection::Decrypt);
+    REQUIRE(recovered.ok());
+    REQUIRE(recovered.value() == plain);
+}
+
+TEST_CASE("CaesarTransform validates shift range and params shape", "[transform]") {
+    const CaesarTransform transform;
+    const std::vector<Index29> input{Index29{1}};
+
+    REQUIRE_FALSE(
+        transform.apply(input, nlohmann::json::object(), TransformDirection::Decrypt).ok());
+    REQUIRE_FALSE(
+        transform.apply(input, nlohmann::json{{"shift", 29}}, TransformDirection::Decrypt).ok());
+    REQUIRE_FALSE(
+        transform.apply(input, nlohmann::json{{"shift", -1}}, TransformDirection::Decrypt).ok());
+    REQUIRE_FALSE(transform
+                      .apply(
+                          input,
+                          nlohmann::json{{"shift", 3}, {"extra", true}},
+                          TransformDirection::Decrypt)
+                      .ok());
+
+    StatusOr<std::vector<Index29>> zero =
+        transform.apply(input, nlohmann::json{{"shift", 0}}, TransformDirection::Encrypt);
+    REQUIRE(zero.ok());
+    REQUIRE(zero.value() == input);
 }
