@@ -7,6 +7,7 @@
 #include "parcae/transform/beaufort_key_transform.hpp"
 #include "parcae/transform/caesar_transform.hpp"
 #include "parcae/transform/identity_transform.hpp"
+#include "parcae/transform/totient_prime_stream_transform.hpp"
 #include "parcae/transform/transform.hpp"
 #include "parcae/transform/vigenere_key_transform.hpp"
 
@@ -179,6 +180,10 @@ private:
         }
         if (id.value() == TransformId::beaufort_key()) {
             return BeaufortKeyTransform{}.apply(input, stage_params, direction, stage_interrupt);
+        }
+        if (id.value() == TransformId::totient_prime_stream()) {
+            return TotientPrimeStreamTransform{}.apply(
+                input, stage_params, direction, stage_interrupt);
         }
         if (id.value() == TransformId::compose()) {
             return apply_with_depth(input, stage_params, direction, stage_interrupt, depth + 1);

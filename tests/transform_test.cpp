@@ -5,6 +5,7 @@
 #include <parcae/transform/beaufort_key_transform.hpp>
 #include <parcae/transform/compose_transform.hpp>
 #include <parcae/transform/identity_transform.hpp>
+#include <parcae/transform/totient_prime_stream_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
 #include <parcae/transform/vigenere_key_transform.hpp>
@@ -446,5 +447,83 @@ TEST_CASE("BeaufortKeyTransform involution, interrupts, Atbash identity", "[tran
             via_atbash.value() ==
             std::vector<Index29>{
                 Index29{28}, Index29{27}, Index29{14}, Index29{1}, Index29{0}});
+    }
+}
+
+TEST_CASE("TotientPrimeStreamTransform with InterruptPolicy", "[transform]") {
+    const TotientPrimeStreamTransform transform;
+    REQUIRE(transform.id() == TransformId::totient_prime_stream());
+
+    const nlohmann::json params{
+        {"prime_start_index", 0},
+        {"shift_mode", "prime_minus_one_mod_29"},
+    };
+
+    SECTION("params") {
+        const std::vector<Index29> plain{Index29{0}};
+        REQUIRE(transform.apply(plain, nlohmann::json::object(), TransformDirection::Decrypt).ok());
+        REQUIRE_FALSE(
+            transform
+                .apply(
+                    plain,
+                    nlohmann::json{{"shift_mode", "wrong"}},
+                    TransformDirection::Decrypt)
+                .ok());
+        REQUIRE_FALSE(
+            transform
+                .apply(
+                    plain,
+                    nlohmann::json{{"prime_start_index", -1}},
+                    TransformDirection::Decrypt)
+                .ok());
+    }
+
+    SECTION("synth-totient-round-trip-no-interrupt") {
+        // First shifts: 1,2,4,6 — encrypt adds, decrypt subtracts.
+        const std::vector<Index29> plain{Index29{0}, Index29{1}, Index29{2}, Index29{3}};
+        StatusOr<std::vector<Index29>> cipher =
+            transform.apply(plain, params, TransformDirection::Encrypt);
+        REQUIRE(cipher.ok());
+        REQUIRE(
+            cipher.value() ==
+            std::vector<Index29>{Index29{1}, Index29{3}, Index29{6}, Index29{9}});
+
+        StatusOr<std::vector<Index29>> recovered =
+            transform.apply(cipher.value(), params, TransformDirection::Decrypt);
+        REQUIRE(recovered.ok());
+        REQUIRE(recovered.value() == plain);
+    }
+
+    SECTION("synth-totient-with-interrupts") {
+        const std::vector<Index29> plain{Index29{0}, Index29{1}, Index29{2}, Index29{3}};
+        StatusOr<InterruptPolicy> interrupt = InterruptPolicy::from_skip_indices({1});
+        REQUIRE(interrupt.ok());
+
+        StatusOr<std::vector<Index29>> cipher =
+            transform.apply(plain, params, TransformDirection::Encrypt, interrupt.value());
+        REQUIRE(cipher.ok());
+        // i=0: +1 → 1; i=1 skip → 1; i=2: +2 → 4; i=3: +4 → 7
+        REQUIRE(
+            cipher.value() ==
+            std::vector<Index29>{Index29{1}, Index29{1}, Index29{4}, Index29{7}});
+
+        StatusOr<std::vector<Index29>> recovered =
+            transform.apply(cipher.value(), params, TransformDirection::Decrypt, interrupt.value());
+        REQUIRE(recovered.ok());
+        REQUIRE(recovered.value() == plain);
+
+        StatusOr<std::vector<Index29>> desynced =
+            transform.apply(cipher.value(), params, TransformDirection::Decrypt);
+        REQUIRE(desynced.ok());
+        REQUIRE(desynced.value() != plain);
+    }
+
+    SECTION("prime_start_index offsets the stream") {
+        const std::vector<Index29> plain{Index29{10}};
+        const nlohmann::json start_at_three{{"prime_start_index", 3}}; // p3=7 → shift 6
+        StatusOr<std::vector<Index29>> cipher =
+            transform.apply(plain, start_at_three, TransformDirection::Encrypt);
+        REQUIRE(cipher.ok());
+        REQUIRE(cipher.value() == std::vector<Index29>{Index29{16}});
     }
 }

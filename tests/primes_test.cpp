@@ -1,4 +1,5 @@
 #include <parcae/math/primes.hpp>
+#include <parcae/math/totient_keystream.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -49,4 +50,44 @@ TEST_CASE("Primes::nth is deterministic for larger indices", "[primes]") {
     REQUIRE(Primes::nth(25).value() == 101);  // 26th prime
     REQUIRE(Primes::nth(99).value() == 541);  // 100th prime
     REQUIRE(Primes::nth(168).value() == 1009);
+}
+
+TEST_CASE("TotientKeystream first shifts are 1,2,4,6,10,... and wrap", "[primes][totient]") {
+    // p: 2,3,5,7,11 → (p-1)%29 = 1,2,4,6,10
+    StatusOr<std::vector<Index29>> prefix = TotientKeystream::shifts(5);
+    REQUIRE(prefix.ok());
+    REQUIRE(
+        prefix.value() ==
+        std::vector<Index29>{
+            Index29{1}, Index29{2}, Index29{4}, Index29{6}, Index29{10}});
+
+    // Through first wrap: …23→22, 29→28, 31→1
+    StatusOr<std::vector<Index29>> through_wrap = TotientKeystream::shifts(11);
+    REQUIRE(through_wrap.ok());
+    REQUIRE(
+        through_wrap.value() ==
+        std::vector<Index29>{
+            Index29{1},
+            Index29{2},
+            Index29{4},
+            Index29{6},
+            Index29{10},
+            Index29{12},
+            Index29{16},
+            Index29{18},
+            Index29{22},
+            Index29{28},
+            Index29{1}});
+
+    REQUIRE(TotientKeystream::from_prime(29).value() == 28);
+    REQUIRE(TotientKeystream::from_prime(31).value() == 1);
+    REQUIRE(TotientKeystream::from_prime(37).value() == 7);
+
+    StatusOr<Index29> at_ten = TotientKeystream::shift_at(10); // p10=31
+    REQUIRE(at_ten.ok());
+    REQUIRE(at_ten.value() == Index29{1});
+
+    StatusOr<std::vector<Index29>> offset = TotientKeystream::shifts(2, /*prime_start_index=*/9);
+    REQUIRE(offset.ok());
+    REQUIRE(offset.value() == std::vector<Index29>{Index29{28}, Index29{1}});
 }
