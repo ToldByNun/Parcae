@@ -113,6 +113,15 @@ public:
             root.at("verification").value("status", std::string{"draft"});
         const bool recomputed_ok = root.at("verification").value("recomputed_ok", false);
 
+        if (!root.contains("hashes") || !root.at("hashes").is_object()) {
+            return Status::error("hashes object is required");
+        }
+
+        StatusOr<FixtureHashes> hashes = parse_hashes(root.at("hashes"));
+        if (!hashes.ok()) {
+            return hashes.status();
+        }
+
         Fixture fixture{
             id,
             normalize_newlines(std::move(ciphertext.value())),
@@ -125,6 +134,7 @@ public:
             std::move(literals),
             std::move(key_latin),
             std::move(key_indices),
+            std::move(hashes.value()),
         };
 
         Status lock_status = fixture.validate_lock_rules();
@@ -136,6 +146,51 @@ public:
 
 private:
     FixtureLoader() = delete;
+
+    [[nodiscard]] static StatusOr<std::optional<std::string>> parse_optional_hash(
+        const nlohmann::json& hashes,
+        const char* key) {
+        if (!hashes.contains(key) || hashes.at(key).is_null()) {
+            return std::optional<std::string>{};
+        }
+        if (!hashes.at(key).is_string()) {
+            return Status::error(std::string(key) + " must be a string or null");
+        }
+        std::string value = hashes.at(key).get<std::string>();
+        if (value.size() != 64) {
+            return Status::error(std::string(key) + " must be a 64-char lowercase hex SHA-256");
+        }
+        for (char ch : value) {
+            const bool ok = (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f');
+            if (!ok) {
+                return Status::error(std::string(key) + " must be lowercase hex");
+            }
+        }
+        return std::optional<std::string>{std::move(value)};
+    }
+
+    [[nodiscard]] static StatusOr<FixtureHashes> parse_hashes(const nlohmann::json& hashes) {
+        StatusOr<std::optional<std::string>> ciphertext =
+            parse_optional_hash(hashes, "ciphertext_sha256");
+        if (!ciphertext.ok()) {
+            return ciphertext.status();
+        }
+        StatusOr<std::optional<std::string>> plaintext =
+            parse_optional_hash(hashes, "plaintext_sha256");
+        if (!plaintext.ok()) {
+            return plaintext.status();
+        }
+        StatusOr<std::optional<std::string>> normalized =
+            parse_optional_hash(hashes, "normalized_plaintext_sha256");
+        if (!normalized.ok()) {
+            return normalized.status();
+        }
+        return FixtureHashes{
+            std::move(ciphertext.value()),
+            std::move(plaintext.value()),
+            std::move(normalized.value()),
+        };
+    }
 
     [[nodiscard]] static StatusOr<std::string> read_text_file(const std::filesystem::path& path) {
         std::ifstream input(path, std::ios::binary);

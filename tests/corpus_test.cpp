@@ -2,11 +2,14 @@
 #include <parcae/corpus/separator_grammar.hpp>
 #include <parcae/corpus/tokenizer.hpp>
 #include <parcae/gematria/gematria_profile_loader.hpp>
+#include <parcae/gematria/latin_codec.hpp>
 #include <parcae/gematria/latin_labels.hpp>
 #include <parcae/gematria/rune_codec.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -28,6 +31,15 @@ SeparatorGrammar load_grammar() {
         std::string(PARCAE_TEST_DATA_DIR) + "/profiles/separators/rtkd-separator-grammar-v0.json");
     REQUIRE(grammar.ok());
     return grammar.value();
+}
+
+std::string read_data_file(const std::string& relative_path) {
+    const std::string path = std::string(PARCAE_TEST_DATA_DIR) + "/" + relative_path;
+    std::ifstream input(path, std::ios::binary);
+    REQUIRE(input.good());
+    std::ostringstream buffer;
+    buffer << input.rdbuf();
+    return buffer.str();
 }
 
 }  // namespace
@@ -80,6 +92,44 @@ TEST_CASE("LatinLabels preferred fold and aliases", "[latin_labels]") {
     REQUIRE(latin.to_preferred_string(indices) == "THING");
 }
 
+TEST_CASE("LatinCodec latinize/delatinize round-trip preferred labels", "[latin_codec]") {
+    const GematriaProfile profile = load_profile();
+    const LatinCodec codec(profile);
+
+    const std::vector<Index29> welcome{
+        Index29{7},   // W
+        Index29{25},  // AE -> preferred "AE"
+        Index29{20},  // L
+        Index29{5},   // C
+        Index29{22},  // OE
+        Index29{19},  // M
+        Index29{25},  // AE
+    };
+
+    const std::string preferred = codec.latinize(welcome);
+    REQUIRE(preferred == "WAELCOEMAE");
+
+    StatusOr<std::vector<Index29>> decoded = codec.delatinize(preferred);
+    REQUIRE(decoded.ok());
+    REQUIRE(decoded.value() == welcome);
+
+    // Alias forms collapse to preferred multi-letter labels.
+    StatusOr<std::string> round_trip = codec.round_trip_preferred("THING");
+    REQUIRE(round_trip.ok());
+    REQUIRE(round_trip.value() == "THING");
+
+    StatusOr<std::string> alias_trip = codec.round_trip_preferred("THNG");
+    REQUIRE(alias_trip.ok());
+    REQUIRE(alias_trip.value() == "THING");
+
+    StatusOr<std::string> v_to_u = codec.round_trip_preferred("V");
+    REQUIRE(v_to_u.ok());
+    REQUIRE(v_to_u.value() == "U");
+
+    StatusOr<std::vector<Index29>> bad = codec.delatinize("QX");
+    REQUIRE_FALSE(bad.ok());
+}
+
 TEST_CASE("Tokenizer golden ASCII separators and runes", "[tokenizer]") {
     const GematriaProfile profile = load_profile();
     const SeparatorGrammar grammar = load_grammar();
@@ -96,6 +146,52 @@ TEST_CASE("Tokenizer golden ASCII separators and runes", "[tokenizer]") {
     REQUIRE(stream.value().at(4).is_rune());
     REQUIRE(stream.value().at(5).kind() == TokenKind::LineSep);
     REQUIRE(stream.value().text() == "ᚱ-ᚠ.ᛖ/");
+}
+
+TEST_CASE("Tokenizer golden fixture covers - . / & % with runes", "[tokenizer]") {
+    const GematriaProfile profile = load_profile();
+    const SeparatorGrammar grammar = load_grammar();
+    const Tokenizer tokenizer(profile, grammar);
+
+    const std::string golden = read_data_file("fixtures/tokenizer/golden-ascii-separators.txt");
+    REQUIRE(golden == "ᚱ-ᛝᚱ.ᚪ&ᛗᚹ/%");
+
+    StatusOr<TokenStream> stream = tokenizer.tokenize(golden, true);
+    REQUIRE(stream.ok());
+    REQUIRE(stream.value().size() == 11);
+    REQUIRE(stream.value().consumable_count() == 6);
+    REQUIRE(stream.value().text() == golden);
+
+    const TokenStream& tokens = stream.value();
+    REQUIRE(tokens.at(0).is_rune());
+    REQUIRE(tokens.at(0).index29() == Index29{4});   // ᚱ
+    REQUIRE(tokens.at(1).kind() == TokenKind::WordSep);
+    REQUIRE(tokens.at(1).text() == "-");
+    REQUIRE(tokens.at(2).is_rune());
+    REQUIRE(tokens.at(2).index29() == Index29{21});  // ᛝ
+    REQUIRE(tokens.at(3).is_rune());
+    REQUIRE(tokens.at(3).index29() == Index29{4});   // ᚱ
+    REQUIRE(tokens.at(4).kind() == TokenKind::ClauseSep);
+    REQUIRE(tokens.at(4).text() == ".");
+    REQUIRE(tokens.at(5).is_rune());
+    REQUIRE(tokens.at(5).index29() == Index29{24});  // ᚪ
+    REQUIRE(tokens.at(6).kind() == TokenKind::ParaSep);
+    REQUIRE(tokens.at(6).text() == "&");
+    REQUIRE(tokens.at(7).is_rune());
+    REQUIRE(tokens.at(7).index29() == Index29{19});  // ᛗ
+    REQUIRE(tokens.at(8).is_rune());
+    REQUIRE(tokens.at(8).index29() == Index29{7});   // ᚹ
+    REQUIRE(tokens.at(9).kind() == TokenKind::LineSep);
+    REQUIRE(tokens.at(9).text() == "/");
+    REQUIRE(tokens.at(10).kind() == TokenKind::PageMark);
+    REQUIRE(tokens.at(10).text() == "%");
+
+    REQUIRE(tokens.at(0).consumable_index() == 0);
+    REQUIRE(tokens.at(2).consumable_index() == 1);
+    REQUIRE(tokens.at(3).consumable_index() == 2);
+    REQUIRE(tokens.at(5).consumable_index() == 3);
+    REQUIRE(tokens.at(7).consumable_index() == 4);
+    REQUIRE(tokens.at(8).consumable_index() == 5);
 }
 
 TEST_CASE("Tokenizer preserves byte ranges and consumable rune indices", "[tokenizer]") {
@@ -163,4 +259,61 @@ TEST_CASE("FixtureLoader loads draft synth-identity", "[fixture]") {
     REQUIRE(fixture.value().verification_status() == "draft");
     REQUIRE(fixture.value().ciphertext().find("ᚱ") != std::string::npos);
     REQUIRE(fixture.value().plaintext().find('R') != std::string::npos);
+    REQUIRE_FALSE(fixture.value().hashes().ciphertext_sha256().has_value());
+    REQUIRE_FALSE(fixture.value().hashes().plaintext_sha256().has_value());
+}
+
+TEST_CASE("FixtureLoader loads skips, key params, and expected hashes", "[fixture]") {
+    StatusOr<Fixture> fixture = FixtureLoader::load_directory(
+        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/synth-vigenere-draft");
+    REQUIRE(fixture.ok());
+
+    const Fixture& loaded = fixture.value();
+    REQUIRE(loaded.id() == "synth-vigenere-draft");
+    REQUIRE(loaded.transform_id() == "vigenere_key");
+    REQUIRE(loaded.direction() == "decrypt");
+    REQUIRE(loaded.verification_status() == "draft");
+    REQUIRE_FALSE(loaded.recomputed_ok());
+
+    REQUIRE(loaded.skip_indices().size() == 2);
+    REQUIRE(loaded.skip_indices()[0] == 1);
+    REQUIRE(loaded.skip_indices()[1] == 3);
+
+    REQUIRE(loaded.key_latin().has_value());
+    REQUIRE(loaded.key_latin().value() == "DIVINITY");
+    REQUIRE(loaded.key_indices().has_value());
+    REQUIRE(loaded.key_indices().value() ==
+            std::vector<int>{23, 10, 1, 10, 9, 10, 16, 26});
+
+    REQUIRE(loaded.hashes().ciphertext_sha256().has_value());
+    REQUIRE(
+        loaded.hashes().ciphertext_sha256().value() ==
+        "6ab2044c028557bda0508b98567b1b93f5c921893039fb6e98de9b57d43a3bef");
+    REQUIRE(loaded.hashes().plaintext_sha256().has_value());
+    REQUIRE(
+        loaded.hashes().plaintext_sha256().value() ==
+        "d8fe1d54f8f9a165ed0067085ad964db3cf7a3cec1cd7d4dd5976cf699815551");
+    REQUIRE_FALSE(loaded.hashes().normalized_plaintext_sha256().has_value());
+
+    REQUIRE(loaded.ciphertext() == "ᚢᛠᚠᚱ\n");
+    REQUIRE(loaded.plaintext() == "WELC\n");
+}
+
+TEST_CASE("FixtureLoader rejects locked fixtures missing hashes", "[fixture]") {
+    Fixture incomplete{
+        "locked-missing-hashes",
+        "ct",
+        "pt",
+        "identity",
+        "decrypt",
+        "locked",
+        true,
+        {},
+        {},
+        std::nullopt,
+        std::nullopt,
+        FixtureHashes{},
+    };
+    Status status = incomplete.validate_lock_rules();
+    REQUIRE_FALSE(status.ok());
 }

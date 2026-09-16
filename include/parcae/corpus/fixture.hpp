@@ -45,6 +45,36 @@ private:
     std::string compare_;
 };
 
+class FixtureHashes {
+public:
+    FixtureHashes() = default;
+
+    FixtureHashes(
+        std::optional<std::string> ciphertext_sha256,
+        std::optional<std::string> plaintext_sha256,
+        std::optional<std::string> normalized_plaintext_sha256)
+        : ciphertext_sha256_(std::move(ciphertext_sha256)),
+          plaintext_sha256_(std::move(plaintext_sha256)),
+          normalized_plaintext_sha256_(std::move(normalized_plaintext_sha256)) {}
+
+    [[nodiscard]] const std::optional<std::string>& ciphertext_sha256() const noexcept {
+        return ciphertext_sha256_;
+    }
+
+    [[nodiscard]] const std::optional<std::string>& plaintext_sha256() const noexcept {
+        return plaintext_sha256_;
+    }
+
+    [[nodiscard]] const std::optional<std::string>& normalized_plaintext_sha256() const noexcept {
+        return normalized_plaintext_sha256_;
+    }
+
+private:
+    std::optional<std::string> ciphertext_sha256_;
+    std::optional<std::string> plaintext_sha256_;
+    std::optional<std::string> normalized_plaintext_sha256_;
+};
+
 class Fixture {
 public:
     Fixture(
@@ -58,7 +88,8 @@ public:
         std::vector<std::size_t> skip_indices,
         std::vector<FixtureLiteralRegion> literal_regions,
         std::optional<std::string> key_latin,
-        std::optional<std::vector<int>> key_indices)
+        std::optional<std::vector<int>> key_indices,
+        FixtureHashes hashes)
         : id_(std::move(id)),
           ciphertext_(std::move(ciphertext)),
           plaintext_(std::move(plaintext)),
@@ -69,7 +100,8 @@ public:
           skip_indices_(std::move(skip_indices)),
           literal_regions_(std::move(literal_regions)),
           key_latin_(std::move(key_latin)),
-          key_indices_(std::move(key_indices)) {}
+          key_indices_(std::move(key_indices)),
+          hashes_(std::move(hashes)) {}
 
     [[nodiscard]] const std::string& id() const noexcept {
         return id_;
@@ -115,9 +147,20 @@ public:
         return key_indices_;
     }
 
+    [[nodiscard]] const FixtureHashes& hashes() const noexcept {
+        return hashes_;
+    }
+
     [[nodiscard]] Status validate_lock_rules() const {
-        if (verification_status_ == "locked" && !recomputed_ok_) {
-            return Status::error("Locked fixture requires recomputed_ok=true");
+        if (verification_status_ == "locked") {
+            if (!recomputed_ok_) {
+                return Status::error("Locked fixture requires recomputed_ok=true");
+            }
+            if (!hashes_.ciphertext_sha256().has_value() ||
+                !hashes_.plaintext_sha256().has_value() ||
+                !hashes_.normalized_plaintext_sha256().has_value()) {
+                return Status::error("Locked fixture requires all expected hashes");
+            }
         }
         if (verification_status_ != "draft" && verification_status_ != "locked") {
             return Status::error("verification.status must be draft or locked");
@@ -137,6 +180,7 @@ private:
     std::vector<FixtureLiteralRegion> literal_regions_;
     std::optional<std::string> key_latin_;
     std::optional<std::vector<int>> key_indices_;
+    FixtureHashes hashes_;
 };
 
 #endif // FIXTURE_HPP

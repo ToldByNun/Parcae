@@ -1,0 +1,42 @@
+{
+  "schema": "parcae.fixture_manifest.v0",
+  "id": "synth-vigenere-draft",
+  "method": {
+    "transform_id": "vigenere_key",
+    "direction": "decrypt",
+    "params": {
+      "key_latin": "DIVINITY",
+      "key_indices": [23, 10, 1, 10, 9, 10, 16, 26]
+    },
+    "interrupt": {
+      "policy_id": "explicit_skip_indices_v0",
+      "rune_index_base": 0,
+      "skip_indices": [1, 3]
+    }
+  },
+  "files": {
+    "ciphertext": "ciphertext.txt",
+    "plaintext": "plaintext.txt"
+  },
+  "non_rune_literal_regions": [],
+  "hashes": {
+    "ciphertext_sha256": "6ab2044c028557bda0508b98567b1b93f5c921893039fb6e98de9b57d43a3bef",
+    "plaintext_sha256": "d8fe1d54f8f9a165ed0067085ad964db3cf7a3cec1cd7d4dd5976cf699815551",
+    "normalized_plaintext_sha256": null
+  },
+  "normalization": {
+    "newline_policy": "lf",
+    "latin_label_profile": "gematria-primus-v0-preferred",
+    "collapse_spaces": false
+  },
+  "verification": {
+    "status": "draft",
+    "skip_indices_provenance": "synthetic",
+    "recomputed_ok": false,
+    "notes": "Synthetic draft with skips + expected ciphertext/plaintext hashes"
+  },
+  "attribution": {
+    "sources": ["parcae-synthetic"],
+    "license_note": "Synthetic test material"
+  }
+}
