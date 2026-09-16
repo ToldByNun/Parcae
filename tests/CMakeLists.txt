@@ -6,6 +6,7 @@ add_executable(parcae_tests
   token_stream_test.cpp
   gematria_profile_test.cpp
   corpus_test.cpp
+  transform_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE
