@@ -6,6 +6,7 @@
 #include <parcae/transform/identity_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
+#include <parcae/transform/vigenere_key_transform.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -310,5 +311,64 @@ TEST_CASE("Synthetic primitives match hand vectors", "[transform][synth]") {
             TransformDirection::Encrypt);
         REQUIRE(back.ok());
         REQUIRE(back.value() == cipher);
+    }
+}
+
+TEST_CASE("VigenereKeyTransform id and params", "[transform]") {
+    const VigenereKeyTransform transform;
+    REQUIRE(transform.id() == TransformId::vigenere_key());
+
+    const std::vector<Index29> plain{Index29{0}};
+    REQUIRE_FALSE(transform.apply(plain, nlohmann::json::object(), TransformDirection::Encrypt).ok());
+    REQUIRE_FALSE(
+        transform
+            .apply(plain, nlohmann::json{{"key_indices", nlohmann::json::array()}}, TransformDirection::Encrypt)
+            .ok());
+    REQUIRE_FALSE(
+        transform.apply(plain, nlohmann::json{{"key_indices", {29}}}, TransformDirection::Encrypt).ok());
+}
+
+TEST_CASE("Synthetic Vigenère hand vectors with and without interrupts", "[transform]") {
+    const VigenereKeyTransform transform;
+    const nlohmann::json params{{"key_indices", {1, 2}}};
+    const std::vector<Index29> plain{Index29{0}, Index29{1}, Index29{2}, Index29{3}};
+
+    SECTION("synth-vigenere-no-interrupt") {
+        StatusOr<std::vector<Index29>> cipher =
+            transform.apply(plain, params, TransformDirection::Encrypt);
+        REQUIRE(cipher.ok());
+        // (0+1), (1+2), (2+1), (3+2)
+        REQUIRE(
+            cipher.value() ==
+            std::vector<Index29>{Index29{1}, Index29{3}, Index29{3}, Index29{5}});
+
+        StatusOr<std::vector<Index29>> recovered =
+            transform.apply(cipher.value(), params, TransformDirection::Decrypt);
+        REQUIRE(recovered.ok());
+        REQUIRE(recovered.value() == plain);
+    }
+
+    SECTION("synth-vigenere-with-interrupts") {
+        StatusOr<InterruptPolicy> interrupt = InterruptPolicy::from_skip_indices({1, 3});
+        REQUIRE(interrupt.ok());
+
+        StatusOr<std::vector<Index29>> cipher =
+            transform.apply(plain, params, TransformDirection::Encrypt, interrupt.value());
+        REQUIRE(cipher.ok());
+        // i=0 consume key[0]=1 → 1; i=1 skip → 1; i=2 consume key[1]=2 → 4; i=3 skip → 3
+        REQUIRE(
+            cipher.value() ==
+            std::vector<Index29>{Index29{1}, Index29{1}, Index29{4}, Index29{3}});
+
+        StatusOr<std::vector<Index29>> recovered =
+            transform.apply(cipher.value(), params, TransformDirection::Decrypt, interrupt.value());
+        REQUIRE(recovered.ok());
+        REQUIRE(recovered.value() == plain);
+
+        // Empty skips would desync: key advances on former interrupt positions.
+        StatusOr<std::vector<Index29>> desynced =
+            transform.apply(cipher.value(), params, TransformDirection::Decrypt);
+        REQUIRE(desynced.ok());
+        REQUIRE(desynced.value() != plain);
     }
 }

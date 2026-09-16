@@ -7,6 +7,7 @@
 #include "parcae/transform/caesar_transform.hpp"
 #include "parcae/transform/identity_transform.hpp"
 #include "parcae/transform/transform.hpp"
+#include "parcae/transform/vigenere_key_transform.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -171,6 +172,9 @@ private:
         }
         if (id.value() == TransformId::affine()) {
             return AffineTransform{}.apply(input, stage_params, direction, stage_interrupt);
+        }
+        if (id.value() == TransformId::vigenere_key()) {
+            return VigenereKeyTransform{}.apply(input, stage_params, direction, stage_interrupt);
         }
         if (id.value() == TransformId::compose()) {
             return apply_with_depth(input, stage_params, direction, stage_interrupt, depth + 1);
