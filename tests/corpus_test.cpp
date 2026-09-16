@@ -487,3 +487,56 @@ TEST_CASE("Tokenizer treats an-instruction grid and loss-of-divinity enums as nu
     REQUIRE(enum_numbers == std::vector<std::string>{"1", "2"});
 }
 
+TEST_CASE("FixtureLoader loads draft koan-1 compose envelope", "[fixture]") {
+    StatusOr<Fixture> fixture = FixtureLoader::load_directory(
+        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/koan-1");
+    REQUIRE(fixture.ok());
+    REQUIRE(fixture.value().id() == "koan-1");
+    REQUIRE(fixture.value().transform_id() == "compose");
+    REQUIRE(fixture.value().direction() == "decrypt");
+    REQUIRE(fixture.value().skip_indices().empty());
+    REQUIRE(fixture.value().ciphertext().find("ᚹ-ᚣᛠᚹᛟ") != std::string::npos);
+    REQUIRE(fixture.value().ciphertext().find('%') != std::string::npos);
+    REQUIRE(fixture.value().plaintext().find("A COAN") != std::string::npos);
+    REQUIRE(fixture.value().plaintext().find("DO FOUR UNREASONABLE THNGS EACH DAY") !=
+            std::string::npos);
+}
+
+TEST_CASE("FixtureLoader loads welcome with DIVINITY skip indices", "[fixture]") {
+    StatusOr<Fixture> fixture = FixtureLoader::load_directory(
+        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/welcome");
+    REQUIRE(fixture.ok());
+
+    const Fixture& loaded = fixture.value();
+    REQUIRE(loaded.id() == "welcome");
+    REQUIRE(loaded.transform_id() == "vigenere_key");
+    REQUIRE(loaded.direction() == "decrypt");
+    REQUIRE(loaded.verification_status() == "draft");
+    REQUIRE_FALSE(loaded.recomputed_ok());
+
+    REQUIRE(loaded.key_latin().has_value());
+    REQUIRE(loaded.key_latin().value() == "DIVINITY");
+    REQUIRE(loaded.key_indices().has_value());
+    REQUIRE(loaded.key_indices().value() ==
+            std::vector<int>{23, 10, 1, 10, 9, 10, 16, 26});
+
+    REQUIRE(loaded.skip_indices() == std::vector<std::size_t>{
+        48,
+        74,
+        84,
+        132,
+        159,
+        160,
+        250,
+        421,
+        443,
+        465,
+        514,
+    });
+
+    REQUIRE(loaded.ciphertext().find("ᚢᛠᛝᛋᛇᚠᚳ") != std::string::npos);
+    REQUIRE(loaded.plaintext().find("WELCOME PILGRIM") != std::string::npos);
+    REQUIRE(loaded.plaintext().find("AN INSTRUCTIAN COMMAND YOUR OWN SELF") !=
+            std::string::npos);
+}
+
