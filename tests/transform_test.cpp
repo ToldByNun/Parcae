@@ -2,6 +2,7 @@
 #include <parcae/transform/affine_transform.hpp>
 #include <parcae/transform/atbash_transform.hpp>
 #include <parcae/transform/caesar_transform.hpp>
+#include <parcae/transform/beaufort_key_transform.hpp>
 #include <parcae/transform/compose_transform.hpp>
 #include <parcae/transform/identity_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
@@ -370,5 +371,80 @@ TEST_CASE("Synthetic Vigenère hand vectors with and without interrupts", "[tran
             transform.apply(cipher.value(), params, TransformDirection::Decrypt);
         REQUIRE(desynced.ok());
         REQUIRE(desynced.value() != plain);
+    }
+}
+
+TEST_CASE("BeaufortKeyTransform involution, interrupts, Atbash identity", "[transform]") {
+    const BeaufortKeyTransform transform;
+    REQUIRE(transform.id() == TransformId::beaufort_key());
+
+    SECTION("params reject empty key") {
+        const std::vector<Index29> plain{Index29{0}};
+        REQUIRE_FALSE(
+            transform
+                .apply(
+                    plain,
+                    nlohmann::json{{"key_indices", nlohmann::json::array()}},
+                    TransformDirection::Decrypt)
+                .ok());
+    }
+
+    SECTION("synth-beaufort-involution") {
+        const nlohmann::json params{{"key_indices", {5, 7, 11}}};
+        const std::vector<Index29> plain{Index29{0}, Index29{1}, Index29{10}, Index29{28}, Index29{14}};
+
+        StatusOr<std::vector<Index29>> once =
+            transform.apply(plain, params, TransformDirection::Decrypt);
+        REQUIRE(once.ok());
+        // (5-0), (7-1), (11-10), (5-28), (7-14) → 5, 6, 1, 6, 22
+        REQUIRE(
+            once.value() ==
+            std::vector<Index29>{
+                Index29{5}, Index29{6}, Index29{1}, Index29{6}, Index29{22}});
+
+        StatusOr<std::vector<Index29>> twice =
+            transform.apply(once.value(), params, TransformDirection::Encrypt);
+        REQUIRE(twice.ok());
+        REQUIRE(twice.value() == plain);
+    }
+
+    SECTION("synth-beaufort-with-interrupts") {
+        const nlohmann::json params{{"key_indices", {1, 2}}};
+        const std::vector<Index29> plain{Index29{0}, Index29{1}, Index29{2}, Index29{3}};
+        StatusOr<InterruptPolicy> interrupt = InterruptPolicy::from_skip_indices({1, 3});
+        REQUIRE(interrupt.ok());
+
+        StatusOr<std::vector<Index29>> once =
+            transform.apply(plain, params, TransformDirection::Decrypt, interrupt.value());
+        REQUIRE(once.ok());
+        // i=0: 1-0=1; i=1 skip→1; i=2: 2-2=0; i=3 skip→3
+        REQUIRE(
+            once.value() ==
+            std::vector<Index29>{Index29{1}, Index29{1}, Index29{0}, Index29{3}});
+
+        StatusOr<std::vector<Index29>> twice =
+            transform.apply(once.value(), params, TransformDirection::Decrypt, interrupt.value());
+        REQUIRE(twice.ok());
+        REQUIRE(twice.value() == plain);
+    }
+
+    SECTION("Atbash equals Beaufort with constant key 28") {
+        // Wiki pitfall: Vigenère is (c-k); Beaufort is (k-c). Constant k=28 ⇒ 28-c.
+        const AtbashTransform atbash;
+        const nlohmann::json beaufort_params{{"key_indices", {28}}};
+        const std::vector<Index29> input{
+            Index29{0}, Index29{1}, Index29{14}, Index29{27}, Index29{28}};
+
+        StatusOr<std::vector<Index29>> via_atbash =
+            atbash.apply(input, nlohmann::json::object(), TransformDirection::Decrypt);
+        StatusOr<std::vector<Index29>> via_beaufort =
+            transform.apply(input, beaufort_params, TransformDirection::Decrypt);
+        REQUIRE(via_atbash.ok());
+        REQUIRE(via_beaufort.ok());
+        REQUIRE(via_atbash.value() == via_beaufort.value());
+        REQUIRE(
+            via_atbash.value() ==
+            std::vector<Index29>{
+                Index29{28}, Index29{27}, Index29{14}, Index29{1}, Index29{0}});
     }
 }

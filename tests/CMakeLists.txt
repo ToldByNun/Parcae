@@ -7,6 +7,7 @@ add_executable(parcae_tests
   gematria_profile_test.cpp
   corpus_test.cpp
   transform_test.cpp
+  primes_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE

@@ -156,6 +156,11 @@ On consumed positions: `out = sub(key[j], in)` (both directions are the same map
 for classic Beaufort — document and test involution carefully). Required in the
 CPU reference; not required for a named solved fixture.
 
+**Sign pitfalls (wiki / community):** Liber Primus Vigenère decrypt is
+`p = (c - k) mod 29`. Using `(k - c)` instead is Beaufort and fails Welcome /
+Koan-2. Conversely, Atbash `28 - x` **is** Beaufort with constant key index
+`28` — keep that identity so Atbash and Beaufort stay one algebraic family.
+
 ### `totient_prime_stream`
 
 ```json
