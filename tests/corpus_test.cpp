@@ -317,3 +317,74 @@ TEST_CASE("FixtureLoader rejects locked fixtures missing hashes", "[fixture]") {
     Status status = incomplete.validate_lock_rules();
     REQUIRE_FALSE(status.ok());
 }
+
+TEST_CASE("FixtureLoader loads draft a-warning", "[fixture]") {
+    StatusOr<Fixture> fixture = FixtureLoader::load_directory(
+        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/a-warning");
+    REQUIRE(fixture.ok());
+    REQUIRE(fixture.value().id() == "a-warning");
+    REQUIRE(fixture.value().transform_id() == "atbash");
+    REQUIRE(fixture.value().verification_status() == "draft");
+    REQUIRE(fixture.value().skip_indices().empty());
+    REQUIRE(fixture.value().ciphertext().find("ᚱ-ᛝᚱᚪᛗᚹ") != std::string::npos);
+    REQUIRE(fixture.value().plaintext().find("A WARNNG") != std::string::npos);
+    REQUIRE(fixture.value().plaintext().find("FOR ALL IS SACRED") != std::string::npos);
+}
+
+TEST_CASE("FixtureLoader loads some-wisdom with know-this decimal grid", "[fixture]") {
+    StatusOr<Fixture> fixture = FixtureLoader::load_directory(
+        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/some-wisdom");
+    REQUIRE(fixture.ok());
+
+    const Fixture& loaded = fixture.value();
+    REQUIRE(loaded.id() == "some-wisdom");
+    REQUIRE(loaded.transform_id() == "identity");
+    REQUIRE(loaded.verification_status() == "draft");
+    REQUIRE(loaded.ciphertext().find("ᛋᚩᛗᛖ-ᚹᛁᛋᛞᚩᛗ") != std::string::npos);
+    REQUIRE(loaded.ciphertext().find("272-138-") != std::string::npos);
+    REQUIRE(loaded.plaintext().find("CNOW THIS") != std::string::npos);
+
+    REQUIRE(loaded.literal_regions().size() == 1);
+    REQUIRE(loaded.literal_regions()[0].kind() == "decimal_grid");
+    REQUIRE(loaded.literal_regions()[0].role() == "ciphertext_embedded");
+    REQUIRE(loaded.literal_regions()[0].value_file() == "literals/know-this-grid.txt");
+    REQUIRE(loaded.literal_regions()[0].compare() == "ignore_whitespace");
+}
+
+TEST_CASE("Tokenizer treats some-wisdom know-this numbers as non-runes", "[tokenizer][fixture]") {
+    const GematriaProfile profile = load_profile();
+    const SeparatorGrammar grammar = load_grammar();
+    const Tokenizer tokenizer(profile, grammar);
+
+    StatusOr<Fixture> fixture = FixtureLoader::load_directory(
+        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/some-wisdom");
+    REQUIRE(fixture.ok());
+
+    StatusOr<TokenStream> stream = tokenizer.tokenize(fixture.value().ciphertext(), true);
+    REQUIRE(stream.ok());
+
+    std::vector<std::string> numbers;
+    for (std::size_t i = 0; i < stream.value().size(); ++i) {
+        const Token& token = stream.value().at(i);
+        if (token.kind() == TokenKind::Number) {
+            numbers.push_back(token.text());
+            REQUIRE_FALSE(token.consumable_index().has_value());
+        }
+    }
+
+    REQUIRE(numbers == std::vector<std::string>{
+        "272",
+        "138",
+        "131",
+        "151",
+        "18",
+        "226",
+        "245",
+        "18",
+        "151",
+        "131",
+        "138",
+        "272",
+    });
+    REQUIRE(stream.value().consumable_count() > 0);
+}

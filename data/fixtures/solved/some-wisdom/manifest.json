@@ -1,0 +1,48 @@
+{
+  "schema": "parcae.fixture_manifest.v0",
+  "id": "some-wisdom",
+  "method": {
+    "transform_id": "identity",
+    "direction": "decrypt",
+    "params": {}
+  },
+  "files": {
+    "ciphertext": "ciphertext.txt",
+    "plaintext": "plaintext.txt"
+  },
+  "non_rune_literal_regions": [
+    {
+      "kind": "decimal_grid",
+      "role": "ciphertext_embedded",
+      "value_file": "literals/know-this-grid.txt",
+      "compare": "ignore_whitespace",
+      "optional_anchor": {
+        "after_plaintext_substring": "CNOW THIS"
+      }
+    }
+  ],
+  "hashes": {
+    "ciphertext_sha256": null,
+    "plaintext_sha256": null,
+    "normalized_plaintext_sha256": null
+  },
+  "normalization": {
+    "newline_policy": "lf",
+    "latin_label_profile": "gematria-primus-v0-preferred",
+    "collapse_spaces": false
+  },
+  "verification": {
+    "status": "draft",
+    "skip_indices_provenance": "n/a",
+    "recomputed_ok": false,
+    "notes": "Identity page; know-this 5x5 mixed number/rune grid declared as decimal_grid. Numbers are non-consumable tokenizer tokens."
+  },
+  "attribution": {
+    "sources": [
+      "https://uncovering-cicada.fandom.com/wiki/How_the_solved_pages_of_the_Liber_Primus_were_solved",
+      "https://github.com/rtkd/iddqd/tree/master/liber-primus__transcription--master",
+      "https://github.com/yo-yo-yo-jbo/cicada_tools/tree/main/liber_primus/002_some_wisdom"
+    ],
+    "license_note": "Community research transcript; not a claim of ownership of Cicada artwork"
+  }
+}

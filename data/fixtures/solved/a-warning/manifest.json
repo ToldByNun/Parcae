@@ -1,0 +1,37 @@
+{
+  "schema": "parcae.fixture_manifest.v0",
+  "id": "a-warning",
+  "method": {
+    "transform_id": "atbash",
+    "direction": "decrypt",
+    "params": {}
+  },
+  "files": {
+    "ciphertext": "ciphertext.txt",
+    "plaintext": "plaintext.txt"
+  },
+  "non_rune_literal_regions": [],
+  "hashes": {
+    "ciphertext_sha256": null,
+    "plaintext_sha256": null,
+    "normalized_plaintext_sha256": null
+  },
+  "normalization": {
+    "newline_policy": "lf",
+    "latin_label_profile": "gematria-primus-v0-preferred",
+    "collapse_spaces": false
+  },
+  "verification": {
+    "status": "draft",
+    "skip_indices_provenance": "n/a",
+    "recomputed_ok": false,
+    "notes": "Atbash page; preferred-label plaintext (U not V). Hash lock after atbash reproduction."
+  },
+  "attribution": {
+    "sources": [
+      "https://uncovering-cicada.fandom.com/wiki/How_the_solved_pages_of_the_Liber_Primus_were_solved",
+      "https://github.com/rtkd/iddqd/tree/master/liber-primus__transcription--master"
+    ],
+    "license_note": "Community research transcript; not a claim of ownership of Cicada artwork"
+  }
+}
