@@ -388,3 +388,102 @@ TEST_CASE("Tokenizer treats some-wisdom know-this numbers as non-runes", "[token
     });
     REQUIRE(stream.value().consumable_count() > 0);
 }
+
+TEST_CASE("FixtureLoader loads draft loss-of-divinity", "[fixture]") {
+    StatusOr<Fixture> fixture = FixtureLoader::load_directory(
+        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/loss-of-divinity");
+    REQUIRE(fixture.ok());
+    REQUIRE(fixture.value().id() == "loss-of-divinity");
+    REQUIRE(fixture.value().transform_id() == "identity");
+    REQUIRE(fixture.value().verification_status() == "draft");
+    REQUIRE(fixture.value().ciphertext().find("ᚦᛖ-ᛚᚩᛋᛋ-ᚩᚠ-ᛞᛁᚢᛁᚾᛁᛏᚣ") != std::string::npos);
+    REQUIRE(fixture.value().ciphertext().find('%') != std::string::npos);
+    REQUIRE(fixture.value().plaintext().find("THE LOSS OF DIVINITY") != std::string::npos);
+    REQUIRE(fixture.value().plaintext().find("PROGRAM REALITY") != std::string::npos);
+    REQUIRE(fixture.value().literal_regions().empty());
+}
+
+TEST_CASE("FixtureLoader loads an-instruction with know-this decimal grid", "[fixture]") {
+    StatusOr<Fixture> fixture = FixtureLoader::load_directory(
+        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/an-instruction");
+    REQUIRE(fixture.ok());
+
+    const Fixture& loaded = fixture.value();
+    REQUIRE(loaded.id() == "an-instruction");
+    REQUIRE(loaded.transform_id() == "identity");
+    REQUIRE(loaded.ciphertext().find("ᚪᚾ-ᛁᚾᛋᛏᚱᚢᚳᛏᛡᚾ") != std::string::npos);
+    REQUIRE(loaded.ciphertext().find("434-1311-312-278-966") != std::string::npos);
+    REQUIRE(loaded.plaintext().find("CWESTIAN ALL THNGS") != std::string::npos);
+
+    REQUIRE(loaded.literal_regions().size() == 1);
+    REQUIRE(loaded.literal_regions()[0].kind() == "decimal_grid");
+    REQUIRE(loaded.literal_regions()[0].value_file() == "literals/know-this-grid.txt");
+}
+
+TEST_CASE("Tokenizer treats an-instruction grid and loss-of-divinity enums as numbers", "[tokenizer][fixture]") {
+    const GematriaProfile profile = load_profile();
+    const SeparatorGrammar grammar = load_grammar();
+    const Tokenizer tokenizer(profile, grammar);
+
+    StatusOr<Fixture> instruction = FixtureLoader::load_directory(
+        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/an-instruction");
+    REQUIRE(instruction.ok());
+    StatusOr<TokenStream> instruction_stream =
+        tokenizer.tokenize(instruction.value().ciphertext(), true);
+    REQUIRE(instruction_stream.ok());
+
+    std::vector<std::string> grid_numbers;
+    for (std::size_t i = 0; i < instruction_stream.value().size(); ++i) {
+        const Token& token = instruction_stream.value().at(i);
+        if (token.kind() == TokenKind::Number) {
+            grid_numbers.push_back(token.text());
+            REQUIRE_FALSE(token.consumable_index().has_value());
+        }
+    }
+    REQUIRE(grid_numbers == std::vector<std::string>{
+        "434",
+        "1311",
+        "312",
+        "278",
+        "966",
+        "204",
+        "812",
+        "934",
+        "280",
+        "1071",
+        "626",
+        "620",
+        "809",
+        "620",
+        "626",
+        "1071",
+        "280",
+        "934",
+        "812",
+        "204",
+        "966",
+        "278",
+        "312",
+        "1311",
+        "434",
+    });
+
+    StatusOr<Fixture> loss = FixtureLoader::load_directory(
+        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/loss-of-divinity");
+    REQUIRE(loss.ok());
+    StatusOr<TokenStream> loss_stream = tokenizer.tokenize(loss.value().ciphertext(), true);
+    REQUIRE(loss_stream.ok());
+
+    std::vector<std::string> enum_numbers;
+    for (std::size_t i = 0; i < loss_stream.value().size(); ++i) {
+        const Token& token = loss_stream.value().at(i);
+        if (token.kind() == TokenKind::Number) {
+            enum_numbers.push_back(token.text());
+        }
+        if (token.kind() == TokenKind::PageMark) {
+            REQUIRE(token.text() == "%");
+        }
+    }
+    REQUIRE(enum_numbers == std::vector<std::string>{"1", "2"});
+}
+
