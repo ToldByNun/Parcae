@@ -22,9 +22,9 @@
     }
   ],
   "hashes": {
-    "ciphertext_sha256": null,
-    "plaintext_sha256": null,
-    "normalized_plaintext_sha256": null
+    "ciphertext_sha256": "6ce21f2b69c4a0ff3ae05e02c504f9051ae72762d2730b384f466f49fa265cd2",
+    "plaintext_sha256": "312ebcd9a0678a0d9b9578c6746c6e0437fdbedb1844841b76664f0b4a4f145f",
+    "normalized_plaintext_sha256": "5096b71532792c0873a193340a67bca8beace4cfc8de0ecbaff0fb39603b477a"
   },
   "normalization": {
     "newline_policy": "lf",
@@ -32,10 +32,10 @@
     "collapse_spaces": false
   },
   "verification": {
-    "status": "draft",
+    "status": "locked",
     "skip_indices_provenance": "n/a",
-    "recomputed_ok": false,
-    "notes": "Identity page; symmetric know-this decimal grid declared as decimal_grid. Numbers are non-consumable tokenizer tokens."
+    "recomputed_ok": true,
+    "notes": "Identity page; symmetric know-this decimal grid declared as decimal_grid. Numbers are non-consumable tokenizer tokens. Hash-locked via Parcae FixtureValidator + PlaintextNormalizer (SHA-256)."
   },
   "attribution": {
     "sources": [

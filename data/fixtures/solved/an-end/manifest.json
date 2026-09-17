@@ -11,7 +11,9 @@
     "interrupt": {
       "policy_id": "explicit_skip_indices_v0",
       "rune_index_base": 0,
-      "skip_indices": [56]
+      "skip_indices": [
+        56
+      ]
     }
   },
   "files": {
@@ -30,9 +32,9 @@
     }
   ],
   "hashes": {
-    "ciphertext_sha256": null,
-    "plaintext_sha256": null,
-    "normalized_plaintext_sha256": null
+    "ciphertext_sha256": "ee09c35e9a14ab2b20f65cf327b49f6d26a1ca347699cf57f45f26173058ba4e",
+    "plaintext_sha256": "c9f672c6522afaa906153a56da30b601688f9937c8c0b8e5b4f45944526ec824",
+    "normalized_plaintext_sha256": "cef7f20fc750fdeb95fc9e7d47cba67071a921bde751808890016638c721cfa9"
   },
   "normalization": {
     "newline_policy": "lf",
@@ -40,10 +42,10 @@
     "collapse_spaces": false
   },
   "verification": {
-    "status": "draft",
+    "status": "locked",
     "skip_indices_provenance": "cicada_tools-016_an_end",
-    "recomputed_ok": false,
-    "notes": "LP2 56.jpg totient stream. See INTERRUPT.md. Skip [56] inherited; recompute before hash lock. Hex hash is a non-rune literal."
+    "recomputed_ok": true,
+    "notes": "LP2 56.jpg totient stream. See INTERRUPT.md. Skip [56] inherited; recompute before hash lock. Hex hash is a non-rune literal. Hash-locked via Parcae FixtureValidator + PlaintextNormalizer (SHA-256)."
   },
   "attribution": {
     "sources": [

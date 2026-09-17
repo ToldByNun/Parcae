@@ -12,9 +12,9 @@
   },
   "non_rune_literal_regions": [],
   "hashes": {
-    "ciphertext_sha256": null,
-    "plaintext_sha256": null,
-    "normalized_plaintext_sha256": null
+    "ciphertext_sha256": "187866d03548fc8fffcd0646e4067df84bb1b6d44d358075939c23f7272190f1",
+    "plaintext_sha256": "0f35bd2a3d82ed143dd8240661dfd151058bb1b355b6f29247cd95c3660176c5",
+    "normalized_plaintext_sha256": "13fad4e2d960c6679de3b8f8ae024ea8ad5ffe3545bb5d96e88222939e42967f"
   },
   "normalization": {
     "newline_policy": "lf",
@@ -22,10 +22,10 @@
     "collapse_spaces": false
   },
   "verification": {
-    "status": "draft",
+    "status": "locked",
     "skip_indices_provenance": "n/a",
-    "recomputed_ok": false,
-    "notes": "Atbash page; preferred-label plaintext (U not V). Hash lock after atbash reproduction."
+    "recomputed_ok": true,
+    "notes": "Atbash page; preferred-label plaintext (U not V). Hash lock after atbash reproduction. Hash-locked via Parcae FixtureValidator + PlaintextNormalizer (SHA-256)."
   },
   "attribution": {
     "sources": [

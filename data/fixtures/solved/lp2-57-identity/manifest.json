@@ -12,9 +12,9 @@
   },
   "non_rune_literal_regions": [],
   "hashes": {
-    "ciphertext_sha256": null,
-    "plaintext_sha256": null,
-    "normalized_plaintext_sha256": null
+    "ciphertext_sha256": "7186e40b68a96334616de7a9d099cb78014073ae897fb8c324ff83dd1057d61f",
+    "plaintext_sha256": "bb93736b9082125e42f5ec42b08656e3c3cc074770da9fe4622602fdcf47b288",
+    "normalized_plaintext_sha256": "cc2ffe5eda588de609c1f9e0343c9c4f5af41be1556f3e64591912ef13eec584"
   },
   "normalization": {
     "newline_policy": "lf",
@@ -22,10 +22,10 @@
     "collapse_spaces": false
   },
   "verification": {
-    "status": "draft",
+    "status": "locked",
     "skip_indices_provenance": "n/a",
-    "recomputed_ok": false,
-    "notes": "LP2 57.jpg short identity control (Parable). Preferred-label plaintext."
+    "recomputed_ok": true,
+    "notes": "LP2 57.jpg short identity control (Parable). Preferred-label plaintext. Hash-locked via Parcae FixtureValidator + PlaintextNormalizer (SHA-256)."
   },
   "attribution": {
     "sources": [

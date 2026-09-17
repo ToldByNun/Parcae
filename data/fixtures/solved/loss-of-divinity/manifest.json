@@ -12,9 +12,9 @@
   },
   "non_rune_literal_regions": [],
   "hashes": {
-    "ciphertext_sha256": null,
-    "plaintext_sha256": null,
-    "normalized_plaintext_sha256": null
+    "ciphertext_sha256": "a1eccf7bddadde53c7dc34d67c4c85d1c458d1a3dd08bc5b6b33c3a2f6cb64b4",
+    "plaintext_sha256": "16c5de158e4e4ab89dcfa5741ebca5234e03c1d98fdae3581d13000dd4218245",
+    "normalized_plaintext_sha256": "edee56ec5f745af42368682ee330d0a29c568f90c07239ca2034e466e3694b4c"
   },
   "normalization": {
     "newline_policy": "lf",
@@ -22,10 +22,10 @@
     "collapse_spaces": false
   },
   "verification": {
-    "status": "draft",
+    "status": "locked",
     "skip_indices_provenance": "n/a",
-    "recomputed_ok": false,
-    "notes": "Identity multi-page section with % markers and enumerated 1/2 number tokens. Preferred-label plaintext."
+    "recomputed_ok": true,
+    "notes": "Identity multi-page section with % markers and enumerated 1/2 number tokens. Preferred-label plaintext. Hash-locked via Parcae FixtureValidator + PlaintextNormalizer (SHA-256)."
   },
   "attribution": {
     "sources": [

@@ -9,6 +9,7 @@ add_executable(parcae_tests
   transform_test.cpp
   primes_test.cpp
   validation_test.cpp
+  hash_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE

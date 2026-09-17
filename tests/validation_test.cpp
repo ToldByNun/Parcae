@@ -210,3 +210,36 @@ TEST_CASE(
     REQUIRE(report.fixture_id() == "an-end");
     require_validation_ok(report);
 }
+
+TEST_CASE("All solved oracle fixtures pass locked validation", "[solved]") {
+    const GematriaProfile profile = load_profile();
+    const SeparatorGrammar grammar = load_grammar();
+    const FixtureValidator validator(profile, grammar);
+
+    for (const char* id : {
+             "a-warning",
+             "some-wisdom",
+             "loss-of-divinity",
+             "an-instruction",
+             "koan-1",
+             "welcome",
+             "koan-2",
+             "an-end",
+             "lp2-57-identity",
+         }) {
+        SECTION(id) {
+            StatusOr<Fixture> fixture = FixtureLoader::load_directory(fixture_dir(id));
+            REQUIRE(fixture.ok());
+            REQUIRE(fixture.value().verification_status() == "locked");
+            REQUIRE(fixture.value().recomputed_ok());
+            REQUIRE(fixture.value().hashes().ciphertext_sha256().has_value());
+            REQUIRE(fixture.value().hashes().plaintext_sha256().has_value());
+            REQUIRE(fixture.value().hashes().normalized_plaintext_sha256().has_value());
+
+            const ValidationReport report =
+                validator.validate_directory(fixture_dir(id), /*require_locked=*/true);
+            REQUIRE(report.fixture_id() == id);
+            require_validation_ok(report);
+        }
+    }
+}

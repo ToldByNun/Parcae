@@ -1,6 +1,7 @@
 #ifndef FIXTURE_VALIDATOR_HPP
 #define FIXTURE_VALIDATOR_HPP
 
+#include "parcae/core/sha256.hpp"
 #include "parcae/corpus/fixture.hpp"
 #include "parcae/corpus/fixture_loader.hpp"
 #include "parcae/corpus/separator_grammar.hpp"
@@ -11,9 +12,9 @@
 #include "parcae/transform/apply_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
+#include "parcae/validate/plaintext_normalizer.hpp"
 #include "parcae/validate/validation_report.hpp"
 
-#include <cctype>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -22,11 +23,11 @@
 #include <utility>
 #include <vector>
 
-/// Load fixture → tokenize → apply method → latinize → compare preferred Latin.
+/// Load fixture → tokenize → apply method → latinize → compare + optional hash lock.
 class FixtureValidator {
 public:
     FixtureValidator(const GematriaProfile& profile, const SeparatorGrammar& grammar)
-        : codec_(profile), tokenizer_(profile, grammar) {}
+        : codec_(profile), normalizer_(codec_), tokenizer_(profile, grammar) {}
 
     [[nodiscard]] ValidationReport validate_directory(
         const std::string& fixture_dir,
@@ -109,8 +110,8 @@ public:
         }
         report.add_check("transform", true, fixture.transform_id());
 
-        const std::string actual_latin = codec_.latinize(plain_indices.value());
-        StatusOr<std::string> expected_latin = latin_normalize_plaintext(fixture.plaintext());
+        const std::string actual_latin = normalizer_.from_indices(plain_indices.value());
+        StatusOr<std::string> expected_latin = normalizer_.normalize(fixture.plaintext());
         if (!expected_latin.ok()) {
             report.add_check("latinize", false, expected_latin.status().message());
             return report;
@@ -130,71 +131,66 @@ public:
             literals.ok(),
             literals.ok() ? "declared files present" : literals.message());
 
-        // Hash compare is deferred until fixtures are locked with non-null digests.
-        if (fixture.verification_status() == "locked") {
-            report.add_check(
-                "hashes",
-                false,
-                "hash compare not implemented for locked fixtures yet");
-        }
-
+        check_hashes(report, fixture, actual_latin);
         return report;
     }
 
 private:
-    [[nodiscard]] StatusOr<std::string> latin_normalize_plaintext(
-        const std::string& plaintext) const {
-        // Drop ASCII hex literal runs (An End deep-web hash) so a-f digits are not
-        // mistaken for Gematria Latin labels during preferred-label fold.
-        const std::string without_hex = strip_ascii_hex_literal_runs(plaintext);
-        std::string letters;
-        letters.reserve(without_hex.size());
-        for (unsigned char ch : without_hex) {
-            if (std::isalpha(ch) != 0) {
-                letters.push_back(static_cast<char>(std::toupper(ch)));
-            }
+    void check_hashes(
+        ValidationReport& report,
+        const Fixture& fixture,
+        const std::string& normalized_latin) const {
+        const auto& hashes = fixture.hashes();
+        const bool any_expected = hashes.ciphertext_sha256().has_value() ||
+                                  hashes.plaintext_sha256().has_value() ||
+                                  hashes.normalized_plaintext_sha256().has_value();
+        if (!any_expected && fixture.verification_status() != "locked") {
+            report.add_check("hashes", true, "draft hashes unset");
+            return;
         }
-        return codec_.round_trip_preferred(letters);
-    }
 
-    /// Remove maximal `[0-9a-fA-F]+` runs that look like hex literals (contain at
-    /// least one hex letter and are long enough not to eat Latin words built from
-    /// A–F alone, e.g. "AN END").
-    [[nodiscard]] static std::string strip_ascii_hex_literal_runs(const std::string& text) {
-        constexpr std::size_t min_hex_literal_len = 16;
-        std::string out;
-        out.reserve(text.size());
-        std::size_t i = 0;
-        while (i < text.size()) {
-            const unsigned char lead = static_cast<unsigned char>(text[i]);
-            if (std::isxdigit(lead) == 0) {
-                out.push_back(text[i]);
-                ++i;
-                continue;
-            }
+        bool ok = true;
+        std::ostringstream msg;
 
-            std::size_t end = i;
-            bool saw_hex_letter = false;
-            while (end < text.size() &&
-                   std::isxdigit(static_cast<unsigned char>(text[end])) != 0) {
-                const unsigned char ch = static_cast<unsigned char>(text[end]);
-                if ((ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')) {
-                    saw_hex_letter = true;
-                }
-                ++end;
-            }
+        const std::string cipher_digest = Sha256::hex_digest(fixture.ciphertext());
+        const std::string plain_digest = Sha256::hex_digest(fixture.plaintext());
+        const std::string normalized_digest = Sha256::hex_digest(normalized_latin);
 
-            const std::size_t run_len = end - i;
-            if (saw_hex_letter && run_len >= min_hex_literal_len) {
-                i = end;
-                continue;
+        if (hashes.ciphertext_sha256().has_value()) {
+            if (hashes.ciphertext_sha256().value() != cipher_digest) {
+                ok = false;
+                msg << "ciphertext_sha256 mismatch; ";
             }
-            while (i < end) {
-                out.push_back(text[i]);
-                ++i;
-            }
+        } else if (fixture.verification_status() == "locked") {
+            ok = false;
+            msg << "ciphertext_sha256 missing; ";
         }
-        return out;
+
+        if (hashes.plaintext_sha256().has_value()) {
+            if (hashes.plaintext_sha256().value() != plain_digest) {
+                ok = false;
+                msg << "plaintext_sha256 mismatch; ";
+            }
+        } else if (fixture.verification_status() == "locked") {
+            ok = false;
+            msg << "plaintext_sha256 missing; ";
+        }
+
+        if (hashes.normalized_plaintext_sha256().has_value()) {
+            if (hashes.normalized_plaintext_sha256().value() != normalized_digest) {
+                ok = false;
+                msg << "normalized_plaintext_sha256 mismatch; ";
+            }
+        } else if (fixture.verification_status() == "locked") {
+            ok = false;
+            msg << "normalized_plaintext_sha256 missing; ";
+        }
+
+        if (ok) {
+            report.add_check("hashes", true, "digests match");
+        } else {
+            report.add_check("hashes", false, msg.str());
+        }
     }
 
     [[nodiscard]] static std::string make_diff_excerpt(
@@ -230,6 +226,7 @@ private:
     }
 
     LatinCodec codec_;
+    PlaintextNormalizer normalizer_;
     Tokenizer tokenizer_;
 };
 

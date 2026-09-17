@@ -333,13 +333,15 @@ TEST_CASE("FixtureLoader rejects locked fixtures missing hashes", "[fixture]") {
     REQUIRE_FALSE(status.ok());
 }
 
-TEST_CASE("FixtureLoader loads draft a-warning", "[fixture]") {
+TEST_CASE("FixtureLoader loads locked a-warning", "[fixture]") {
     StatusOr<Fixture> fixture = FixtureLoader::load_directory(
         std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/a-warning");
     REQUIRE(fixture.ok());
     REQUIRE(fixture.value().id() == "a-warning");
     REQUIRE(fixture.value().transform_id() == "atbash");
-    REQUIRE(fixture.value().verification_status() == "draft");
+    REQUIRE(fixture.value().verification_status() == "locked");
+    REQUIRE(fixture.value().recomputed_ok());
+    REQUIRE(fixture.value().hashes().ciphertext_sha256().has_value());
     REQUIRE(fixture.value().skip_indices().empty());
     REQUIRE(fixture.value().ciphertext().find("ᚱ-ᛝᚱᚪᛗᚹ") != std::string::npos);
     REQUIRE(fixture.value().plaintext().find("A WARNNG") != std::string::npos);
@@ -354,7 +356,8 @@ TEST_CASE("FixtureLoader loads some-wisdom with know-this decimal grid", "[fixtu
     const Fixture& loaded = fixture.value();
     REQUIRE(loaded.id() == "some-wisdom");
     REQUIRE(loaded.transform_id() == "identity");
-    REQUIRE(loaded.verification_status() == "draft");
+    REQUIRE(loaded.verification_status() == "locked");
+    REQUIRE(loaded.recomputed_ok());
     REQUIRE(loaded.ciphertext().find("ᛋᚩᛗᛖ-ᚹᛁᛋᛞᚩᛗ") != std::string::npos);
     REQUIRE(loaded.ciphertext().find("272-138-") != std::string::npos);
     REQUIRE(loaded.plaintext().find("CNOW THIS") != std::string::npos);
@@ -404,13 +407,14 @@ TEST_CASE("Tokenizer treats some-wisdom know-this numbers as non-runes", "[token
     REQUIRE(stream.value().consumable_count() > 0);
 }
 
-TEST_CASE("FixtureLoader loads draft loss-of-divinity", "[fixture]") {
+TEST_CASE("FixtureLoader loads locked loss-of-divinity", "[fixture]") {
     StatusOr<Fixture> fixture = FixtureLoader::load_directory(
         std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/loss-of-divinity");
     REQUIRE(fixture.ok());
     REQUIRE(fixture.value().id() == "loss-of-divinity");
     REQUIRE(fixture.value().transform_id() == "identity");
-    REQUIRE(fixture.value().verification_status() == "draft");
+    REQUIRE(fixture.value().verification_status() == "locked");
+    REQUIRE(fixture.value().recomputed_ok());
     REQUIRE(fixture.value().ciphertext().find("ᚦᛖ-ᛚᚩᛋᛋ-ᚩᚠ-ᛞᛁᚢᛁᚾᛁᛏᚣ") != std::string::npos);
     REQUIRE(fixture.value().ciphertext().find('%') != std::string::npos);
     REQUIRE(fixture.value().plaintext().find("THE LOSS OF DIVINITY") != std::string::npos);
@@ -526,8 +530,8 @@ TEST_CASE("FixtureLoader loads welcome with DIVINITY skip indices", "[fixture]")
     REQUIRE(loaded.id() == "welcome");
     REQUIRE(loaded.transform_id() == "vigenere_key");
     REQUIRE(loaded.direction() == "decrypt");
-    REQUIRE(loaded.verification_status() == "draft");
-    REQUIRE_FALSE(loaded.recomputed_ok());
+    REQUIRE(loaded.verification_status() == "locked");
+    REQUIRE(loaded.recomputed_ok());
 
     REQUIRE(loaded.key_latin().has_value());
     REQUIRE(loaded.key_latin().value() == "DIVINITY");
@@ -583,8 +587,8 @@ TEST_CASE("FixtureLoader loads an-end totient page with hex literal and skip", "
     REQUIRE(loaded.id() == "an-end");
     REQUIRE(loaded.transform_id() == "totient_prime_stream");
     REQUIRE(loaded.direction() == "decrypt");
-    REQUIRE(loaded.verification_status() == "draft");
-    REQUIRE_FALSE(loaded.recomputed_ok());
+    REQUIRE(loaded.verification_status() == "locked");
+    REQUIRE(loaded.recomputed_ok());
     REQUIRE(loaded.skip_indices() == std::vector<std::size_t>{56});
 
     REQUIRE(loaded.ciphertext().find("ᚫᛄ-ᛟᛋᚱ") != std::string::npos);
@@ -601,13 +605,14 @@ TEST_CASE("FixtureLoader loads an-end totient page with hex literal and skip", "
     REQUIRE(loaded.literal_regions()[0].compare() == "exact");
 }
 
-TEST_CASE("FixtureLoader loads draft lp2-57-identity", "[fixture]") {
+TEST_CASE("FixtureLoader loads locked lp2-57-identity", "[fixture]") {
     StatusOr<Fixture> fixture = FixtureLoader::load_directory(
         std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/lp2-57-identity");
     REQUIRE(fixture.ok());
     REQUIRE(fixture.value().id() == "lp2-57-identity");
     REQUIRE(fixture.value().transform_id() == "identity");
-    REQUIRE(fixture.value().verification_status() == "draft");
+    REQUIRE(fixture.value().verification_status() == "locked");
+    REQUIRE(fixture.value().recomputed_ok());
     REQUIRE(fixture.value().ciphertext().find("ᛈᚪᚱᚪᛒᛚᛖ") != std::string::npos);
     REQUIRE(fixture.value().plaintext().find("PARABLE") != std::string::npos);
     REQUIRE(fixture.value().plaintext().find("FIND THE DIVINITY WITHIN AND EMERGE") !=

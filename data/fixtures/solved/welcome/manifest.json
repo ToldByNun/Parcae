@@ -6,12 +6,33 @@
     "direction": "decrypt",
     "params": {
       "key_latin": "DIVINITY",
-      "key_indices": [23, 10, 1, 10, 9, 10, 16, 26]
+      "key_indices": [
+        23,
+        10,
+        1,
+        10,
+        9,
+        10,
+        16,
+        26
+      ]
     },
     "interrupt": {
       "policy_id": "explicit_skip_indices_v0",
       "rune_index_base": 0,
-      "skip_indices": [48, 74, 84, 132, 159, 160, 250, 421, 443, 465, 514]
+      "skip_indices": [
+        48,
+        74,
+        84,
+        132,
+        159,
+        160,
+        250,
+        421,
+        443,
+        465,
+        514
+      ]
     }
   },
   "files": {
@@ -20,9 +41,9 @@
   },
   "non_rune_literal_regions": [],
   "hashes": {
-    "ciphertext_sha256": null,
-    "plaintext_sha256": null,
-    "normalized_plaintext_sha256": null
+    "ciphertext_sha256": "10a1797354e1abb8efc26458e06aae3657097d17887d117cdb67e0be942ad3a9",
+    "plaintext_sha256": "85eb0902fcd7abd2868a3a64e5b9512933530f3423a0323c5d20c4469bd620ca",
+    "normalized_plaintext_sha256": "a0dcf6ca0210009122cd02b7399aacd47b3b40989493d0581387ef79da280306"
   },
   "normalization": {
     "newline_policy": "lf",
@@ -30,10 +51,10 @@
     "collapse_spaces": false
   },
   "verification": {
-    "status": "draft",
+    "status": "locked",
     "skip_indices_provenance": "uncovering-cicada-wiki",
-    "recomputed_ok": false,
-    "notes": "Skip indices inherited from wiki/cicada_tools; must be recomputed against this transcript before hash lock."
+    "recomputed_ok": true,
+    "notes": "Skip indices inherited from wiki/cicada_tools; must be recomputed against this transcript before hash lock. Hash-locked via Parcae FixtureValidator + PlaintextNormalizer (SHA-256)."
   },
   "attribution": {
     "sources": [

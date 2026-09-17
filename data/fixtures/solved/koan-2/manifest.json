@@ -6,12 +6,29 @@
     "direction": "decrypt",
     "params": {
       "key_latin": "FIRFUMFERENFE",
-      "key_indices": [0, 10, 4, 0, 1, 19, 0, 18, 4, 18, 9, 0, 18]
+      "key_indices": [
+        0,
+        10,
+        4,
+        0,
+        1,
+        19,
+        0,
+        18,
+        4,
+        18,
+        9,
+        0,
+        18
+      ]
     },
     "interrupt": {
       "policy_id": "explicit_skip_indices_v0",
       "rune_index_base": 0,
-      "skip_indices": [49, 58]
+      "skip_indices": [
+        49,
+        58
+      ]
     }
   },
   "files": {
@@ -20,9 +37,9 @@
   },
   "non_rune_literal_regions": [],
   "hashes": {
-    "ciphertext_sha256": null,
-    "plaintext_sha256": null,
-    "normalized_plaintext_sha256": null
+    "ciphertext_sha256": "a32fab4710822fe9057507ed3f57b7e4955597cc99ea35f0e5792ff7a9c29c21",
+    "plaintext_sha256": "7f192425a084dbc579ce9eb49a5414f3d52dcd1bce8cb1d875a8ee7f2afd5b4f",
+    "normalized_plaintext_sha256": "060f66982fc2acf27a624230af304a7ad39bcc57746497b60a72dab5661cde73"
   },
   "normalization": {
     "newline_policy": "lf",
@@ -30,10 +47,10 @@
     "collapse_spaces": false
   },
   "verification": {
-    "status": "draft",
+    "status": "locked",
     "skip_indices_provenance": "recomputed-parcae",
-    "recomputed_ok": false,
-    "notes": "Key is CIRCUMFERENCE with every C→F; runes ᚠᛁᚱᚠᚢᛗᚠᛖᚱᛖᚾᚠᛖ use E(18) not EA(28). Skips [49,58] match cicada_tools and Parcae reproduction (wiki listed 49,56)."
+    "recomputed_ok": true,
+    "notes": "Key is CIRCUMFERENCE with every C→F; runes ᚠᛁᚱᚠᚢᛗᚠᛖᚱᛖᚾᚠᛖ use E(18) not EA(28). Skips [49,58] match cicada_tools and Parcae reproduction (wiki listed 49,56). Hash-locked via Parcae FixtureValidator + PlaintextNormalizer (SHA-256)."
   },
   "attribution": {
     "sources": [

@@ -6,8 +6,17 @@
     "direction": "decrypt",
     "params": {
       "stages": [
-        { "transform_id": "atbash", "params": {} },
-        { "transform_id": "caesar", "direction": "encrypt", "params": { "shift": 3 } }
+        {
+          "transform_id": "atbash",
+          "params": {}
+        },
+        {
+          "transform_id": "caesar",
+          "direction": "encrypt",
+          "params": {
+            "shift": 3
+          }
+        }
       ]
     }
   },
@@ -17,9 +26,9 @@
   },
   "non_rune_literal_regions": [],
   "hashes": {
-    "ciphertext_sha256": null,
-    "plaintext_sha256": null,
-    "normalized_plaintext_sha256": null
+    "ciphertext_sha256": "ea6036dcb35a6c51fbecee9afba7488dd699aa257dd65c0e89fa43a1dd41ac61",
+    "plaintext_sha256": "03f3accadc9f825b070db9fe22c2f7e3bae4a5de502f8e6970af8e4ef8559969",
+    "normalized_plaintext_sha256": "d8d29a553553e61e2806b9fbab199de72af6064470af6cf390256494160c593e"
   },
   "normalization": {
     "newline_policy": "lf",
@@ -27,10 +36,10 @@
     "collapse_spaces": false
   },
   "verification": {
-    "status": "draft",
+    "status": "locked",
     "skip_indices_provenance": "n/a",
-    "recomputed_ok": false,
-    "notes": "Atbash then Caesar(+3) composition. Preferred-label plaintext. Hash lock after compose reproduction."
+    "recomputed_ok": true,
+    "notes": "Atbash then Caesar(+3) composition. Preferred-label plaintext. Hash lock after compose reproduction. Hash-locked via Parcae FixtureValidator + PlaintextNormalizer (SHA-256)."
   },
   "attribution": {
     "sources": [
