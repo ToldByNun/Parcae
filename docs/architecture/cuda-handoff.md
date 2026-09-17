@@ -1,8 +1,11 @@
 # CPU reference exit & CUDA handoff
 
 Checklist for declaring the CPU reference complete, and for landing CUDA twins
-that match it bit-for-bit. Informal planning names: CPU work ≈ “Phase 2”, CUDA ≈
-“Phase 3”.
+that match it bit-for-bit.
+
+**CUDA status:** started — frozen roadmap in [`cuda-roadmap.md`](cuda-roadmap.md),
+device ABI in [`cuda-abi.md`](cuda-abi.md).  
+**CUDA source home:** [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio).
 
 See also: [`cpu-reference.md`](cpu-reference.md), [`docs/spec/parity.md`](../spec/parity.md).
 
@@ -99,6 +102,14 @@ Document reduction associativity before claiming parallel CUDA score speedups
 - CLIs and `parcae::tool` wrappers (they **call** backends)
 - JSON param parsing (cold); device gets POD / SoA
 
+### Where twins are implemented
+
+| Layer | Path |
+|-------|------|
+| CPU reference kernels | `include/parcae/transform/*.hpp` (and score/batch headers) |
+| CUDA twins | **`Parcae/Parcae/cuda/`** inside the VS project |
+| Shared ABI doc | [`cuda-abi.md`](cuda-abi.md) |
+
 ---
 
 ## Parity hash procedure
@@ -185,11 +196,19 @@ Copied from [`parity.md`](../spec/parity.md):
 
 ## Tagging
 
-Annotated tag for this CPU reference milestone:
+CPU reference milestone (when cut):
 
 ```text
 v0.2.0-cpu-reference
 ```
 
-Prerequisites: exit criteria above, including `[solved]` green on CI.
-Do not move the tag; cut `v0.2.1-…` / `v0.3.0-…` for later milestones.
+CUDA parity milestone (CUDA exit):
+
+```text
+v0.3.0-cuda-parity
+```
+
+Prerequisites for the CPU tag: exit criteria above, including `[solved]` green on CI.  
+Prerequisites for the CUDA tag: twin list implemented under `Parcae/Parcae/cuda/`,
+`data/parity/` goldens match, `[cuda][parity]` green where Toolkit is available.
+Do not move tags; cut new versions for later milestones.

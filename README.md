@@ -32,18 +32,21 @@ License: [MIT](LICENSE).
 |------|----------|
 | Research (alphabet, solved methods, hypotheses) | [docs/research/](docs/research/README.md) |
 | Normative specs (Z29, tokens, transforms, fixtures, tools, parity) | [docs/spec/](docs/spec/README.md) |
-| Architecture (CPU module map, CUDA handoff) | [docs/architecture/](docs/architecture/README.md) |
+| Architecture (CPU map, CUDA ABI / roadmap) | [docs/architecture/](docs/architecture/README.md) |
+| CUDA sources (Visual Studio) | [Parcae/Parcae/cuda/](Parcae/Parcae/cuda/) |
 
 ## Roadmap (high level)
 
 ```text
-research + specs     →  docs/research, docs/spec
-CPU reference        →  libs, fixtures, scores, CLIs (correctness first)
-CUDA parity          →  same kernels, bit-identical batch search
+research + specs     →  docs/research, docs/spec          (done)
+CPU reference        →  include/, fixtures, scores, CLIs  (done)
+CUDA parity          →  Parcae/Parcae/cuda/ twins         (in progress)
 AI tooling           →  agents call deterministic tools only
 search on LP2 0–55   →  candidates ↔ hypotheses → new discoveries
 open source polish   →  packaging, contribution docs
 ```
+
+Frozen CUDA commit list: [docs/architecture/cuda-roadmap.md](docs/architecture/cuda-roadmap.md).
 
 ## Build
 

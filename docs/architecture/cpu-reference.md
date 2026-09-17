@@ -5,7 +5,12 @@ and the data flow from UTF-8 transcript to scored / validated Index29 streams.
 
 Normative contracts live in [`docs/spec/`](../spec/README.md). Research background
 is in [`docs/research/`](../research/README.md). CUDA twin expectations are in
-[`cuda-handoff.md`](cuda-handoff.md).
+[`cuda-handoff.md`](cuda-handoff.md); device ABI in [`cuda-abi.md`](cuda-abi.md);
+roadmap in [`cuda-roadmap.md`](cuda-roadmap.md).
+
+CPU reference is the source of truth. CUDA twin work is **in progress** — sources
+land under [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio
+project), not under a parallel `include/parcae/cuda/` tree.
 
 ## Design rules
 
@@ -40,9 +45,14 @@ include/parcae/
 tools/
   parcae-tokenize | parcae-decode | parcae-score | parcae-validate
 
+Parcae/Parcae/                 # Visual Studio app + CUDA twins
+  main.cpp
+  cuda/                        # device twins (see cuda-roadmap.md)
+
 data/
   profiles/      gematria, separators, score tables
   fixtures/      solved oracles (+ synth drafts, CLI smoke inputs)
+  parity/        (planned) ParityRecord goldens for CPU↔CUDA
 ```
 
 | Module | Responsibility | CUDA twin? |
@@ -165,3 +175,5 @@ Locked fixture ids: `a-warning`, `some-wisdom`, `loss-of-divinity`,
 - [`docs/spec/transforms.md`](../spec/transforms.md) — family schemas
 - [`docs/spec/parity.md`](../spec/parity.md) — bit-identity obligations
 - [`cuda-handoff.md`](cuda-handoff.md) — exit criteria and CUDA twin list
+- [`cuda-abi.md`](cuda-abi.md) — device SoA / interrupt encoding
+- [`cuda-roadmap.md`](cuda-roadmap.md) — frozen CUDA commit roadmap

@@ -19,7 +19,8 @@ associativity / ordering policy.
 1. Hot transforms operate on `std::span<const Index29>` → `std::span<Index29>`
    (`apply_into` / static `kernel`) without hidden **output** allocations or
    global state. JSON parsing and keystream sieve setup may allocate; the
-   Index29 write loop must not.
+   Index29 write loop must not. CUDA twins live under `Parcae/Parcae/cuda/`
+   (Visual Studio); see [`docs/architecture/cuda-abi.md`](../architecture/cuda-abi.md).
 2. Interrupt application is explicit (mask or skip-set), not buried in I/O.
 3. Params are POD / trivially serializable (JSON envelope ↔ struct).
 4. Each transform run can emit a **parity record** (`ParityRecord` in
