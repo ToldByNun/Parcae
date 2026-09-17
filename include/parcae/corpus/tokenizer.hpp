@@ -56,14 +56,21 @@ public:
                 continue;
             }
 
-            if (std::isdigit(static_cast<unsigned char>(text[offset])) != 0) {
+            if (is_ascii_hex_digit(text[offset])) {
                 const std::size_t begin = offset;
-                while (offset < text.size() &&
-                       std::isdigit(static_cast<unsigned char>(text[offset])) != 0) {
+                bool saw_hex_letter = false;
+                while (offset < text.size() && is_ascii_hex_digit(text[offset])) {
+                    const unsigned char ch = static_cast<unsigned char>(text[offset]);
+                    if ((ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')) {
+                        saw_hex_letter = true;
+                    }
                     ++offset;
                 }
+                // Pure digit runs stay Number (wisdom/instruction grids); mixed
+                // 0-9a-f runs are Hex (An End deep-web hash chunks).
+                const TokenKind kind = saw_hex_letter ? TokenKind::Hex : TokenKind::Number;
                 tokens.push_back(Token::non_rune(
-                    TokenKind::Number, begin, offset, text.substr(begin, offset - begin)));
+                    kind, begin, offset, text.substr(begin, offset - begin)));
                 continue;
             }
 
@@ -135,6 +142,11 @@ private:
             }
         }
         return std::nullopt;
+    }
+
+    [[nodiscard]] static bool is_ascii_hex_digit(char ch) noexcept {
+        const unsigned char value = static_cast<unsigned char>(ch);
+        return std::isxdigit(value) != 0;
     }
 
     const GematriaProfile* profile_;

@@ -198,3 +198,15 @@ TEST_CASE(
     REQUIRE(report.fixture_id() == "koan-2");
     require_validation_ok(report);
 }
+
+TEST_CASE(
+    "Validation runner reproduces an-end (totient stream + F pass-through)",
+    "[validation][an-end]") {
+    const GematriaProfile profile = load_profile();
+    const SeparatorGrammar grammar = load_grammar();
+    const FixtureValidator validator(profile, grammar);
+
+    const ValidationReport report = validator.validate_directory(fixture_dir("an-end"));
+    REQUIRE(report.fixture_id() == "an-end");
+    require_validation_ok(report);
+}

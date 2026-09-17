@@ -144,14 +144,57 @@ public:
 private:
     [[nodiscard]] StatusOr<std::string> latin_normalize_plaintext(
         const std::string& plaintext) const {
+        // Drop ASCII hex literal runs (An End deep-web hash) so a-f digits are not
+        // mistaken for Gematria Latin labels during preferred-label fold.
+        const std::string without_hex = strip_ascii_hex_literal_runs(plaintext);
         std::string letters;
-        letters.reserve(plaintext.size());
-        for (unsigned char ch : plaintext) {
+        letters.reserve(without_hex.size());
+        for (unsigned char ch : without_hex) {
             if (std::isalpha(ch) != 0) {
                 letters.push_back(static_cast<char>(std::toupper(ch)));
             }
         }
         return codec_.round_trip_preferred(letters);
+    }
+
+    /// Remove maximal `[0-9a-fA-F]+` runs that look like hex literals (contain at
+    /// least one hex letter and are long enough not to eat Latin words built from
+    /// A–F alone, e.g. "AN END").
+    [[nodiscard]] static std::string strip_ascii_hex_literal_runs(const std::string& text) {
+        constexpr std::size_t min_hex_literal_len = 16;
+        std::string out;
+        out.reserve(text.size());
+        std::size_t i = 0;
+        while (i < text.size()) {
+            const unsigned char lead = static_cast<unsigned char>(text[i]);
+            if (std::isxdigit(lead) == 0) {
+                out.push_back(text[i]);
+                ++i;
+                continue;
+            }
+
+            std::size_t end = i;
+            bool saw_hex_letter = false;
+            while (end < text.size() &&
+                   std::isxdigit(static_cast<unsigned char>(text[end])) != 0) {
+                const unsigned char ch = static_cast<unsigned char>(text[end]);
+                if ((ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')) {
+                    saw_hex_letter = true;
+                }
+                ++end;
+            }
+
+            const std::size_t run_len = end - i;
+            if (saw_hex_letter && run_len >= min_hex_literal_len) {
+                i = end;
+                continue;
+            }
+            while (i < end) {
+                out.push_back(text[i]);
+                ++i;
+            }
+        }
+        return out;
     }
 
     [[nodiscard]] static std::string make_diff_excerpt(

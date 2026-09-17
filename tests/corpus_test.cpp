@@ -252,6 +252,19 @@ TEST_CASE("Tokenizer keeps numbers as non-consumable", "[tokenizer]") {
     REQUIRE(stream.value().at(2).text() == "272");
 }
 
+TEST_CASE("Tokenizer keeps hex literal runs as non-consumable Hex", "[tokenizer]") {
+    const GematriaProfile profile = load_profile();
+    const SeparatorGrammar grammar = load_grammar();
+    const Tokenizer tokenizer(profile, grammar);
+
+    StatusOr<TokenStream> stream =
+        tokenizer.tokenize("ᚠ-36367763ab73783c7af284446c/", true);
+    REQUIRE(stream.ok());
+    REQUIRE(stream.value().consumable_count() == 1);
+    REQUIRE(stream.value().at(2).kind() == TokenKind::Hex);
+    REQUIRE(stream.value().at(2).text() == "36367763ab73783c7af284446c");
+}
+
 TEST_CASE("FixtureLoader loads draft synth-identity", "[fixture]") {
     StatusOr<Fixture> fixture = FixtureLoader::load_directory(
         std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/synth-identity");
