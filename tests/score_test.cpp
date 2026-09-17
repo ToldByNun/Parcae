@@ -8,6 +8,7 @@
 #include <parcae/score/ic_mod29.hpp>
 #include <parcae/score/score_id.hpp>
 #include <parcae/score/score_order.hpp>
+#include <parcae/score/self_repeat_rate.hpp>
 #include <parcae/validate/plaintext_normalizer.hpp>
 
 #include <catch2/catch_approx.hpp>
@@ -66,9 +67,61 @@ namespace {
 TEST_CASE("ScoreId parses Tier A ids", "[score]") {
     REQUIRE(ScoreId::from_string("ic_mod29").value() == ScoreId::ic_mod29());
     REQUIRE(ScoreId::from_string("chi2_english_gp_v0").value() == ScoreId::chi2_english_gp_v0());
+    REQUIRE(ScoreId::from_string("self_repeat_rate").value() == ScoreId::self_repeat_rate());
     REQUIRE_FALSE(ScoreId::from_string("nope").ok());
     REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::ic_mod29()) == ScoreOrder::Desc);
     REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::chi2_english_gp_v0()) == ScoreOrder::Asc);
+    // Spec: neither assumed globally — raw report only (Asc used as neutral default).
+    REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::self_repeat_rate()) == ScoreOrder::Asc);
+}
+
+TEST_CASE("SelfRepeatRate hand vectors", "[score][self-repeat]") {
+    SECTION("rejects N < 2") {
+        REQUIRE_FALSE(SelfRepeatRate::score({}).ok());
+        REQUIRE_FALSE(SelfRepeatRate::score({I(0)}).ok());
+    }
+
+    SECTION("all identical → rate = 1") {
+        const std::vector<Index29> xs = {I(5), I(5), I(5), I(5)};
+        StatusOr<double> rate = SelfRepeatRate::score(xs);
+        REQUIRE(rate.ok());
+        REQUIRE(rate.value() == Catch::Approx(1.0).margin(0.0));
+    }
+
+    SECTION("no adjacent equals → rate = 0") {
+        const std::vector<Index29> xs = {I(0), I(1), I(0), I(1)};
+        StatusOr<double> rate = SelfRepeatRate::score(xs);
+        REQUIRE(rate.ok());
+        REQUIRE(rate.value() == Catch::Approx(0.0).margin(0.0));
+    }
+
+    SECTION("two of three adjacent pairs repeat → 2/3") {
+        // pairs: (0,0) yes, (0,1) no, (1,1) yes → 2/3
+        const std::vector<Index29> xs = {I(0), I(0), I(1), I(1)};
+        StatusOr<double> rate = SelfRepeatRate::score(xs);
+        REQUIRE(rate.ok());
+        REQUIRE(rate.value() == Catch::Approx(2.0 / 3.0).epsilon(1e-15));
+    }
+
+    SECTION("exactly one diagonal in five symbols → 1/4") {
+        const std::vector<Index29> xs = {I(2), I(7), I(7), I(3), I(9)};
+        StatusOr<double> rate = SelfRepeatRate::score(xs);
+        REQUIRE(rate.ok());
+        REQUIRE(rate.value() == Catch::Approx(0.25).epsilon(1e-15));
+    }
+}
+
+TEST_CASE("SelfRepeatRate on solved plaintext is in (0,1) and below chance 1/29 floor is not assumed",
+          "[score][self-repeat]") {
+    // Chance under independent uniform draws is 1/29 ≈ 0.0345; language may differ.
+    // We only assert a well-formed rate — no Tier C external target.
+    const std::vector<Index29> plain = plaintext_indices_of("welcome");
+    REQUIRE(plain.size() >= 2);
+
+    StatusOr<double> rate = SelfRepeatRate::score(plain);
+    REQUIRE(rate.ok());
+    REQUIRE(rate.value() >= 0.0);
+    REQUIRE(rate.value() <= 1.0);
 }
 
 TEST_CASE("IcMod29 hand vectors", "[score][ic]") {
