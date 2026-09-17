@@ -116,11 +116,17 @@ JSON shape:
 ### `parcae-decode`
 
 ```text
-parcae-decode --manifest <path> [--json]
-parcae-decode --transform-json <path> --input <file> [--json]
+parcae-decode --manifest <fixture_dir|manifest.json> [--json]
+parcae-decode --transform-json <path> --input <file|-> [--json]
+parcae-decode --input <file|-> --transform-id <id>
+              [--direction decrypt|encrypt]
+              [--params-json <json> | --key-indices <list> --key-latin <text> --shift <n>]
+              [--skip-indices <list>]
+              [--json]
 ```
 
-Prints Latin plaintext (or JSON with indices + latin).
+Prints Latin plaintext (or JSON with `indices` + `latin`). Method/key/skips come
+from the fixture manifest, a transform envelope JSON file, or explicit flags.
 
 ### `parcae-score`
 
