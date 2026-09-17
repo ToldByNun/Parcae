@@ -10,6 +10,8 @@
 #include <utility>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+
 class FixtureLiteralRegion {
 public:
     FixtureLiteralRegion(
@@ -89,7 +91,8 @@ public:
         std::vector<FixtureLiteralRegion> literal_regions,
         std::optional<std::string> key_latin,
         std::optional<std::vector<int>> key_indices,
-        FixtureHashes hashes)
+        FixtureHashes hashes,
+        nlohmann::json params = nlohmann::json::object())
         : id_(std::move(id)),
           ciphertext_(std::move(ciphertext)),
           plaintext_(std::move(plaintext)),
@@ -101,7 +104,8 @@ public:
           literal_regions_(std::move(literal_regions)),
           key_latin_(std::move(key_latin)),
           key_indices_(std::move(key_indices)),
-          hashes_(std::move(hashes)) {}
+          hashes_(std::move(hashes)),
+          params_(std::move(params)) {}
 
     [[nodiscard]] const std::string& id() const noexcept {
         return id_;
@@ -151,6 +155,10 @@ public:
         return hashes_;
     }
 
+    [[nodiscard]] const nlohmann::json& params() const noexcept {
+        return params_;
+    }
+
     [[nodiscard]] Status validate_lock_rules() const {
         if (verification_status_ == "locked") {
             if (!recomputed_ok_) {
@@ -181,6 +189,7 @@ private:
     std::optional<std::string> key_latin_;
     std::optional<std::vector<int>> key_indices_;
     FixtureHashes hashes_;
+    nlohmann::json params_;
 };
 
 #endif // FIXTURE_HPP

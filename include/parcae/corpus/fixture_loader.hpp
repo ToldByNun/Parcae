@@ -78,8 +78,9 @@ public:
 
         std::optional<std::string> key_latin;
         std::optional<std::vector<int>> key_indices;
+        nlohmann::json params = nlohmann::json::object();
         if (root.at("method").contains("params")) {
-            const nlohmann::json& params = root.at("method").at("params");
+            params = root.at("method").at("params");
             if (params.contains("key_latin") && params.at("key_latin").is_string()) {
                 key_latin = params.at("key_latin").get<std::string>();
             }
@@ -135,6 +136,7 @@ public:
             std::move(key_latin),
             std::move(key_indices),
             std::move(hashes.value()),
+            std::move(params),
         };
 
         Status lock_status = fixture.validate_lock_rules();

@@ -66,6 +66,17 @@ public:
         return ConsumableMask::all_participating(std::move(indices));
     }
 
+    [[nodiscard]] std::vector<Index29> consumable_indices() const {
+        std::vector<Index29> indices;
+        indices.reserve(consumable_count());
+        for (const Token& token : tokens_) {
+            if (token.is_rune()) {
+                indices.push_back(*token.index29());
+            }
+        }
+        return indices;
+    }
+
     [[nodiscard]] std::string text() const {
         std::string out;
         for (const Token& token : tokens_) {
