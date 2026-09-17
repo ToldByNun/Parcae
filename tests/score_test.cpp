@@ -3,8 +3,10 @@
 #include <parcae/gematria/gematria_profile_loader.hpp>
 #include <parcae/gematria/latin_codec.hpp>
 #include <parcae/score/chi2_english_gp.hpp>
+#include <parcae/score/exact_match.hpp>
 #include <parcae/score/expected_frequency_loader.hpp>
 #include <parcae/score/expected_frequency_table.hpp>
+#include <parcae/score/hamming_agreement.hpp>
 #include <parcae/score/ic_mod29.hpp>
 #include <parcae/score/score_id.hpp>
 #include <parcae/score/score_order.hpp>
@@ -62,17 +64,150 @@ namespace {
     return counts;
 }
 
+/// Deterministic Index29 noise (LCG). Same length as `n`; independent of plaintext.
+[[nodiscard]] std::vector<Index29> lcg_noise(std::size_t n, std::uint64_t seed) {
+    std::vector<Index29> out;
+    out.reserve(n);
+    std::uint64_t state = seed;
+    for (std::size_t i = 0; i < n; ++i) {
+        state = state * 6364136223846793005ULL + 1ULL;
+        out.push_back(Index29{static_cast<std::uint8_t>((state >> 33) % 29)});
+    }
+    return out;
+}
+
 }  // namespace
 
 TEST_CASE("ScoreId parses Tier A ids", "[score]") {
+    REQUIRE(ScoreId::from_string("exact_match").value() == ScoreId::exact_match());
+    REQUIRE(ScoreId::from_string("hamming_agreement").value() == ScoreId::hamming_agreement());
     REQUIRE(ScoreId::from_string("ic_mod29").value() == ScoreId::ic_mod29());
     REQUIRE(ScoreId::from_string("chi2_english_gp_v0").value() == ScoreId::chi2_english_gp_v0());
     REQUIRE(ScoreId::from_string("self_repeat_rate").value() == ScoreId::self_repeat_rate());
     REQUIRE_FALSE(ScoreId::from_string("nope").ok());
+    REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::exact_match()) == ScoreOrder::Desc);
+    REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::hamming_agreement()) == ScoreOrder::Desc);
     REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::ic_mod29()) == ScoreOrder::Desc);
     REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::chi2_english_gp_v0()) == ScoreOrder::Asc);
     // Spec: neither assumed globally — raw report only (Asc used as neutral default).
     REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::self_repeat_rate()) == ScoreOrder::Asc);
+}
+
+TEST_CASE("ExactMatch hand vectors", "[score][exact]") {
+    SECTION("identical sequences → 1") {
+        const std::vector<Index29> xs = {I(1), I(2), I(3)};
+        StatusOr<double> s = ExactMatch::score(xs, xs);
+        REQUIRE(s.ok());
+        REQUIRE(s.value() == 1.0);
+    }
+
+    SECTION("empty ≡ empty → 1") {
+        StatusOr<double> s = ExactMatch::score({}, {});
+        REQUIRE(s.ok());
+        REQUIRE(s.value() == 1.0);
+    }
+
+    SECTION("length mismatch → 0") {
+        StatusOr<double> s = ExactMatch::score({I(0)}, {I(0), I(1)});
+        REQUIRE(s.ok());
+        REQUIRE(s.value() == 0.0);
+    }
+
+    SECTION("same length, one mismatch → 0") {
+        StatusOr<double> s = ExactMatch::score({I(0), I(1), I(2)}, {I(0), I(9), I(2)});
+        REQUIRE(s.ok());
+        REQUIRE(s.value() == 0.0);
+    }
+}
+
+TEST_CASE("HammingAgreement hand vectors", "[score][hamming]") {
+    SECTION("rejects empty and length mismatch") {
+        REQUIRE_FALSE(HammingAgreement::score({}, {}).ok());
+        REQUIRE_FALSE(HammingAgreement::score({I(0)}, {I(0), I(1)}).ok());
+    }
+
+    SECTION("identical → 1") {
+        const std::vector<Index29> xs = {I(4), I(5), I(6), I(7)};
+        StatusOr<double> s = HammingAgreement::score(xs, xs);
+        REQUIRE(s.ok());
+        REQUIRE(s.value() == Catch::Approx(1.0).margin(0.0));
+    }
+
+    SECTION("three of four match → 0.75") {
+        StatusOr<double> s =
+            HammingAgreement::score({I(0), I(1), I(2), I(3)}, {I(0), I(1), I(9), I(3)});
+        REQUIRE(s.ok());
+        REQUIRE(s.value() == Catch::Approx(0.75).epsilon(1e-15));
+    }
+
+    SECTION("no matches → 0") {
+        StatusOr<double> s = HammingAgreement::score({I(0), I(1)}, {I(2), I(3)});
+        REQUIRE(s.ok());
+        REQUIRE(s.value() == Catch::Approx(0.0).margin(0.0));
+    }
+}
+
+TEST_CASE("ExactMatch and HammingAgreement on fixture plaintext", "[score][exact][hamming]") {
+    const std::vector<Index29> plain = plaintext_indices_of("a-warning");
+    REQUIRE_FALSE(plain.empty());
+
+    StatusOr<double> exact = ExactMatch::score(plain, plain);
+    REQUIRE(exact.ok());
+    REQUIRE(exact.value() == 1.0);
+
+    StatusOr<double> hamm = HammingAgreement::score(plain, plain);
+    REQUIRE(hamm.ok());
+    REQUIRE(hamm.value() == Catch::Approx(1.0).margin(0.0));
+
+    std::vector<Index29> flipped = plain;
+    flipped[0] = Index29{static_cast<std::uint8_t>((flipped[0].value() + 1) % 29)};
+    REQUIRE(ExactMatch::score(flipped, plain).value() == 0.0);
+    StatusOr<double> partial = HammingAgreement::score(flipped, plain);
+    REQUIRE(partial.ok());
+    REQUIRE(partial.value() == Catch::Approx(
+        static_cast<double>(plain.size() - 1) / static_cast<double>(plain.size()))
+                                    .epsilon(1e-12));
+}
+
+TEST_CASE("Scores on plaintext vs random Index29 noise separate cleanly", "[score][noise]") {
+    const std::vector<Index29> plain = plaintext_indices_of("welcome");
+    REQUIRE(plain.size() >= 64);
+
+    const std::vector<Index29> noise = lcg_noise(plain.size(), /*seed=*/0xC1CADAu);
+    REQUIRE(noise.size() == plain.size());
+    // Sanity: noise is not accidentally identical to plaintext.
+    REQUIRE(ExactMatch::score(noise, plain).value() == 0.0);
+
+    StatusOr<ExpectedFrequencyTable> table = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(table.ok());
+
+    // Pairwise / fixture scores
+    REQUIRE(ExactMatch::score(plain, plain).value() == 1.0);
+    REQUIRE(ExactMatch::score(noise, plain).value() == 0.0);
+
+    StatusOr<double> hamm_plain = HammingAgreement::score(plain, plain);
+    StatusOr<double> hamm_noise = HammingAgreement::score(noise, plain);
+    REQUIRE(hamm_plain.ok());
+    REQUIRE(hamm_noise.ok());
+    REQUIRE(hamm_plain.value() == Catch::Approx(1.0).margin(0.0));
+    // Chance agreement ≈ 1/29; require a clear gap below language identity.
+    REQUIRE(hamm_noise.value() < 0.15);
+    REQUIRE(hamm_noise.value() < hamm_plain.value());
+
+    // Univariate language scores: plaintext beats flat noise.
+    StatusOr<double> ic_plain = IcMod29::score(plain);
+    StatusOr<double> ic_noise = IcMod29::score(noise);
+    REQUIRE(ic_plain.ok());
+    REQUIRE(ic_noise.ok());
+    REQUIRE(ic_plain.value() > ic_noise.value());
+    REQUIRE(ic_plain.value() > 1.0 / 29.0);
+
+    StatusOr<double> chi_plain = Chi2EnglishGp::score(plain, table.value());
+    StatusOr<double> chi_noise = Chi2EnglishGp::score(noise, table.value());
+    REQUIRE(chi_plain.ok());
+    REQUIRE(chi_noise.ok());
+    REQUIRE(chi_plain.value() < chi_noise.value());
 }
 
 TEST_CASE("SelfRepeatRate hand vectors", "[score][self-repeat]") {
