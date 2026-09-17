@@ -141,8 +141,8 @@ Thematic plaintext about consumption, preservation, adherence.
 | Key (runes) | `ᚠᛁᚱᚠᚢᛗᚠᛖᚱᛖᚾᚠᛖ` |
 | Notes | Orthography of `CIRCUMFERENCE` with every **C → F** in the key spelling |
 | Formula | `p = (c - k[j]) mod 29` |
-| Skip indices | `49, 56` |
-| Skip list provenance | Uncovering Cicada wiki — **inherited, not yet recomputed in Parcae** |
+| Skip indices | `49, 58` |
+| Skip list provenance | Recomputed in Parcae against committed transcript (cicada_tools; wiki listed `49, 56`) |
 
 Dictionary search for ordinary English words does **not** recover this key; the
 C→F spelling is structural.

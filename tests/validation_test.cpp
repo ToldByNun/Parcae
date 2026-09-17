@@ -13,6 +13,7 @@
 
 #include <cctype>
 #include <cstddef>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -184,4 +185,16 @@ TEST_CASE(
         good_interrupt.value());
     REQUIRE(good.ok());
     REQUIRE(codec.latinize(good.value()) == expected.value());
+}
+
+TEST_CASE(
+    "Validation runner reproduces koan-2 (FIRFUMFERENFE + skips)",
+    "[validation][koan-2]") {
+    const GematriaProfile profile = load_profile();
+    const SeparatorGrammar grammar = load_grammar();
+    const FixtureValidator validator(profile, grammar);
+
+    const ValidationReport report = validator.validate_directory(fixture_dir("koan-2"));
+    REQUIRE(report.fixture_id() == "koan-2");
+    require_validation_ok(report);
 }

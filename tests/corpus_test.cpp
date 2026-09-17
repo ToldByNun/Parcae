@@ -554,8 +554,8 @@ TEST_CASE("FixtureLoader loads koan-2 with FIRFUMFERENFE skip indices", "[fixtur
     REQUIRE(loaded.key_latin().value() == "FIRFUMFERENFE");
     REQUIRE(loaded.key_indices().has_value());
     REQUIRE(loaded.key_indices().value() ==
-            std::vector<int>{0, 10, 4, 0, 1, 19, 0, 28, 4, 28, 9, 0, 28});
-    REQUIRE(loaded.skip_indices() == std::vector<std::size_t>{49, 56});
+            std::vector<int>{0, 10, 4, 0, 1, 19, 0, 18, 4, 18, 9, 0, 18});
+    REQUIRE(loaded.skip_indices() == std::vector<std::size_t>{49, 58});
     REQUIRE(loaded.ciphertext().find("ᚪ-ᛋᚹᚪᛁ") != std::string::npos);
     REQUIRE(loaded.plaintext().find("THE I IS THE VOICE OF THE CIRCUMFERENCE") !=
             std::string::npos);

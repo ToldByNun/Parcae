@@ -6,12 +6,12 @@
     "direction": "decrypt",
     "params": {
       "key_latin": "FIRFUMFERENFE",
-      "key_indices": [0, 10, 4, 0, 1, 19, 0, 28, 4, 28, 9, 0, 28]
+      "key_indices": [0, 10, 4, 0, 1, 19, 0, 18, 4, 18, 9, 0, 18]
     },
     "interrupt": {
       "policy_id": "explicit_skip_indices_v0",
       "rune_index_base": 0,
-      "skip_indices": [49, 56]
+      "skip_indices": [49, 58]
     }
   },
   "files": {
@@ -31,9 +31,9 @@
   },
   "verification": {
     "status": "draft",
-    "skip_indices_provenance": "uncovering-cicada-wiki",
+    "skip_indices_provenance": "recomputed-parcae",
     "recomputed_ok": false,
-    "notes": "Key is CIRCUMFERENCE with every C→F (FIRFUMFERENFE). Skip indices 49,56 inherited from wiki; cicada_tools lists 49,58 — recompute against this transcript before hash lock."
+    "notes": "Key is CIRCUMFERENCE with every C→F; runes ᚠᛁᚱᚠᚢᛗᚠᛖᚱᛖᚾᚠᛖ use E(18) not EA(28). Skips [49,58] match cicada_tools and Parcae reproduction (wiki listed 49,56)."
   },
   "attribution": {
     "sources": [
