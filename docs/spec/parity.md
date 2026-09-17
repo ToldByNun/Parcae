@@ -22,7 +22,8 @@ associativity / ordering policy.
    Index29 write loop must not.
 2. Interrupt application is explicit (mask or skip-set), not buried in I/O.
 3. Params are POD / trivially serializable (JSON envelope ↔ struct).
-4. Each transform run can emit a **parity record**:
+4. Each transform run can emit a **parity record** (`ParityRecord` in
+   `parcae/parity/parity_record.hpp`):
 
 ```json
 {
@@ -35,6 +36,18 @@ associativity / ordering policy.
   "backend": "cpu"
 }
 ```
+
+Digest inputs (normative):
+
+| Field | Bytes hashed |
+|-------|----------------|
+| `params_hash_sha256` | Compact `params.dump()` (no whitespace) |
+| `input_sha256` / `output_sha256` | Raw `uint8_t` Index29 values in order |
+| `interrupt_sha256` | Compact `interrupt.to_json().dump()` |
+
+`ParityRecord::apply_and_capture` runs `ApplyTransform` then fills the record.
+`backend` is `"cpu"` for the reference; CUDA ports MUST use `"cuda"` (or another
+documented id) with identical remaining fields on a matching run.
 
 5. Single-threaded CPU is the source of truth. Multi-thread CPU batches MUST
    document deterministic reduction (e.g. stable candidate_id order) before CUDA

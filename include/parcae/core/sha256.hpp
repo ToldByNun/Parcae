@@ -2,6 +2,7 @@
 #define SHA256_HPP
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -11,8 +12,15 @@
 class Sha256 {
 public:
     [[nodiscard]] static std::string hex_digest(std::string_view data) {
+        return hex_digest(
+            reinterpret_cast<const std::uint8_t*>(data.data()), data.size());
+    }
+
+    [[nodiscard]] static std::string hex_digest(
+        const std::uint8_t* data,
+        std::size_t size) {
         Hasher hasher;
-        hasher.update(reinterpret_cast<const std::uint8_t*>(data.data()), data.size());
+        hasher.update(data, size);
         const std::array<std::uint8_t, 32> digest = hasher.finalize();
         static constexpr char kHex[] = "0123456789abcdef";
         std::string out(64, '0');

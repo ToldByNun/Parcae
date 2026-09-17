@@ -14,6 +14,8 @@ add_executable(parcae_tests
   generate_test.cpp
   batch_test.cpp
   tool_api_test.cpp
+  parity_test.cpp
+  transform_property_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE
