@@ -86,3 +86,15 @@ TEST_CASE("Validation runner reproduces koan-1 (Atbash then Caesar +3)", "[valid
     REQUIRE(report.fixture_id() == "koan-1");
     require_validation_ok(report);
 }
+
+TEST_CASE(
+    "Validation runner reproduces welcome (DIVINITY + skips)",
+    "[validation][welcome]") {
+    const GematriaProfile profile = load_profile();
+    const SeparatorGrammar grammar = load_grammar();
+    const FixtureValidator validator(profile, grammar);
+
+    const ValidationReport report = validator.validate_directory(fixture_dir("welcome"));
+    REQUIRE(report.fixture_id() == "welcome");
+    require_validation_ok(report);
+}
