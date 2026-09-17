@@ -12,6 +12,7 @@ add_executable(parcae_tests
   hash_test.cpp
   score_test.cpp
   generate_test.cpp
+  batch_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE

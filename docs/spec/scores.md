@@ -116,6 +116,7 @@ for each candidate:
 keep top-k by score with deterministic tie-break:
   1) better score (define higher-is-better vs lower-is-better per score_id)
   2) lexicographically smaller candidate_id
+  3) smaller source_index (input order) — absolute total order for parity
 ```
 
 Each `score_id` MUST declare `order: "asc" | "desc"`.
@@ -127,6 +128,18 @@ Each `score_id` MUST declare `order: "asc" | "desc"`.
 | `ic_mod29` | desc (typical plaintext preference — document; tests lock behavior) |
 | `chi2_english_gp_v0` | asc |
 | `self_repeat_rate` | neither assumed globally — report raw; no default reject |
+
+### Batch parallelism (CPU)
+
+| Mode | Score evaluation | Top-k reduction |
+|------|------------------|-----------------|
+| `serial` (default) | Input order, calling thread | `BatchOrdering` sort |
+| `parallel` | Chunked `std::async` pool; workers write disjoint `scores[i]` | **Same** single-thread `BatchOrdering` sort |
+
+**Parity rule:** multi-thread / future `std::execution` / CUDA batches MAY compute
+scores concurrently, but MUST NOT use schedule-dependent heaps or “first finish
+wins” insertion. Materialize `scores[0..N)`, then reduce with the total order
+above. Serial CPU remains the source of truth (`docs/spec/parity.md`).
 
 ---
 
