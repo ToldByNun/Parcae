@@ -1,0 +1,195 @@
+# CPU reference exit & CUDA handoff
+
+Checklist for declaring the CPU reference complete, and for landing CUDA twins
+that match it bit-for-bit. Informal planning names: CPU work ≈ “Phase 2”, CUDA ≈
+“Phase 3”.
+
+See also: [`cpu-reference.md`](cpu-reference.md), [`docs/spec/parity.md`](../spec/parity.md).
+
+---
+
+## CPU reference exit criteria
+
+All of the following SHOULD be true before tagging `v0.2.0-cpu-reference`
+(or any successor CPU-reference tag):
+
+### Oracles
+
+- [x] Locked solved fixtures reproduce under Catch2 `[solved]`
+- [x] Manifest SHA-256 locks present for ciphertext / plaintext / normalized Latin
+- [x] Welcome negative control (ciphertext-F all-skip) fails as designed
+- [x] `parcae-validate --all --require-locked` exits 0 locally
+
+### Library surface
+
+- [x] Transforms: identity, atbash, caesar, affine, compose, vigenere_key,
+      beaufort_key, totient_prime_stream — with `apply_into` / `kernel`
+- [x] Scores: exact_match, hamming_agreement, ic_mod29, chi2_english_gp_v0,
+      self_repeat_rate via `ScoreRegistry`
+- [x] Generators + `BatchRunner` (serial + ordered parallel)
+- [x] `parcae::tool` — tokenize / apply / to_latin / score / validate_fixture
+- [x] `ParityRecord` for params + I/O + interrupt digests
+
+### Tools & docs
+
+- [x] CLIs: `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate`
+- [x] CLI smoke ctests
+- [x] Architecture guide ([`cpu-reference.md`](cpu-reference.md))
+- [x] This handoff checklist
+
+### CI gate
+
+- [x] Full `ctest` green on Ubuntu + Windows (`.github/workflows/ci.yml`)
+- [x] `[solved]` green (subset of the above)
+
+---
+
+## CPU entry points that MUST gain CUDA twins
+
+These are the **only** compute surfaces CUDA is required to mirror for parity.
+Host-side UTF-8 / fixture I/O stays on CPU.
+
+### Transform kernels (required)
+
+| CPU entry | Header / symbol | Notes |
+|-----------|-----------------|-------|
+| `IdentityTransform::apply_into` / copy | `identity_transform.hpp` | Trivial |
+| `AtbashTransform::kernel` | `atbash_transform.hpp` | Involution |
+| `CaesarTransform::kernel` | `caesar_transform.hpp` | |
+| `AffineTransform::kernel` | `affine_transform.hpp` | Needs `inv(a)` |
+| `VigenereKeyTransform::kernel` | `vigenere_key_transform.hpp` | Key + skips |
+| `BeaufortKeyTransform::kernel` | `beaufort_key_transform.hpp` | Key + skips |
+| `TotientPrimeStreamTransform::kernel` | `totient_prime_stream_transform.hpp` | Precomputed shifts span |
+| `ComposeTransform::apply_into` | `compose_transform.hpp` | Ping-pong stages; may call twins |
+| `ApplyTransform::apply_into` | `apply_transform.hpp` | Dispatch only (host or device table) |
+
+Keystream setup (may stay host-side if device receives a shifts buffer):
+
+| CPU entry | Header |
+|-----------|--------|
+| `TotientKeystream::shifts_into` | `math/totient_keystream.hpp` |
+| `Primes::first` / sieve | `math/primes.hpp` |
+
+### Scores (required for batch search)
+
+| CPU entry | Header |
+|-----------|--------|
+| `IcMod29::score` | `score/ic_mod29.hpp` |
+| `Chi2EnglishGp::score` | `score/chi2_english_gp.hpp` |
+| `SelfRepeatRate::score` | `score/self_repeat_rate.hpp` |
+| `ExactMatch::score` | `score/exact_match.hpp` |
+| `HammingAgreement::score` | `score/hamming_agreement.hpp` |
+| `ScoreRegistry::score` | `score/score_registry.hpp` (dispatch) |
+
+Document reduction associativity before claiming parallel CUDA score speedups
+([`scores.md`](../spec/scores.md), [`parity.md`](../spec/parity.md)).
+
+### Batch / generators (required for search throughput)
+
+| CPU entry | Header | Notes |
+|-----------|--------|-------|
+| Candidate expand (caesar / atbash / affine / …) | `generate/*.hpp` | Emit params + envelopes |
+| `BatchRunner::run` | `batch/batch_runner.hpp` | Candidate-major SoA later |
+| `BatchOrdering` | `batch/batch_ordering.hpp` | Deterministic top-k |
+
+### Explicitly **not** CUDA twins
+
+- Tokenizer / UTF-8 / gematria profile load
+- Fixture loader / validator / plaintext normalizer
+- CLIs and `parcae::tool` wrappers (they **call** backends)
+- JSON param parsing (cold); device gets POD / SoA
+
+---
+
+## Parity hash procedure
+
+Goal: for a fixed `(transform_id, params, interrupt, direction, input)` prove
+
+```text
+CPU output bytes  ==  CUDA output bytes
+```
+
+and that both sides emit the same `ParityRecord` digests (except `backend`).
+
+### 1. Materialize a golden on CPU
+
+1. Choose a stream: synthetic Index29 vector **or** a locked fixture’s consumable
+   ciphertext indices after tokenize.
+2. Run:
+
+   ```text
+   ParityRecord::apply_and_capture(id, input, params, direction, interrupt, "cpu")
+   ```
+
+3. Persist under `data/parity/` (to be added with the CUDA port), e.g.:
+
+   ```text
+   data/parity/<name>.json          # full ParityRecord JSON
+   data/parity/<name>.out.idx29     # optional raw uint8 output bytes
+   ```
+
+4. Record `output_sha256` (and input/params/interrupt hashes) in the JSON.
+   **Do not** rewrite locked solved-fixture hashes for CUDA experiments.
+
+### 2. Replay on CUDA
+
+1. Load the same input bytes, params POD, and skip indices onto the device.
+2. Launch the twin kernel; copy output Index29 bytes back.
+3. Build:
+
+   ```text
+   ParityRecord::capture(id, params, interrupt, input, cuda_output, "cuda")
+   ```
+
+4. Assert field equality:
+
+   | Field | Must match CPU golden? |
+   |-------|-------------------------|
+   | `parity_schema` | yes |
+   | `transform_id` | yes |
+   | `params_hash_sha256` | yes |
+   | `input_sha256` | yes |
+   | `output_sha256` | **yes — this is the gate** |
+   | `interrupt_sha256` | yes |
+   | `backend` | differ (`cpu` vs `cuda`) |
+
+### 3. Digest recipes (normative)
+
+Copied from [`parity.md`](../spec/parity.md):
+
+| Field | Bytes hashed (SHA-256, lowercase hex) |
+|-------|----------------------------------------|
+| `params_hash_sha256` | compact `params.dump()` (no whitespace) |
+| `input_sha256` / `output_sha256` | consecutive `uint8_t` Index29 values |
+| `interrupt_sha256` | compact `interrupt.to_json().dump()` |
+
+### 4. Minimum golden set for first CUDA PR
+
+| Case | Why |
+|------|-----|
+| Caesar shift=3, length 64 random | Elementwise |
+| Atbash, length 64 | Involution |
+| Vigenère key len 8 + 2 skips | Keyed + interrupt |
+| Totient stream, start=0, 1 skip | Keystream |
+| Affine `(a,b)=(2,5)` | Mul/inv |
+| Compose atbash→caesar+3 | Multi-stage |
+| One locked fixture consumable stream (e.g. `a-warning`) | Real length / orthography |
+
+### 5. CI expectation (CUDA era)
+
+- Job: build CPU + CUDA, run parity Catch2 tag (e.g. `[parity][cuda]`)
+- Fail if any golden `output_sha256` mismatches
+- CPU-only runners keep running today’s `[solved]` + full `ctest`
+
+---
+
+## Tagging
+
+Annotated tag for this CPU reference milestone:
+
+```text
+v0.2.0-cpu-reference
+```
+
+Prerequisites: exit criteria above, including `[solved]` green on CI.
+Do not move the tag; cut `v0.2.1-…` / `v0.3.0-…` for later milestones.

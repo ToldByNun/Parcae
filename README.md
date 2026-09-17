@@ -32,6 +32,7 @@ License: [MIT](LICENSE).
 |------|----------|
 | Research (alphabet, solved methods, hypotheses) | [docs/research/](docs/research/README.md) |
 | Normative specs (Z29, tokens, transforms, fixtures, tools, parity) | [docs/spec/](docs/spec/README.md) |
+| Architecture (CPU module map, CUDA handoff) | [docs/architecture/](docs/architecture/README.md) |
 
 ## Roadmap (high level)
 
