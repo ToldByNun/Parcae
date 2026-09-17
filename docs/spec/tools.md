@@ -15,30 +15,37 @@
 
 ## Library API (`parcae::tool`)
 
+Headers: `parcae/tool/api.hpp`, `parcae/tool/context.hpp`,
+`parcae/tool/transform_envelope.hpp`.
+
+Callers construct a `parcae::tool::Context` with the Parcae `data/` root; every
+API below takes that context (or uses only envelope/indices when no profile I/O
+is required).
+
 ### `tokenize`
 
 ```text
-tokenize(source_utf8, grammar_id="rtkd-separator-grammar-v0", strict=true)
+tokenize(ctx, source_utf8, grammar_id="rtkd-separator-grammar-v0", strict=true)
   → TokenStream | Status
 ```
 
 ### `apply_transform`
 
 ```text
-apply_transform(TokenStream | span<Index29>, TransformEnvelope)
+apply_to_indices(span<Index29> | TokenStream, TransformEnvelope)
   → vector<Index29> | Status
+
+apply_and_rebuild_text(ctx, TokenStream, TransformEnvelope)
+  → string | Status   // preserves non-rune separators
 ```
 
-When given a `TokenStream`, apply only to consumable runes; return either indices
-only or a rebuilt stream — implementations **MUST** provide **both**:
-
-- `apply_to_indices(...)`
-- `apply_and_rebuild_text(...)` (preserves separators)
+When given a `TokenStream`, apply only to consumable runes. Both index-only and
+rebuild-text paths are provided as above.
 
 ### `to_latin`
 
 ```text
-to_latin(span<Index29>, label_profile="gematria-primus-v0-preferred")
+to_latin(ctx, span<Index29>, label_profile="gematria-primus-v0-preferred")
   → string | Status
 ```
 
@@ -49,16 +56,22 @@ in tests.
 ### `score`
 
 ```text
-score(span<Index29>, score_id, score_version="v0", params_json?)
+score(ctx, span<Index29>, score_id, score_version="v0", params_json?, request?)
   → float | Status
 ```
+
+`chi2_english_gp_v0` auto-loads `profiles/scores/english-gp-expected-v0.json`
+when `request.expected_frequencies` is null.
 
 ### `validate_fixture`
 
 ```text
-validate_fixture(fixture_dir_or_id, require_locked=false)
+validate_fixture(ctx, fixture_dir_or_id, require_locked=false)
   → ValidationReport
 ```
+
+`fixture_dir_or_id` may be an absolute/relative fixture directory or a solved
+fixture id resolved under `data/fixtures/solved/<id>`.
 
 `ValidationReport` MUST include:
 
