@@ -13,6 +13,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(PARCAE_BUILD_TESTS "Build Parcae unit tests" ON)
 option(PARCAE_BUILD_TOOLS "Build Parcae CLI tools" ON)
+option(PARCAE_BUILD_CUDA "Build CUDA twins from Parcae/Parcae/cuda" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(cmake/CompilerWarnings.cmake)
@@ -40,6 +41,26 @@ target_compile_definitions(parcae_core INTERFACE
 
 target_link_libraries(parcae_core INTERFACE nlohmann_json::nlohmann_json)
 
+set(PARCAE_HAS_CUDA_BUILD FALSE)
+if(PARCAE_BUILD_CUDA)
+  include(CheckLanguage)
+  check_language(CUDA)
+  if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES OR CMAKE_CUDA_ARCHITECTURES STREQUAL "")
+      set(CMAKE_CUDA_ARCHITECTURES "75;86")
+    endif()
+    add_subdirectory(Parcae/Parcae/cuda)
+    set(PARCAE_HAS_CUDA_BUILD TRUE)
+  else()
+    message(FATAL_ERROR
+      "PARCAE_BUILD_CUDA=ON but no CUDA compiler was found. "
+      "Install the NVIDIA CUDA Toolkit or set CMAKE_CUDA_COMPILER.")
+  endif()
+endif()
+
 if(PARCAE_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)
@@ -57,3 +78,4 @@ message(STATUS "  Catch2: ${PARCAE_CATCH2_VERSION}")
 message(STATUS "  nlohmann_json: ${PARCAE_NLOHMANN_JSON_VERSION}")
 message(STATUS "  PARCAE_BUILD_TESTS=${PARCAE_BUILD_TESTS}")
 message(STATUS "  PARCAE_BUILD_TOOLS=${PARCAE_BUILD_TOOLS}")
+message(STATUS "  PARCAE_BUILD_CUDA=${PARCAE_BUILD_CUDA} (active=${PARCAE_HAS_CUDA_BUILD})")

@@ -65,8 +65,11 @@ Options:
 |--------|---------|---------|
 | `PARCAE_BUILD_TESTS` | `ON` | Fetch Catch2 and build `parcae_tests` |
 | `PARCAE_BUILD_TOOLS` | `ON` | Build CLIs: `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate` |
+| `PARCAE_BUILD_CUDA` | `OFF` | Build `parcae_cuda` from [`Parcae/Parcae/cuda/`](Parcae/Parcae/cuda/) (needs nvcc) |
 
-On multi-config generators (Visual Studio), binaries land in
+**Visual Studio (CUDA day-to-day):** open [`Parcae/Parcae.slnx`](Parcae/Parcae.slnx), build **x64** with the CUDA Toolkit VS integration installed. Sources live under `Parcae/Parcae/cuda/`.
+
+On multi-config generators (Visual Studio CMake), binaries land in
 `build/tools/Release/`. On single-config (Ninja/Make), they are in
 `build/tools/`. Examples below use `BIN=build/tools/Release` — adjust if needed.
 
