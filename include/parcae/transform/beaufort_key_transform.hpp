@@ -3,6 +3,7 @@
 
 #include "parcae/core/z29.hpp"
 #include "parcae/transform/transform.hpp"
+#include "parcae/transform/transform_buffer.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -27,8 +28,37 @@ public:
         return TransformId::beaufort_key();
     }
 
-    [[nodiscard]] StatusOr<std::vector<Index29>> apply(
+    /// Allocation-free keyed kernel. In-place OK.
+    [[nodiscard]] static Status kernel(
         std::span<const Index29> input,
+        std::span<Index29> output,
+        std::span<const Index29> key,
+        std::span<const std::size_t> skip_indices_sorted) {
+        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        if (!sizes.ok()) {
+            return sizes;
+        }
+        if (key.empty()) {
+            return Status::error("beaufort_key key must be non-empty");
+        }
+
+        const std::size_t key_len = key.size();
+        std::size_t key_cursor = 0;
+        for (std::size_t i = 0; i < input.size(); ++i) {
+            if (parcae::transform_buf::should_skip(skip_indices_sorted, i)) {
+                output[i] = input[i];
+                continue;
+            }
+            const Index29 key_symbol = key[key_cursor % key_len];
+            output[i] = Z29::sub(key_symbol, input[i]);
+            ++key_cursor;
+        }
+        return Status::success();
+    }
+
+    [[nodiscard]] Status apply_into(
+        std::span<const Index29> input,
+        std::span<Index29> output,
         const nlohmann::json& params,
         TransformDirection /*direction*/,
         const InterruptPolicy& interrupt = InterruptPolicy::none()) const override {
@@ -36,32 +66,13 @@ public:
         if (!key.ok()) {
             return key.status();
         }
-
-        Status range = validate_interrupt_range(interrupt, input.size());
+        Status range =
+            parcae::transform_buf::validate_interrupt_range(interrupt, input.size(), "beaufort_key");
         if (!range.ok()) {
             return range;
         }
-
-        const std::vector<Index29>& key_indices = key.value();
-        const std::size_t key_len = key_indices.size();
-
-        std::vector<Index29> out;
-        out.reserve(input.size());
-        std::size_t key_cursor = 0;
-
-        for (std::size_t i = 0; i < input.size(); ++i) {
-            if (interrupt.should_skip(i)) {
-                out.push_back(input[i]);
-                continue;
-            }
-
-            const Index29 key_symbol = key_indices[key_cursor % key_len];
-            // Direction-independent: out = (k - in) mod 29.
-            out.push_back(Z29::sub(key_symbol, input[i]));
-            ++key_cursor;
-        }
-
-        return out;
+        return kernel(
+            input, output, key.value(), parcae::transform_buf::skip_span(interrupt));
     }
 
 private:
@@ -98,17 +109,6 @@ private:
             return Status::error("beaufort_key key_indices must be non-empty");
         }
         return key;
-    }
-
-    [[nodiscard]] static Status validate_interrupt_range(
-        const InterruptPolicy& interrupt,
-        std::size_t input_size) {
-        for (std::size_t skip : interrupt.skip_indices()) {
-            if (skip >= input_size) {
-                return Status::error("beaufort_key skip_indices out of range for input");
-            }
-        }
-        return Status::success();
     }
 };
 

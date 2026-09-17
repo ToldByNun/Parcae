@@ -2,11 +2,13 @@
 #define TOTIENT_KEYSTREAM_HPP
 
 #include "parcae/core/index29.hpp"
+#include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/math/primes.hpp"
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <vector>
 
 /// Totient / prime−1 keystream over Z29: `shift[j] = (p_j - 1) % 29`.
@@ -26,22 +28,33 @@ public:
     [[nodiscard]] static StatusOr<std::vector<Index29>> shifts(
         std::size_t count,
         std::size_t prime_start_index = 0) {
-        if (count == 0) {
-            return std::vector<Index29>{};
+        std::vector<Index29> out(count);
+        Status status = shifts_into(out, prime_start_index);
+        if (!status.ok()) {
+            return status;
+        }
+        return out;
+    }
+
+    /// Fill caller-owned `out` with consecutive shifts (no output allocation).
+    /// May allocate internally for the prime sieve (setup, not the Index29 write).
+    [[nodiscard]] static Status shifts_into(
+        std::span<Index29> out,
+        std::size_t prime_start_index = 0) {
+        if (out.empty()) {
+            return Status::success();
         }
 
         StatusOr<std::vector<std::uint64_t>> primes =
-            Primes::first(prime_start_index + count);
+            Primes::first(prime_start_index + out.size());
         if (!primes.ok()) {
             return primes.status();
         }
 
-        std::vector<Index29> out;
-        out.reserve(count);
-        for (std::size_t i = 0; i < count; ++i) {
-            out.push_back(from_prime(primes.value()[prime_start_index + i]));
+        for (std::size_t i = 0; i < out.size(); ++i) {
+            out[i] = from_prime(primes.value()[prime_start_index + i]);
         }
-        return out;
+        return Status::success();
     }
 
     [[nodiscard]] static Index29 from_prime(std::uint64_t prime) noexcept {

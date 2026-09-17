@@ -4,8 +4,7 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/z29.hpp"
 #include "parcae/transform/transform.hpp"
-
-#include <vector>
+#include "parcae/transform/transform_buffer.hpp"
 
 /// `out[i] = 28 - in[i]`. Direction ignored (involution); interrupt unused.
 class AtbashTransform : public Transform {
@@ -16,8 +15,23 @@ public:
         return TransformId::atbash();
     }
 
-    [[nodiscard]] StatusOr<std::vector<Index29>> apply(
+    /// Allocation-free elementwise kernel (in-place OK).
+    [[nodiscard]] static Status kernel(
         std::span<const Index29> input,
+        std::span<Index29> output) {
+        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        if (!sizes.ok()) {
+            return sizes;
+        }
+        for (std::size_t i = 0; i < input.size(); ++i) {
+            output[i] = Z29::atbash(input[i]);
+        }
+        return Status::success();
+    }
+
+    [[nodiscard]] Status apply_into(
+        std::span<const Index29> input,
+        std::span<Index29> output,
         const nlohmann::json& params,
         TransformDirection /*direction*/,
         const InterruptPolicy& /*interrupt*/ = InterruptPolicy::none()) const override {
@@ -25,13 +39,7 @@ public:
         if (!params_status.ok()) {
             return params_status;
         }
-
-        std::vector<Index29> out;
-        out.reserve(input.size());
-        for (Index29 value : input) {
-            out.push_back(Z29::atbash(value));
-        }
-        return out;
+        return kernel(input, output);
     }
 
 private:

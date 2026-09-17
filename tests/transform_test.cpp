@@ -532,3 +532,57 @@ TEST_CASE("TotientPrimeStreamTransform with InterruptPolicy", "[transform]") {
         REQUIRE(cipher.value() == std::vector<Index29>{Index29{16}});
     }
 }
+
+TEST_CASE("apply_into / kernel are span-based and match apply", "[transform][span]") {
+    const std::vector<Index29> input{Index29{0}, Index29{1}, Index29{2}, Index29{28}};
+
+    SECTION("atbash kernel in-place") {
+        std::vector<Index29> buf = input;
+        REQUIRE(AtbashTransform::kernel(buf, buf).ok());
+        REQUIRE(buf == std::vector<Index29>{Index29{28}, Index29{27}, Index29{26}, Index29{0}});
+        REQUIRE(AtbashTransform::kernel(buf, buf).ok());
+        REQUIRE(buf == input);
+    }
+
+    SECTION("caesar apply_into matches apply") {
+        CaesarTransform transform;
+        const nlohmann::json params{{"shift", 3}};
+        StatusOr<std::vector<Index29>> via_apply =
+            transform.apply(input, params, TransformDirection::Encrypt);
+
+        std::vector<Index29> via_into(input.size());
+        REQUIRE(transform
+                    .apply_into(
+                        input, via_into, params, TransformDirection::Encrypt)
+                    .ok());
+        REQUIRE(via_apply.ok());
+        REQUIRE(via_into == via_apply.value());
+    }
+
+    SECTION("length mismatch is an error") {
+        std::vector<Index29> short_out(2);
+        REQUIRE_FALSE(AtbashTransform::kernel(input, short_out).ok());
+    }
+
+    SECTION("vigenere kernel with skips") {
+        const std::vector<Index29> key{Index29{1}, Index29{2}};
+        const std::vector<std::size_t> skips{1};
+        std::vector<Index29> out(input.size());
+        REQUIRE(VigenereKeyTransform::kernel(
+                    input, out, key, skips, TransformDirection::Encrypt)
+                    .ok());
+        // i0: +1 → 1; i1 skip → 1; i2: +2 → 4; i3: +1 → 0
+        REQUIRE(out == std::vector<Index29>{Index29{1}, Index29{1}, Index29{4}, Index29{0}});
+    }
+
+    SECTION("compose apply_into ping-pong matches apply") {
+        ComposeTransform compose;
+        const nlohmann::json params = ComposeTransform::atbash_then_caesar_params(3);
+        StatusOr<std::vector<Index29>> via_apply =
+            compose.apply(input, params, TransformDirection::Decrypt);
+        std::vector<Index29> via_into(input.size());
+        REQUIRE(compose.apply_into(input, via_into, params, TransformDirection::Decrypt).ok());
+        REQUIRE(via_apply.ok());
+        REQUIRE(via_into == via_apply.value());
+    }
+}

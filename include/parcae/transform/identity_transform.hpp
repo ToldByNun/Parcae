@@ -3,8 +3,9 @@
 
 #include "parcae/core/status.hpp"
 #include "parcae/transform/transform.hpp"
+#include "parcae/transform/transform_buffer.hpp"
 
-#include <vector>
+#include <algorithm>
 
 /// `out[i] = in[i]`. Direction and interrupt policy are accepted and ignored.
 class IdentityTransform : public Transform {
@@ -15,8 +16,9 @@ public:
         return TransformId::identity();
     }
 
-    [[nodiscard]] StatusOr<std::vector<Index29>> apply(
+    [[nodiscard]] Status apply_into(
         std::span<const Index29> input,
+        std::span<Index29> output,
         const nlohmann::json& params,
         TransformDirection /*direction*/,
         const InterruptPolicy& /*interrupt*/ = InterruptPolicy::none()) const override {
@@ -24,7 +26,13 @@ public:
         if (!params_status.ok()) {
             return params_status;
         }
-        return std::vector<Index29>(input.begin(), input.end());
+        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        if (!sizes.ok()) {
+            return sizes;
+        }
+        // Elementwise kernel — no allocation; supports in-place.
+        std::copy(input.begin(), input.end(), output.begin());
+        return Status::success();
     }
 
 private:

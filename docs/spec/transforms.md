@@ -9,10 +9,17 @@
 Every transform **MUST**:
 
 1. Accept a consumable `span<const Index29>` (and optional interrupt policy).
-2. Produce an output `span`/`vector` of the **same length**.
+2. Write results into a caller-provided `span<Index29>` of the **same length**
+   via `apply_into` (CUDA-ready; no hidden output allocation on the hot path).
 3. Be a pure function of `(input, params, policy)` — same bits in ⇒ same bits out.
 4. Serialize params to/from JSON without loss for all fields defined below.
 5. Expose `direction`: `encrypt` | `decrypt` where both are defined.
+
+Convenience `apply(...) → vector` MAY allocate once and MUST delegate to
+`apply_into`. Static `kernel(...)` helpers take POD / `span` args only (no JSON)
+and MUST NOT allocate. JSON key / keystream materialization is setup, not the
+elementwise loop. In-place (`out.data() == in.data()`) is allowed for single-pass
+families. `compose` uses at most two length-N scratch buffers (ping-pong).
 
 Non-rune tokens are handled by the corpus layer, not inside Index29 kernels.
 

@@ -16,8 +16,10 @@ associativity / ordering policy.
 
 ## CPU obligations (parity-ready)
 
-1. Hot transforms operate on `std::span<const uint8_t>` / `Index29` without hidden
-   global state.
+1. Hot transforms operate on `std::span<const Index29>` → `std::span<Index29>`
+   (`apply_into` / static `kernel`) without hidden **output** allocations or
+   global state. JSON parsing and keystream sieve setup may allocate; the
+   Index29 write loop must not.
 2. Interrupt application is explicit (mask or skip-set), not buried in I/O.
 3. Params are POD / trivially serializable (JSON envelope ↔ struct).
 4. Each transform run can emit a **parity record**:

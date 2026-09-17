@@ -9,6 +9,7 @@
 #include "parcae/transform/identity_transform.hpp"
 #include "parcae/transform/totient_prime_stream_transform.hpp"
 #include "parcae/transform/transform.hpp"
+#include "parcae/transform/transform_buffer.hpp"
 #include "parcae/transform/vigenere_key_transform.hpp"
 
 #include <cstddef>
@@ -22,6 +23,9 @@
 /// Optional per-stage `direction` overrides the default (`decrypt` on the decrypt
 /// path) — Koan 1 uses Caesar with `"direction": "encrypt"` so decrypt does +shift.
 /// Nested `compose` is allowed up to `max_depth` (default 8, MUST be ≥ 4).
+///
+/// Staging uses at most two length-N scratch buffers (ping-pong), not one allocation
+/// per stage.
 class ComposeTransform : public Transform {
 public:
     static constexpr std::size_t max_depth = 8;
@@ -32,12 +36,13 @@ public:
         return TransformId::compose();
     }
 
-    [[nodiscard]] StatusOr<std::vector<Index29>> apply(
+    [[nodiscard]] Status apply_into(
         std::span<const Index29> input,
+        std::span<Index29> output,
         const nlohmann::json& params,
         TransformDirection direction,
         const InterruptPolicy& interrupt = InterruptPolicy::none()) const override {
-        return apply_with_depth(input, params, direction, interrupt, 0);
+        return apply_into_with_depth(input, output, params, direction, interrupt, 0);
     }
 
     /// Params shape used by the `koan-1` fixture (Atbash then Caesar +shift).
@@ -87,12 +92,17 @@ private:
         return TransformDirectionUtil::from_string(stage.at("direction").get<std::string>());
     }
 
-    [[nodiscard]] static StatusOr<std::vector<Index29>> apply_with_depth(
+    [[nodiscard]] static Status apply_into_with_depth(
         std::span<const Index29> input,
+        std::span<Index29> output,
         const nlohmann::json& params,
         TransformDirection direction,
         const InterruptPolicy& interrupt,
         std::size_t depth) {
+        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        if (!sizes.ok()) {
+            return sizes;
+        }
         if (depth >= max_depth) {
             return Status::error("compose nesting exceeds max_depth");
         }
@@ -108,45 +118,85 @@ private:
             return Status::error("compose params.stages must be non-empty");
         }
 
-        std::vector<Index29> current(input.begin(), input.end());
+        // Ping-pong: at most two N-length scratch buffers for multi-stage pipelines.
+        std::vector<Index29> scratch_a;
+        std::vector<Index29> scratch_b;
+        const bool multi = stages.size() > 1;
+        if (multi) {
+            scratch_a.assign(input.begin(), input.end());
+            scratch_b.resize(input.size());
+        }
+
+        std::span<const Index29> current_in = input;
+        std::span<Index29> current_out = multi ? std::span<Index29>(scratch_b) : output;
+        bool write_to_b = true;
+
+        auto run_stage = [&](const nlohmann::json& stage, TransformDirection stage_dir) -> Status {
+            return apply_stage_into(current_in, current_out, stage, stage_dir, interrupt, depth);
+        };
+
+        auto advance = [&]() {
+            if (!multi) {
+                return;
+            }
+            if (write_to_b) {
+                current_in = scratch_b;
+                current_out = scratch_a;
+                write_to_b = false;
+            } else {
+                current_in = scratch_a;
+                current_out = scratch_b;
+                write_to_b = true;
+            }
+        };
+
         if (direction == TransformDirection::Decrypt) {
-            for (const nlohmann::json& stage : stages) {
+            for (std::size_t s = 0; s < stages.size(); ++s) {
+                const bool last = (s + 1 == stages.size());
+                if (last) {
+                    current_out = output;
+                }
                 StatusOr<TransformDirection> stage_direction =
-                    resolve_stage_direction(stage, TransformDirection::Decrypt);
+                    resolve_stage_direction(stages[s], TransformDirection::Decrypt);
                 if (!stage_direction.ok()) {
                     return stage_direction.status();
                 }
-                StatusOr<std::vector<Index29>> next =
-                    apply_stage(current, stage, stage_direction.value(), interrupt, depth);
-                if (!next.ok()) {
-                    return next.status();
+                Status status = run_stage(stages[s], stage_direction.value());
+                if (!status.ok()) {
+                    return status;
                 }
-                current = std::move(next.value());
+                if (!last) {
+                    advance();
+                }
             }
         } else {
+            std::size_t remaining = stages.size();
             for (auto it = stages.rbegin(); it != stages.rend(); ++it) {
+                --remaining;
+                const bool last = (remaining == 0);
+                if (last) {
+                    current_out = output;
+                }
                 StatusOr<TransformDirection> recipe_direction =
                     resolve_stage_direction(*it, TransformDirection::Decrypt);
                 if (!recipe_direction.ok()) {
                     return recipe_direction.status();
                 }
-                StatusOr<std::vector<Index29>> next = apply_stage(
-                    current,
-                    *it,
-                    invert_direction(recipe_direction.value()),
-                    interrupt,
-                    depth);
-                if (!next.ok()) {
-                    return next.status();
+                Status status = run_stage(*it, invert_direction(recipe_direction.value()));
+                if (!status.ok()) {
+                    return status;
                 }
-                current = std::move(next.value());
+                if (!last) {
+                    advance();
+                }
             }
         }
-        return current;
+        return Status::success();
     }
 
-    [[nodiscard]] static StatusOr<std::vector<Index29>> apply_stage(
+    [[nodiscard]] static Status apply_stage_into(
         std::span<const Index29> input,
+        std::span<Index29> output,
         const nlohmann::json& stage,
         TransformDirection direction,
         const InterruptPolicy& interrupt,
@@ -163,9 +213,6 @@ private:
         const nlohmann::json stage_params =
             stage.contains("params") ? stage.at("params") : nlohmann::json::object();
 
-        // Outer interrupt applies only to the outer keyed stage in later families;
-        // non-keyed stages ignore it. Nested compose receives none unless the stage
-        // carries its own interrupt object.
         InterruptPolicy stage_interrupt = InterruptPolicy::none();
         if (stage.contains("interrupt")) {
             StatusOr<InterruptPolicy> parsed = InterruptPolicy::from_json(stage.at("interrupt"));
@@ -178,29 +225,36 @@ private:
         }
 
         if (id.value() == TransformId::identity()) {
-            return IdentityTransform{}.apply(input, stage_params, direction, stage_interrupt);
+            return IdentityTransform{}.apply_into(
+                input, output, stage_params, direction, stage_interrupt);
         }
         if (id.value() == TransformId::atbash()) {
-            return AtbashTransform{}.apply(input, stage_params, direction, stage_interrupt);
+            return AtbashTransform{}.apply_into(
+                input, output, stage_params, direction, stage_interrupt);
         }
         if (id.value() == TransformId::caesar()) {
-            return CaesarTransform{}.apply(input, stage_params, direction, stage_interrupt);
+            return CaesarTransform{}.apply_into(
+                input, output, stage_params, direction, stage_interrupt);
         }
         if (id.value() == TransformId::affine()) {
-            return AffineTransform{}.apply(input, stage_params, direction, stage_interrupt);
+            return AffineTransform{}.apply_into(
+                input, output, stage_params, direction, stage_interrupt);
         }
         if (id.value() == TransformId::vigenere_key()) {
-            return VigenereKeyTransform{}.apply(input, stage_params, direction, stage_interrupt);
+            return VigenereKeyTransform{}.apply_into(
+                input, output, stage_params, direction, stage_interrupt);
         }
         if (id.value() == TransformId::beaufort_key()) {
-            return BeaufortKeyTransform{}.apply(input, stage_params, direction, stage_interrupt);
+            return BeaufortKeyTransform{}.apply_into(
+                input, output, stage_params, direction, stage_interrupt);
         }
         if (id.value() == TransformId::totient_prime_stream()) {
-            return TotientPrimeStreamTransform{}.apply(
-                input, stage_params, direction, stage_interrupt);
+            return TotientPrimeStreamTransform{}.apply_into(
+                input, output, stage_params, direction, stage_interrupt);
         }
         if (id.value() == TransformId::compose()) {
-            return apply_with_depth(input, stage_params, direction, stage_interrupt, depth + 1);
+            return apply_into_with_depth(
+                input, output, stage_params, direction, stage_interrupt, depth + 1);
         }
         return Status::error("compose stage transform_id is not supported yet");
     }

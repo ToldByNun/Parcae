@@ -4,9 +4,9 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/z29.hpp"
 #include "parcae/transform/transform.hpp"
+#include "parcae/transform/transform_buffer.hpp"
 
 #include <cstdint>
-#include <vector>
 
 /// Caesar over Z29: encrypt adds `shift`, decrypt subtracts `shift`.
 class CaesarTransform : public Transform {
@@ -17,8 +17,29 @@ public:
         return TransformId::caesar();
     }
 
-    [[nodiscard]] StatusOr<std::vector<Index29>> apply(
+    /// Allocation-free elementwise kernel (in-place OK).
+    [[nodiscard]] static Status kernel(
         std::span<const Index29> input,
+        std::span<Index29> output,
+        Index29 shift,
+        TransformDirection direction) {
+        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        if (!sizes.ok()) {
+            return sizes;
+        }
+        for (std::size_t i = 0; i < input.size(); ++i) {
+            if (direction == TransformDirection::Encrypt) {
+                output[i] = Z29::add(input[i], shift);
+            } else {
+                output[i] = Z29::sub(input[i], shift);
+            }
+        }
+        return Status::success();
+    }
+
+    [[nodiscard]] Status apply_into(
+        std::span<const Index29> input,
+        std::span<Index29> output,
         const nlohmann::json& params,
         TransformDirection direction,
         const InterruptPolicy& /*interrupt*/ = InterruptPolicy::none()) const override {
@@ -26,17 +47,7 @@ public:
         if (!shift.ok()) {
             return shift.status();
         }
-
-        std::vector<Index29> out;
-        out.reserve(input.size());
-        for (Index29 value : input) {
-            if (direction == TransformDirection::Encrypt) {
-                out.push_back(Z29::add(value, shift.value()));
-            } else {
-                out.push_back(Z29::sub(value, shift.value()));
-            }
-        }
-        return out;
+        return kernel(input, output, shift.value(), direction);
     }
 
 private:

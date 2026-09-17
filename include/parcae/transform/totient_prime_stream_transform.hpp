@@ -4,6 +4,7 @@
 #include "parcae/core/z29.hpp"
 #include "parcae/math/totient_keystream.hpp"
 #include "parcae/transform/transform.hpp"
+#include "parcae/transform/transform_buffer.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -21,8 +22,43 @@ public:
         return TransformId::totient_prime_stream();
     }
 
-    [[nodiscard]] StatusOr<std::vector<Index29>> apply(
+    /// Allocation-free once `shifts` (consumable length) is provided. In-place OK.
+    [[nodiscard]] static Status kernel(
         std::span<const Index29> input,
+        std::span<Index29> output,
+        std::span<const Index29> shifts,
+        std::span<const std::size_t> skip_indices_sorted,
+        TransformDirection direction) {
+        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        if (!sizes.ok()) {
+            return sizes;
+        }
+
+        std::size_t stream_cursor = 0;
+        for (std::size_t i = 0; i < input.size(); ++i) {
+            if (parcae::transform_buf::should_skip(skip_indices_sorted, i)) {
+                output[i] = input[i];
+                continue;
+            }
+            if (stream_cursor >= shifts.size()) {
+                return Status::error("totient_prime_stream shifts shorter than consumable count");
+            }
+            const Index29 shift = shifts[stream_cursor++];
+            if (direction == TransformDirection::Encrypt) {
+                output[i] = Z29::add(input[i], shift);
+            } else {
+                output[i] = Z29::sub(input[i], shift);
+            }
+        }
+        if (stream_cursor != shifts.size()) {
+            return Status::error("totient_prime_stream shifts longer than consumable count");
+        }
+        return Status::success();
+    }
+
+    [[nodiscard]] Status apply_into(
+        std::span<const Index29> input,
+        std::span<Index29> output,
         const nlohmann::json& params,
         TransformDirection direction,
         const InterruptPolicy& interrupt = InterruptPolicy::none()) const override {
@@ -31,7 +67,8 @@ public:
             return start.status();
         }
 
-        Status range = validate_interrupt_range(interrupt, input.size());
+        Status range = parcae::transform_buf::validate_interrupt_range(
+            interrupt, input.size(), "totient_prime_stream");
         if (!range.ok()) {
             return range;
         }
@@ -43,31 +80,19 @@ public:
             }
         }
 
-        StatusOr<std::vector<Index29>> stream =
-            TotientKeystream::shifts(consumable, start.value());
-        if (!stream.ok()) {
-            return stream.status();
+        // Keystream materialization into a single temporary (not per-element).
+        std::vector<Index29> shifts(consumable);
+        Status filled = TotientKeystream::shifts_into(shifts, start.value());
+        if (!filled.ok()) {
+            return filled;
         }
 
-        std::vector<Index29> out;
-        out.reserve(input.size());
-        std::size_t stream_cursor = 0;
-
-        for (std::size_t i = 0; i < input.size(); ++i) {
-            if (interrupt.should_skip(i)) {
-                out.push_back(input[i]);
-                continue;
-            }
-
-            const Index29 shift = stream.value()[stream_cursor++];
-            if (direction == TransformDirection::Encrypt) {
-                out.push_back(Z29::add(input[i], shift));
-            } else {
-                out.push_back(Z29::sub(input[i], shift));
-            }
-        }
-
-        return out;
+        return kernel(
+            input,
+            output,
+            shifts,
+            parcae::transform_buf::skip_span(interrupt),
+            direction);
     }
 
 private:
@@ -110,18 +135,6 @@ private:
             prime_start_index = static_cast<std::size_t>(raw);
         }
         return prime_start_index;
-    }
-
-    [[nodiscard]] static Status validate_interrupt_range(
-        const InterruptPolicy& interrupt,
-        std::size_t input_size) {
-        for (std::size_t skip : interrupt.skip_indices()) {
-            if (skip >= input_size) {
-                return Status::error(
-                    "totient_prime_stream skip_indices out of range for input");
-            }
-        }
-        return Status::success();
     }
 };
 

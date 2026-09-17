@@ -4,10 +4,10 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/z29.hpp"
 #include "parcae/transform/transform.hpp"
+#include "parcae/transform/transform_buffer.hpp"
 
 #include <cstdint>
 #include <string>
-#include <vector>
 
 /// Affine over Z29: encrypt `a·x + b`, decrypt `inv(a)·(x - b)`.
 class AffineTransform : public Transform {
@@ -18,8 +18,31 @@ public:
         return TransformId::affine();
     }
 
-    [[nodiscard]] StatusOr<std::vector<Index29>> apply(
+    /// Allocation-free elementwise kernel (in-place OK).
+    [[nodiscard]] static Status kernel(
         std::span<const Index29> input,
+        std::span<Index29> output,
+        Index29 a,
+        Index29 b,
+        TransformDirection direction) {
+        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        if (!sizes.ok()) {
+            return sizes;
+        }
+        const Index29 inv_a = Z29::inv(a);
+        for (std::size_t i = 0; i < input.size(); ++i) {
+            if (direction == TransformDirection::Encrypt) {
+                output[i] = Z29::add(Z29::mul(a, input[i]), b);
+            } else {
+                output[i] = Z29::mul(inv_a, Z29::sub(input[i], b));
+            }
+        }
+        return Status::success();
+    }
+
+    [[nodiscard]] Status apply_into(
+        std::span<const Index29> input,
+        std::span<Index29> output,
         const nlohmann::json& params,
         TransformDirection direction,
         const InterruptPolicy& /*interrupt*/ = InterruptPolicy::none()) const override {
@@ -27,21 +50,7 @@ public:
         if (!parsed.ok()) {
             return parsed.status();
         }
-
-        const Index29 a = parsed.value().a;
-        const Index29 b = parsed.value().b;
-        const Index29 inv_a = Z29::inv(a);
-
-        std::vector<Index29> out;
-        out.reserve(input.size());
-        for (Index29 value : input) {
-            if (direction == TransformDirection::Encrypt) {
-                out.push_back(Z29::add(Z29::mul(a, value), b));
-            } else {
-                out.push_back(Z29::mul(inv_a, Z29::sub(value, b)));
-            }
-        }
-        return out;
+        return kernel(input, output, parsed.value().a, parsed.value().b, direction);
     }
 
 private:
