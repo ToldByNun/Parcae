@@ -11,6 +11,8 @@ set(PARCAE_CUDA_SOURCES
 add_library(parcae_cuda STATIC ${PARCAE_CUDA_SOURCES})
 add_library(parcae::cuda ALIAS parcae_cuda)
 
+find_package(CUDAToolkit REQUIRED)
+
 target_include_directories(parcae_cuda
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -18,15 +20,22 @@ target_include_directories(parcae_cuda
     $<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(parcae_cuda PUBLIC parcae::core)
+target_link_libraries(parcae_cuda
+  PUBLIC
+    parcae::core
+    CUDA::cudart
+)
 
 target_compile_features(parcae_cuda PUBLIC cxx_std_20)
 target_compile_definitions(parcae_cuda PUBLIC PARCAE_HAS_CUDA=1)
 
+# No separable compilation: a static .cu lib with -rdc leaves
+# __cudaRegisterLinkedBinary unresolved when linked into a host-only exe
+# (parcae_tests). Re-enable with CUDA_RESOLVE_DEVICE_SYMBOLS when kernels need RDC.
 set_target_properties(parcae_cuda PROPERTIES
-  CUDA_SEPARABLE_COMPILATION ON
+  CUDA_SEPARABLE_COMPILATION OFF
   POSITION_INDEPENDENT_CODE ON
-  CUDA_RUNTIME_LIBRARY Static
+  CUDA_RUNTIME_LIBRARY Shared
 )
 
 # Keep host-side warnings light under nvcc (avoids cl D9025 /W4 vs /W1).

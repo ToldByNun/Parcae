@@ -16,6 +16,7 @@ add_executable(parcae_tests
   tool_api_test.cpp
   parity_test.cpp
   transform_property_test.cpp
+  cuda_device_buffer_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE
@@ -26,6 +27,11 @@ target_link_libraries(parcae_tests PRIVATE
 target_compile_definitions(parcae_tests PRIVATE
   PARCAE_TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/data"
 )
+
+if(TARGET parcae::cuda)
+  target_link_libraries(parcae_tests PRIVATE parcae::cuda)
+  # Include path for device_buffer.hpp / parcae_cuda.hpp comes from parcae::cuda PUBLIC.
+endif()
 
 parcae_set_project_warnings(parcae_tests)
 

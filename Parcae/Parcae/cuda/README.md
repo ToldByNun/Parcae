@@ -13,6 +13,8 @@ Files:
 |------|------|
 | `parcae_cuda.hpp` | Public façade (`parcae::cuda::available`) |
 | `parcae_cuda_stub.cu` | Minimal TU so the library/project links |
+| `cuda_error.hpp` | `status_from_cuda` — map `cudaError_t` → `Status` |
+| `device_buffer.hpp` | RAII `DeviceBuffer<T>` — alloc / H2D / D2H / free |
 | `CMakeLists.txt` | Defines `parcae_cuda` when parent enables CUDA |
 
 CPU reference headers remain under repo-root `include/parcae/`.
