@@ -2,7 +2,7 @@
 
 **Status:** Normative  
 **Headers (planned):** `parcae/tool/api.hpp`  
-**Binaries (planned):** `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate`
+**Binaries:** `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate`
 
 ## Principles
 
@@ -131,14 +131,28 @@ from the fixture manifest, a transform envelope JSON file, or explicit flags.
 ### `parcae-score`
 
 ```text
-parcae-score --score-id <id> --input <file> [--indices|--runes] [--json]
+parcae-score --score-id <id> --input <file|->
+             [--latin|--runes|--indices] [--params-json <json>]
+             [--json] [--data-dir <path>]
+parcae-score --list [--json] [--data-dir <path>]
+```
+
+Default input mode is `--latin` (letters only → delatinize). `--runes` tokenizes
+UTF-8 Liber Primus text; `--indices` parses `0..28` integers. JSON shape:
+
+```json
+{ "score_id": "ic_mod29", "score_version": "v0", "value": 1.0 }
 ```
 
 ### `parcae-validate`
 
 ```text
-parcae-validate [--id <fixture_id>|--all] [--require-locked] [--json]
+parcae-validate --id <fixture_id|path> [--require-locked] [--json] [--data-dir <path>]
+parcae-validate --all [--require-locked] [--json] [--data-dir <path>]
 ```
+
+With `--all --require-locked`, only fixtures whose `verification.status` is
+`locked` are selected (draft/synth fixtures are skipped).
 
 Exit codes:
 

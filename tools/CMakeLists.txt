@@ -15,6 +15,8 @@ endfunction()
 
 parcae_add_cli(parcae-tokenize parcae_tokenize/main.cpp)
 parcae_add_cli(parcae-decode parcae_decode/main.cpp)
+parcae_add_cli(parcae-score parcae_score/main.cpp)
+parcae_add_cli(parcae-validate parcae_validate/main.cpp)
 
 if(PARCAE_BUILD_TESTS)
   add_test(
@@ -39,5 +41,39 @@ if(PARCAE_BUILD_TESTS)
       --input "${CMAKE_SOURCE_DIR}/data/fixtures/solved/a-warning/ciphertext.txt"
       --transform-id atbash
       --direction decrypt
+  )
+
+  add_test(
+    NAME cli_score_ic_indices
+    COMMAND $<TARGET_FILE:parcae-score>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --score-id ic_mod29
+      --indices
+      --input "${CMAKE_SOURCE_DIR}/data/fixtures/cli/score-indices.txt"
+  )
+
+  add_test(
+    NAME cli_score_list_json
+    COMMAND $<TARGET_FILE:parcae-score>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --list
+      --json
+  )
+
+  add_test(
+    NAME cli_validate_id_a_warning
+    COMMAND $<TARGET_FILE:parcae-validate>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --id a-warning
+      --require-locked
+  )
+
+  add_test(
+    NAME cli_validate_all_locked
+    COMMAND $<TARGET_FILE:parcae-validate>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --all
+      --require-locked
+      --json
   )
 endif()
