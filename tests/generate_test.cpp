@@ -4,15 +4,19 @@
 #include <parcae/generate/atbash_candidate_generator.hpp>
 #include <parcae/generate/atbash_caesar_candidate_generator.hpp>
 #include <parcae/generate/caesar_candidate_generator.hpp>
+#include <parcae/generate/vigenere_explicit_key_candidate_generator.hpp>
+#include <parcae/interrupt/policy.hpp>
 #include <parcae/score/exact_match.hpp>
 #include <parcae/transform/affine_transform.hpp>
 #include <parcae/transform/atbash_transform.hpp>
 #include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/compose_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
+#include <parcae/transform/vigenere_key_transform.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -21,6 +25,26 @@ namespace {
 
 [[nodiscard]] Index29 I(std::uint8_t v) {
     return Index29{v};
+}
+
+/// Among candidates, find unique exact-match=1.0 against `plain`; return its index.
+[[nodiscard]] std::size_t require_unique_exact_match_rank1(
+    const std::vector<TransformCandidate>& candidates,
+    const std::vector<Index29>& plain) {
+    std::size_t hits = 0;
+    std::size_t hit_index = 0;
+    for (std::size_t i = 0; i < candidates.size(); ++i) {
+        StatusOr<double> score = ExactMatch::score(candidates[i].output_indices(), plain);
+        REQUIRE(score.ok());
+        if (score.value() == 1.0) {
+            ++hits;
+            hit_index = i;
+        } else {
+            REQUIRE(score.value() == 0.0);
+        }
+    }
+    REQUIRE(hits == 1);
+    return hit_index;
 }
 
 }  // namespace
@@ -197,4 +221,183 @@ TEST_CASE("AffineCandidateGenerator enumerates 28×29=812 with documented cost",
         AffineCandidateGenerator::generate(mid, TransformDirection::Decrypt);
     REQUIRE(recovered.ok());
     REQUIRE(ExactMatch::score(recovered.value()[34].output_indices(), cipher).value() == 1.0);
+}
+
+TEST_CASE("VigenereExplicitKeyCandidateGenerator applies caller keys only", "[generate][vigenere]") {
+    REQUIRE(VigenereExplicitKeyCandidateGenerator::generator_id == "gen_vigenere_explicit_keys");
+
+    const std::vector<Index29> cipher = {I(1), I(3), I(3), I(5)};
+    SECTION("rejects empty key list") {
+        const std::vector<std::vector<Index29>> empty;
+        REQUIRE_FALSE(VigenereExplicitKeyCandidateGenerator::generate(cipher, empty).ok());
+    }
+
+    SECTION("enumerates provided keys in order") {
+        const std::vector<std::vector<Index29>> keys = {
+            {I(9), I(9)},
+            {I(1), I(2)},
+            {I(3), I(4), I(5)},
+        };
+        StatusOr<std::vector<TransformCandidate>> candidates =
+            VigenereExplicitKeyCandidateGenerator::generate(cipher, keys);
+        REQUIRE(candidates.ok());
+        REQUIRE(candidates.value().size() == 3);
+        REQUIRE(candidates.value()[0].candidate_id() == "vigenere_key:i=0:key_indices=9,9");
+        REQUIRE(candidates.value()[1].candidate_id() == "vigenere_key:i=1:key_indices=1,2");
+        REQUIRE(candidates.value()[2].params().at("key_indices") == nlohmann::json{3, 4, 5});
+        REQUIRE_FALSE(candidates.value()[0].interrupt().has_value());
+    }
+
+    SECTION("optional key_latin metadata and interrupt in envelope") {
+        const std::vector<ExplicitVigenereKey> keys = {
+            ExplicitVigenereKey{{I(1), I(2)}, std::string{"AB"}},
+        };
+        StatusOr<InterruptPolicy> interrupt = InterruptPolicy::from_skip_indices({1});
+        REQUIRE(interrupt.ok());
+
+        StatusOr<std::vector<TransformCandidate>> candidates =
+            VigenereExplicitKeyCandidateGenerator::generate(
+                cipher,
+                keys,
+                TransformDirection::Decrypt,
+                interrupt.value());
+        REQUIRE(candidates.ok());
+        REQUIRE(candidates.value().size() == 1);
+        REQUIRE(candidates.value()[0].params().at("key_latin") == "AB");
+        REQUIRE(candidates.value()[0].interrupt().has_value());
+        REQUIRE(candidates.value()[0].envelope().contains("interrupt"));
+        REQUIRE(
+            candidates.value()[0].envelope().at("interrupt").at("skip_indices") ==
+            nlohmann::json{1});
+    }
+}
+
+TEST_CASE(
+    "Generators include params that recover known synthetic ciphertexts at rank 1 under exact-match",
+    "[generate][rank1]") {
+    const std::vector<Index29> plain = {I(0), I(1), I(2), I(3), I(10), I(14), I(28)};
+
+    SECTION("gen_caesar") {
+        constexpr int kShift = 7;
+        StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
+            plain,
+            nlohmann::json{{"shift", kShift}},
+            TransformDirection::Encrypt);
+        REQUIRE(cipher.ok());
+
+        StatusOr<std::vector<TransformCandidate>> candidates =
+            CaesarCandidateGenerator::generate(cipher.value());
+        REQUIRE(candidates.ok());
+        const std::size_t rank1 =
+            require_unique_exact_match_rank1(candidates.value(), plain);
+        REQUIRE(rank1 == static_cast<std::size_t>(kShift));
+        REQUIRE(candidates.value()[rank1].params().at("shift") == kShift);
+    }
+
+    SECTION("gen_atbash") {
+        StatusOr<std::vector<Index29>> cipher = AtbashTransform{}.apply(
+            plain,
+            nlohmann::json::object(),
+            TransformDirection::Encrypt);
+        REQUIRE(cipher.ok());
+
+        StatusOr<std::vector<TransformCandidate>> candidates =
+            AtbashCandidateGenerator::generate(cipher.value());
+        REQUIRE(candidates.ok());
+        const std::size_t rank1 =
+            require_unique_exact_match_rank1(candidates.value(), plain);
+        REQUIRE(rank1 == 0);
+        REQUIRE(candidates.value()[rank1].candidate_id() == "atbash");
+    }
+
+    SECTION("gen_atbash_caesar") {
+        constexpr std::uint8_t kShift = 3;
+        StatusOr<std::vector<Index29>> cipher =
+            ComposeTransform::apply_atbash_then_caesar(plain, kShift, TransformDirection::Encrypt);
+        REQUIRE(cipher.ok());
+
+        StatusOr<std::vector<TransformCandidate>> candidates =
+            AtbashCaesarCandidateGenerator::generate(cipher.value());
+        REQUIRE(candidates.ok());
+        const std::size_t rank1 =
+            require_unique_exact_match_rank1(candidates.value(), plain);
+        REQUIRE(rank1 == kShift);
+        REQUIRE(candidates.value()[rank1].params() ==
+                ComposeTransform::atbash_then_caesar_params(kShift));
+    }
+
+    SECTION("gen_affine") {
+        constexpr int kA = 2;
+        constexpr int kB = 5;
+        StatusOr<std::vector<Index29>> cipher = AffineTransform{}.apply(
+            plain,
+            nlohmann::json{{"a", kA}, {"b", kB}},
+            TransformDirection::Encrypt);
+        REQUIRE(cipher.ok());
+
+        StatusOr<std::vector<TransformCandidate>> candidates =
+            AffineCandidateGenerator::generate(cipher.value());
+        REQUIRE(candidates.ok());
+        const std::size_t rank1 =
+            require_unique_exact_match_rank1(candidates.value(), plain);
+        const std::size_t expected_index =
+            static_cast<std::size_t>(kA - 1) * 29u + static_cast<std::size_t>(kB);
+        REQUIRE(rank1 == expected_index);
+        REQUIRE(candidates.value()[rank1].params().at("a") == kA);
+        REQUIRE(candidates.value()[rank1].params().at("b") == kB);
+    }
+
+    SECTION("gen_vigenere_explicit_keys") {
+        const std::vector<Index29> correct_key = {I(1), I(2), I(5)};
+        const std::vector<std::vector<Index29>> key_list = {
+            {I(0), I(0), I(0)},
+            correct_key,
+            {I(4), I(4)},
+            {I(1), I(2), I(6)},
+        };
+
+        StatusOr<std::vector<Index29>> cipher = VigenereKeyTransform{}.apply(
+            plain,
+            nlohmann::json{{"key_indices", {1, 2, 5}}},
+            TransformDirection::Encrypt);
+        REQUIRE(cipher.ok());
+
+        StatusOr<std::vector<TransformCandidate>> candidates =
+            VigenereExplicitKeyCandidateGenerator::generate(cipher.value(), key_list);
+        REQUIRE(candidates.ok());
+        REQUIRE(candidates.value().size() == key_list.size());
+        const std::size_t rank1 =
+            require_unique_exact_match_rank1(candidates.value(), plain);
+        REQUIRE(rank1 == 1);
+        REQUIRE(candidates.value()[rank1].params().at("key_indices") == nlohmann::json{1, 2, 5});
+    }
+
+    SECTION("gen_vigenere_explicit_keys with interrupts") {
+        const std::vector<Index29> correct_key = {I(1), I(2)};
+        StatusOr<InterruptPolicy> interrupt = InterruptPolicy::from_skip_indices({1, 3});
+        REQUIRE(interrupt.ok());
+
+        StatusOr<std::vector<Index29>> cipher = VigenereKeyTransform{}.apply(
+            plain,
+            nlohmann::json{{"key_indices", {1, 2}}},
+            TransformDirection::Encrypt,
+            interrupt.value());
+        REQUIRE(cipher.ok());
+
+        const std::vector<std::vector<Index29>> key_list = {
+            {I(7), I(8)},
+            correct_key,
+            {I(1), I(3)},
+        };
+        StatusOr<std::vector<TransformCandidate>> candidates =
+            VigenereExplicitKeyCandidateGenerator::generate(
+                cipher.value(),
+                key_list,
+                TransformDirection::Decrypt,
+                interrupt.value());
+        REQUIRE(candidates.ok());
+        const std::size_t rank1 =
+            require_unique_exact_match_rank1(candidates.value(), plain);
+        REQUIRE(rank1 == 1);
+    }
 }

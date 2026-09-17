@@ -5,6 +5,7 @@
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
 
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -19,12 +20,14 @@ public:
         TransformId transform_id,
         TransformDirection direction,
         nlohmann::json params,
-        std::vector<Index29> output_indices)
+        std::vector<Index29> output_indices,
+        std::optional<nlohmann::json> interrupt = std::nullopt)
         : candidate_id_(std::move(candidate_id)),
           transform_id_(std::move(transform_id)),
           direction_(direction),
           params_(std::move(params)),
-          output_indices_(std::move(output_indices)) {}
+          output_indices_(std::move(output_indices)),
+          interrupt_(std::move(interrupt)) {}
 
     [[nodiscard]] const std::string& candidate_id() const noexcept {
         return candidate_id_;
@@ -46,13 +49,21 @@ public:
         return output_indices_;
     }
 
-    /// Spec envelope object (without interrupt — generators default to none).
+    [[nodiscard]] const std::optional<nlohmann::json>& interrupt() const noexcept {
+        return interrupt_;
+    }
+
+    /// Spec envelope object. Interrupt omitted when empty / unset.
     [[nodiscard]] nlohmann::json envelope() const {
-        return nlohmann::json{
+        nlohmann::json env{
             {"transform_id", transform_id_.str()},
             {"direction", TransformDirectionUtil::to_string(direction_)},
             {"params", params_},
         };
+        if (interrupt_.has_value()) {
+            env["interrupt"] = interrupt_.value();
+        }
+        return env;
     }
 
     /// Full output record including `output_indices` as integers 0..28.
@@ -74,6 +85,7 @@ private:
     TransformDirection direction_;
     nlohmann::json params_;
     std::vector<Index29> output_indices_;
+    std::optional<nlohmann::json> interrupt_;
 };
 
 #endif // TRANSFORM_CANDIDATE_HPP
