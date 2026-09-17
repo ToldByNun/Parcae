@@ -10,6 +10,7 @@
 #include <parcae/score/ic_mod29.hpp>
 #include <parcae/score/score_id.hpp>
 #include <parcae/score/score_order.hpp>
+#include <parcae/score/score_registry.hpp>
 #include <parcae/score/self_repeat_rate.hpp>
 #include <parcae/validate/plaintext_normalizer.hpp>
 
@@ -91,6 +92,96 @@ TEST_CASE("ScoreId parses Tier A ids", "[score]") {
     REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::chi2_english_gp_v0()) == ScoreOrder::Asc);
     // Spec: neither assumed globally — raw report only (Asc used as neutral default).
     REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::self_repeat_rate()) == ScoreOrder::Asc);
+}
+
+TEST_CASE("ScoreRegistry catalogs Tier A ids for tool API", "[score][registry]") {
+    const std::vector<ScoreCatalogEntry> entries = ScoreRegistry::catalog();
+    REQUIRE(entries.size() == 5);
+
+    const std::vector<std::string> ids = ScoreRegistry::known_ids();
+    REQUIRE(ids == std::vector<std::string>{
+        "exact_match",
+        "hamming_agreement",
+        "ic_mod29",
+        "chi2_english_gp_v0",
+        "self_repeat_rate",
+    });
+
+    REQUIRE(ScoreRegistry::is_known("ic_mod29"));
+    REQUIRE_FALSE(ScoreRegistry::is_known("nope"));
+
+    REQUIRE(ScoreRegistry::order_of("ic_mod29").value() == ScoreOrder::Desc);
+    REQUIRE(ScoreRegistry::order_of("chi2_english_gp_v0").value() == ScoreOrder::Asc);
+    REQUIRE_FALSE(ScoreRegistry::order_of("nope").ok());
+
+    REQUIRE(entries[0].arity() == ScoreCatalogEntry::Arity::Pairwise);
+    REQUIRE(entries[2].arity() == ScoreCatalogEntry::Arity::Unary);
+    REQUIRE(entries[3].arity() == ScoreCatalogEntry::Arity::UnaryWithTable);
+    REQUIRE(ScoreCatalogEntry::arity_string(entries[3].arity()) == "unary_with_table");
+}
+
+TEST_CASE("ScoreRegistry dispatches by string id", "[score][registry]") {
+    const std::vector<Index29> xs = {I(0), I(0), I(1), I(1)};
+
+    SECTION("rejects unknown id and version") {
+        REQUIRE_FALSE(ScoreRegistry::score("nope", xs).ok());
+        REQUIRE_FALSE(ScoreRegistry::score("ic_mod29", xs, "v1").ok());
+    }
+
+    SECTION("ic_mod29 and self_repeat_rate unary") {
+        StatusOr<double> ic = ScoreRegistry::score("ic_mod29", xs);
+        REQUIRE(ic.ok());
+        REQUIRE(ic.value() == Catch::Approx(IcMod29::score(xs).value()).margin(0.0));
+
+        StatusOr<double> rep = ScoreRegistry::score("self_repeat_rate", xs);
+        REQUIRE(rep.ok());
+        REQUIRE(rep.value() == Catch::Approx(SelfRepeatRate::score(xs).value()).margin(0.0));
+    }
+
+    SECTION("exact_match via ScoreRequest.reference") {
+        ScoreRequest req;
+        req.reference = std::span<const Index29>(xs);
+        StatusOr<double> hit = ScoreRegistry::score("exact_match", xs, "v0", {}, req);
+        REQUIRE(hit.ok());
+        REQUIRE(hit.value() == 1.0);
+
+        const std::vector<Index29> other = {I(0), I(0), I(1), I(2)};
+        req.reference = std::span<const Index29>(other);
+        StatusOr<double> miss = ScoreRegistry::score("exact_match", xs, "v0", {}, req);
+        REQUIRE(miss.ok());
+        REQUIRE(miss.value() == 0.0);
+    }
+
+    SECTION("hamming_agreement via params.reference JSON") {
+        const nlohmann::json params = {{"reference", {0, 0, 1, 1}}};
+        StatusOr<double> full = ScoreRegistry::score("hamming_agreement", xs, "v0", params);
+        REQUIRE(full.ok());
+        REQUIRE(full.value() == Catch::Approx(1.0).margin(0.0));
+
+        const nlohmann::json partial = {{"reference", {0, 0, 1, 9}}};
+        StatusOr<double> three = ScoreRegistry::score("hamming_agreement", xs, "v0", partial);
+        REQUIRE(three.ok());
+        REQUIRE(three.value() == Catch::Approx(0.75).epsilon(1e-15));
+
+        REQUIRE_FALSE(ScoreRegistry::score("hamming_agreement", xs).ok());
+    }
+
+    SECTION("chi2_english_gp_v0 requires expected table") {
+        REQUIRE_FALSE(ScoreRegistry::score("chi2_english_gp_v0", xs).ok());
+
+        StatusOr<ExpectedFrequencyTable> table = ExpectedFrequencyLoader::load_from_file(
+            std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+        REQUIRE(table.ok());
+
+        ScoreRequest req;
+        req.expected_frequencies = &table.value();
+        StatusOr<double> via_registry =
+            ScoreRegistry::score("chi2_english_gp_v0", xs, "v0", {}, req);
+        StatusOr<double> direct = Chi2EnglishGp::score(xs, table.value());
+        REQUIRE(via_registry.ok());
+        REQUIRE(direct.ok());
+        REQUIRE(via_registry.value() == Catch::Approx(direct.value()).margin(0.0));
+    }
 }
 
 TEST_CASE("ExactMatch hand vectors", "[score][exact]") {
