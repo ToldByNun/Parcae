@@ -201,17 +201,18 @@ s_j = (p_j - 1) mod 29
 
 Generators emit deterministic sequences of transform envelopes.
 
-| Generator id | Enumeration |
-|--------------|-------------|
-| `gen_caesar` | all `shift` in `0..28` |
-| `gen_atbash` | single candidate |
-| `gen_atbash_caesar` | Atbash ∘ Caesar for all shifts |
-| `gen_affine` | all `a∈1..28`, `b∈0..28` (812 candidates) |
-| `gen_vigenere_explicit_keys` | caller-supplied key list only |
-| `gen_totient_offsets` | optional small range of `prime_start_index` (bounded) |
+| Generator id | Enumeration | Cost |
+|--------------|-------------|------|
+| `gen_caesar` | all `shift` in `0..28` | 29 |
+| `gen_atbash` | single candidate | 1 |
+| `gen_atbash_caesar` | Atbash ∘ Caesar(+shift) for all shifts (Koan-1 family) | 29 |
+| `gen_affine` | all `a∈1..28`, `b∈0..28` (nested `a` then `b`) | **28×29 = 812** |
+| `gen_vigenere_explicit_keys` | caller-supplied key list only | \|keys\| |
+| `gen_totient_offsets` | optional small range of `prime_start_index` (bounded) | small |
 
-Generators **MUST NOT** silently run unbounded dictionary search in the CPU
-reference.
+`gen_affine` is the largest Tier-A monoalphabetic sweep in the CPU reference.
+Callers MUST treat 812 as an explicit budget (score/batch), not an unbounded
+search. Generators **MUST NOT** silently run unbounded dictionary search.
 
 Output record:
 
