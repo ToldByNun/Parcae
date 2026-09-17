@@ -7,7 +7,7 @@
     "params": {
       "stages": [
         { "transform_id": "atbash", "params": {} },
-        { "transform_id": "caesar", "params": { "shift": 3 } }
+        { "transform_id": "caesar", "direction": "encrypt", "params": { "shift": 3 } }
       ]
     }
   },

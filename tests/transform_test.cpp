@@ -251,8 +251,13 @@ TEST_CASE("Compose atbash_then_caesar helper matches Koan 1 path", "[transform]"
     REQUIRE(round_trip.ok());
     REQUIRE(round_trip.value() == cipher);
 
-    REQUIRE(
-        ComposeTransform::atbash_then_caesar_params(3).at("stages").size() == 2);
+    const ComposeTransform compose;
+    StatusOr<std::vector<Index29>> via_params = compose.apply(
+        cipher,
+        ComposeTransform::atbash_then_caesar_params(3),
+        TransformDirection::Decrypt);
+    REQUIRE(via_params.ok());
+    REQUIRE(via_params.value() == plain.value());
 }
 
 TEST_CASE("Synthetic primitives match hand vectors", "[transform][synth]") {

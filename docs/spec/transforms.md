@@ -96,14 +96,16 @@ Non-rune tokens are handled by the corpus layer, not inside Index29 kernels.
   "params": {
     "stages": [
       { "transform_id": "atbash", "params": {} },
-      { "transform_id": "caesar", "params": { "shift": 3 } }
+      { "transform_id": "caesar", "direction": "encrypt", "params": { "shift": 3 } }
     ]
   }
 }
 ```
 
-Semantics: apply stages **in array order** for the given direction. For Koan 1
-decrypt, stages are Atbash then Caesar(+3) as documented.
+Semantics: stages describe the **decrypt** pipeline and are applied in array order.
+Optional per-stage `direction` overrides the default (`decrypt`); Koan 1 marks the
+Caesar stage `"direction": "encrypt"` so decrypt performs Atbash then **+3**. Outer
+`encrypt` reverses stage order and inverts each stage direction.
 
 Constraints:
 

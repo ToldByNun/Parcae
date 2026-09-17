@@ -38,7 +38,11 @@ void require_validation_ok(const ValidationReport& report) {
     for (const ValidationCheck& check : report.checks()) {
         INFO("check=" << check.name() << " ok=" << check.ok() << " msg=" << check.message());
         if (!check.ok()) {
-            FAIL("validation check failed: " + check.name() + " — " + check.message());
+            std::string detail = "validation check failed: " + check.name() + " — " + check.message();
+            if (report.diff_excerpt().has_value()) {
+                detail += " | " + report.diff_excerpt().value();
+            }
+            FAIL(detail);
         }
     }
     REQUIRE(report.ok());
@@ -71,4 +75,14 @@ TEST_CASE(
             require_validation_ok(report);
         }
     }
+}
+
+TEST_CASE("Validation runner reproduces koan-1 (Atbash then Caesar +3)", "[validation][koan-1]") {
+    const GematriaProfile profile = load_profile();
+    const SeparatorGrammar grammar = load_grammar();
+    const FixtureValidator validator(profile, grammar);
+
+    const ValidationReport report = validator.validate_directory(fixture_dir("koan-1"));
+    REQUIRE(report.fixture_id() == "koan-1");
+    require_validation_ok(report);
 }
