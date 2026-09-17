@@ -44,15 +44,15 @@ search on LP2 0–55   →  candidates ↔ hypotheses → new discoveries
 open source polish   →  packaging, contribution docs
 ```
 
-## Build (skeleton)
+## Build
 
 Requires CMake ≥ 3.25, a C++20 compiler, and network on first configure
 (FetchContent pulls Catch2 `v3.7.1` and nlohmann/json `v3.11.3`).
 
 ```bash
 cmake -S . -B build -DPARCAE_BUILD_TESTS=ON -DPARCAE_BUILD_TOOLS=ON
-cmake --build build
-ctest --test-dir build --output-on-failure
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
 ```
 
 Options:
@@ -60,8 +60,67 @@ Options:
 | Option | Default | Meaning |
 |--------|---------|---------|
 | `PARCAE_BUILD_TESTS` | `ON` | Fetch Catch2 and build `parcae_tests` |
-| `PARCAE_BUILD_TOOLS` | `ON` | Build CLI tools under `tools/` when they exist |
+| `PARCAE_BUILD_TOOLS` | `ON` | Build CLIs: `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate` |
+
+On multi-config generators (Visual Studio), binaries land in
+`build/tools/Release/`. On single-config (Ninja/Make), they are in
+`build/tools/`. Examples below use `BIN=build/tools/Release` — adjust if needed.
 
 Style: [`.clang-format`](.clang-format) (LLVM-ish, 4-space) and a light
 [`.clang-tidy`](.clang-tidy) baseline. CI runs on Ubuntu and Windows
 (`.github/workflows/ci.yml`).
+
+## CLI tools
+
+All tools accept `--data-dir <path>` (or `PARCAE_DATA_DIR`) pointing at the repo
+`data/` root. Normative contracts: [docs/spec/tools.md](docs/spec/tools.md).
+
+### Tokenize
+
+```bash
+$BIN/parcae-tokenize --data-dir data --json \
+  data/fixtures/solved/a-warning/ciphertext.txt
+```
+
+### Decode
+
+Manifest mode (method + skips from the fixture):
+
+```bash
+$BIN/parcae-decode --data-dir data \
+  --manifest data/fixtures/solved/a-warning
+```
+
+Flag mode (Atbash decrypt of the same page):
+
+```bash
+$BIN/parcae-decode --data-dir data \
+  --input data/fixtures/solved/a-warning/ciphertext.txt \
+  --transform-id atbash --direction decrypt
+```
+
+Keyed example (Welcome / DIVINITY + skip indices):
+
+```bash
+$BIN/parcae-decode --data-dir data \
+  --manifest data/fixtures/solved/welcome
+```
+
+### Score
+
+```bash
+$BIN/parcae-score --data-dir data --list
+$BIN/parcae-score --data-dir data --score-id ic_mod29 --indices \
+  --input data/fixtures/cli/score-indices.txt
+$BIN/parcae-score --data-dir data --score-id chi2_english_gp_v0 --latin \
+  --input data/fixtures/solved/a-warning/plaintext.txt --json
+```
+
+### Validate
+
+```bash
+$BIN/parcae-validate --data-dir data --id a-warning --require-locked
+$BIN/parcae-validate --data-dir data --all --require-locked --json
+```
+
+Exit codes for validate: `0` pass, `1` fixture failure, `2` usage/I/O error.
