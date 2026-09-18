@@ -172,6 +172,7 @@
     <ClInclude Include="cuda\params_json.hpp" />
     <ClInclude Include="cuda\interrupt_device_view.hpp" />
     <ClInclude Include="cuda\backend.hpp" />
+    <ClInclude Include="cuda\cuda_score.hpp" />
     <ClInclude Include="cuda\identity_copy.hpp" />
     <ClInclude Include="cuda\atbash_kernel.hpp" />
     <ClInclude Include="cuda\caesar_kernel.hpp" />

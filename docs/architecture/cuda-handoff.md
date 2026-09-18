@@ -83,7 +83,7 @@ Keystream setup (may stay host-side if device receives a shifts buffer):
 | `SelfRepeatRate::score` | `score/self_repeat_rate.hpp` → CUDA `SelfRepeatRateScore` |
 | `ExactMatch::score` | `score/exact_match.hpp` → CUDA `ExactMatchScore` |
 | `HammingAgreement::score` | `score/hamming_agreement.hpp` → CUDA `HammingAgreementScore` |
-| `ScoreRegistry::score` | `score/score_registry.hpp` (dispatch) |
+| `ScoreRegistry::score` | `score/score_registry.hpp` → CUDA `CudaScore` (dispatch) |
 
 Document reduction associativity before claiming parallel CUDA score speedups
 ([`cuda-score-reduction.md`](cuda-score-reduction.md); formulas in

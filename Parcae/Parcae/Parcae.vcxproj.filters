@@ -44,6 +44,9 @@
     <ClInclude Include="cuda\backend.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\cuda_score.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
     <ClInclude Include="cuda\identity_copy.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
