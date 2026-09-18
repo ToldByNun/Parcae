@@ -1,0 +1,12 @@
+{
+  "goldens": [
+    "caesar-s3-len64",
+    "atbash-len64",
+    "vigenere-key8-skips2",
+    "totient-start0-skip1",
+    "affine-a2-b5",
+    "compose-atbash-caesar3",
+    "a-warning-atbash"
+  ],
+  "schema": "parcae.parity_manifest.v0"
+}

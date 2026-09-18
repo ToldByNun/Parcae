@@ -133,7 +133,7 @@ and that both sides emit the same `ParityRecord` digests (except `backend`).
    ParityRecord::apply_and_capture(id, input, params, direction, interrupt, "cpu")
    ```
 
-3. Persist under `data/parity/` (to be added with the CUDA port), e.g.:
+3. Persist under `data/parity/` (committed; regenerate with `parcae-parity-gen`), e.g.:
 
    ```text
    data/parity/<name>.json          # full ParityRecord JSON

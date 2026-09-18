@@ -1,0 +1,17 @@
+{
+  "direction": "decrypt",
+  "input_file": "affine-a2-b5.in.idx29",
+  "interrupt": {
+    "policy_id": "explicit_skip_indices_v0",
+    "rune_index_base": 0,
+    "skip_indices": []
+  },
+  "name": "affine-a2-b5",
+  "output_file": "affine-a2-b5.out.idx29",
+  "params": {
+    "a": 2,
+    "b": 5
+  },
+  "record_file": "affine-a2-b5.json",
+  "transform_id": "affine"
+}

@@ -1,0 +1,16 @@
+{
+  "direction": "decrypt",
+  "input_file": "caesar-s3-len64.in.idx29",
+  "interrupt": {
+    "policy_id": "explicit_skip_indices_v0",
+    "rune_index_base": 0,
+    "skip_indices": []
+  },
+  "name": "caesar-s3-len64",
+  "output_file": "caesar-s3-len64.out.idx29",
+  "params": {
+    "shift": 3
+  },
+  "record_file": "caesar-s3-len64.json",
+  "transform_id": "caesar"
+}

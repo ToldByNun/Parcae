@@ -1,0 +1,9 @@
+{
+  "backend": "cpu",
+  "input_sha256": "457f11fe9ab4017b0f8e6f0a19da4e0fea4f2df2aaef0219246897cffad8d1e2",
+  "interrupt_sha256": "dda580492f702f10d6cd6ea7bdd6b3f45b6bc1a3885f46ab53e468a9f2fd9eaf",
+  "output_sha256": "46b07c546aa2a8bbc33d39af37d561d6f06f8d725915e93dfb77e5dfa0558be5",
+  "params_hash_sha256": "935a4839e38e6666d54803a1a851a0c76be24c3887daac2d1be5af4e4d9fbf2e",
+  "parity_schema": "parcae.parity_record.v0",
+  "transform_id": "compose"
+}

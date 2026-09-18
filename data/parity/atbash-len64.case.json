@@ -1,0 +1,14 @@
+{
+  "direction": "decrypt",
+  "input_file": "atbash-len64.in.idx29",
+  "interrupt": {
+    "policy_id": "explicit_skip_indices_v0",
+    "rune_index_base": 0,
+    "skip_indices": []
+  },
+  "name": "atbash-len64",
+  "output_file": "atbash-len64.out.idx29",
+  "params": {},
+  "record_file": "atbash-len64.json",
+  "transform_id": "atbash"
+}

@@ -1,0 +1,14 @@
+{
+  "direction": "decrypt",
+  "input_file": "a-warning-atbash.in.idx29",
+  "interrupt": {
+    "policy_id": "explicit_skip_indices_v0",
+    "rune_index_base": 0,
+    "skip_indices": []
+  },
+  "name": "a-warning-atbash",
+  "output_file": "a-warning-atbash.out.idx29",
+  "params": {},
+  "record_file": "a-warning-atbash.json",
+  "transform_id": "atbash"
+}

@@ -1,0 +1,29 @@
+{
+  "direction": "decrypt",
+  "input_file": "vigenere-key8-skips2.in.idx29",
+  "interrupt": {
+    "policy_id": "explicit_skip_indices_v0",
+    "rune_index_base": 0,
+    "skip_indices": [
+      7,
+      31
+    ]
+  },
+  "name": "vigenere-key8-skips2",
+  "output_file": "vigenere-key8-skips2.out.idx29",
+  "params": {
+    "key_indices": [
+      23,
+      10,
+      1,
+      10,
+      9,
+      10,
+      16,
+      26
+    ],
+    "key_latin": "DIVINITY"
+  },
+  "record_file": "vigenere-key8-skips2.json",
+  "transform_id": "vigenere_key"
+}

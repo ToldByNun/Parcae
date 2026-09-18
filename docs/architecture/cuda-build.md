@@ -87,13 +87,20 @@ If `PARCAE_BUILD_CUDA=ON` but no nvcc is found, configure **fails** with a clear
 
 ## CI policy
 
-[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml):
+CPU-default workflows under [`.github/workflows/`](../../.github/workflows/):
 
-- Ubuntu + Windows matrix, **no** `-DPARCAE_BUILD_CUDA=ON`
+| Workflow | Role |
+|----------|------|
+| [`ci.yml`](../../.github/workflows/ci.yml) | Matrix: Ubuntu GCC/Clang, macOS, Windows — full `ctest` + `[solved]` / `[parity]` / `[cuda]` host gates; ASan+UBSan job; `parity-goldens` regen+byte-compare; optional self-hosted CUDA via `workflow_dispatch` |
+| [`clang-format.yml`](../../.github/workflows/clang-format.yml) | `clang-format --dry-run --Werror` on `include/`, `tests/`, `tools/`, `Parcae/Parcae/cuda/` |
+| [`codeql.yml`](../../.github/workflows/codeql.yml) | CodeQL C/C++ analysis (PR + weekly) |
+
+Rules:
+
+- **No** `-DPARCAE_BUILD_CUDA=ON` on hosted runners
 - Host-side `[cuda][params]` / `[cuda][interrupt]` / `[cuda][backend]` still compile and run
 - Device tests compile only as skip stubs when `PARCAE_HAS_CUDA` is unset
-
-A commented `workflow_dispatch` GPU job stub lives in that workflow for a future self-hosted runner; it stays disabled by default.
+- GPU smoke: Actions → CI → Run workflow → `run_cuda=true` on a self-hosted Toolkit+GPU runner
 
 ## Layout reminder
 

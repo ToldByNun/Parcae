@@ -5,64 +5,177 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      run_cuda:
+        description: "Run self-hosted CUDA smoke (requires Toolkit + GPU runner)"
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: ubuntu
+          - name: ubuntu-gcc
             os: ubuntu-latest
-            cmake_args: -G Ninja -DCMAKE_BUILD_TYPE=Release
+            cmake_args: -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++
             build_args: ""
             test_args: ""
+            install_ninja: true
+            install_clang: false
+            test_bin: build/tests/parcae_tests
+          - name: ubuntu-clang
+            os: ubuntu-latest
+            cmake_args: -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++
+            build_args: ""
+            test_args: ""
+            install_ninja: true
+            install_clang: true
+            test_bin: build/tests/parcae_tests
+          - name: macos
+            # Default Unix Makefiles — avoids brew ninja flakiness on macos-latest.
+            os: macos-latest
+            cmake_args: -DCMAKE_BUILD_TYPE=Release
+            build_args: ""
+            test_args: ""
+            install_ninja: false
+            install_clang: false
+            test_bin: build/tests/parcae_tests
           - name: windows
             # windows-latest is VS 2026-only; do not pin "Visual Studio 17 2022".
             os: windows-latest
             cmake_args: -A x64
             build_args: --config Release
             test_args: --build-config Release
+            install_ninja: false
+            install_clang: false
+            test_bin: build/tests/Release/parcae_tests.exe
 
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Ninja (Linux)
+        if: matrix.install_ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Install Clang (Linux)
+        if: matrix.install_clang
+        run: sudo apt-get install -y clang
+
+      - name: Configure
+        run: >
+          cmake -S . -B build ${{ matrix.cmake_args }}
+          -DPARCAE_BUILD_TESTS=ON
+          -DPARCAE_BUILD_TOOLS=ON
+          -DPARCAE_BUILD_CUDA=OFF
+
+      - name: Build
+        run: cmake --build build ${{ matrix.build_args }}
+
+      - name: Test (full ctest)
+        run: ctest --test-dir build ${{ matrix.test_args }} --output-on-failure --timeout 120
+
+      - name: Gate [solved]
+        run: ${{ matrix.test_bin }} "[solved]" --reporter console
+
+      - name: Gate [parity]
+        run: ${{ matrix.test_bin }} "[parity]" --reporter console
+
+      - name: Gate [cuda] host stubs
+        run: ${{ matrix.test_bin }} "[cuda]" --reporter console
+
+  sanitizers:
+    name: ubuntu-asan-ubsan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y ninja-build clang
+
+      - name: Configure
+        run: >
+          cmake -S . -B build-san -G Ninja
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          -DPARCAE_BUILD_TESTS=ON
+          -DPARCAE_BUILD_TOOLS=ON
+          -DPARCAE_BUILD_CUDA=OFF
+
+      - name: Build
+        run: cmake --build build-san
+
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --test-dir build-san --output-on-failure --timeout 180
+
+  parity-goldens:
+    name: parity-goldens
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Ninja
-        if: matrix.name == 'ubuntu'
         run: sudo apt-get update && sudo apt-get install -y ninja-build
 
       - name: Configure
-        run: cmake -S . -B build ${{ matrix.cmake_args }} -DPARCAE_BUILD_TESTS=ON -DPARCAE_BUILD_TOOLS=ON
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DPARCAE_BUILD_TESTS=OFF
+          -DPARCAE_BUILD_TOOLS=ON
+          -DPARCAE_BUILD_CUDA=OFF
 
-      - name: Build
-        run: cmake --build build ${{ matrix.build_args }}
+      - name: Build parity-gen
+        run: cmake --build build --target parcae-parity-gen
 
-      - name: Test
-        run: ctest --test-dir build ${{ matrix.test_args }} --output-on-failure
+      - name: Check goldens byte-identical
+        run: |
+          chmod +x scripts/check-parity-goldens.sh
+          scripts/check-parity-goldens.sh build/tools/parcae-parity-gen data data/parity
 
-  # Optional future GPU job (self-hosted). Disabled: CI stays CPU-default.
-  # Enable on a runner with Toolkit + GPU via workflow_dispatch when ready.
+  # Optional GPU smoke: enable via workflow_dispatch → run_cuda=true on a
+  # self-hosted runner labeled with Toolkit + NVIDIA GPU. Stays off for PRs.
   cuda-smoke:
-    name: cuda-smoke (manual)
-    if: false
+    name: cuda-smoke (self-hosted)
+    if: github.event_name == 'workflow_dispatch' && inputs.run_cuda
     runs-on: self-hosted
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Configure CUDA
         run: >
           cmake -S . -B build-cuda -A x64
           -DPARCAE_BUILD_CUDA=ON
           -DPARCAE_BUILD_TESTS=ON
           -DPARCAE_BUILD_TOOLS=OFF
+
       - name: Build
         run: cmake --build build-cuda --config Release --target parcae_tests
-      - name: Smoke
-        run: build-cuda/tests/Release/parcae_tests.exe "[cuda][smoke]" -s
+
+      - name: Smoke + parity tags
+        run: |
+          build-cuda/tests/Release/parcae_tests.exe "[cuda][smoke]" -s
+          build-cuda/tests/Release/parcae_tests.exe "[cuda][parity]" -s

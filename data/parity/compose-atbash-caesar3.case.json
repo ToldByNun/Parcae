@@ -1,0 +1,28 @@
+{
+  "direction": "decrypt",
+  "input_file": "compose-atbash-caesar3.in.idx29",
+  "interrupt": {
+    "policy_id": "explicit_skip_indices_v0",
+    "rune_index_base": 0,
+    "skip_indices": []
+  },
+  "name": "compose-atbash-caesar3",
+  "output_file": "compose-atbash-caesar3.out.idx29",
+  "params": {
+    "stages": [
+      {
+        "params": {},
+        "transform_id": "atbash"
+      },
+      {
+        "direction": "encrypt",
+        "params": {
+          "shift": 3
+        },
+        "transform_id": "caesar"
+      }
+    ]
+  },
+  "record_file": "compose-atbash-caesar3.json",
+  "transform_id": "compose"
+}

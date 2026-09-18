@@ -17,6 +17,7 @@ parcae_add_cli(parcae-tokenize parcae_tokenize/main.cpp)
 parcae_add_cli(parcae-decode parcae_decode/main.cpp)
 parcae_add_cli(parcae-score parcae_score/main.cpp)
 parcae_add_cli(parcae-validate parcae_validate/main.cpp)
+parcae_add_cli(parcae-parity-gen parcae_parity_gen/main.cpp)
 
 if(PARCAE_BUILD_TESTS)
   add_test(

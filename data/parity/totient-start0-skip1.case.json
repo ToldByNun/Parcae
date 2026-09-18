@@ -1,0 +1,18 @@
+{
+  "direction": "decrypt",
+  "input_file": "totient-start0-skip1.in.idx29",
+  "interrupt": {
+    "policy_id": "explicit_skip_indices_v0",
+    "rune_index_base": 0,
+    "skip_indices": [
+      5
+    ]
+  },
+  "name": "totient-start0-skip1",
+  "output_file": "totient-start0-skip1.out.idx29",
+  "params": {
+    "prime_start_index": 0
+  },
+  "record_file": "totient-start0-skip1.json",
+  "transform_id": "totient_prime_stream"
+}
