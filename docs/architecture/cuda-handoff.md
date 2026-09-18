@@ -98,6 +98,8 @@ Document reduction associativity before claiming parallel CUDA score speedups
 | `BatchOrdering` | `batch/batch_ordering.hpp` | Deterministic top-k |
 | `CandidateBatchBuffers` | `Parcae/Parcae/cuda/candidate_batch_buffers.hpp` | Host SoA ABI v0 (`kMaxC`/`kMaxT`) |
 | `CaesarBatchKernel` | `Parcae/Parcae/cuda/caesar_batch_kernel.hpp` | Shared ciphertext + 29 shift lanes |
+| `AtbashBatchKernel` | `Parcae/Parcae/cuda/atbash_batch_kernel.hpp` | Shared ciphertext → atbash lanes |
+| `AtbashCaesarBatchKernel` | `Parcae/Parcae/cuda/atbash_caesar_batch_kernel.hpp` | Koan-1 compose 29 shifts |
 
 ### Explicitly **not** CUDA twins
 

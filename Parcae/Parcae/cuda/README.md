@@ -25,6 +25,8 @@ Files:
 | `cuda_score.hpp` | `CudaScore` — `ScoreRegistry` twin (string-id score dispatch) |
 | `identity_copy.hpp` / `identity_copy.cu` | `IdentityCopy` — device `uint8_t` identity / smoke kernel |
 | `atbash_kernel.hpp` / `atbash_kernel.cu` | `AtbashKernel` — `out[i] = 28 - in[i]` twin |
+| `atbash_batch_kernel.hpp` / `.cu` | `AtbashBatchKernel` — shared tokens → atbash lanes (SoA) |
+| `atbash_caesar_batch_kernel.hpp` / `.cu` | `AtbashCaesarBatchKernel` — Koan-1 atbash∘caesar 29 shifts |
 | `caesar_kernel.hpp` / `caesar_kernel.cu` | `CaesarKernel` — add/sub `shift` mod 29 twin |
 | `caesar_batch_kernel.hpp` / `.cu` | `CaesarBatchKernel` — shared tokens + 29 shift lanes (SoA ABI v0) |
 | `z29_device.hpp` | `Z29Device` — host/device \\(\\mathbb{Z}_{29}\\) add/mul/inv |

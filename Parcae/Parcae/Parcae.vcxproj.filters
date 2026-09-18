@@ -56,6 +56,12 @@
     <ClInclude Include="cuda\atbash_kernel.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\atbash_batch_kernel.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="cuda\atbash_caesar_batch_kernel.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
     <ClInclude Include="cuda\caesar_kernel.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
@@ -104,6 +110,12 @@
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\atbash_kernel.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\atbash_batch_kernel.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\atbash_caesar_batch_kernel.cu">
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\caesar_kernel.cu">

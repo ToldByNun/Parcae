@@ -176,6 +176,8 @@
     <ClInclude Include="cuda\cuda_score.hpp" />
     <ClInclude Include="cuda\identity_copy.hpp" />
     <ClInclude Include="cuda\atbash_kernel.hpp" />
+    <ClInclude Include="cuda\atbash_batch_kernel.hpp" />
+    <ClInclude Include="cuda\atbash_caesar_batch_kernel.hpp" />
     <ClInclude Include="cuda\caesar_kernel.hpp" />
     <ClInclude Include="cuda\caesar_batch_kernel.hpp" />
     <ClInclude Include="cuda\z29_device.hpp" />
@@ -195,6 +197,8 @@
     <CudaCompile Include="cuda\parcae_cuda_stub.cu" />
     <CudaCompile Include="cuda\identity_copy.cu" />
     <CudaCompile Include="cuda\atbash_kernel.cu" />
+    <CudaCompile Include="cuda\atbash_batch_kernel.cu" />
+    <CudaCompile Include="cuda\atbash_caesar_batch_kernel.cu" />
     <CudaCompile Include="cuda\caesar_kernel.cu" />
     <CudaCompile Include="cuda\caesar_batch_kernel.cu" />
     <CudaCompile Include="cuda\affine_kernel.cu" />

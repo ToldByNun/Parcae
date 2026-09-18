@@ -254,10 +254,11 @@ public:
         return Status::success();
     }
 
-    /// Fill caesar shift lanes `0 .. C-1` (typical `C == 29` decrypt sweep).
+    /// Fill caesar shift lanes `0 .. C-1` (caesar sweep or atbash∘caesar Compose).
     [[nodiscard]] Status fill_caesar_shifts_iota() {
-        if (family_ != CudaFamilyId::Caesar) {
-            return Status::error("CandidateBatchBuffers::fill_caesar_shifts_iota requires Caesar");
+        if (family_ != CudaFamilyId::Caesar && family_ != CudaFamilyId::Compose) {
+            return Status::error(
+                "CandidateBatchBuffers::fill_caesar_shifts_iota requires Caesar or Compose");
         }
         if (caesar_shifts_.size() != candidate_count_) {
             return Status::error("CandidateBatchBuffers: caesar_shifts lane missing");
@@ -306,12 +307,15 @@ private:
             buffers.affine_a_.assign(candidate_count, 1);
             buffers.affine_b_.assign(candidate_count, 0);
             break;
+        case CudaFamilyId::Compose:
+            // Koan-1 / gen_atbash_caesar: shared tokens + per-candidate caesar shift.
+            buffers.caesar_shifts_.assign(candidate_count, 0);
+            break;
         case CudaFamilyId::VigenereKey:
         case CudaFamilyId::BeaufortKey:
         case CudaFamilyId::TotientPrimeStream:
         case CudaFamilyId::Identity:
         case CudaFamilyId::Atbash:
-        case CudaFamilyId::Compose:
             break;
         }
     }
