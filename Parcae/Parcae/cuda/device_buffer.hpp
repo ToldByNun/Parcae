@@ -1,5 +1,5 @@
-#ifndef PARCAE_CUDA_DEVICE_BUFFER_HPP
-#define PARCAE_CUDA_DEVICE_BUFFER_HPP
+#ifndef DEVICE_BUFFER_HPP
+#define DEVICE_BUFFER_HPP
 
 #include "cuda_error.hpp"
 #include "parcae/core/status.hpp"
@@ -10,8 +10,6 @@
 #include <cstddef>
 #include <span>
 #include <utility>
-
-namespace parcae::cuda {
 
 /// Owning device allocation (`cudaMalloc` / `cudaFree`) with host↔device copies.
 ///
@@ -26,8 +24,7 @@ public:
     DeviceBuffer(const DeviceBuffer&) = delete;
     DeviceBuffer& operator=(const DeviceBuffer&) = delete;
 
-    DeviceBuffer(DeviceBuffer&& other) noexcept
-        : data_(other.data_), count_(other.count_) {
+    DeviceBuffer(DeviceBuffer&& other) noexcept : data_(other.data_), count_(other.count_) {
         other.data_ = nullptr;
         other.count_ = 0;
     }
@@ -56,7 +53,7 @@ public:
         void* raw = nullptr;
         const cudaError_t err = cudaMalloc(&raw, count * sizeof(T));
         if (err != cudaSuccess) {
-            return status_from_cuda(err, "DeviceBuffer::allocate");
+            return CudaError::to_status(err, "DeviceBuffer::allocate");
         }
         buffer.data_ = static_cast<T*>(raw);
         buffer.count_ = count;
@@ -70,7 +67,7 @@ public:
         if (count_ == 0) {
             return Status::success();
         }
-        return status_from_cuda(
+        return CudaError::to_status(
             cudaMemcpy(data_, host.data(), count_ * sizeof(T), cudaMemcpyHostToDevice),
             "DeviceBuffer::copy_from_host");
     }
@@ -82,12 +79,12 @@ public:
         if (count_ == 0) {
             return Status::success();
         }
-        return status_from_cuda(
+        return CudaError::to_status(
             cudaMemcpy(host.data(), data_, count_ * sizeof(T), cudaMemcpyDeviceToHost),
             "DeviceBuffer::copy_to_host");
     }
 
-    /// Allocate (or replace) then upload in one step.
+    /// Allocate then upload in one step.
     [[nodiscard]] static StatusOr<DeviceBuffer> from_host(std::span<const T> host) {
         StatusOr<DeviceBuffer> buffer = allocate(host.size());
         if (!buffer.ok()) {
@@ -133,6 +130,4 @@ private:
     std::size_t count_ = 0;
 };
 
-}  // namespace parcae::cuda
-
-#endif // PARCAE_CUDA_DEVICE_BUFFER_HPP
+#endif // DEVICE_BUFFER_HPP

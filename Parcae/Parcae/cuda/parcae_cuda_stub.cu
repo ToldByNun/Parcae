@@ -1,9 +1,5 @@
 #include "parcae_cuda.hpp"
 
-namespace parcae::cuda {
-
-bool available() noexcept {
+bool ParcaeCuda::available() noexcept {
     return true;
 }
-
-}  // namespace parcae::cuda

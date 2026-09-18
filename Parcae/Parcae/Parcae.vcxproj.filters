@@ -32,6 +32,12 @@
     <ClInclude Include="cuda\device_buffer.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\params.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="cuda\params_json.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cuda\parcae_cuda_stub.cu">

@@ -93,12 +93,14 @@ Must match `TransformDirection` string mapping used in parity records
 |--------|----------------------------------|
 | identity | — |
 | atbash | — |
-| caesar | `shift`, direction |
-| affine | `a`, `b`, direction |
-| vigenere_key | `key[K]`, skips/bitmask, direction |
-| beaufort_key | `key[K]`, skips/bitmask |
-| totient_prime_stream | `shifts[J]`, skips/bitmask, direction |
-| compose | host launches stage sequence + ping-pong buffers (no JSON on device) |
+| caesar | `shift`, direction | `CaesarParams` |
+| affine | `a`, `b`, direction | `AffineParams` |
+| vigenere_key | `key[K]`, skips/bitmask, direction | `KeyParams` (+ host key bytes) |
+| beaufort_key | `key[K]`, skips/bitmask | `KeyParams` |
+| totient_prime_stream | `shifts[J]`, skips/bitmask, direction | `TotientParams` (+ shifts buffer) |
+| compose | host launches stage sequence + ping-pong buffers (no JSON on device) | `ComposeStageParams[]` |
+
+Host converters: `Parcae/Parcae/cuda/params_json.hpp` (`CudaParamsJson`).
 
 ## Out of ABI scope
 

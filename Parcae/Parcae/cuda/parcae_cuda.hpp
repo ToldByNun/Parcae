@@ -1,13 +1,14 @@
 #ifndef PARCAE_CUDA_HPP
 #define PARCAE_CUDA_HPP
 
-/// Public façade for the CUDA twin library (sources under Parcae/Parcae/cuda/).
-/// Built when the Visual Studio CUDA project or CMake `PARCAE_BUILD_CUDA=ON` is used.
-namespace parcae::cuda {
+/// Façade for the CUDA twin library (sources under Parcae/Parcae/cuda/).
+class ParcaeCuda {
+public:
+    /// Always true in a successfully linked `parcae_cuda` / VS CUDA build.
+    [[nodiscard]] static bool available() noexcept;
 
-/// Always true in a successfully linked `parcae_cuda` / VS CUDA build.
-[[nodiscard]] bool available() noexcept;
-
-}  // namespace parcae::cuda
+private:
+    ParcaeCuda() = delete;
+};
 
 #endif // PARCAE_CUDA_HPP

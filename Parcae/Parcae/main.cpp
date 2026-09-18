@@ -8,12 +8,11 @@
 
 int main() {
 #if defined(PARCAE_HAS_CUDA)
-    std::cout << "Parcae CUDA: "
-              << (parcae::cuda::available() ? "available" : "unavailable") << '\n';
+    std::cout << "Parcae CUDA: " << (ParcaeCuda::available() ? "available" : "unavailable")
+              << '\n';
 
     const std::vector<std::uint8_t> host_in{3, 1, 4, 1, 5};
-    StatusOr<parcae::cuda::DeviceBuffer<std::uint8_t>> device =
-        parcae::cuda::DeviceBuffer<std::uint8_t>::from_host(host_in);
+    StatusOr<DeviceBuffer<std::uint8_t>> device = DeviceBuffer<std::uint8_t>::from_host(host_in);
     if (!device.ok()) {
         std::cerr << device.status().message() << '\n';
         return 1;

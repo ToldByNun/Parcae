@@ -9,11 +9,10 @@
 #include <vector>
 
 TEST_CASE("CUDA DeviceBuffer host round-trip", "[cuda][buffer]") {
-    REQUIRE(parcae::cuda::available());
+    REQUIRE(ParcaeCuda::available());
 
     const std::vector<std::uint8_t> host_in{0, 1, 2, 28, 7, 13};
-    StatusOr<parcae::cuda::DeviceBuffer<std::uint8_t>> device =
-        parcae::cuda::DeviceBuffer<std::uint8_t>::from_host(host_in);
+    StatusOr<DeviceBuffer<std::uint8_t>> device = DeviceBuffer<std::uint8_t>::from_host(host_in);
     REQUIRE(device.ok());
     REQUIRE(device.value().size() == host_in.size());
 
@@ -23,8 +22,7 @@ TEST_CASE("CUDA DeviceBuffer host round-trip", "[cuda][buffer]") {
 }
 
 TEST_CASE("CUDA DeviceBuffer size mismatch is an error", "[cuda][buffer]") {
-    StatusOr<parcae::cuda::DeviceBuffer<std::uint8_t>> device =
-        parcae::cuda::DeviceBuffer<std::uint8_t>::allocate(4);
+    StatusOr<DeviceBuffer<std::uint8_t>> device = DeviceBuffer<std::uint8_t>::allocate(4);
     REQUIRE(device.ok());
 
     std::vector<std::uint8_t> wrong(2, 0);
@@ -33,8 +31,7 @@ TEST_CASE("CUDA DeviceBuffer size mismatch is an error", "[cuda][buffer]") {
 }
 
 TEST_CASE("CUDA DeviceBuffer empty allocate", "[cuda][buffer]") {
-    StatusOr<parcae::cuda::DeviceBuffer<std::uint8_t>> device =
-        parcae::cuda::DeviceBuffer<std::uint8_t>::allocate(0);
+    StatusOr<DeviceBuffer<std::uint8_t>> device = DeviceBuffer<std::uint8_t>::allocate(0);
     REQUIRE(device.ok());
     REQUIRE(device.value().empty());
     REQUIRE(device.value().copy_from_host({}).ok());

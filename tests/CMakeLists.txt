@@ -17,6 +17,7 @@ add_executable(parcae_tests
   parity_test.cpp
   transform_property_test.cpp
   cuda_device_buffer_test.cpp
+  cuda_params_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE
@@ -28,9 +29,13 @@ target_compile_definitions(parcae_tests PRIVATE
   PARCAE_TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/data"
 )
 
+# Host-side CUDA façade headers (params POD / JSON) live under Parcae/Parcae/cuda/.
+target_include_directories(parcae_tests PRIVATE
+  "${CMAKE_SOURCE_DIR}/Parcae/Parcae/cuda"
+)
+
 if(TARGET parcae::cuda)
   target_link_libraries(parcae_tests PRIVATE parcae::cuda)
-  # Include path for device_buffer.hpp / parcae_cuda.hpp comes from parcae::cuda PUBLIC.
 endif()
 
 parcae_set_project_warnings(parcae_tests)

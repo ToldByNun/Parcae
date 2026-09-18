@@ -11,10 +11,12 @@ Files:
 
 | File | Role |
 |------|------|
-| `parcae_cuda.hpp` | Public façade (`parcae::cuda::available`) |
+| `parcae_cuda.hpp` | `ParcaeCuda::available` |
 | `parcae_cuda_stub.cu` | Minimal TU so the library/project links |
-| `cuda_error.hpp` | `status_from_cuda` — map `cudaError_t` → `Status` |
+| `cuda_error.hpp` | `CudaError::to_status` — map `cudaError_t` → `Status` |
 | `device_buffer.hpp` | RAII `DeviceBuffer<T>` — alloc / H2D / D2H / free |
+| `params.hpp` | POD classes: Caesar/Affine/Key/Totient/ComposeStage + CudaDir/CudaFamilyId |
+| `params_json.hpp` | `CudaParamsJson` host JSON ↔ POD converters |
 | `CMakeLists.txt` | Defines `parcae_cuda` when parent enables CUDA |
 
 CPU reference headers remain under repo-root `include/parcae/`.
