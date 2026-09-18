@@ -61,7 +61,7 @@ Workstreams below; **layout overrides** any earlier sketch that used
 |--------|-------|
 | 21 | docs: reduction associativity ([cuda-score-reduction.md](cuda-score-reduction.md)) |
 | 22–26 | exact_match, hamming, ic_mod29, self_repeat, chi², dispatch |
-| 27 | test: CUDA score suite |
+| 27 | test: CUDA score suite (noise + plaintext separation via `CudaScore`) |
 
 ### D — Batch SoA
 

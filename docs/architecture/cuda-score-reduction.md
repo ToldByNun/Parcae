@@ -158,7 +158,8 @@ optimization only if it reproduces this total order bit-for-bit on the hit list
 | Batch | Parallel score fill + `BatchOrdering` matches serial CPU top-k |
 | Negative | Build with fast-math on score TU MUST NOT be a supported config |
 
-Catch2 tags (planned): `[cuda][score]` / per-id subtags; suite gate in commit 27.
+Catch2 tags: `[cuda][score]` / per-id subtags; suite gate
+`[cuda][score][noise][suite]` (plaintext vs LCG noise via `CudaScore`, commit 27).
 
 ---
 

@@ -82,6 +82,7 @@ Targets:
 | `[cuda][score][self_repeat]` | Skip / SUCCEED marker | `SelfRepeatRateScore` vs CPU `SelfRepeatRate` |
 | `[cuda][score][chi2]` | Skip / SUCCEED marker | `Chi2EnglishGpScore` vs CPU `Chi2EnglishGp` |
 | `[cuda][score][dispatch]` | Catalog / unavailable always | `CudaScore` vs `ScoreRegistry` for all Tier A ids |
+| `[cuda][score][noise][suite]` | Catalog always; noise skip without CUDA | Plaintext vs LCG noise separation via `CudaScore` |
 
 ```bash
 # CPU CI path — smoke/buffer markers must still pass
