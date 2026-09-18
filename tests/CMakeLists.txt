@@ -31,6 +31,7 @@ add_executable(parcae_tests
   cuda_compose_test.cpp
   cuda_golden_parity_test.cpp
   cuda_solved_parity_test.cpp
+  cuda_score_exact_hamming_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE

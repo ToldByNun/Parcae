@@ -71,6 +71,12 @@
     <ClInclude Include="cuda\compose_driver.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\exact_match_score.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="cuda\hamming_agreement_score.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cuda\parcae_cuda_stub.cu">
@@ -98,6 +104,12 @@
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\compose_driver.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\exact_match_score.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\hamming_agreement_score.cu">
       <Filter>cuda</Filter>
     </CudaCompile>
   </ItemGroup>

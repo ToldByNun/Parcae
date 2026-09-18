@@ -14,6 +14,8 @@ set(PARCAE_CUDA_SOURCES
   beaufort_key_kernel.cu
   totient_prime_stream_kernel.cu
   compose_driver.cu
+  exact_match_score.cu
+  hamming_agreement_score.cu
 )
 
 add_library(parcae_cuda STATIC ${PARCAE_CUDA_SOURCES})

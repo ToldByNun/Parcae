@@ -30,6 +30,8 @@ Files:
 | `beaufort_key_kernel.hpp` / `.cu` | `BeaufortKeyKernel` — `key-in` involution + skips twin |
 | `totient_prime_stream_kernel.hpp` / `.cu` | `TotientPrimeStreamKernel` — host shifts + skips twin |
 | `compose_driver.hpp` / `compose_driver.cu` | `ComposeDriver` — host-orchestrated stages + ping-pong |
+| `exact_match_score.hpp` / `.cu` | `ExactMatchScore` — integer mismatch reduce → `0.0`/`1.0` |
+| `hamming_agreement_score.hpp` / `.cu` | `HammingAgreementScore` — integer matches → one FP divide |
 | `CMakeLists.txt` | Defines `parcae_cuda` when parent enables CUDA |
 
 CPU reference headers remain under repo-root `include/parcae/`.

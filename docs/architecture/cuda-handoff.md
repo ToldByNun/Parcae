@@ -81,8 +81,8 @@ Keystream setup (may stay host-side if device receives a shifts buffer):
 | `IcMod29::score` | `score/ic_mod29.hpp` |
 | `Chi2EnglishGp::score` | `score/chi2_english_gp.hpp` |
 | `SelfRepeatRate::score` | `score/self_repeat_rate.hpp` |
-| `ExactMatch::score` | `score/exact_match.hpp` |
-| `HammingAgreement::score` | `score/hamming_agreement.hpp` |
+| `ExactMatch::score` | `score/exact_match.hpp` → CUDA `ExactMatchScore` |
+| `HammingAgreement::score` | `score/hamming_agreement.hpp` → CUDA `HammingAgreementScore` |
 | `ScoreRegistry::score` | `score/score_registry.hpp` (dispatch) |
 
 Document reduction associativity before claiming parallel CUDA score speedups
