@@ -16,6 +16,7 @@ set(PARCAE_CUDA_SOURCES
   compose_driver.cu
   exact_match_score.cu
   hamming_agreement_score.cu
+  ic_mod29_score.cu
 )
 
 add_library(parcae_cuda STATIC ${PARCAE_CUDA_SOURCES})

@@ -32,6 +32,7 @@ Files:
 | `compose_driver.hpp` / `compose_driver.cu` | `ComposeDriver` — host-orchestrated stages + ping-pong |
 | `exact_match_score.hpp` / `.cu` | `ExactMatchScore` — integer mismatch reduce → `0.0`/`1.0` |
 | `hamming_agreement_score.hpp` / `.cu` | `HammingAgreementScore` — integer matches → one FP divide |
+| `ic_mod29_score.hpp` / `.cu` | `IcMod29Score` — hist 29 bins → fixed-order IC finalize |
 | `CMakeLists.txt` | Defines `parcae_cuda` when parent enables CUDA |
 
 CPU reference headers remain under repo-root `include/parcae/`.

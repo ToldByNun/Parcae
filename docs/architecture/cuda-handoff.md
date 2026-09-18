@@ -78,7 +78,7 @@ Keystream setup (may stay host-side if device receives a shifts buffer):
 
 | CPU entry | Header |
 |-----------|--------|
-| `IcMod29::score` | `score/ic_mod29.hpp` |
+| `IcMod29::score` | `score/ic_mod29.hpp` → CUDA `IcMod29Score` |
 | `Chi2EnglishGp::score` | `score/chi2_english_gp.hpp` |
 | `SelfRepeatRate::score` | `score/self_repeat_rate.hpp` |
 | `ExactMatch::score` | `score/exact_match.hpp` → CUDA `ExactMatchScore` |
