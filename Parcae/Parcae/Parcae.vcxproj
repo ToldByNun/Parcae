@@ -174,12 +174,14 @@
     <ClInclude Include="cuda\backend.hpp" />
     <ClInclude Include="cuda\identity_copy.hpp" />
     <ClInclude Include="cuda\atbash_kernel.hpp" />
+    <ClInclude Include="cuda\caesar_kernel.hpp" />
   </ItemGroup>
   <!-- CUDA twins: x64 only (Toolkit BuildCustomizations required) -->
   <ItemGroup Condition="'$(Platform)'=='x64'">
     <CudaCompile Include="cuda\parcae_cuda_stub.cu" />
     <CudaCompile Include="cuda\identity_copy.cu" />
     <CudaCompile Include="cuda\atbash_kernel.cu" />
+    <CudaCompile Include="cuda\caesar_kernel.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

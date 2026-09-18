@@ -50,6 +50,9 @@
     <ClInclude Include="cuda\atbash_kernel.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\caesar_kernel.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cuda\parcae_cuda_stub.cu">
@@ -59,6 +62,9 @@
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\atbash_kernel.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\caesar_kernel.cu">
       <Filter>cuda</Filter>
     </CudaCompile>
   </ItemGroup>

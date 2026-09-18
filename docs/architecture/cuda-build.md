@@ -67,6 +67,7 @@ Targets:
 | `[cuda][backend]` | Façade validation; “not available” gate | “not implemented” until kernels wire in |
 | `[cuda][smoke]` | Skip / SUCCEED marker | `IdentityCopy` H2D → kernel → D2H |
 | `[cuda][parity][atbash]` | Skip / SUCCEED marker | `AtbashKernel` vs CPU `AtbashTransform::kernel` |
+| `[cuda][parity][caesar]` | Skip / SUCCEED marker | `CaesarKernel` vs CPU `CaesarTransform::kernel` |
 
 ```bash
 # CPU CI path — smoke/buffer markers must still pass

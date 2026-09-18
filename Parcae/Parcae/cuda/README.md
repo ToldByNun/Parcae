@@ -23,6 +23,7 @@ Files:
 | `backend.hpp` | `CudaBackend` — `apply_into` / `apply` twin entry (dispatch; kernels later) |
 | `identity_copy.hpp` / `identity_copy.cu` | Smoke `IdentityCopy` — device `uint8_t` identity kernel |
 | `atbash_kernel.hpp` / `atbash_kernel.cu` | `AtbashKernel` — `out[i] = 28 - in[i]` twin |
+| `caesar_kernel.hpp` / `caesar_kernel.cu` | `CaesarKernel` — add/sub `shift` mod 29 twin |
 | `CMakeLists.txt` | Defines `parcae_cuda` when parent enables CUDA |
 
 CPU reference headers remain under repo-root `include/parcae/`.
