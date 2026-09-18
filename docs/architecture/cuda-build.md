@@ -80,6 +80,7 @@ Targets:
 | `[cuda][score][hamming]` | Skip / SUCCEED marker | `HammingAgreementScore` vs CPU `HammingAgreement` |
 | `[cuda][score][ic]` | Skip / SUCCEED marker | `IcMod29Score` vs CPU `IcMod29` |
 | `[cuda][score][self_repeat]` | Skip / SUCCEED marker | `SelfRepeatRateScore` vs CPU `SelfRepeatRate` |
+| `[cuda][score][chi2]` | Skip / SUCCEED marker | `Chi2EnglishGpScore` vs CPU `Chi2EnglishGp` |
 
 ```bash
 # CPU CI path — smoke/buffer markers must still pass

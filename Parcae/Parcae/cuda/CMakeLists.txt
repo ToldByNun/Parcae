@@ -18,6 +18,7 @@ set(PARCAE_CUDA_SOURCES
   hamming_agreement_score.cu
   ic_mod29_score.cu
   self_repeat_rate_score.cu
+  chi2_english_gp_score.cu
 )
 
 add_library(parcae_cuda STATIC ${PARCAE_CUDA_SOURCES})

@@ -34,6 +34,7 @@ Files:
 | `hamming_agreement_score.hpp` / `.cu` | `HammingAgreementScore` — integer matches → one FP divide |
 | `ic_mod29_score.hpp` / `.cu` | `IcMod29Score` — hist 29 bins → fixed-order IC finalize |
 | `self_repeat_rate_score.hpp` / `.cu` | `SelfRepeatRateScore` — adjacent-equal edges → one FP divide |
+| `chi2_english_gp_score.hpp` / `.cu` | `Chi2EnglishGpScore` — hist + fixed-order χ² finalize |
 | `CMakeLists.txt` | Defines `parcae_cuda` when parent enables CUDA |
 
 CPU reference headers remain under repo-root `include/parcae/`.
