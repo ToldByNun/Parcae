@@ -57,7 +57,9 @@ For one transform apply (parity goldens, fixture streams):
 2. **Fallback:** sorted unique `uint32_t skips[S]` + binary search (same as CPU
    `InterruptPolicy::should_skip`).
 
-Host converts from `InterruptPolicy` before H2D.
+Host converts from `InterruptPolicy` before H2D via
+`InterruptDeviceView::from_policy` (`Parcae/Parcae/cuda/interrupt_device_view.hpp`).
+Skip indices outside `[0, T)` are rejected at conversion time.
 
 ## Candidate Batch ABI v0 (SoA)
 

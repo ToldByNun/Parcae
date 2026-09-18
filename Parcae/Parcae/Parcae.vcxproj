@@ -170,6 +170,7 @@
     <ClInclude Include="cuda\device_buffer.hpp" />
     <ClInclude Include="cuda\params.hpp" />
     <ClInclude Include="cuda\params_json.hpp" />
+    <ClInclude Include="cuda\interrupt_device_view.hpp" />
   </ItemGroup>
   <!-- CUDA twins: x64 only (Toolkit BuildCustomizations required) -->
   <ItemGroup Condition="'$(Platform)'=='x64'">

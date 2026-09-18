@@ -24,8 +24,9 @@ jobs:
             build_args: ""
             test_args: ""
           - name: windows
+            # windows-latest is VS 2026-only; do not pin "Visual Studio 17 2022".
             os: windows-latest
-            cmake_args: -G "Visual Studio 17 2022" -A x64
+            cmake_args: -A x64
             build_args: --config Release
             test_args: --build-config Release
 

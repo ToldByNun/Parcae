@@ -38,6 +38,9 @@
     <ClInclude Include="cuda\params_json.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\interrupt_device_view.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cuda\parcae_cuda_stub.cu">
