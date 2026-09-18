@@ -64,7 +64,8 @@ Host-side UTF-8 / fixture I/O stays on CPU.
 | `BeaufortKeyTransform::kernel` | `beaufort_key_transform.hpp` | Key + skips |
 | `TotientPrimeStreamTransform::kernel` | `totient_prime_stream_transform.hpp` | Precomputed shifts span |
 | `ComposeTransform::apply_into` | `compose_transform.hpp` | Ping-pong stages; may call twins |
-| `ApplyTransform::apply_into` | `apply_transform.hpp` | Dispatch only (host or device table) |
+| `ApplyTransform::apply_into` | `apply_transform.hpp` | CPU dispatch |
+| `CudaBackend::apply_into` | `Parcae/Parcae/cuda/backend.hpp` | CUDA twin entry (dispatch; kernels land later) |
 
 Keystream setup (may stay host-side if device receives a shifts buffer):
 

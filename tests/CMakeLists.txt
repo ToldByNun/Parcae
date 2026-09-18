@@ -19,6 +19,7 @@ add_executable(parcae_tests
   cuda_device_buffer_test.cpp
   cuda_params_test.cpp
   cuda_interrupt_device_view_test.cpp
+  cuda_backend_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE
