@@ -20,7 +20,7 @@ Files:
 | `params.hpp` | POD classes: Caesar/Affine/Key/Totient/ComposeStage + CudaDir/CudaFamilyId |
 | `params_json.hpp` | `CudaParamsJson` host JSON ↔ POD converters |
 | `interrupt_device_view.hpp` | `InterruptDeviceView` — bitmask (`T≤4096`) or sorted `uint32_t` skips |
-| `backend.hpp` | `CudaBackend` — twin entry; identity wired via `IdentityCopy` |
+| `backend.hpp` | `CudaBackend` — full catalog `apply_into` / `apply_and_capture` |
 | `identity_copy.hpp` / `identity_copy.cu` | `IdentityCopy` — device `uint8_t` identity / smoke kernel |
 | `atbash_kernel.hpp` / `atbash_kernel.cu` | `AtbashKernel` — `out[i] = 28 - in[i]` twin |
 | `caesar_kernel.hpp` / `caesar_kernel.cu` | `CaesarKernel` — add/sub `shift` mod 29 twin |

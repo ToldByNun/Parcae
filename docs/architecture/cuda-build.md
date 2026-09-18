@@ -64,7 +64,7 @@ Targets:
 | `[cuda][buffer]` | Skip / SUCCEED marker | DeviceBuffer H2D/D2H |
 | `[cuda][params]` | Host POD/JSON tests always run | same |
 | `[cuda][interrupt]` | Host interrupt view always run | same |
-| `[cuda][backend]` | Façade validation; “not available” gate | “not implemented” until kernels wire in |
+| `[cuda][backend]` | Validation always; catalog run when CUDA ON | Full `CudaBackend` dispatch vs CPU |
 | `[cuda][smoke]` | Skip / SUCCEED marker | `IdentityCopy` H2D → kernel → D2H |
 | `[cuda][parity][atbash]` | Skip / SUCCEED marker | `AtbashKernel` vs CPU `AtbashTransform::kernel` |
 | `[cuda][parity][caesar]` | Skip / SUCCEED marker | `CaesarKernel` vs CPU `CaesarTransform::kernel` |
