@@ -19,6 +19,7 @@ add_executable(parcae_tests
   cuda_device_buffer_test.cpp
   cuda_params_test.cpp
   cuda_interrupt_device_view_test.cpp
+  cuda_candidate_batch_buffers_test.cpp
   cuda_backend_test.cpp
   cuda_smoke_test.cpp
   cuda_atbash_test.cpp

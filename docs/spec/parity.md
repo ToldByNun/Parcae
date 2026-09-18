@@ -67,8 +67,11 @@ Future batches SHOULD use candidate-major structure-of-arrays:
 | `out_index29[C][T]` | results |
 | `scores[C]` | optional |
 
-Exact layout is finalized with the CUDA port; the CPU reference MUST NOT paint
-itself into a corner with pointer-chasing tree transforms on the hot path.
+Host staging for the CUDA port:
+[`CandidateBatchBuffers`](../../Parcae/Parcae/cuda/candidate_batch_buffers.hpp)
+(`kMaxC` / `kMaxT` documented in [`cuda-abi.md`](../architecture/cuda-abi.md)).
+The CPU reference MUST NOT paint itself into a corner with pointer-chasing tree
+transforms on the hot path.
 
 ## Equality definition
 

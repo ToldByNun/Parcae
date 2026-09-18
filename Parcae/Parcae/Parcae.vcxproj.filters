@@ -41,6 +41,9 @@
     <ClInclude Include="cuda\interrupt_device_view.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\candidate_batch_buffers.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
     <ClInclude Include="cuda\backend.hpp">
       <Filter>cuda</Filter>
     </ClInclude>

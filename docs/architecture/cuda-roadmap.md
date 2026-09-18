@@ -67,7 +67,8 @@ Workstreams below; **layout overrides** any earlier sketch that used
 
 | Commit | Title |
 |--------|-------|
-| 28–33 | SoA ABI, caesar/atbash/affine/vigenere batches, score + top-k |
+| 28 | feat: Candidate Batch ABI v0 buffers (host side) |
+| 29–33 | caesar/atbash/affine/vigenere batches, score + top-k |
 | 34 | test: rank-1 recovery on CUDA batch |
 
 ### E — Tools & exit

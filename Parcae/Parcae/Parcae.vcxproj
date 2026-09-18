@@ -171,6 +171,7 @@
     <ClInclude Include="cuda\params.hpp" />
     <ClInclude Include="cuda\params_json.hpp" />
     <ClInclude Include="cuda\interrupt_device_view.hpp" />
+    <ClInclude Include="cuda\candidate_batch_buffers.hpp" />
     <ClInclude Include="cuda\backend.hpp" />
     <ClInclude Include="cuda\cuda_score.hpp" />
     <ClInclude Include="cuda\identity_copy.hpp" />

@@ -94,8 +94,9 @@ Document reduction associativity before claiming parallel CUDA score speedups
 | CPU entry | Header | Notes |
 |-----------|--------|-------|
 | Candidate expand (caesar / atbash / affine / …) | `generate/*.hpp` | Emit params + envelopes |
-| `BatchRunner::run` | `batch/batch_runner.hpp` | Candidate-major SoA later |
+| `BatchRunner::run` | `batch/batch_runner.hpp` | CPU top-k; CUDA batches feed `scores[C]` |
 | `BatchOrdering` | `batch/batch_ordering.hpp` | Deterministic top-k |
+| `CandidateBatchBuffers` | `Parcae/Parcae/cuda/candidate_batch_buffers.hpp` | Host SoA ABI v0 (`kMaxC`/`kMaxT`) |
 
 ### Explicitly **not** CUDA twins
 

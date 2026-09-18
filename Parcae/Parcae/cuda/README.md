@@ -20,6 +20,7 @@ Files:
 | `params.hpp` | POD classes: Caesar/Affine/Key/Totient/ComposeStage + CudaDir/CudaFamilyId |
 | `params_json.hpp` | `CudaParamsJson` host JSON ↔ POD converters |
 | `interrupt_device_view.hpp` | `InterruptDeviceView` — bitmask (`T≤4096`) or sorted `uint32_t` skips |
+| `candidate_batch_buffers.hpp` | `CandidateBatchBuffers` — host SoA ABI v0 (`kMaxC`/`kMaxT`, shared or per-candidate tokens) |
 | `backend.hpp` | `CudaBackend` — full catalog `apply_into` / `apply_and_capture` |
 | `cuda_score.hpp` | `CudaScore` — `ScoreRegistry` twin (string-id score dispatch) |
 | `identity_copy.hpp` / `identity_copy.cu` | `IdentityCopy` — device `uint8_t` identity / smoke kernel |

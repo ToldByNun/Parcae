@@ -63,7 +63,9 @@ Skip indices outside `[0, T)` are rejected at conversion time.
 
 ## Candidate Batch ABI v0 (SoA)
 
-Candidate-major structure-of-arrays (see also `parity.md`):
+Candidate-major structure-of-arrays (see also `parity.md`).
+Host staging: `CandidateBatchBuffers` in
+[`Parcae/Parcae/cuda/candidate_batch_buffers.hpp`](../../Parcae/Parcae/cuda/candidate_batch_buffers.hpp).
 
 | Buffer | Shape | Meaning |
 |--------|-------|---------|
@@ -76,9 +78,19 @@ Candidate-major structure-of-arrays (see also `parity.md`):
 - `C` = candidate count, `T` = tokens (or consumable length).
 - v0 MAY use shared ciphertext tokens + per-candidate param lanes (caesar 29,
   affine 812) instead of replicating `token_index29` per candidate.
+- Flat host layout is candidate-major: element `(c, t)` at `c * T + t`.
 - Top-k reduction in v0 MAY run on host after D2H of `scores[C]`, using
   `BatchOrdering` (CPU serial remains source of truth). Per-stream score FP
   policy: [cuda-score-reduction.md](cuda-score-reduction.md).
+
+### v0 size limits (host staging)
+
+| Limit | Value | Rationale |
+|-------|-------|-----------|
+| `kMaxC` | 8192 | Affine sweep is 812; headroom for explicit key lists. Larger `C` → chunk. |
+| `kMaxT` | 4096 | Fixture-scale; same ceiling as interrupt bitmask preference. |
+
+`CandidateBatchBuffers::allocate` rejects `C == 0`, `C > kMaxC`, or `T > kMaxT`.
 
 ## Direction enum (device)
 
