@@ -80,7 +80,7 @@ Keystream setup (may stay host-side if device receives a shifts buffer):
 |-----------|--------|
 | `IcMod29::score` | `score/ic_mod29.hpp` → CUDA `IcMod29Score` |
 | `Chi2EnglishGp::score` | `score/chi2_english_gp.hpp` |
-| `SelfRepeatRate::score` | `score/self_repeat_rate.hpp` |
+| `SelfRepeatRate::score` | `score/self_repeat_rate.hpp` → CUDA `SelfRepeatRateScore` |
 | `ExactMatch::score` | `score/exact_match.hpp` → CUDA `ExactMatchScore` |
 | `HammingAgreement::score` | `score/hamming_agreement.hpp` → CUDA `HammingAgreementScore` |
 | `ScoreRegistry::score` | `score/score_registry.hpp` (dispatch) |

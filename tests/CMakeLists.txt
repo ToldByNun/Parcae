@@ -33,6 +33,7 @@ add_executable(parcae_tests
   cuda_solved_parity_test.cpp
   cuda_score_exact_hamming_test.cpp
   cuda_score_ic_mod29_test.cpp
+  cuda_score_self_repeat_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE

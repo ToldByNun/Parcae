@@ -79,6 +79,7 @@ Targets:
 | `[cuda][score][exact]` | Skip / SUCCEED marker | `ExactMatchScore` vs CPU `ExactMatch` |
 | `[cuda][score][hamming]` | Skip / SUCCEED marker | `HammingAgreementScore` vs CPU `HammingAgreement` |
 | `[cuda][score][ic]` | Skip / SUCCEED marker | `IcMod29Score` vs CPU `IcMod29` |
+| `[cuda][score][self_repeat]` | Skip / SUCCEED marker | `SelfRepeatRateScore` vs CPU `SelfRepeatRate` |
 
 ```bash
 # CPU CI path — smoke/buffer markers must still pass

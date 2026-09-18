@@ -184,6 +184,7 @@
     <ClInclude Include="cuda\exact_match_score.hpp" />
     <ClInclude Include="cuda\hamming_agreement_score.hpp" />
     <ClInclude Include="cuda\ic_mod29_score.hpp" />
+    <ClInclude Include="cuda\self_repeat_rate_score.hpp" />
   </ItemGroup>
   <!-- CUDA twins: x64 only (Toolkit BuildCustomizations required) -->
   <ItemGroup Condition="'$(Platform)'=='x64'">
@@ -199,6 +200,7 @@
     <CudaCompile Include="cuda\exact_match_score.cu" />
     <CudaCompile Include="cuda\hamming_agreement_score.cu" />
     <CudaCompile Include="cuda\ic_mod29_score.cu" />
+    <CudaCompile Include="cuda\self_repeat_rate_score.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -80,6 +80,9 @@
     <ClInclude Include="cuda\ic_mod29_score.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\self_repeat_rate_score.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cuda\parcae_cuda_stub.cu">
@@ -116,6 +119,9 @@
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\ic_mod29_score.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\self_repeat_rate_score.cu">
       <Filter>cuda</Filter>
     </CudaCompile>
   </ItemGroup>
