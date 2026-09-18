@@ -191,8 +191,9 @@ Copied from [`parity.md`](../spec/parity.md):
 
 - Job: build CPU + CUDA, run parity Catch2 tag (e.g. `[parity][cuda]`)
 - Fail if any golden `output_sha256` mismatches (`[cuda][parity][golden]`)
-- CPU-only runners still lock goldens via the same tag (CPU apply + skip CUDA apply)
-- Hosted CI stays CPU-default; GPU runners exercise the CUDA branch
+- Fail if locked solved consumable streams diverge CPU↔CUDA (`[cuda][parity][solved]`)
+- CPU-only runners still lock goldens/solved digests via the same tags (CUDA apply skipped)
+- Hosted CI stays CPU-default; GPU runners exercise the CUDA branches
 
 ---
 

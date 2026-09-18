@@ -30,6 +30,7 @@ add_executable(parcae_tests
   cuda_totient_test.cpp
   cuda_compose_test.cpp
   cuda_golden_parity_test.cpp
+  cuda_solved_parity_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE
