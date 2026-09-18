@@ -70,7 +70,8 @@ Workstreams below; **layout overrides** any earlier sketch that used
 | 28 | feat: Candidate Batch ABI v0 buffers (host side) |
 | 29 | feat: CUDA batch apply — caesar all 29 shifts |
 | 30 | feat: CUDA batch apply — atbash + atbash∘caesar |
-| 31–33 | affine/vigenere batches, score + top-k |
+| 31 | feat: CUDA batch apply — affine 812 |
+| 32–33 | vigenere batches, score + top-k |
 | 34 | test: rank-1 recovery on CUDA batch |
 
 ### E — Tools & exit

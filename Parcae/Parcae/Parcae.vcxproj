@@ -182,6 +182,7 @@
     <ClInclude Include="cuda\caesar_batch_kernel.hpp" />
     <ClInclude Include="cuda\z29_device.hpp" />
     <ClInclude Include="cuda\affine_kernel.hpp" />
+    <ClInclude Include="cuda\affine_batch_kernel.hpp" />
     <ClInclude Include="cuda\vigenere_key_kernel.hpp" />
     <ClInclude Include="cuda\beaufort_key_kernel.hpp" />
     <ClInclude Include="cuda\totient_prime_stream_kernel.hpp" />
@@ -202,6 +203,7 @@
     <CudaCompile Include="cuda\caesar_kernel.cu" />
     <CudaCompile Include="cuda\caesar_batch_kernel.cu" />
     <CudaCompile Include="cuda\affine_kernel.cu" />
+    <CudaCompile Include="cuda\affine_batch_kernel.cu" />
     <CudaCompile Include="cuda\vigenere_key_kernel.cu" />
     <CudaCompile Include="cuda\beaufort_key_kernel.cu" />
     <CudaCompile Include="cuda\totient_prime_stream_kernel.cu" />
