@@ -26,6 +26,7 @@ Files:
 | `caesar_kernel.hpp` / `caesar_kernel.cu` | `CaesarKernel` — add/sub `shift` mod 29 twin |
 | `z29_device.hpp` | `Z29Device` — host/device \\(\\mathbb{Z}_{29}\\) add/mul/inv |
 | `affine_kernel.hpp` / `affine_kernel.cu` | `AffineKernel` — `a·x+b` / `inv(a)·(x-b)` twin |
+| `vigenere_key_kernel.hpp` / `.cu` | `VigenereKeyKernel` — key ring + interrupt skips twin |
 | `CMakeLists.txt` | Defines `parcae_cuda` when parent enables CUDA |
 
 CPU reference headers remain under repo-root `include/parcae/`.

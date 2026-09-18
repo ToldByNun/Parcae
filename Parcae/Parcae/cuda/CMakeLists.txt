@@ -10,6 +10,7 @@ set(PARCAE_CUDA_SOURCES
   atbash_kernel.cu
   caesar_kernel.cu
   affine_kernel.cu
+  vigenere_key_kernel.cu
 )
 
 add_library(parcae_cuda STATIC ${PARCAE_CUDA_SOURCES})

@@ -59,6 +59,9 @@
     <ClInclude Include="cuda\affine_kernel.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\vigenere_key_kernel.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cuda\parcae_cuda_stub.cu">
@@ -74,6 +77,9 @@
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\affine_kernel.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\vigenere_key_kernel.cu">
       <Filter>cuda</Filter>
     </CudaCompile>
   </ItemGroup>

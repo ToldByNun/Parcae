@@ -25,6 +25,7 @@ add_executable(parcae_tests
   cuda_caesar_test.cpp
   cuda_identity_test.cpp
   cuda_affine_test.cpp
+  cuda_vigenere_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE
