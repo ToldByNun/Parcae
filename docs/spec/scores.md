@@ -141,6 +141,10 @@ scores concurrently, but MUST NOT use schedule-dependent heaps or “first finis
 wins” insertion. Materialize `scores[0..N)`, then reduce with the total order
 above. Serial CPU remains the source of truth (`docs/spec/parity.md`).
 
+CUDA score **per-stream** floating-point / histogram reduction order is locked in
+[`docs/architecture/cuda-score-reduction.md`](../architecture/cuda-score-reduction.md)
+(integer accumulate → fixed-order FP finalize; no unordered `double` atomics).
+
 ---
 
 ## CLI / tool surface

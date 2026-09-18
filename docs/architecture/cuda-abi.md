@@ -77,7 +77,8 @@ Candidate-major structure-of-arrays (see also `parity.md`):
 - v0 MAY use shared ciphertext tokens + per-candidate param lanes (caesar 29,
   affine 812) instead of replicating `token_index29` per candidate.
 - Top-k reduction in v0 MAY run on host after D2H of `scores[C]`, using
-  `BatchOrdering` (CPU serial remains source of truth).
+  `BatchOrdering` (CPU serial remains source of truth). Per-stream score FP
+  policy: [cuda-score-reduction.md](cuda-score-reduction.md).
 
 ## Direction enum (device)
 

@@ -86,7 +86,8 @@ Keystream setup (may stay host-side if device receives a shifts buffer):
 | `ScoreRegistry::score` | `score/score_registry.hpp` (dispatch) |
 
 Document reduction associativity before claiming parallel CUDA score speedups
-([`scores.md`](../spec/scores.md), [`parity.md`](../spec/parity.md)).
+([`cuda-score-reduction.md`](cuda-score-reduction.md); formulas in
+[`scores.md`](../spec/scores.md), equality in [`parity.md`](../spec/parity.md)).
 
 ### Batch / generators (required for search throughput)
 

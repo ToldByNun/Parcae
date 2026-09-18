@@ -12,7 +12,8 @@ CPU_reference(input, params)  ==  CUDA_kernel(input, params)   (bit-identical In
 ```
 
 Score reductions used in batch mode MUST also match under a documented
-associativity / ordering policy.
+associativity / ordering policy
+([`cuda-score-reduction.md`](../architecture/cuda-score-reduction.md)).
 
 ## CPU obligations (parity-ready)
 
