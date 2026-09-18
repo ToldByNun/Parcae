@@ -49,5 +49,3 @@ compile_commands.json
 *.vsidx
 CMakeUserPresets.json
 /build-cuda
-.tmp_phase3_commits.txt
-_tmp_c13.txt

@@ -27,6 +27,7 @@ Files:
 | `z29_device.hpp` | `Z29Device` — host/device \\(\\mathbb{Z}_{29}\\) add/mul/inv |
 | `affine_kernel.hpp` / `affine_kernel.cu` | `AffineKernel` — `a·x+b` / `inv(a)·(x-b)` twin |
 | `vigenere_key_kernel.hpp` / `.cu` | `VigenereKeyKernel` — key ring + interrupt skips twin |
+| `beaufort_key_kernel.hpp` / `.cu` | `BeaufortKeyKernel` — `key-in` involution + skips twin |
 | `CMakeLists.txt` | Defines `parcae_cuda` when parent enables CUDA |
 
 CPU reference headers remain under repo-root `include/parcae/`.

@@ -71,6 +71,7 @@ Targets:
 | `[cuda][parity][identity]` | Skip / SUCCEED marker | `CudaBackend` identity vs CPU `IdentityTransform` |
 | `[cuda][parity][affine]` | Host inv table always; kernel skip without CUDA | `AffineKernel` + `Z29Device::inv` vs CPU |
 | `[cuda][parity][vigenere]` | Skip / SUCCEED marker | `VigenereKeyKernel` vs CPU (bitmask + sorted skips) |
+| `[cuda][parity][beaufort]` | Skip / SUCCEED marker | `BeaufortKeyKernel` vs CPU (involution + skips) |
 
 ```bash
 # CPU CI path — smoke/buffer markers must still pass
