@@ -7,10 +7,10 @@
 #include <cstdint>
 #include <span>
 
-/// Smoke / identity twin helper: device `uint8_t` stream copy (`out[i] = in[i]`).
+/// Smoke / identity twin: device `uint8_t` stream copy (`out[i] = in[i]`).
 ///
-/// Host API only; kernel lives in `identity_copy.cu`. Wired into `CudaBackend`
-/// for `TransformId::identity()` in a later commit.
+/// Host API; kernel in `identity_copy.cu`. Used by `CudaBackend` for
+/// `TransformId::identity()`. In-place OK (`host_in.data() == host_out.data()`).
 class IdentityCopy {
 public:
     /// Launch copy on device pointers (`count` elements). No-op success if `count == 0`.

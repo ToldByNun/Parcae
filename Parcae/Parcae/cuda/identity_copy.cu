@@ -52,6 +52,20 @@ Status IdentityCopy::apply_host(
         return Status::error("IdentityCopy::apply_host size mismatch");
     }
 
+    if (host_in.data() == host_out.data()) {
+        StatusOr<DeviceBuffer<std::uint8_t>> device =
+            DeviceBuffer<std::uint8_t>::from_host(host_in);
+        if (!device.ok()) {
+            return device.status();
+        }
+        Status launched =
+            launch_device(device.value().data(), device.value().data(), host_in.size());
+        if (!launched.ok()) {
+            return launched;
+        }
+        return device.value().copy_to_host(host_out);
+    }
+
     StatusOr<DeviceBuffer<std::uint8_t>> device_in = DeviceBuffer<std::uint8_t>::from_host(host_in);
     if (!device_in.ok()) {
         return device_in.status();
@@ -63,7 +77,8 @@ Status IdentityCopy::apply_host(
         return device_out.status();
     }
 
-    Status launched = launch_device(device_in.value().data(), device_out.value().data(), host_in.size());
+    Status launched =
+        launch_device(device_in.value().data(), device_out.value().data(), host_in.size());
     if (!launched.ok()) {
         return launched;
     }

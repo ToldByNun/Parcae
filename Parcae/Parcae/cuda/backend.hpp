@@ -13,9 +13,11 @@
 #include "parcae/transform/transform_id.hpp"
 
 #if defined(PARCAE_HAS_CUDA)
+#include "identity_copy.hpp"
 #include "parcae_cuda.hpp"
 #endif
 
+#include <cstddef>
 #include <span>
 #include <string>
 #include <vector>
@@ -25,8 +27,8 @@
 /// CUDA twin entry mirroring CPU `ApplyTransform` (`docs/architecture/cuda-handoff.md`).
 ///
 /// Host-side: validates sizes, resolves `CudaFamilyId`, builds `InterruptDeviceView`,
-/// and parses JSON → POD params. Device kernels are wired in later commits; until then
-/// each family returns a clear "not implemented" `Status` when CUDA is linked.
+/// and parses JSON → POD params. `CudaFamilyId::Identity` runs via `IdentityCopy`;
+/// other families return "not implemented" until their kernels are wired.
 class CudaBackend {
 public:
     /// True when this binary was built with the CUDA twin library.
@@ -72,7 +74,20 @@ public:
 
         (void)dir;
         (void)interrupts;
-        return not_implemented(family.value());
+
+        switch (family.value()) {
+            case CudaFamilyId::Identity:
+                return apply_identity(input, output);
+            case CudaFamilyId::Atbash:
+            case CudaFamilyId::Caesar:
+            case CudaFamilyId::Affine:
+            case CudaFamilyId::VigenereKey:
+            case CudaFamilyId::BeaufortKey:
+            case CudaFamilyId::TotientPrimeStream:
+            case CudaFamilyId::Compose:
+                return not_implemented(family.value());
+        }
+        return Status::error("CudaBackend: unknown CudaFamilyId");
     }
 
     [[nodiscard]] static StatusOr<std::vector<Index29>> apply(
@@ -91,6 +106,29 @@ public:
 
 private:
     CudaBackend() = delete;
+
+    [[nodiscard]] static Status apply_identity(
+        std::span<const Index29> input,
+        std::span<Index29> output) {
+#if defined(PARCAE_HAS_CUDA)
+        std::vector<std::uint8_t> bytes(input.size());
+        for (std::size_t i = 0; i < input.size(); ++i) {
+            bytes[i] = input[i].value();
+        }
+        Status copied = IdentityCopy::apply_host(bytes, bytes);
+        if (!copied.ok()) {
+            return copied;
+        }
+        for (std::size_t i = 0; i < output.size(); ++i) {
+            output[i] = Index29{bytes[i]};
+        }
+        return Status::success();
+#else
+        (void)input;
+        (void)output;
+        return Status::error("CudaBackend: CUDA not available");
+#endif
+    }
 
     [[nodiscard]] static Status prepare_params(
         CudaFamilyId family,

@@ -70,7 +70,27 @@ TEST_CASE("CudaBackend catalog ids reach availability or stub gate", "[cuda][bac
     const std::vector<Index29> in{Index29{1}, Index29{2}, Index29{3}};
     std::vector<Index29> out(in.size());
 
-    const auto expect_gate = [&](const TransformId& id, const nlohmann::json& params) {
+    if (CudaBackend::available()) {
+        REQUIRE(CudaBackend::apply_into(
+                    TransformId::identity(),
+                    in,
+                    out,
+                    nlohmann::json::object(),
+                    TransformDirection::Decrypt)
+                    .ok());
+        REQUIRE(out == in);
+    } else {
+        Status identity = CudaBackend::apply_into(
+            TransformId::identity(),
+            in,
+            out,
+            nlohmann::json::object(),
+            TransformDirection::Decrypt);
+        REQUIRE_FALSE(identity.ok());
+        REQUIRE(message_contains(identity, "not available"));
+    }
+
+    const auto expect_stub = [&](const TransformId& id, const nlohmann::json& params) {
         Status status = CudaBackend::apply_into(
             id, in, out, params, TransformDirection::Decrypt);
         REQUIRE_FALSE(status.ok());
@@ -81,18 +101,17 @@ TEST_CASE("CudaBackend catalog ids reach availability or stub gate", "[cuda][bac
         }
     };
 
-    expect_gate(TransformId::identity(), nlohmann::json::object());
-    expect_gate(TransformId::atbash(), nlohmann::json::object());
-    expect_gate(TransformId::caesar(), nlohmann::json{{"shift", 3}});
-    expect_gate(TransformId::affine(), nlohmann::json{{"a", 2}, {"b", 5}});
-    expect_gate(
+    expect_stub(TransformId::atbash(), nlohmann::json::object());
+    expect_stub(TransformId::caesar(), nlohmann::json{{"shift", 3}});
+    expect_stub(TransformId::affine(), nlohmann::json{{"a", 2}, {"b", 5}});
+    expect_stub(
         TransformId::vigenere_key(),
         nlohmann::json{{"key_indices", {1, 2, 3}}});
-    expect_gate(
+    expect_stub(
         TransformId::beaufort_key(),
         nlohmann::json{{"key_indices", {4, 5}}});
-    expect_gate(TransformId::totient_prime_stream(), nlohmann::json::object());
-    expect_gate(TransformId::compose(), ComposeTransform::atbash_then_caesar_params(3));
+    expect_stub(TransformId::totient_prime_stream(), nlohmann::json::object());
+    expect_stub(TransformId::compose(), ComposeTransform::atbash_then_caesar_params(3));
 }
 
 TEST_CASE("CudaBackend apply mirrors apply_into Status", "[cuda][backend]") {
