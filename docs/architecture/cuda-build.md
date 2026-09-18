@@ -69,6 +69,7 @@ Targets:
 | `[cuda][parity][atbash]` | Skip / SUCCEED marker | `AtbashKernel` vs CPU `AtbashTransform::kernel` |
 | `[cuda][parity][caesar]` | Skip / SUCCEED marker | `CaesarKernel` vs CPU `CaesarTransform::kernel` |
 | `[cuda][parity][identity]` | Skip / SUCCEED marker | `CudaBackend` identity vs CPU `IdentityTransform` |
+| `[cuda][parity][affine]` | Host inv table always; kernel skip without CUDA | `AffineKernel` + `Z29Device::inv` vs CPU |
 
 ```bash
 # CPU CI path — smoke/buffer markers must still pass
