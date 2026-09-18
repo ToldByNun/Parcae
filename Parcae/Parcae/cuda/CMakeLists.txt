@@ -6,6 +6,7 @@
 
 set(PARCAE_CUDA_SOURCES
   parcae_cuda_stub.cu
+  identity_copy.cu
 )
 
 add_library(parcae_cuda STATIC ${PARCAE_CUDA_SOURCES})
@@ -26,7 +27,7 @@ target_link_libraries(parcae_cuda
     CUDA::cudart
 )
 
-target_compile_features(parcae_cuda PUBLIC cxx_std_20)
+target_compile_features(parcae_cuda PUBLIC cxx_std_20 cuda_std_20)
 target_compile_definitions(parcae_cuda PUBLIC PARCAE_HAS_CUDA=1)
 
 # No separable compilation: a static .cu lib with -rdc leaves

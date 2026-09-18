@@ -19,6 +19,7 @@ Files:
 | `params_json.hpp` | `CudaParamsJson` host JSON ↔ POD converters |
 | `interrupt_device_view.hpp` | `InterruptDeviceView` — bitmask (`T≤4096`) or sorted `uint32_t` skips |
 | `backend.hpp` | `CudaBackend` — `apply_into` / `apply` twin entry (dispatch; kernels later) |
+| `identity_copy.hpp` / `identity_copy.cu` | Smoke `IdentityCopy` — device `uint8_t` identity kernel |
 | `CMakeLists.txt` | Defines `parcae_cuda` when parent enables CUDA |
 
 CPU reference headers remain under repo-root `include/parcae/`.
