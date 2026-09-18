@@ -44,7 +44,7 @@ Workstreams below; **layout overrides** any earlier sketch that used
 | 5 | feat: interrupt device view (bitmask / sorted skips) |
 | 6 | feat: CUDA backend façade (`apply_into` dispatch) |
 | 7 | test: smoke identity copy kernel |
-| 8 | docs: local CUDA build notes; CI remains CPU-default |
+| 8 | docs: local CUDA build notes; CI remains CPU-default ([cuda-build.md](cuda-build.md)) |
 
 ### B — Transform twins
 

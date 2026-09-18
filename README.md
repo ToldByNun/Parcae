@@ -67,7 +67,9 @@ Options:
 | `PARCAE_BUILD_TOOLS` | `ON` | Build CLIs: `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate` |
 | `PARCAE_BUILD_CUDA` | `OFF` | Build `parcae_cuda` from [`Parcae/Parcae/cuda/`](Parcae/Parcae/cuda/) (needs nvcc) |
 
-**Visual Studio (CUDA day-to-day):** open [`Parcae/Parcae.slnx`](Parcae/Parcae.slnx), build **x64** with the CUDA Toolkit VS integration installed. Sources live under `Parcae/Parcae/cuda/`.
+**Visual Studio (CUDA day-to-day):** open [`Parcae/Parcae.slnx`](Parcae/Parcae.slnx), build **x64** with the CUDA Toolkit VS integration installed. Sources live under `Parcae/Parcae/cuda/`. Full local notes (CMake flags, Catch2 tags, skip behavior): [`docs/architecture/cuda-build.md`](docs/architecture/cuda-build.md).
+
+CI (`.github/workflows/ci.yml`) stays **CPU-default** — it does not enable `PARCAE_BUILD_CUDA`.
 
 On multi-config generators (Visual Studio CMake), binaries land in
 `build/tools/Release/`. On single-config (Ninja/Make), they are in

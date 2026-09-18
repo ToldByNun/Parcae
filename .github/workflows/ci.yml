@@ -46,3 +46,23 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build ${{ matrix.test_args }} --output-on-failure
+
+  # Optional future GPU job (self-hosted). Disabled: CI stays CPU-default.
+  # Enable on a runner with Toolkit + GPU via workflow_dispatch when ready.
+  cuda-smoke:
+    name: cuda-smoke (manual)
+    if: false
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure CUDA
+        run: >
+          cmake -S . -B build-cuda -A x64
+          -DPARCAE_BUILD_CUDA=ON
+          -DPARCAE_BUILD_TESTS=ON
+          -DPARCAE_BUILD_TOOLS=OFF
+      - name: Build
+        run: cmake --build build-cuda --config Release --target parcae_tests
+      - name: Smoke
+        run: build-cuda/tests/Release/parcae_tests.exe "[cuda][smoke]" -s

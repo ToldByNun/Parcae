@@ -7,6 +7,8 @@ Canonical home for Parcae CUDA twins.
 | **Visual Studio** | Open [`Parcae/Parcae.slnx`](../../Parcae.slnx), build **x64**. Requires NVIDIA CUDA Toolkit VS integration (`BuildCustomizations\CUDA <ver>.props`). Default toolkit prop version: **13.3** — override MSBuild property `ParcaeCudaToolkitVersion` if needed. |
 | **CMake** | `cmake -S . -B build -DPARCAE_BUILD_CUDA=ON` then build target `parcae_cuda` / alias `parcae::cuda`. Default OFF so CPU CI stays Toolkit-free. |
 
+Step-by-step (VS + CMake + Catch2 tags / skips): [`docs/architecture/cuda-build.md`](../../../docs/architecture/cuda-build.md).
+
 Files:
 
 | File | Role |
