@@ -180,7 +180,7 @@ TEST_CASE("AtbashCaesarCandidateGenerator emits 29 Koan-1-family shifts", "[gene
         std::vector<Index29>{I(2), I(26), I(3)});
 }
 
-TEST_CASE("AffineCandidateGenerator enumerates 28×29=812 with documented cost", "[generate][affine]") {
+TEST_CASE("AffineCandidateGenerator enumerates 28x29=812 with documented cost", "[generate][affine]") {
     REQUIRE(AffineCandidateGenerator::a_count == 28);
     REQUIRE(AffineCandidateGenerator::b_count == 29);
     REQUIRE(AffineCandidateGenerator::candidate_count == 812);

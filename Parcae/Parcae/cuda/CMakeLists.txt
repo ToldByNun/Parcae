@@ -7,6 +7,7 @@
 set(PARCAE_CUDA_SOURCES
   parcae_cuda_stub.cu
   identity_copy.cu
+  atbash_kernel.cu
 )
 
 add_library(parcae_cuda STATIC ${PARCAE_CUDA_SOURCES})

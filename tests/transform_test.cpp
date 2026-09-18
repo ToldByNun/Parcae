@@ -335,7 +335,7 @@ TEST_CASE("VigenereKeyTransform id and params", "[transform]") {
         transform.apply(plain, nlohmann::json{{"key_indices", {29}}}, TransformDirection::Encrypt).ok());
 }
 
-TEST_CASE("Synthetic Vigenère hand vectors with and without interrupts", "[transform]") {
+TEST_CASE("Synthetic Vigenere hand vectors with and without interrupts", "[transform]") {
     const VigenereKeyTransform transform;
     const nlohmann::json params{{"key_indices", {1, 2}}};
     const std::vector<Index29> plain{Index29{0}, Index29{1}, Index29{2}, Index29{3}};
