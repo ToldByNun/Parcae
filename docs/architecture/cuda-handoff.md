@@ -97,6 +97,7 @@ Document reduction associativity before claiming parallel CUDA score speedups
 | `BatchRunner::run` | `batch/batch_runner.hpp` | CPU top-k; CUDA batches feed `scores[C]` |
 | `BatchOrdering` | `batch/batch_ordering.hpp` | Deterministic top-k |
 | `CandidateBatchBuffers` | `Parcae/Parcae/cuda/candidate_batch_buffers.hpp` | Host SoA ABI v0 (`kMaxC`/`kMaxT`) |
+| `CaesarBatchKernel` | `Parcae/Parcae/cuda/caesar_batch_kernel.hpp` | Shared ciphertext + 29 shift lanes |
 
 ### Explicitly **not** CUDA twins
 

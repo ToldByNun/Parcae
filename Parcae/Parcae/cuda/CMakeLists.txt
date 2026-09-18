@@ -9,6 +9,7 @@ set(PARCAE_CUDA_SOURCES
   identity_copy.cu
   atbash_kernel.cu
   caesar_kernel.cu
+  caesar_batch_kernel.cu
   affine_kernel.cu
   vigenere_key_kernel.cu
   beaufort_key_kernel.cu

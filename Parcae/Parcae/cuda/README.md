@@ -26,6 +26,7 @@ Files:
 | `identity_copy.hpp` / `identity_copy.cu` | `IdentityCopy` — device `uint8_t` identity / smoke kernel |
 | `atbash_kernel.hpp` / `atbash_kernel.cu` | `AtbashKernel` — `out[i] = 28 - in[i]` twin |
 | `caesar_kernel.hpp` / `caesar_kernel.cu` | `CaesarKernel` — add/sub `shift` mod 29 twin |
+| `caesar_batch_kernel.hpp` / `.cu` | `CaesarBatchKernel` — shared tokens + 29 shift lanes (SoA ABI v0) |
 | `z29_device.hpp` | `Z29Device` — host/device \\(\\mathbb{Z}_{29}\\) add/mul/inv |
 | `affine_kernel.hpp` / `affine_kernel.cu` | `AffineKernel` — `a·x+b` / `inv(a)·(x-b)` twin |
 | `vigenere_key_kernel.hpp` / `.cu` | `VigenereKeyKernel` — key ring + interrupt skips twin |
