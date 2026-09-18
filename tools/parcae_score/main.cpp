@@ -116,7 +116,7 @@ void print_help() {
     return codec.delatinize(letters);
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     using namespace parcae::cli;

@@ -152,7 +152,7 @@ void print_help() {
     return parcae::cli::kExitOk;
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     using namespace parcae::cli;

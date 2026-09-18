@@ -148,7 +148,7 @@ void print_help() {
     return stream.value().consumable_indices();
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     using namespace parcae::cli;

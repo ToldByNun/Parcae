@@ -120,7 +120,7 @@ void print_report_human(const ValidationReport& report) {
     return ids;
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     using namespace parcae::cli;

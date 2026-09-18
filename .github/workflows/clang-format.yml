@@ -22,8 +22,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install clang-format
-        run: sudo apt-get update && sudo apt-get install -y clang-format
+      - name: Install clang-format-18
+        run: sudo apt-get update && sudo apt-get install -y clang-format-18
 
       - name: Check formatting
         run: |
@@ -37,4 +37,4 @@ jobs:
             echo "No C/C++/CUDA sources found to format-check."
             exit 1
           fi
-          clang-format --dry-run --Werror "${files[@]}"
+          clang-format-18 --dry-run --Werror "${files[@]}"

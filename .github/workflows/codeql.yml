@@ -15,13 +15,18 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
   security-events: write
 
 jobs:
   analyze:
-    name: analyze (c-cpp)
+    name: analyze (cpp)
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,7 +34,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: c-cpp
+          languages: cpp
           build-mode: manual
 
       - name: Install Ninja
@@ -46,4 +51,5 @@ jobs:
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v3
         with:
-          category: "/language:c-cpp"
+          category: "/language:cpp"
+          upload: true

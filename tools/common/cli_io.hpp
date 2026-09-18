@@ -166,6 +166,6 @@ inline constexpr int kExitUsage = 2;
     return args;
 }
 
-}  // namespace parcae::cli
+} // namespace parcae::cli
 
 #endif // PARCAE_CLI_IO_HPP

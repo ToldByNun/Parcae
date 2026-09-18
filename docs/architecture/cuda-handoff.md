@@ -190,8 +190,9 @@ Copied from [`parity.md`](../spec/parity.md):
 ### 5. CI expectation (CUDA era)
 
 - Job: build CPU + CUDA, run parity Catch2 tag (e.g. `[parity][cuda]`)
-- Fail if any golden `output_sha256` mismatches
-- CPU-only runners keep running today’s `[solved]` + full `ctest`
+- Fail if any golden `output_sha256` mismatches (`[cuda][parity][golden]`)
+- CPU-only runners still lock goldens via the same tag (CPU apply + skip CUDA apply)
+- Hosted CI stays CPU-default; GPU runners exercise the CUDA branch
 
 ---
 

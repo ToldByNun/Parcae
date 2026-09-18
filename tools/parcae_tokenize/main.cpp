@@ -26,7 +26,7 @@ void print_help() {
         << "  -h, --help   Show this help\n";
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     using namespace parcae::cli;
