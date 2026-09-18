@@ -180,6 +180,7 @@
     <ClInclude Include="cuda\vigenere_key_kernel.hpp" />
     <ClInclude Include="cuda\beaufort_key_kernel.hpp" />
     <ClInclude Include="cuda\totient_prime_stream_kernel.hpp" />
+    <ClInclude Include="cuda\compose_driver.hpp" />
   </ItemGroup>
   <!-- CUDA twins: x64 only (Toolkit BuildCustomizations required) -->
   <ItemGroup Condition="'$(Platform)'=='x64'">
@@ -191,6 +192,7 @@
     <CudaCompile Include="cuda\vigenere_key_kernel.cu" />
     <CudaCompile Include="cuda\beaufort_key_kernel.cu" />
     <CudaCompile Include="cuda\totient_prime_stream_kernel.cu" />
+    <CudaCompile Include="cuda\compose_driver.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

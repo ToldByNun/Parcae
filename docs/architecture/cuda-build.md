@@ -73,6 +73,7 @@ Targets:
 | `[cuda][parity][vigenere]` | Skip / SUCCEED marker | `VigenereKeyKernel` vs CPU (bitmask + sorted skips) |
 | `[cuda][parity][beaufort]` | Skip / SUCCEED marker | `BeaufortKeyKernel` vs CPU (involution + skips) |
 | `[cuda][parity][totient]` | Skip / SUCCEED marker | `TotientPrimeStreamKernel` vs CPU (host shifts) |
+| `[cuda][parity][compose]` | Skip / SUCCEED marker | `ComposeDriver` vs CPU (Koan-1 / ping-pong) |
 
 ```bash
 # CPU CI path — smoke/buffer markers must still pass
