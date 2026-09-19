@@ -12,7 +12,6 @@
 #include "params.hpp"
 
 #include "parcae/core/index29.hpp"
-#include "parcae/core/sha256.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/run/search_run_metrics.hpp"
@@ -69,10 +68,6 @@ public:
 
 private:
     SearchRunCuda() = delete;
-
-    [[nodiscard]] static std::string hash_params(const nlohmann::json& params) {
-        return Sha256::hex_digest(params.dump());
-    }
 
     [[nodiscard]] static double mean_of(std::span<const double> values) {
         if (values.empty()) {
@@ -188,7 +183,7 @@ private:
             result.steps.emplace_back(
                 c,
                 transform_id,
-                hash_params(step_params[c]),
+                step_params[c],
                 scores[c]);
         }
         return result;

@@ -2,7 +2,6 @@
 #define SEARCH_RUN_HPP
 
 #include "parcae/core/index29.hpp"
-#include "parcae/core/sha256.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/corpus/fixture.hpp"
@@ -181,10 +180,6 @@ private:
         return out;
     }
 
-    [[nodiscard]] static std::string hash_params(const nlohmann::json& params) {
-        return Sha256::hex_digest(params.dump());
-    }
-
     [[nodiscard]] static double mean_of(std::span<const double> values) {
         if (values.empty()) {
             return 0.0;
@@ -279,7 +274,7 @@ private:
             result.steps.emplace_back(
                 static_cast<std::size_t>(shift),
                 "caesar",
-                hash_params(params),
+                params,
                 scores[shift]);
         }
         return result;

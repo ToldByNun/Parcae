@@ -1,4 +1,5 @@
 #include "cli_io.hpp"
+#include "tool_cli_json.hpp"
 
 #include "parcae/run/search_run.hpp"
 #include "parcae/run/search_run_console.hpp"
@@ -7,6 +8,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -19,47 +21,34 @@
 
 namespace {
 
+constexpr std::string_view kTool = "search_run";
+
 void print_help() {
     std::cerr
         << "Usage: parcae-search-run [--backend cpu|cuda] [--family caesar]\n"
         << "                         [--seed <u32>] [--stream-length <n>]\n"
         << "                         [--repeats <n>] [--score-id <id>]\n"
-        << "                         [--no-compare] [--json] [--data-dir <path>]\n"
+        << "                         [--no-compare] [--json] [--omit-timing]\n"
+        << "                         [--data-dir <path>]\n"
         << "\n"
         << "AI-style search-run dashboard: throughput (runes/s), sweep scores,\n"
         << "and locked-fixture scorer eval. Timing covers transform+score only\n"
-        << "(setup/init excluded). tok_per_sec is intentionally non-deterministic.\n"
+        << "(setup/init excluded). tok_per_sec is intentionally non-deterministic;\n"
+        << "use --omit-timing with --json for replayable agent output (params per step).\n"
         << "\nv0 families: caesar|atbash|atbash_caesar|affine|vigenere\n";
 }
 
-[[nodiscard]] nlohmann::json metrics_to_json(const SearchRunMetrics& metrics) {
-    nlohmann::json steps = nlohmann::json::array();
-    for (const SearchRunStep& step : metrics.steps()) {
-        steps.push_back({
-            {"step_id", step.step_id()},
-            {"transform_id", step.transform_id()},
-            {"param_hash", step.param_hash()},
-            {"score", step.score()},
-        });
+[[nodiscard]] int fail(
+    bool json_mode,
+    const std::optional<std::string>& backend,
+    ToolErrorCode code,
+    std::string message,
+    int plain_exit) {
+    if (json_mode) {
+        return ToolCliJson::err(kTool, backend, code, std::move(message));
     }
-    nlohmann::json out = {
-        {"transform_id", metrics.transform_id()},
-        {"parameters", metrics.parameters_label()},
-        {"seed", metrics.seed()},
-        {"backend", metrics.backend()},
-        {"score_id", metrics.score_id()},
-        {"tok_per_sec", metrics.tok_per_sec()},
-        {"score_mean", metrics.score_mean()},
-        {"score_std", metrics.score_std()},
-        {"eval_passed", metrics.eval_passed()},
-        {"eval_total", metrics.eval_total()},
-        {"eval_set_pass_rate", metrics.eval_set_pass_rate()},
-        {"steps", std::move(steps)},
-    };
-    if (metrics.cpu_cuda_pass().has_value()) {
-        out["cpu_cuda_pass"] = metrics.cpu_cuda_pass().value();
-    }
-    return out;
+    std::cerr << message << '\n';
+    return plain_exit;
 }
 
 }  // namespace
@@ -74,25 +63,35 @@ int main(int argc, char** argv) {
     }
 
     const bool json_mode = has_flag(args, "--json");
+    const bool omit_timing = has_flag(args, "--omit-timing");
+    if (omit_timing && !json_mode) {
+        std::cerr << "--omit-timing requires --json\n";
+        print_help();
+        return kExitUsage;
+    }
+
     const std::string data_dir = optional_option(args, "--data-dir");
+    std::optional<std::string> backend_label;
 
     StatusOr<parcae::tool::Backend> backend = parcae::tool::BackendUtil::from_string(
         optional_option(args, "--backend", "cpu"));
     if (!backend.ok()) {
-        std::cerr << backend.status().message() << '\n';
         print_help();
-        return kExitUsage;
+        return fail(json_mode, std::nullopt, ToolErrorCode::Usage, backend.status().message(),
+                    kExitUsage);
     }
+    backend_label = std::string(parcae::tool::BackendUtil::to_string(backend.value()));
+
     Status backend_ok = parcae::tool::BackendUtil::ensure_usable(backend.value());
     if (!backend_ok.ok()) {
-        std::cerr << backend_ok.message() << '\n';
-        return kExitUsage;
+        return fail(json_mode, backend_label, ToolErrorCode::NotBuilt, backend_ok.message(),
+                    kExitUsage);
     }
 
     StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        std::cerr << ctx.status().message() << '\n';
-        return kExitUsage;
+        return fail(json_mode, backend_label, ToolErrorCode::Io, ctx.status().message(),
+                    kExitUsage);
     }
 
     SearchRun::Options options;
@@ -101,13 +100,12 @@ int main(int argc, char** argv) {
     options.score_id = optional_option(args, "--score-id", "chi2_english_gp_v0");
     options.compare_cpu_cuda = !has_flag(args, "--no-compare");
 
-    // CUDA defaults: large stream so fused kernels are not launch-bound.
     if (backend.value() == parcae::tool::Backend::Cuda) {
         if (options.family == "affine") {
-            options.stream_length = 1u << 18;  // 256k (812 candidates)
+            options.stream_length = 1u << 18;
             options.throughput_repeats = 16;
         } else {
-            options.stream_length = 1u << 20;  // 1M
+            options.stream_length = 1u << 20;
             options.throughput_repeats = 64;
         }
     }
@@ -117,8 +115,8 @@ int main(int argc, char** argv) {
         try {
             options.seed = static_cast<std::uint32_t>(std::stoul(seed_text));
         } catch (const std::exception&) {
-            std::cerr << "Invalid --seed\n";
-            return kExitUsage;
+            return fail(json_mode, backend_label, ToolErrorCode::Usage, "Invalid --seed",
+                        kExitUsage);
         }
     }
 
@@ -127,8 +125,8 @@ int main(int argc, char** argv) {
         try {
             options.stream_length = static_cast<std::size_t>(std::stoull(len_text));
         } catch (const std::exception&) {
-            std::cerr << "Invalid --stream-length\n";
-            return kExitUsage;
+            return fail(json_mode, backend_label, ToolErrorCode::Usage, "Invalid --stream-length",
+                        kExitUsage);
         }
     }
 
@@ -137,28 +135,37 @@ int main(int argc, char** argv) {
         try {
             options.throughput_repeats = static_cast<std::size_t>(std::stoull(reps_text));
         } catch (const std::exception&) {
-            std::cerr << "Invalid --repeats\n";
-            return kExitUsage;
+            return fail(json_mode, backend_label, ToolErrorCode::Usage, "Invalid --repeats",
+                        kExitUsage);
         }
     }
 
     StatusOr<SearchRunMetrics> metrics = SearchRun::run(ctx.value(), options);
     if (!metrics.ok()) {
-        std::cerr << metrics.status().message() << '\n';
-        return kExitFail;
+        return fail(json_mode, backend_label, ToolErrorCode::Internal, metrics.status().message(),
+                    kExitFail);
     }
+
+    const bool eval_ok = metrics.value().eval_set_pass_rate() >= 1.0;
+    const bool parity_ok = !metrics.value().cpu_cuda_pass().has_value() ||
+                           metrics.value().cpu_cuda_pass().value();
 
     if (json_mode) {
-        std::cout << metrics_to_json(metrics.value()).dump(2) << '\n';
-    } else {
-        std::cout << SearchRunConsole::format(metrics.value());
+        nlohmann::json result = metrics.value().to_json(omit_timing);
+        if (eval_ok && parity_ok) {
+            return ToolCliJson::ok(kTool, backend_label, std::move(result));
+        }
+        return ToolCliJson::err(
+            kTool,
+            backend_label,
+            ToolErrorCode::Validation,
+            !eval_ok ? "fixture eval did not all-pass"
+                     : "CPU↔CUDA score parity failed",
+            std::move(result));
     }
 
-    if (metrics.value().eval_set_pass_rate() < 1.0) {
-        return kExitFail;
-    }
-    if (metrics.value().cpu_cuda_pass().has_value() &&
-        !metrics.value().cpu_cuda_pass().value()) {
+    std::cout << SearchRunConsole::format(metrics.value());
+    if (!eval_ok || !parity_ok) {
         return kExitFail;
     }
     return kExitOk;

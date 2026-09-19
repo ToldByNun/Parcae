@@ -188,14 +188,18 @@ CUDA is requested but not built.
 ```text
 parcae-search-run [--backend cpu|cuda] [--family caesar]
                   [--seed <u32>] [--stream-length <n>] [--repeats <n>]
-                  [--score-id <id>] [--no-compare] [--json] [--data-dir <path>]
+                  [--score-id <id>] [--no-compare] [--json] [--omit-timing]
+                  [--data-dir <path>]
 ```
 
 AI-style search dashboard: **throughput** (runes/s over transform+score),
 **sweep scores** (parameter axis), and **locked-fixture eval** (scorer sanity).
-`tok_per_sec` is intentionally non-deterministic. v0 family is `caesar`
-(shift 0–28). With `--backend cuda`, also reports CPU↔CUDA score parity unless
-`--no-compare`. Exit **1** if fixture eval is not all-pass or CUDA parity fails;
+`tok_per_sec` is intentionally non-deterministic; with `--json --omit-timing` it is
+omitted so agent output is replayable. Each `steps[]` entry includes replayable
+`params` (plus `param_hash`). `--json` uses `parcae.tool_response.v0`.
+v0 families: `caesar|atbash|atbash_caesar|affine|vigenere` (CPU: caesar only).
+With `--backend cuda`, also reports CPU↔CUDA score parity unless `--no-compare`.
+Exit **1** if fixture eval is not all-pass or CUDA parity fails;
 exit **2** if CUDA is requested but not built.
 
 ### `parcae-validate`

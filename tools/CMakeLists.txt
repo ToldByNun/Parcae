@@ -161,6 +161,18 @@ if(PARCAE_BUILD_TESTS)
   )
 
   add_test(
+    NAME cli_search_run_caesar_cpu_omit_timing_json
+    COMMAND $<TARGET_FILE:parcae-search-run>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --backend cpu
+      --seed 2109016688
+      --stream-length 256
+      --repeats 2
+      --json
+      --omit-timing
+  )
+
+  add_test(
     NAME cli_validate_id_a_warning
     COMMAND $<TARGET_FILE:parcae-validate>
       --data-dir "${CMAKE_SOURCE_DIR}/data"
