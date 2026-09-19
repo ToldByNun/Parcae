@@ -211,6 +211,10 @@ score → `candidate_id` → `source_index`). `--candidates` accepts a generate
 preview). Pairwise scores may pass `reference` via `--params-json`. χ² loads
 expected frequencies from `--data-dir` automatically.
 
+**Round-trip (agent path):** `parcae-generate … --json` → `parcae-rank
+--candidates - --score-id chi2_english_gp_v0 --k N --json` recovers Atbash on
+`a-warning` without any plaintext / `reference` in the score path.
+
 ### `parcae-parity`
 
 ```text

@@ -304,3 +304,50 @@ TEST_CASE("RankCandidates top-k stable ties and JSON", "[tool][rank]") {
     REQUIRE(chi2.ok());
     REQUIRE(chi2.value().top().size() == 2);
 }
+
+TEST_CASE(
+    "generate+rank a-warning: atbash wins chi2 without plaintext reference",
+    "[tool][generate][rank][a-warning]") {
+    const auto ctx = test_ctx();
+    const auto cipher_path =
+        ctx.data_root() / "fixtures" / "solved" / "a-warning" / "ciphertext.txt";
+    std::ifstream in(cipher_path, std::ios::binary);
+    REQUIRE(in);
+    std::ostringstream buf;
+    buf << in.rdbuf();
+
+    StatusOr<std::vector<TransformCandidate>> atbash =
+        GenerateCandidates::from_source(ctx, "gen_atbash", buf.str(), "runes");
+    REQUIRE(atbash.ok());
+    REQUIRE(atbash.value().size() == 1);
+    REQUIRE(atbash.value()[0].candidate_id() == "atbash");
+
+    StatusOr<std::vector<TransformCandidate>> caesar =
+        GenerateCandidates::from_source(ctx, "gen_caesar", buf.str(), "runes");
+    REQUIRE(caesar.ok());
+    REQUIRE(caesar.value().size() == 29);
+
+    std::vector<TransformCandidate> pool;
+    pool.reserve(1 + caesar.value().size());
+    pool.push_back(atbash.value()[0]);
+    for (const TransformCandidate& c : caesar.value()) {
+        pool.push_back(c);
+    }
+
+    // Unary language score only — no ScoreRequest.reference / params.reference.
+    StatusOr<BatchResult> ranked =
+        RankCandidates::run(pool, "chi2_english_gp_v0", /*k=*/3, &ctx);
+    REQUIRE(ranked.ok());
+    REQUIRE(ranked.value().top().size() == 3);
+    REQUIRE(ranked.value().top()[0].candidate_id() == "atbash");
+    REQUIRE(ranked.value().top()[0].score() < ranked.value().top()[1].score());
+
+    StatusOr<nlohmann::json> payload =
+        RankCandidates::result_to_json(ranked.value(), pool, &ctx, /*latin_max_chars=*/32);
+    REQUIRE(payload.ok());
+    REQUIRE(payload.value().at("order").get<std::string>() == "asc");
+    REQUIRE_FALSE(payload.value().contains("reference"));
+    const std::string latin =
+        payload.value().at("hits").at(0).at("latin").get<std::string>();
+    REQUIRE(latin.rfind("AWARNING", 0) == 0);
+}

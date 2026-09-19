@@ -21,7 +21,8 @@
 
 #if !defined(PARCAE_CLI_TOKENIZE) || !defined(PARCAE_CLI_DECODE) ||             \
     !defined(PARCAE_CLI_SCORE) || !defined(PARCAE_CLI_VALIDATE) ||             \
-    !defined(PARCAE_CLI_SEARCH_RUN) || !defined(PARCAE_TEST_DATA_DIR)
+    !defined(PARCAE_CLI_SEARCH_RUN) || !defined(PARCAE_CLI_GENERATE) ||       \
+    !defined(PARCAE_CLI_RANK) || !defined(PARCAE_TEST_DATA_DIR)
 #error "CLI golden tests require PARCAE_CLI_* and PARCAE_TEST_DATA_DIR"
 #endif
 
@@ -215,4 +216,68 @@ TEST_CASE("CLI JSON golden: search-run omit-timing", "[tool][golden][cli]") {
              "--omit-timing"}),
         "search_run_omit_timing.json",
         0);
+}
+
+TEST_CASE(
+    "CLI generate+rank a-warning atbash via chi2 (no plaintext)",
+    "[tool][generate][rank][a-warning][cli]") {
+    const std::filesystem::path cipher =
+        std::filesystem::path(PARCAE_TEST_DATA_DIR) / "fixtures" / "solved" / "a-warning" /
+        "ciphertext.txt";
+
+    const auto [gen_exit, gen_out] = run_cli(
+        PARCAE_CLI_GENERATE,
+        with_data_dir(
+            {"--generator-id",
+             "gen_atbash",
+             "--runes",
+             "--input",
+             cipher.string(),
+             "--json"}));
+    REQUIRE(gen_exit == 0);
+    StatusOr<nlohmann::json> generated = ToolResponse::parse(gen_out);
+    REQUIRE(generated.ok());
+    REQUIRE(generated.value().at("ok").get<bool>());
+    REQUIRE(generated.value().at("tool").get<std::string>() == "generate");
+    REQUIRE(generated.value().at("result").at("count").get<std::size_t>() == 1);
+    REQUIRE(
+        generated.value().at("result").at("candidates").at(0).at("candidate_id").get<std::string>() ==
+        "atbash");
+
+    const auto tmp = std::filesystem::temp_directory_path();
+    const std::filesystem::path candidates_path = tmp / "parcae_a_warning_candidates.json";
+    {
+        std::ofstream out(candidates_path, std::ios::binary);
+        REQUIRE(out);
+        out << gen_out;
+    }
+
+    const auto [rank_exit, rank_out] = run_cli(
+        PARCAE_CLI_RANK,
+        with_data_dir(
+            {"--candidates",
+             candidates_path.string(),
+             "--score-id",
+             "chi2_english_gp_v0",
+             "--k",
+             "1",
+             "--json"}));
+    std::error_code ec;
+    std::filesystem::remove(candidates_path, ec);
+
+    REQUIRE(rank_exit == 0);
+    StatusOr<nlohmann::json> ranked = ToolResponse::parse(rank_out);
+    REQUIRE(ranked.ok());
+    REQUIRE(ranked.value().at("ok").get<bool>());
+    REQUIRE(ranked.value().at("tool").get<std::string>() == "rank");
+    REQUIRE(ranked.value().at("result").at("order").get<std::string>() == "asc");
+    REQUIRE(ranked.value().at("result").at("hits").size() == 1);
+    REQUIRE(
+        ranked.value().at("result").at("hits").at(0).at("candidate_id").get<std::string>() ==
+        "atbash");
+    const std::string latin =
+        ranked.value().at("result").at("hits").at(0).at("latin").get<std::string>();
+    REQUIRE(latin.rfind("AWARNING", 0) == 0);
+    // Contract: unary chi2 path — no reference leaked into the rank payload.
+    REQUIRE_FALSE(ranked.value().at("result").contains("reference"));
 }
