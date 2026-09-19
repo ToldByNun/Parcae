@@ -44,6 +44,7 @@ Phase 5 (search engine: GPU → candidates → agents → hypotheses → GPU) is
 
 | Topic | Decision |
 |-------|----------|
+| **C++ style (HARD)** | **No `namespace`s.** Top-level `class Name { public: … private: … };` per header (optional sibling `enum class` + `NameUtil`). New Phase-4 code MUST NOT add `namespace parcae::…`. Prefer static methods on a class over free functions. |
 | Product | `parcae-agent` CLI — Liber Primus tool-use automation (system prompt, tool schemas, budgets) |
 | LLM transport | OpenAI-compatible `POST /v1/chat/completions` with tool/function calling |
 | Local models | Any OpenAI-compatible server (Ollama, LM Studio, llama.cpp, vLLM, …) via `base_url` + `model` |
@@ -56,6 +57,7 @@ Phase 5 (search engine: GPU → candidates → agents → hypotheses → GPU) is
 | Workspace | `data/workspaces/<id>/` for hypotheses + transcripts; `data/fixtures/` read-only |
 | Budgets | max steps, max tool calls, max wall time — hard stop |
 | Cursor Skill / MCP | **Not** required for Phase 4 exit (optional later) |
+| Commits / GitHub Actions | **User-owned only** — coding agent writes code + local tests; no `git commit` / no workflow edits |
 | Exit tag | `v0.4.0-agent-tools` |
 
 ## What already exists (do not rebuild)
