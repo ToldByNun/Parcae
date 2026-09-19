@@ -74,7 +74,24 @@ An operator MAY add a deny-listed binary to a **custom** allow-list only via
 explicit local config (never implied by the Liber Primus system prompt). Default
 `parcae-agent` configs MUST keep the deny-list above.
 
-## JSON envelope — `parcae.tool_response.v0`
+## AgentPolicy (C++ guard)
+
+Library: `include/parcae/tool/agent_policy.hpp` (`AgentPolicy`).
+
+CLIs and the future agent ToolBridge SHOULD consult this guard before mutating
+paths or selecting backends:
+
+| Check | Method | Denial `error.code` |
+|-------|--------|---------------------|
+| Tool name allow-list | `allow_tool` | `policy` |
+| Binary deny-list | `allow_binary` | `policy` |
+| CUDA without opt-in | `allow_backend` / `check_backend_string` | `policy` |
+| Write under `fixtures/` or outside `data_root` | `allow_write` | `policy` |
+| Workspace-relative escape | `allow_workspace_write` | `policy` |
+
+`allow_cuda` defaults to **false**. Operator opt-in is `--allow-cuda` (CLI, commit
+E/21) and/or agent config `allow_cuda: true`. If CUDA is opted in but the binary
+was built without CUDA, emit `not_built` after the policy check passes.
 
 Every agent tool invocation with `--json` MUST print **exactly one** JSON object
 to stdout (UTF-8, no leading junk). Human diagnostics go to stderr and MUST NOT
