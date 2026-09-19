@@ -2,39 +2,34 @@
 
 #include "chi2_batch_score.hpp"
 #include "cuda_error.hpp"
+#include "hist_fast.hpp"
 #include "z29_device.hpp"
 
 #include <cuda_runtime_api.h>
 
-namespace {
-
-constexpr int kHistThreads = 256;
-constexpr std::uint8_t kModulus = 29;
-
-[[nodiscard]] int tiles_for(std::size_t token_count) {
+int FamilyChi2Batch::tiles_for(std::size_t token_count) {
     const int by_work = static_cast<int>(
-        (token_count + static_cast<std::size_t>(kHistThreads) - 1u) /
-        static_cast<std::size_t>(kHistThreads));
-    constexpr int kMaxTiles = 512;
+        (token_count + static_cast<std::size_t>(HistFast::threads) - 1u) /
+        static_cast<std::size_t>(HistFast::threads));
+    constexpr int kMaxTiles = 1024;
     if (by_work < 1) {
         return 1;
     }
     return by_work < kMaxTiles ? by_work : kMaxTiles;
 }
 
-[[nodiscard]] Status clear_and_grid(
-    unsigned long long* device_counts,
+Status FamilyChi2Batch::clear_and_grid(
+    std::uint32_t* device_counts,
     std::size_t candidate_count,
     std::size_t token_count,
     dim3* grid_out) {
-    if (candidate_count == 0 || candidate_count > FamilyChi2Batch::kMaxCandidates) {
+    if (candidate_count == 0 || candidate_count > kMaxCandidates) {
         return Status::error("FamilyChi2Batch: bad C");
     }
-    if (token_count == 0 || token_count > FamilyChi2Batch::kMaxTokens) {
+    if (token_count == 0 || token_count > kMaxTokens) {
         return Status::error("FamilyChi2Batch: bad T");
     }
-    const std::size_t hist_bytes =
-        candidate_count * FamilyChi2Batch::alphabet_size * sizeof(unsigned long long);
+    const std::size_t hist_bytes = candidate_count * alphabet_size * sizeof(std::uint32_t);
     Status cleared = CudaError::to_status(
         cudaMemsetAsync(device_counts, 0, hist_bytes, 0),
         "FamilyChi2Batch::clear counts");
@@ -47,40 +42,41 @@ constexpr std::uint8_t kModulus = 29;
     return Status::success();
 }
 
-[[nodiscard]] Status finish_scores(
-    unsigned long long* device_counts,
-    const double* device_probabilities,
-    double* device_scores,
-    std::size_t candidate_count,
-    std::size_t token_count) {
-    return Chi2BatchScore::finalize_async(
-        device_counts, device_probabilities, device_scores, candidate_count, token_count);
-}
-
 __global__ void atbash_chi2_hist_kernel(
     const std::uint8_t* in,
-    unsigned long long* counts,
+    std::uint32_t* counts,
     std::size_t token_count) {
-    __shared__ unsigned long long shared[kModulus];
+    __shared__ std::uint32_t shared[HistFast::alphabet];
+    HistFast::clear_shared(shared);
+
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    if (threadIdx.x < static_cast<int>(kModulus)) {
-        shared[threadIdx.x] = 0ull;
-    }
-    __syncthreads();
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
-    for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
+    const std::size_t n4 = token_count / 4u;
+    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+
+    for (std::size_t i = tile * static_cast<std::size_t>(blockDim.x) +
+                         static_cast<std::size_t>(threadIdx.x);
+         i < n4;
+         i += stride) {
+        const uchar4 v = in4[i];
+        atomicAdd(&shared[HistFast::dec_atbash(v.x)], 1u);
+        atomicAdd(&shared[HistFast::dec_atbash(v.y)], 1u);
+        atomicAdd(&shared[HistFast::dec_atbash(v.z)], 1u);
+        atomicAdd(&shared[HistFast::dec_atbash(v.w)], 1u);
+    }
+    for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count;
          t += stride) {
-        const std::uint8_t y = static_cast<std::uint8_t>(28u - in[t]);
-        atomicAdd(&shared[y], 1ull);
+        atomicAdd(&shared[HistFast::dec_atbash(in[t])], 1u);
     }
     __syncthreads();
-    if (threadIdx.x < static_cast<int>(kModulus)) {
+    if (threadIdx.x < HistFast::alphabet) {
         atomicAdd(
-            &counts[candidate * kModulus + static_cast<std::size_t>(threadIdx.x)],
+            &counts[candidate * static_cast<std::size_t>(HistFast::alphabet) +
+                    static_cast<std::size_t>(threadIdx.x)],
             shared[threadIdx.x]);
     }
 }
@@ -88,31 +84,41 @@ __global__ void atbash_chi2_hist_kernel(
 __global__ void atbash_caesar_chi2_hist_kernel(
     const std::uint8_t* in,
     const std::uint8_t* shifts,
-    unsigned long long* counts,
+    std::uint32_t* counts,
     std::size_t token_count) {
-    __shared__ unsigned long long shared[kModulus];
+    __shared__ std::uint32_t shared[HistFast::alphabet];
+    HistFast::clear_shared(shared);
+
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    if (threadIdx.x < static_cast<int>(kModulus)) {
-        shared[threadIdx.x] = 0ull;
-    }
-    __syncthreads();
     const std::uint8_t shift = shifts[candidate];
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
-    for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
+    const std::size_t n4 = token_count / 4u;
+    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+
+    for (std::size_t i = tile * static_cast<std::size_t>(blockDim.x) +
+                         static_cast<std::size_t>(threadIdx.x);
+         i < n4;
+         i += stride) {
+        const uchar4 v = in4[i];
+        atomicAdd(&shared[HistFast::dec_caesar(HistFast::dec_atbash(v.x), shift)], 1u);
+        atomicAdd(&shared[HistFast::dec_caesar(HistFast::dec_atbash(v.y), shift)], 1u);
+        atomicAdd(&shared[HistFast::dec_caesar(HistFast::dec_atbash(v.z), shift)], 1u);
+        atomicAdd(&shared[HistFast::dec_caesar(HistFast::dec_atbash(v.w), shift)], 1u);
+    }
+    for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count;
          t += stride) {
-        // decrypt atbash∘caesar: (28 - x + shift) % 29
-        const std::uint8_t y =
-            static_cast<std::uint8_t>((28u - in[t] + shift) % kModulus);
-        atomicAdd(&shared[y], 1ull);
+        atomicAdd(
+            &shared[HistFast::dec_caesar(HistFast::dec_atbash(in[t]), shift)], 1u);
     }
     __syncthreads();
-    if (threadIdx.x < static_cast<int>(kModulus)) {
+    if (threadIdx.x < HistFast::alphabet) {
         atomicAdd(
-            &counts[candidate * kModulus + static_cast<std::size_t>(threadIdx.x)],
+            &counts[candidate * static_cast<std::size_t>(HistFast::alphabet) +
+                    static_cast<std::size_t>(threadIdx.x)],
             shared[threadIdx.x]);
     }
 }
@@ -121,30 +127,41 @@ __global__ void affine_chi2_hist_kernel(
     const std::uint8_t* in,
     const std::uint8_t* affine_a,
     const std::uint8_t* affine_b,
-    unsigned long long* counts,
+    std::uint32_t* counts,
     std::size_t token_count) {
-    __shared__ unsigned long long shared[kModulus];
+    __shared__ std::uint32_t shared[HistFast::alphabet];
+    HistFast::clear_shared(shared);
+
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    if (threadIdx.x < static_cast<int>(kModulus)) {
-        shared[threadIdx.x] = 0ull;
-    }
-    __syncthreads();
     const std::uint8_t inv_a = Z29Device::inv(affine_a[candidate]);
     const std::uint8_t b = affine_b[candidate];
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
-    for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
+    const std::size_t n4 = token_count / 4u;
+    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+
+    for (std::size_t i = tile * static_cast<std::size_t>(blockDim.x) +
+                         static_cast<std::size_t>(threadIdx.x);
+         i < n4;
+         i += stride) {
+        const uchar4 v = in4[i];
+        atomicAdd(&shared[Z29Device::mul(inv_a, Z29Device::sub(v.x, b))], 1u);
+        atomicAdd(&shared[Z29Device::mul(inv_a, Z29Device::sub(v.y, b))], 1u);
+        atomicAdd(&shared[Z29Device::mul(inv_a, Z29Device::sub(v.z, b))], 1u);
+        atomicAdd(&shared[Z29Device::mul(inv_a, Z29Device::sub(v.w, b))], 1u);
+    }
+    for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count;
          t += stride) {
-        const std::uint8_t y = Z29Device::mul(inv_a, Z29Device::sub(in[t], b));
-        atomicAdd(&shared[y], 1ull);
+        atomicAdd(&shared[Z29Device::mul(inv_a, Z29Device::sub(in[t], b))], 1u);
     }
     __syncthreads();
-    if (threadIdx.x < static_cast<int>(kModulus)) {
+    if (threadIdx.x < HistFast::alphabet) {
         atomicAdd(
-            &counts[candidate * kModulus + static_cast<std::size_t>(threadIdx.x)],
+            &counts[candidate * static_cast<std::size_t>(HistFast::alphabet) +
+                    static_cast<std::size_t>(threadIdx.x)],
             shared[threadIdx.x]);
     }
 }
@@ -154,41 +171,47 @@ __global__ void vigenere_chi2_hist_kernel(
     const std::uint8_t* key_bytes,
     const std::uint32_t* key_begin,
     const std::uint32_t* key_len,
-    unsigned long long* counts,
+    std::uint32_t* counts,
     std::size_t token_count) {
-    __shared__ unsigned long long shared[kModulus];
+    __shared__ std::uint32_t shared[HistFast::alphabet];
+    __shared__ std::uint8_t key_cache[64];
+    HistFast::clear_shared(shared);
+
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    if (threadIdx.x < static_cast<int>(kModulus)) {
-        shared[threadIdx.x] = 0ull;
-    }
-    __syncthreads();
     const std::uint32_t begin = key_begin[candidate];
     const std::uint32_t len = key_len[candidate];
+    const std::uint32_t cached = len < 64u ? len : 64u;
+    for (std::uint32_t i = static_cast<std::uint32_t>(threadIdx.x); i < cached;
+         i += static_cast<std::uint32_t>(blockDim.x)) {
+        key_cache[i] = key_bytes[begin + i];
+    }
+    __syncthreads();
+
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count;
          t += stride) {
-        const std::uint8_t key_symbol = key_bytes[begin + (static_cast<std::uint32_t>(t) % len)];
-        const std::uint8_t y = Z29Device::sub(in[t], key_symbol);
-        atomicAdd(&shared[y], 1ull);
+        const std::uint32_t ki = static_cast<std::uint32_t>(t) % len;
+        const std::uint8_t key_symbol =
+            ki < cached ? key_cache[ki] : key_bytes[begin + ki];
+        atomicAdd(&shared[HistFast::dec_sub(in[t], key_symbol)], 1u);
     }
     __syncthreads();
-    if (threadIdx.x < static_cast<int>(kModulus)) {
+    if (threadIdx.x < HistFast::alphabet) {
         atomicAdd(
-            &counts[candidate * kModulus + static_cast<std::size_t>(threadIdx.x)],
+            &counts[candidate * static_cast<std::size_t>(HistFast::alphabet) +
+                    static_cast<std::size_t>(threadIdx.x)],
             shared[threadIdx.x]);
     }
 }
 
-}  // namespace
-
 Status FamilyChi2Batch::launch_atbash_async(
     const std::uint8_t* device_in,
     const double* device_probabilities,
-    unsigned long long* device_counts,
+    std::uint32_t* device_counts,
     double* device_scores,
     std::size_t candidate_count,
     std::size_t token_count) {
@@ -201,12 +224,12 @@ Status FamilyChi2Batch::launch_atbash_async(
     if (!prep.ok()) {
         return prep;
     }
-    atbash_chi2_hist_kernel<<<grid, kHistThreads>>>(device_in, device_counts, token_count);
+    atbash_chi2_hist_kernel<<<grid, HistFast::threads>>>(device_in, device_counts, token_count);
     Status hist = CudaError::to_status(cudaGetLastError(), "FamilyChi2Batch::atbash hist");
     if (!hist.ok()) {
         return hist;
     }
-    return finish_scores(
+    return Chi2BatchScore::finalize_async(
         device_counts, device_probabilities, device_scores, candidate_count, token_count);
 }
 
@@ -214,7 +237,7 @@ Status FamilyChi2Batch::launch_atbash_caesar_async(
     const std::uint8_t* device_in,
     const std::uint8_t* device_shifts,
     const double* device_probabilities,
-    unsigned long long* device_counts,
+    std::uint32_t* device_counts,
     double* device_scores,
     std::size_t candidate_count,
     std::size_t token_count) {
@@ -227,14 +250,14 @@ Status FamilyChi2Batch::launch_atbash_caesar_async(
     if (!prep.ok()) {
         return prep;
     }
-    atbash_caesar_chi2_hist_kernel<<<grid, kHistThreads>>>(
+    atbash_caesar_chi2_hist_kernel<<<grid, HistFast::threads>>>(
         device_in, device_shifts, device_counts, token_count);
     Status hist =
         CudaError::to_status(cudaGetLastError(), "FamilyChi2Batch::atbash_caesar hist");
     if (!hist.ok()) {
         return hist;
     }
-    return finish_scores(
+    return Chi2BatchScore::finalize_async(
         device_counts, device_probabilities, device_scores, candidate_count, token_count);
 }
 
@@ -243,7 +266,7 @@ Status FamilyChi2Batch::launch_affine_async(
     const std::uint8_t* device_a,
     const std::uint8_t* device_b,
     const double* device_probabilities,
-    unsigned long long* device_counts,
+    std::uint32_t* device_counts,
     double* device_scores,
     std::size_t candidate_count,
     std::size_t token_count) {
@@ -257,13 +280,13 @@ Status FamilyChi2Batch::launch_affine_async(
     if (!prep.ok()) {
         return prep;
     }
-    affine_chi2_hist_kernel<<<grid, kHistThreads>>>(
+    affine_chi2_hist_kernel<<<grid, HistFast::threads>>>(
         device_in, device_a, device_b, device_counts, token_count);
     Status hist = CudaError::to_status(cudaGetLastError(), "FamilyChi2Batch::affine hist");
     if (!hist.ok()) {
         return hist;
     }
-    return finish_scores(
+    return Chi2BatchScore::finalize_async(
         device_counts, device_probabilities, device_scores, candidate_count, token_count);
 }
 
@@ -273,7 +296,7 @@ Status FamilyChi2Batch::launch_vigenere_async(
     const std::uint32_t* device_key_begin,
     const std::uint32_t* device_key_len,
     const double* device_probabilities,
-    unsigned long long* device_counts,
+    std::uint32_t* device_counts,
     double* device_scores,
     std::size_t candidate_count,
     std::size_t token_count) {
@@ -287,7 +310,7 @@ Status FamilyChi2Batch::launch_vigenere_async(
     if (!prep.ok()) {
         return prep;
     }
-    vigenere_chi2_hist_kernel<<<grid, kHistThreads>>>(
+    vigenere_chi2_hist_kernel<<<grid, HistFast::threads>>>(
         device_in,
         device_key_bytes,
         device_key_begin,
@@ -298,6 +321,6 @@ Status FamilyChi2Batch::launch_vigenere_async(
     if (!hist.ok()) {
         return hist;
     }
-    return finish_scores(
+    return Chi2BatchScore::finalize_async(
         device_counts, device_probabilities, device_scores, candidate_count, token_count);
 }

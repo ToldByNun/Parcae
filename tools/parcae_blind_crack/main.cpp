@@ -1,3 +1,4 @@
+#include "blind_crack_cli.hpp"
 #include "cli_io.hpp"
 
 #include "parcae/run/blind_crack.hpp"
@@ -10,43 +11,27 @@
 #define PARCAE_DEFAULT_DATA_DIR ""
 #endif
 
-namespace {
-
-void print_help() {
-    std::cerr
-        << "Usage: parcae-blind-crack [--data-dir <path>] [-h|--help]\n"
-        << "\n"
-        << "Blind-crack bench on locked Tier-A fixtures (ciphertext only).\n"
-        << "Enumerates identity/atbash/caesar/atbash_caesar/affine, ranks by\n"
-        << "chi2_english_gp_v0, then oracle-checks against known plaintext.\n"
-        << "No unsolved LP2 transcripts ship in-repo — this is the real\n"
-        << "additive-family foothold test on Liber Primus-length streams.\n";
-}
-
-}  // namespace
-
 int main(int argc, char** argv) {
-    using namespace parcae::cli;
-
-    const std::vector<std::string> args = argv_tail(argc, argv);
-    if (has_flag(args, "-h") || has_flag(args, "--help")) {
-        print_help();
-        return kExitOk;
+    const std::vector<std::string> args = parcae::cli::argv_tail(argc, argv);
+    if (parcae::cli::has_flag(args, "-h") || parcae::cli::has_flag(args, "--help")) {
+        BlindCrackCli::print_help();
+        return parcae::cli::kExitOk;
     }
 
-    const std::string data_dir = optional_option(args, "--data-dir");
-    StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
+    const std::string data_dir = parcae::cli::optional_option(args, "--data-dir");
+    StatusOr<parcae::tool::Context> ctx =
+        parcae::cli::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
         std::cerr << ctx.status().message() << '\n';
-        return kExitUsage;
+        return parcae::cli::kExitUsage;
     }
 
     StatusOr<BlindCrack::Report> report = BlindCrack::run_all_locked(ctx.value());
     if (!report.ok()) {
         std::cerr << report.status().message() << '\n';
-        return kExitFail;
+        return parcae::cli::kExitFail;
     }
 
     std::cout << BlindCrack::format(report.value());
-    return kExitOk;
+    return parcae::cli::kExitOk;
 }

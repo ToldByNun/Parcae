@@ -25,6 +25,7 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -96,10 +97,13 @@ public:
     [[nodiscard]] static std::string format(const Report& report) {
         std::ostringstream out;
         out << "PARCAE — THROUGHPUT TIERS (CUDA fused)\n";
-        out << "Metric: repeats x C x T / wall (kernel+sync; setup excluded)\n\n";
-        out << "Tier  Workload                              runes/s     target           result\n";
-        out << "--------------------------------------------------------------------------------\n";
+        out << "Metric: repeats x C x T / wall (kernel+sync; setup excluded)\n";
+        out << "Peaks: practical ceilings on RTX 5070 Ti (~896 GB/s DRAM)\n\n";
+        out << "Tier  Workload                              runes/s     target      est.peak   %peak  result\n";
+        out << "-----------------------------------------------------------------------------------------------\n";
         for (const TierResult& t : report.tiers) {
+            const double peak = estimated_peak(t.name);
+            const double pct = peak > 0.0 ? (100.0 * t.runes_per_sec / peak) : 0.0;
             std::ostringstream target;
             if (t.target_max > 0.0) {
                 target << format_rps(t.target_min) << "-" << format_rps(t.target_max);
@@ -108,14 +112,30 @@ public:
             }
             out << std::left << std::setw(5) << t.name << " " << std::setw(36) << t.workload
                 << " " << std::right << std::setw(10) << format_rps(t.runes_per_sec)
-                << "  " << std::left << std::setw(14) << target.str() << "  "
-                << (t.pass ? "PASS" : "FAIL") << '\n';
+                << "  " << std::left << std::setw(11) << target.str()
+                << "  " << std::right << std::setw(8) << format_rps(peak)
+                << "  " << std::setw(5) << std::fixed << std::setprecision(0) << pct << "%"
+                << "  " << (t.pass ? "PASS" : "FAIL") << '\n';
             out << "      C=" << t.candidates << " T=" << t.tokens << " reps=" << t.repeats
                 << '\n';
         }
-        out << "--------------------------------------------------------------------------------\n";
+        out << "-----------------------------------------------------------------------------------------------\n";
         out << (report.all_pass ? "ALL TIERS PASS\n" : "TIERS FAILED\n");
         return out.str();
+    }
+
+    /// Practical peak estimates (not marketing FLOPS).
+    [[nodiscard]] static double estimated_peak(const std::string& tier) {
+        if (tier == "T1") {
+            return 450.0e9;
+        }
+        if (tier == "T2") {
+            return 280.0e9;
+        }
+        if (tier == "T3") {
+            return 25.0e9;  // bigram + chained dict probes every 4th index
+        }
+        return 0.0;
     }
 
 private:
@@ -124,7 +144,7 @@ private:
     struct Scratch {
         DeviceBuffer<std::uint8_t> in;
         DeviceBuffer<double> probs;
-        DeviceBuffer<unsigned long long> counts;
+        DeviceBuffer<std::uint32_t> counts;
         DeviceBuffer<double> scores;
         std::size_t C = 0;
         std::size_t T = 0;
@@ -161,8 +181,8 @@ private:
         }
         s.probs = std::move(dp.value());
 
-        StatusOr<DeviceBuffer<unsigned long long>> counts =
-            DeviceBuffer<unsigned long long>::allocate(C * 29);
+        StatusOr<DeviceBuffer<std::uint32_t>> counts =
+            DeviceBuffer<std::uint32_t>::allocate(C * 29);
         if (!counts.ok()) {
             return counts.status();
         }
@@ -230,7 +250,6 @@ private:
         }
 
         std::vector<std::uint8_t> shifts(Index29::modulus);
-        std::vector<std::uint8_t> dirs(Index29::modulus, static_cast<std::uint8_t>(CudaDir::Decrypt));
         for (std::size_t c = 0; c < Index29::modulus; ++c) {
             shifts[c] = static_cast<std::uint8_t>(c);
         }
@@ -239,17 +258,11 @@ private:
         if (!d_shifts.ok()) {
             return d_shifts.status();
         }
-        StatusOr<DeviceBuffer<std::uint8_t>> d_dirs =
-            DeviceBuffer<std::uint8_t>::from_host(dirs);
-        if (!d_dirs.ok()) {
-            return d_dirs.status();
-        }
 
         StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
-            return CaesarChi2Batch::launch_async(
+            return CaesarChi2Batch::launch_decrypt_async(
                 scratch.value().in.data(),
                 d_shifts.value().data(),
-                d_dirs.value().data(),
                 scratch.value().probs.data(),
                 scratch.value().counts.data(),
                 scratch.value().scores.data(),

@@ -108,7 +108,7 @@ private:
     struct DeviceScoreScratch {
         DeviceBuffer<std::uint8_t> in;
         DeviceBuffer<double> probs;
-        DeviceBuffer<unsigned long long> counts;
+        DeviceBuffer<std::uint32_t> counts;
         DeviceBuffer<double> scores;
         std::size_t C = 0;
         std::size_t T = 0;
@@ -132,8 +132,8 @@ private:
             return probs.status();
         }
         s.probs = std::move(probs.value());
-        StatusOr<DeviceBuffer<unsigned long long>> counts =
-            DeviceBuffer<unsigned long long>::allocate(C * 29);
+        StatusOr<DeviceBuffer<std::uint32_t>> counts =
+            DeviceBuffer<std::uint32_t>::allocate(C * 29);
         if (!counts.ok()) {
             return counts.status();
         }
@@ -230,10 +230,9 @@ private:
             scratch.value(),
             repeats,
             [&]() {
-                return CaesarChi2Batch::launch_async(
+                return CaesarChi2Batch::launch_decrypt_async(
                     scratch.value().in.data(),
                     device_shifts.value().data(),
-                    device_dirs.value().data(),
                     scratch.value().probs.data(),
                     scratch.value().counts.data(),
                     scratch.value().scores.data(),

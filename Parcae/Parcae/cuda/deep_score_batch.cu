@@ -2,36 +2,29 @@
 
 #include "chi2_batch_score.hpp"
 #include "cuda_error.hpp"
+#include "hist_fast.hpp"
 #include "z29_device.hpp"
 
 #include <cuda_runtime_api.h>
 
-namespace {
-
-constexpr int kHistThreads = 256;
-constexpr int kScoreThreads = 256;
-constexpr std::uint8_t kModulus = 29;
-
-[[nodiscard]] int tiles_for(std::size_t token_count) {
+int DeepScoreBatch::tiles_for(std::size_t token_count) {
     const int by_work = static_cast<int>(
-        (token_count + static_cast<std::size_t>(kHistThreads) - 1u) /
-        static_cast<std::size_t>(kHistThreads));
-    constexpr int kMaxTiles = 512;
+        (token_count + static_cast<std::size_t>(HistFast::threads) - 1u) /
+        static_cast<std::size_t>(HistFast::threads));
+    constexpr int kMaxTiles = 1024;
     if (by_work < 1) {
         return 1;
     }
     return by_work < kMaxTiles ? by_work : kMaxTiles;
 }
 
-[[nodiscard]] Status clear_hist(
-    unsigned long long* device_counts, std::size_t candidate_count) {
-    const std::size_t hist_bytes =
-        candidate_count * DeepScoreBatch::alphabet_size * sizeof(unsigned long long);
+Status DeepScoreBatch::clear_hist(std::uint32_t* device_counts, std::size_t candidate_count) {
+    const std::size_t hist_bytes = candidate_count * alphabet_size * sizeof(std::uint32_t);
     return CudaError::to_status(
         cudaMemsetAsync(device_counts, 0, hist_bytes, 0), "DeepScoreBatch::clear");
 }
 
-[[nodiscard]] Status zero_scores(double* device_scores, std::size_t candidate_count) {
+Status DeepScoreBatch::zero_scores(double* device_scores, std::size_t candidate_count) {
     return CudaError::to_status(
         cudaMemsetAsync(device_scores, 0, candidate_count * sizeof(double), 0),
         "DeepScoreBatch::zero scores");
@@ -42,19 +35,24 @@ __global__ void autokey_chi2_hist_kernel(
     const std::uint8_t* key_bytes,
     const std::uint32_t* key_begin,
     const std::uint32_t* key_len,
-    unsigned long long* counts,
+    std::uint32_t* counts,
     std::size_t token_count) {
-    __shared__ unsigned long long shared[kModulus];
+    __shared__ std::uint32_t shared[HistFast::alphabet];
+    __shared__ std::uint8_t key_cache[64];
+    HistFast::clear_shared(shared);
+
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    if (threadIdx.x < static_cast<int>(kModulus)) {
-        shared[threadIdx.x] = 0ull;
+    const std::uint32_t begin = key_begin[candidate];
+    const std::uint32_t len = key_len[candidate];
+    const std::uint32_t cached = len < 64u ? len : 64u;
+    for (std::uint32_t i = static_cast<std::uint32_t>(threadIdx.x); i < cached;
+         i += static_cast<std::uint32_t>(blockDim.x)) {
+        key_cache[i] = key_bytes[begin + i];
     }
     __syncthreads();
 
-    const std::uint32_t begin = key_begin[candidate];
-    const std::uint32_t len = key_len[candidate];
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
@@ -62,17 +60,19 @@ __global__ void autokey_chi2_hist_kernel(
          t += stride) {
         std::uint8_t key_symbol;
         if (static_cast<std::uint32_t>(t) < len) {
-            key_symbol = key_bytes[begin + static_cast<std::uint32_t>(t)];
+            key_symbol = (static_cast<std::uint32_t>(t) < cached)
+                             ? key_cache[static_cast<std::uint32_t>(t)]
+                             : key_bytes[begin + static_cast<std::uint32_t>(t)];
         } else {
             key_symbol = in[t - static_cast<std::size_t>(len)];
         }
-        const std::uint8_t y = Z29Device::sub(in[t], key_symbol);
-        atomicAdd(&shared[y], 1ull);
+        atomicAdd(&shared[HistFast::dec_sub(in[t], key_symbol)], 1u);
     }
     __syncthreads();
-    if (threadIdx.x < static_cast<int>(kModulus)) {
+    if (threadIdx.x < HistFast::alphabet) {
         atomicAdd(
-            &counts[candidate * kModulus + static_cast<std::size_t>(threadIdx.x)],
+            &counts[candidate * static_cast<std::size_t>(HistFast::alphabet) +
+                    static_cast<std::size_t>(threadIdx.x)],
             shared[threadIdx.x]);
     }
 }
@@ -81,20 +81,18 @@ __global__ void dynamic_shift_chi2_hist_kernel(
     const std::uint8_t* in,
     const std::uint8_t* bases,
     const std::uint8_t* steps,
-    unsigned long long* counts,
+    std::uint32_t* counts,
     std::size_t token_count) {
-    __shared__ unsigned long long shared[kModulus];
+    __shared__ std::uint32_t shared[HistFast::alphabet];
+    HistFast::clear_shared(shared);
+
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    if (threadIdx.x < static_cast<int>(kModulus)) {
-        shared[threadIdx.x] = 0ull;
-    }
-    __syncthreads();
-
     const std::uint8_t base = bases[candidate];
     const std::uint8_t step = steps[candidate];
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
+
     for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count;
@@ -102,14 +100,14 @@ __global__ void dynamic_shift_chi2_hist_kernel(
         const std::uint8_t shift = static_cast<std::uint8_t>(
             (static_cast<unsigned>(base) +
              static_cast<unsigned>(step) * static_cast<unsigned>(t)) %
-            static_cast<unsigned>(kModulus));
-        const std::uint8_t y = Z29Device::sub(in[t], shift);
-        atomicAdd(&shared[y], 1ull);
+            29u);
+        atomicAdd(&shared[HistFast::dec_sub(in[t], shift)], 1u);
     }
     __syncthreads();
-    if (threadIdx.x < static_cast<int>(kModulus)) {
+    if (threadIdx.x < HistFast::alphabet) {
         atomicAdd(
-            &counts[candidate * kModulus + static_cast<std::size_t>(threadIdx.x)],
+            &counts[candidate * static_cast<std::size_t>(HistFast::alphabet) +
+                    static_cast<std::size_t>(threadIdx.x)],
             shared[threadIdx.x]);
     }
 }
@@ -120,7 +118,13 @@ __global__ void caesar_bigram_ll_kernel(
     const float* bigram_ll,
     double* scores,
     std::size_t token_count) {
-    __shared__ double partial[kScoreThreads];
+    __shared__ double partial[HistFast::threads];
+    __shared__ float bigram_s[HistFast::alphabet * HistFast::alphabet];
+    for (int i = threadIdx.x; i < HistFast::alphabet * HistFast::alphabet; i += blockDim.x) {
+        bigram_s[i] = bigram_ll[i];
+    }
+    __syncthreads();
+
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
@@ -132,9 +136,9 @@ __global__ void caesar_bigram_ll_kernel(
                          static_cast<std::size_t>(threadIdx.x);
          t < pairs;
          t += stride) {
-        const std::uint8_t y0 = Z29Device::sub(in[t], shift);
-        const std::uint8_t y1 = Z29Device::sub(in[t + 1], shift);
-        local += static_cast<double>(bigram_ll[static_cast<std::size_t>(y0) * kModulus + y1]);
+        const std::uint8_t y0 = HistFast::dec_caesar(in[t], shift);
+        const std::uint8_t y1 = HistFast::dec_caesar(in[t + 1], shift);
+        local += static_cast<double>(bigram_s[static_cast<int>(y0) * HistFast::alphabet + y1]);
     }
     partial[threadIdx.x] = local;
     __syncthreads();
@@ -158,7 +162,42 @@ __global__ void caesar_ngram_dict_kernel(
     double* scores,
     std::size_t token_count,
     std::size_t dict_word_count) {
-    __shared__ double partial[kScoreThreads];
+    __shared__ double partial[HistFast::threads];
+    __shared__ float bigram_s[HistFast::alphabet * HistFast::alphabet];
+    __shared__ std::uint8_t dict_s[DeepScoreBatch::kDictWords * DeepScoreBatch::kDictWordLen];
+    __shared__ std::uint8_t lens_s[DeepScoreBatch::kDictWords];
+    __shared__ std::uint8_t head[HistFast::alphabet];
+    __shared__ std::uint8_t next_w[DeepScoreBatch::kDictWords];
+
+    for (int i = threadIdx.x; i < HistFast::alphabet * HistFast::alphabet; i += blockDim.x) {
+        bigram_s[i] = bigram_ll[i];
+    }
+    for (std::size_t i = static_cast<std::size_t>(threadIdx.x); i < dict_word_count;
+         i += static_cast<std::size_t>(blockDim.x)) {
+        lens_s[i] = dict_lens[i];
+        next_w[i] = 255;
+        for (int j = 0; j < static_cast<int>(DeepScoreBatch::kDictWordLen); ++j) {
+            dict_s[i * DeepScoreBatch::kDictWordLen + static_cast<std::size_t>(j)] =
+                dict_words[i * DeepScoreBatch::kDictWordLen + static_cast<std::size_t>(j)];
+        }
+    }
+    if (threadIdx.x < HistFast::alphabet) {
+        head[threadIdx.x] = 255;
+    }
+    __syncthreads();
+    // Build first-letter chains (serial, dict is small).
+    if (threadIdx.x == 0) {
+        for (std::size_t w = 0; w < dict_word_count; ++w) {
+            if (lens_s[w] == 0) {
+                continue;
+            }
+            const std::uint8_t first = dict_s[w * DeepScoreBatch::kDictWordLen];
+            next_w[w] = head[first];
+            head[first] = static_cast<std::uint8_t>(w);
+        }
+    }
+    __syncthreads();
+
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
@@ -166,26 +205,27 @@ __global__ void caesar_ngram_dict_kernel(
     double local = 0.0;
     const std::size_t pairs = token_count > 0 ? token_count - 1 : 0;
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
+
     for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < pairs;
          t += stride) {
-        const std::uint8_t y0 = Z29Device::sub(in[t], shift);
-        const std::uint8_t y1 = Z29Device::sub(in[t + 1], shift);
-        local += static_cast<double>(bigram_ll[static_cast<std::size_t>(y0) * kModulus + y1]);
+        const std::uint8_t y0 = HistFast::dec_caesar(in[t], shift);
+        const std::uint8_t y1 = HistFast::dec_caesar(in[t + 1], shift);
+        local += static_cast<double>(bigram_s[static_cast<int>(y0) * HistFast::alphabet + y1]);
 
         if ((t & 3u) == 0u) {
-            for (std::size_t w = 0; w < dict_word_count; ++w) {
-                const std::uint8_t wlen = dict_lens[w];
-                if (wlen == 0 || t + static_cast<std::size_t>(wlen) > token_count) {
+            for (std::uint8_t w = head[y0]; w != 255; w = next_w[w]) {
+                const std::uint8_t wlen = lens_s[w];
+                if (t + static_cast<std::size_t>(wlen) > token_count) {
                     continue;
                 }
                 bool match = true;
-                const std::uint8_t* word = dict_words + w * DeepScoreBatch::kDictWordLen;
-                for (std::uint8_t i = 0; i < wlen; ++i) {
+                for (std::uint8_t i = 1; i < wlen; ++i) {
                     const std::uint8_t y =
-                        Z29Device::sub(in[t + static_cast<std::size_t>(i)], shift);
-                    if (y != word[i]) {
+                        HistFast::dec_caesar(in[t + static_cast<std::size_t>(i)], shift);
+                    if (y != dict_s[static_cast<std::size_t>(w) * DeepScoreBatch::kDictWordLen +
+                                    i]) {
                         match = false;
                         break;
                     }
@@ -209,15 +249,13 @@ __global__ void caesar_ngram_dict_kernel(
     }
 }
 
-}  // namespace
-
 Status DeepScoreBatch::launch_autokey_chi2_async(
     const std::uint8_t* device_in,
     const std::uint8_t* device_key_bytes,
     const std::uint32_t* device_key_begin,
     const std::uint32_t* device_key_len,
     const double* device_probabilities,
-    unsigned long long* device_counts,
+    std::uint32_t* device_counts,
     double* device_scores,
     std::size_t candidate_count,
     std::size_t token_count) {
@@ -235,7 +273,7 @@ Status DeepScoreBatch::launch_autokey_chi2_async(
     const dim3 grid(
         static_cast<unsigned>(candidate_count),
         static_cast<unsigned>(tiles_for(token_count)));
-    autokey_chi2_hist_kernel<<<grid, kHistThreads>>>(
+    autokey_chi2_hist_kernel<<<grid, HistFast::threads>>>(
         device_in,
         device_key_bytes,
         device_key_begin,
@@ -255,7 +293,7 @@ Status DeepScoreBatch::launch_dynamic_shift_chi2_async(
     const std::uint8_t* device_base,
     const std::uint8_t* device_step,
     const double* device_probabilities,
-    unsigned long long* device_counts,
+    std::uint32_t* device_counts,
     double* device_scores,
     std::size_t candidate_count,
     std::size_t token_count) {
@@ -272,7 +310,7 @@ Status DeepScoreBatch::launch_dynamic_shift_chi2_async(
     const dim3 grid(
         static_cast<unsigned>(candidate_count),
         static_cast<unsigned>(tiles_for(token_count)));
-    dynamic_shift_chi2_hist_kernel<<<grid, kHistThreads>>>(
+    dynamic_shift_chi2_hist_kernel<<<grid, HistFast::threads>>>(
         device_in, device_base, device_step, device_counts, token_count);
     Status hist =
         CudaError::to_status(cudaGetLastError(), "DeepScoreBatch::dynamic_shift hist");
@@ -302,7 +340,7 @@ Status DeepScoreBatch::launch_caesar_bigram_ll_async(
     const dim3 grid(
         static_cast<unsigned>(candidate_count),
         static_cast<unsigned>(tiles_for(token_count)));
-    caesar_bigram_ll_kernel<<<grid, kScoreThreads>>>(
+    caesar_bigram_ll_kernel<<<grid, HistFast::threads>>>(
         device_in, device_shifts, device_bigram_ll, device_scores, token_count);
     return CudaError::to_status(cudaGetLastError(), "DeepScoreBatch::bigram_ll");
 }
@@ -331,7 +369,7 @@ Status DeepScoreBatch::launch_caesar_ngram_dict_async(
     const dim3 grid(
         static_cast<unsigned>(candidate_count),
         static_cast<unsigned>(tiles_for(token_count)));
-    caesar_ngram_dict_kernel<<<grid, kScoreThreads>>>(
+    caesar_ngram_dict_kernel<<<grid, HistFast::threads>>>(
         device_in,
         device_shifts,
         device_bigram_ll,

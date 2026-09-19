@@ -64,8 +64,8 @@ TEST_CASE("CaesarChi2Batch matches CPU chi2 per shift", "[cuda][batch][chi2][fus
     StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
         std::span<const double>(freqs.value().probabilities().data(), 29));
     REQUIRE(device_probs.ok());
-    StatusOr<DeviceBuffer<unsigned long long>> device_counts =
-        DeviceBuffer<unsigned long long>::allocate(C * 29);
+    StatusOr<DeviceBuffer<std::uint32_t>> device_counts =
+        DeviceBuffer<std::uint32_t>::allocate(C * 29);
     REQUIRE(device_counts.ok());
     StatusOr<DeviceBuffer<double>> device_scores = DeviceBuffer<double>::allocate(C);
     REQUIRE(device_scores.ok());
