@@ -26,4 +26,10 @@ python -m parcae_agent check-config configs/ollama.example.yaml
 pytest
 ```
 
+## LLM client
+
+`parcae_agent.llm.LlmClient` speaks OpenAI-compatible
+`POST {base_url}/chat/completions` (local Ollama / LM Studio **or** OpenRouter).
+Unit tests inject a fake `http_post` — no live network required.
+
 Full `run` / `providers test` / `doctor` land in later Phase 4 commits.

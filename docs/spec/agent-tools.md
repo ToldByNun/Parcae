@@ -241,8 +241,10 @@ under `agents/parcae_agent/`):
 1. **Config** (`parcae.agent_config.v0`): see [Agent config schema](#agent-config-schema-parcaeagent_configv0)
    above (`provider`, `parcae_bin_dir`, `data_dir`, `workspace`, budgets,
    `allow_cuda`).
-2. **LLM transport:** OpenAI-compatible `POST /v1/chat/completions` with tool /
-   function calling. Same client for local servers and OpenRouter-style APIs.
+2. **LLM transport:** OpenAI-compatible `POST {base_url}/chat/completions` with
+   tool / function calling (`agents/parcae_agent/llm.py`). Same client for local
+   servers (`api_key_env: null`) and OpenRouter-style APIs (Bearer from the named
+   env var). API keys MUST NOT be logged or written to transcripts.
 3. **ToolBridge:** maps each tool call name → argv from the allow-list schemas
    only; runs as a subprocess **without** `shell=True` on raw LLM text; parses
    `parcae.tool_response.v0`.
