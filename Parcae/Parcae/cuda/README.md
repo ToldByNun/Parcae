@@ -23,6 +23,7 @@ Files:
 | `candidate_batch_buffers.hpp` | `CandidateBatchBuffers` — host SoA ABI v0 (`kMaxC`/`kMaxT`, shared or per-candidate tokens) |
 | `backend.hpp` | `CudaBackend` — full catalog `apply_into` / `apply_and_capture` |
 | `cuda_score.hpp` | `CudaScore` — `ScoreRegistry` twin (string-id score dispatch) |
+| `cuda_batch_score.hpp` | `CudaBatchScore` — lane scores via `CudaScore` + host `BatchOrdering` top-k |
 | `identity_copy.hpp` / `identity_copy.cu` | `IdentityCopy` — device `uint8_t` identity / smoke kernel |
 | `atbash_kernel.hpp` / `atbash_kernel.cu` | `AtbashKernel` — `out[i] = 28 - in[i]` twin |
 | `atbash_batch_kernel.hpp` / `.cu` | `AtbashBatchKernel` — shared tokens → atbash lanes (SoA) |
