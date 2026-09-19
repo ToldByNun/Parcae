@@ -12,7 +12,9 @@ Guides for how the C++ toolkit is structured and how CUDA attaches.
 | [cuda-throughput.md](cuda-throughput.md) | Fused χ² throughput ceilings (`parcae-throughput-tiers`) |
 | [cuda-score-reduction.md](cuda-score-reduction.md) | Score FP / histogram reduction associativity for CUDA twins |
 | [cuda-roadmap.md](cuda-roadmap.md) | **Frozen** CUDA commit roadmap (VS layout) |
+| [phase4-agent-tooling.md](phase4-agent-tooling.md) | **Frozen** Phase 4 CMD-agent plan (`parcae-agent`) |
 
 **CUDA implementation directory:** [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio).
 
+**Agent (planned):** Python LLM loop under `agents/parcae_agent/` calling C++ CLIs only — see Phase 4 freeze.
 Specs remain authoritative: [`docs/spec/`](../spec/README.md).
