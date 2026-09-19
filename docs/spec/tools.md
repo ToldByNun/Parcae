@@ -3,8 +3,8 @@
 **Status:** Normative  
 **Headers (planned):** `parcae/tool/api.hpp`  
 **Binaries:** `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate`,
-`parcae-catalog`, `parcae-generate`, `parcae-rank`, `parcae-parity`, `parcae-parity-gen`,
-`parcae-search-run`
+`parcae-catalog`, `parcae-generate`, `parcae-rank`, `parcae-hypothesis`, `parcae-parity`,
+`parcae-parity-gen`, `parcae-search-run`
 
 ## Principles
 
@@ -214,6 +214,30 @@ expected frequencies from `--data-dir` automatically.
 **Round-trip (agent path):** `parcae-generate … --json` → `parcae-rank
 --candidates - --score-id chi2_english_gp_v0 --k N --json` recovers Atbash on
 `a-warning` without any plaintext / `reference` in the score path.
+
+### `parcae-hypothesis`
+
+```text
+parcae-hypothesis init|propose|show|list|score|set-status …
+```
+
+HypothesisRecord I/O under `data/workspaces/<workspace_id>/` (see
+[`hypothesis-workspace.md`](hypothesis-workspace.md)). Subcommands map to agent
+tool names `hypothesis_init` / `hypothesis_propose` / `hypothesis_show` /
+`hypothesis_list` / `hypothesis_score` / `hypothesis_set_status`.
+
+| Subcommand | Key flags |
+|------------|-----------|
+| `init` | `--workspace` `--id` `[--title]` `[--method-json]` |
+| `propose` | `--workspace` `--id` `--method-json\|--method-file` `[--title]` `[--rationale]` |
+| `show` / `list` | `--workspace` (`show` also `--id`) |
+| `score` | `--workspace` `--id` `--input` `[--runes\|--latin\|--indices]` `[--score-id]` |
+| `set-status` | `--workspace` `--id` `--status` |
+
+`--json` wraps each result in `parcae.tool_response.v0`. `init`/`propose` create
+a workspace manifest if missing. `score` applies the stored method, appends a
+score entry, updates latin preview + digests, and promotes status toward
+`scored`. Writes stay under the workspace; fixture paths are denied.
 
 ### `parcae-parity`
 

@@ -27,6 +27,7 @@ parcae_add_cli(parcae-validate parcae_validate/main.cpp)
 parcae_add_cli(parcae-catalog parcae_catalog/main.cpp)
 parcae_add_cli(parcae-generate parcae_generate/main.cpp)
 parcae_add_cli(parcae-rank parcae_rank/main.cpp)
+parcae_add_cli(parcae-hypothesis parcae_hypothesis/main.cpp)
 parcae_add_cli(parcae-parity-gen parcae_parity_gen/main.cpp)
 parcae_add_cli(parcae-parity parcae_parity/main.cpp)
 parcae_add_cli(parcae-search-run parcae_search_run/main.cpp)
@@ -72,6 +73,25 @@ if(PARCAE_BUILD_TESTS)
       --candidates "${CMAKE_SOURCE_DIR}/data/fixtures/cli/rank-candidates.json"
       --score-id ic_mod29
       --k 3
+      --json
+  )
+
+  add_test(
+    NAME cli_hypothesis_list_example_json
+    COMMAND $<TARGET_FILE:parcae-hypothesis>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      list
+      --workspace _example
+      --json
+  )
+
+  add_test(
+    NAME cli_hypothesis_show_example_json
+    COMMAND $<TARGET_FILE:parcae-hypothesis>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      show
+      --workspace _example
+      --id h-atbash-example
       --json
   )
 

@@ -132,6 +132,50 @@ public:
         return Status::success();
     }
 
+    void set_title(std::string title) {
+        title_ = std::move(title);
+    }
+
+    void set_rationale(std::string rationale) {
+        rationale_ = std::move(rationale);
+    }
+
+    void set_updated_utc(std::string utc) {
+        updated_utc_ = std::move(utc);
+    }
+
+    void set_source(nlohmann::json source) {
+        source_ = std::move(source);
+    }
+
+    void set_preview(nlohmann::json preview) {
+        preview_ = std::move(preview);
+    }
+
+    [[nodiscard]] Status set_method(nlohmann::json method) {
+        StatusOr<parcae::tool::TransformEnvelope> envelope =
+            parcae::tool::TransformEnvelope::from_json(method);
+        if (!envelope.ok()) {
+            return envelope.status();
+        }
+        method_ = envelope.value().to_json();
+        return Status::success();
+    }
+
+    [[nodiscard]] Status append_score(nlohmann::json entry) {
+        nlohmann::json arr = nlohmann::json::array();
+        arr.push_back(entry);
+        Status ok = validate_scores(arr);
+        if (!ok.ok()) {
+            return ok;
+        }
+        if (!scores_.is_array()) {
+            scores_ = nlohmann::json::array();
+        }
+        scores_.push_back(std::move(entry));
+        return Status::success();
+    }
+
     /// Refresh `digests.method_sha256` from current `method`.
     void recompute_method_digest() {
         if (!digests_.is_object()) {
@@ -358,6 +402,41 @@ public:
             return Status::error("Failed while writing hypothesis file: " + resolved.value().string());
         }
         return Status::success();
+    }
+
+    /// List hypothesis ids in `workspaces/<id>/hypotheses/*.json` (sorted).
+    [[nodiscard]] static StatusOr<std::vector<std::string>> list_ids(
+        const std::filesystem::path& data_root,
+        std::string_view workspace_id) {
+        StatusOr<std::filesystem::path> dir =
+            WorkspacePaths::hypotheses_dir(data_root, workspace_id);
+        if (!dir.ok()) {
+            return dir.status();
+        }
+        if (!std::filesystem::is_directory(dir.value())) {
+            return std::vector<std::string>{};
+        }
+        std::vector<std::string> ids;
+        std::error_code ec;
+        for (const auto& entry : std::filesystem::directory_iterator(dir.value(), ec)) {
+            if (ec) {
+                return Status::error("Failed to list hypotheses: " + ec.message());
+            }
+            if (!entry.is_regular_file()) {
+                continue;
+            }
+            if (entry.path().extension() != ".json") {
+                continue;
+            }
+            const std::string stem = entry.path().stem().string();
+            StatusOr<std::string> id = WorkspacePaths::validate_id(stem);
+            if (!id.ok()) {
+                continue;
+            }
+            ids.push_back(id.value());
+        }
+        std::sort(ids.begin(), ids.end());
+        return ids;
     }
 
     /// Build a minimal draft stub (CLI `init` / tests).
