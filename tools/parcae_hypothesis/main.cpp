@@ -1,5 +1,6 @@
 #include "cli_io.hpp"
 #include "tool_cli_json.hpp"
+#include "agent_policy_cli.hpp"
 
 #include "parcae/core/index29.hpp"
 #include "parcae/gematria/latin_codec.hpp"
@@ -64,8 +65,9 @@ void print_help() {
         << "      [--utc <RFC3339>] [--json]\n"
         << "\n"
         << "HypothesisRecord I/O under data/workspaces/<id>/hypotheses/.\n"
-        << "Common: --data-dir <path>  -h/--help\n"
-        << "JSON tool names: hypothesis_init|propose|show|list|score|set_status\n";
+        << "Common: --data-dir <path>  [--allow-cuda]  -h/--help\n"
+        << "JSON tool names: hypothesis_init|propose|show|list|score|set_status\n"
+        << "Writes are gated by AgentPolicy (fixtures / path escape → policy).\n";
 }
 
 [[nodiscard]] int fail(
@@ -122,6 +124,31 @@ void print_help() {
         return parse_json_object(text.value(), "--method-file");
     }
     return Status::error("Missing --method-json or --method-file");
+}
+
+[[nodiscard]] int fail_status(
+    std::string_view tool,
+    bool json_mode,
+    const Status& status,
+    int plain_exit_fallback) {
+    const ToolErrorCode code = AgentPolicy::error_code_for(status);
+    const int plain =
+        (code == ToolErrorCode::Policy) ? parcae::cli::kExitUsage : plain_exit_fallback;
+    return fail(tool, json_mode, code, status.message(), plain);
+}
+
+[[nodiscard]] Status require_hypothesis_write(
+    const AgentPolicy& policy,
+    std::string_view workspace_id,
+    std::string_view hypothesis_id) {
+    return policy.allow_workspace_write(
+        workspace_id, std::filesystem::path("hypotheses") / (std::string(hypothesis_id) + ".json"));
+}
+
+[[nodiscard]] Status require_workspace_manifest_write(
+    const AgentPolicy& policy,
+    std::string_view workspace_id) {
+    return policy.allow_workspace_write(workspace_id, "workspace.json");
 }
 
 [[nodiscard]] std::string letters_only_upper(std::string_view text) {
@@ -199,6 +226,7 @@ void print_help() {
 [[nodiscard]] int cmd_init(
     const std::vector<std::string>& args,
     const parcae::tool::Context& ctx,
+    const AgentPolicy& policy,
     bool json_mode) {
     using namespace parcae::cli;
     constexpr std::string_view tool = "hypothesis_init";
@@ -210,6 +238,15 @@ void print_help() {
     StatusOr<std::string> id = require_option(args, "--id");
     if (!id.ok()) {
         return fail(tool, json_mode, ToolErrorCode::Usage, id.status().message(), kExitUsage);
+    }
+
+    Status ws_write = require_workspace_manifest_write(policy, workspace.value());
+    if (!ws_write.ok()) {
+        return fail_status(tool, json_mode, ws_write, kExitUsage);
+    }
+    Status hyp_write = require_hypothesis_write(policy, workspace.value(), id.value());
+    if (!hyp_write.ok()) {
+        return fail_status(tool, json_mode, hyp_write, kExitUsage);
     }
 
     const std::string utc = resolve_utc(args);
@@ -272,6 +309,7 @@ void print_help() {
 [[nodiscard]] int cmd_propose(
     const std::vector<std::string>& args,
     const parcae::tool::Context& ctx,
+    const AgentPolicy& policy,
     bool json_mode) {
     using namespace parcae::cli;
     constexpr std::string_view tool = "hypothesis_propose";
@@ -287,6 +325,15 @@ void print_help() {
     StatusOr<nlohmann::json> method = load_method_json(args);
     if (!method.ok()) {
         return fail(tool, json_mode, ToolErrorCode::Usage, method.status().message(), kExitUsage);
+    }
+
+    Status ws_write = require_workspace_manifest_write(policy, workspace.value());
+    if (!ws_write.ok()) {
+        return fail_status(tool, json_mode, ws_write, kExitUsage);
+    }
+    Status hyp_write = require_hypothesis_write(policy, workspace.value(), id.value());
+    if (!hyp_write.ok()) {
+        return fail_status(tool, json_mode, hyp_write, kExitUsage);
     }
 
     const std::string utc = resolve_utc(args);
@@ -444,6 +491,7 @@ void print_help() {
 [[nodiscard]] int cmd_score(
     const std::vector<std::string>& args,
     const parcae::tool::Context& ctx,
+    const AgentPolicy& policy,
     bool json_mode) {
     using namespace parcae::cli;
     constexpr std::string_view tool = "hypothesis_score";
@@ -459,6 +507,11 @@ void print_help() {
     StatusOr<std::string> input_path = require_option(args, "--input");
     if (!input_path.ok()) {
         return fail(tool, json_mode, ToolErrorCode::Usage, input_path.status().message(), kExitUsage);
+    }
+
+    Status hyp_write = require_hypothesis_write(policy, workspace.value(), id.value());
+    if (!hyp_write.ok()) {
+        return fail_status(tool, json_mode, hyp_write, kExitUsage);
     }
 
     const bool mode_latin = has_flag(args, "--latin");
@@ -592,6 +645,7 @@ void print_help() {
 [[nodiscard]] int cmd_set_status(
     const std::vector<std::string>& args,
     const parcae::tool::Context& ctx,
+    const AgentPolicy& policy,
     bool json_mode) {
     using namespace parcae::cli;
     constexpr std::string_view tool = "hypothesis_set_status";
@@ -608,6 +662,12 @@ void print_help() {
     if (!status_text.ok()) {
         return fail(tool, json_mode, ToolErrorCode::Usage, status_text.status().message(), kExitUsage);
     }
+
+    Status hyp_write = require_hypothesis_write(policy, workspace.value(), id.value());
+    if (!hyp_write.ok()) {
+        return fail_status(tool, json_mode, hyp_write, kExitUsage);
+    }
+
     StatusOr<HypothesisStatus> next = HypothesisStatusUtil::from_string(status_text.value());
     if (!next.ok()) {
         return fail(tool, json_mode, ToolErrorCode::Usage, next.status().message(), kExitUsage);
@@ -653,6 +713,7 @@ int main(int argc, char** argv) {
     if (!ctx.ok()) {
         return fail("hypothesis", json_mode, ToolErrorCode::Io, ctx.status().message(), kExitUsage);
     }
+    const AgentPolicy policy = AgentPolicyCli::make(ctx.value(), args);
 
     // First positional token is the subcommand (flags may appear before/after).
     std::string cmd;
@@ -668,6 +729,11 @@ int main(int argc, char** argv) {
             if (i + 1 < args.size()) {
                 rest.push_back(args[++i]);
             }
+            continue;
+        }
+        if (arg == "--allow-cuda" || arg == "--json" || arg == "--latin" || arg == "--runes" ||
+            arg == "--indices" || arg == "-h" || arg == "--help") {
+            rest.push_back(arg);
             continue;
         }
         if (!arg.empty() && arg[0] == '-') {
@@ -692,10 +758,10 @@ int main(int argc, char** argv) {
     }
 
     if (cmd == "init") {
-        return cmd_init(rest, ctx.value(), json_mode);
+        return cmd_init(rest, ctx.value(), policy, json_mode);
     }
     if (cmd == "propose") {
-        return cmd_propose(rest, ctx.value(), json_mode);
+        return cmd_propose(rest, ctx.value(), policy, json_mode);
     }
     if (cmd == "show") {
         return cmd_show(rest, ctx.value(), json_mode);
@@ -704,10 +770,10 @@ int main(int argc, char** argv) {
         return cmd_list(rest, ctx.value(), json_mode);
     }
     if (cmd == "score") {
-        return cmd_score(rest, ctx.value(), json_mode);
+        return cmd_score(rest, ctx.value(), policy, json_mode);
     }
     if (cmd == "set-status") {
-        return cmd_set_status(rest, ctx.value(), json_mode);
+        return cmd_set_status(rest, ctx.value(), policy, json_mode);
     }
 
     print_help();

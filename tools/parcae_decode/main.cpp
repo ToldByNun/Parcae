@@ -1,5 +1,6 @@
 #include "cli_io.hpp"
 #include "tool_cli_json.hpp"
+#include "agent_policy_cli.hpp"
 
 #include "parcae/corpus/fixture_loader.hpp"
 #include "parcae/interrupt/policy.hpp"
@@ -41,6 +42,7 @@ void print_help() {
         << "\n"
         << "Global:\n"
         << "  --backend    cpu|cuda (default cpu; exit 2 if cuda not built)\n"
+        << "  --allow-cuda Required with --backend cuda (AgentPolicy opt-in)\n"
         << "  --rebuild-text  Also rebuild UTF-8 with separators preserved\n"
         << "  --json       JSON envelope on stdout (parcae.tool_response.v0)\n"
         << "  --data-dir   Parcae data/ root\n"
@@ -217,26 +219,23 @@ int main(int argc, char** argv) {
     const std::string data_dir = optional_option(args, "--data-dir");
     std::optional<std::string> backend_label;
 
-    StatusOr<parcae::tool::Backend> backend = parcae::tool::BackendUtil::from_string(
-        optional_option(args, "--backend", "cpu"));
-    if (!backend.ok()) {
-        print_help();
-        return fail(json_mode, std::nullopt, ToolErrorCode::Usage, backend.status().message(),
-                    kExitUsage);
-    }
-    backend_label = std::string(parcae::tool::BackendUtil::to_string(backend.value()));
-
-    Status backend_ok = parcae::tool::BackendUtil::ensure_usable(backend.value());
-    if (!backend_ok.ok()) {
-        return fail(json_mode, backend_label, ToolErrorCode::NotBuilt, backend_ok.message(),
-                    kExitUsage);
-    }
-
     StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        return fail(json_mode, backend_label, ToolErrorCode::Io, ctx.status().message(),
+        return fail(json_mode, std::nullopt, ToolErrorCode::Io, ctx.status().message(),
                     kExitUsage);
     }
+
+    const AgentPolicy policy = AgentPolicyCli::make(ctx.value(), args);
+    StatusOr<parcae::tool::Backend> backend = AgentPolicyCli::resolve_backend(policy, args);
+    if (!backend.ok()) {
+        const ToolErrorCode code = AgentPolicyCli::backend_error_code(backend.status());
+        if (code == ToolErrorCode::Usage) {
+            print_help();
+        }
+        backend_label = optional_option(args, "--backend", "cpu");
+        return fail(json_mode, backend_label, code, backend.status().message(), kExitUsage);
+    }
+    backend_label = std::string(parcae::tool::BackendUtil::to_string(backend.value()));
 
     const bool has_manifest = has_flag(args, "--manifest");
     const bool has_transform_json = has_flag(args, "--transform-json");

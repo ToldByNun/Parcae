@@ -139,6 +139,7 @@ if(PARCAE_BUILD_TESTS)
         --transform-id atbash
         --direction decrypt
         --backend cuda
+        --allow-cuda
     )
     add_test(
       NAME cli_score_ic_indices_cuda
@@ -147,9 +148,22 @@ if(PARCAE_BUILD_TESTS)
         --score-id ic_mod29
         --indices
         --backend cuda
+        --allow-cuda
         --input "${CMAKE_SOURCE_DIR}/data/fixtures/cli/score-indices.txt"
     )
   endif()
+
+  add_test(
+    NAME cli_score_cuda_requires_allow_cuda
+    COMMAND $<TARGET_FILE:parcae-score>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --score-id ic_mod29
+      --indices
+      --backend cuda
+      --input "${CMAKE_SOURCE_DIR}/data/fixtures/cli/score-indices.txt"
+      --json
+  )
+  set_tests_properties(cli_score_cuda_requires_allow_cuda PROPERTIES WILL_FAIL TRUE)
 
   add_test(
     NAME cli_score_ic_indices

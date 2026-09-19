@@ -131,13 +131,13 @@ JSON shape (`--json` → `parcae.tool_response.v0`, `result`):
 ### `parcae-decode`
 
 ```text
-parcae-decode --manifest <fixture_dir|manifest.json> [--backend cpu|cuda] [--rebuild-text] [--json]
-parcae-decode --transform-json <path> --input <file|-> [--backend cpu|cuda] [--rebuild-text] [--json]
+parcae-decode --manifest <fixture_dir|manifest.json> [--backend cpu|cuda] [--allow-cuda] [--rebuild-text] [--json]
+parcae-decode --transform-json <path> --input <file|-> [--backend cpu|cuda] [--allow-cuda] [--rebuild-text] [--json]
 parcae-decode --input <file|-> --transform-id <id>
               [--direction decrypt|encrypt]
               [--params-json <json> | --key-indices <list> --key-latin <text> --shift <n>]
               [--skip-indices <list>]
-              [--backend cpu|cuda]
+              [--backend cpu|cuda] [--allow-cuda]
               [--rebuild-text]
               [--json]
 ```
@@ -146,14 +146,15 @@ Prints Latin plaintext (or JSON with `indices` + `latin`). With `--rebuild-text`
 rebuilds UTF-8 preserving non-rune separators (`result.text` in JSON; human mode prints
 that text instead of Latin). Method/key/skips come
 from the fixture manifest, a transform envelope JSON file, or explicit flags.
-`--backend cuda` requires a CUDA-linked build; otherwise exit status **2**.
+`--backend cuda` requires a CUDA-linked build **and** `--allow-cuda` (AgentPolicy);
+otherwise exit status **2** (`not_built` or `policy`).
 
 ### `parcae-score`
 
 ```text
 parcae-score --score-id <id> --input <file|->
              [--latin|--runes|--indices] [--params-json <json>]
-             [--backend cpu|cuda]
+             [--backend cpu|cuda] [--allow-cuda]
              [--json] [--data-dir <path>]
 parcae-score --list [--json] [--data-dir <path>]
 ```
@@ -165,7 +166,7 @@ UTF-8 Liber Primus text; `--indices` parses `0..28` integers. JSON shape:
 { "score_id": "ic_mod29", "score_version": "v0", "backend": "cpu", "value": 1.0 }
 ```
 
-`parcae-validate` stays CPU-only (no `--backend`).
+`--backend cuda` requires `--allow-cuda`. `parcae-validate` stays CPU-only (no `--backend`).
 
 `--list --json` emits a rich catalog under `result.scores[]` (`score_id`,
 `score_version`, `order`, `arity`) plus flat `result.score_ids` for compatibility.
@@ -237,7 +238,8 @@ tool names `hypothesis_init` / `hypothesis_propose` / `hypothesis_show` /
 `--json` wraps each result in `parcae.tool_response.v0`. `init`/`propose` create
 a workspace manifest if missing. `score` applies the stored method, appends a
 score entry, updates latin preview + digests, and promotes status toward
-`scored`. Writes stay under the workspace; fixture paths are denied.
+`scored`. Writes stay under the workspace and are gated by `AgentPolicy`
+(fixture paths / traversal → `error.code = policy`); fixture paths are denied.
 
 ### `parcae-parity`
 
