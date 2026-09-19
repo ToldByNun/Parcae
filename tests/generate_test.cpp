@@ -4,6 +4,7 @@
 #include <parcae/generate/atbash_candidate_generator.hpp>
 #include <parcae/generate/atbash_caesar_candidate_generator.hpp>
 #include <parcae/generate/caesar_candidate_generator.hpp>
+#include <parcae/generate/generator_registry.hpp>
 #include <parcae/generate/vigenere_explicit_key_candidate_generator.hpp>
 #include <parcae/interrupt/policy.hpp>
 #include <parcae/score/exact_match.hpp>
@@ -400,4 +401,64 @@ TEST_CASE(
             require_unique_exact_match_rank1(candidates.value(), plain);
         REQUIRE(rank1 == 1);
     }
+}
+
+TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][registry]") {
+    const std::vector<std::string> ids = GeneratorRegistry::list_generator_ids();
+    REQUIRE(ids.size() == 5);
+    REQUIRE(ids[0] == "gen_atbash");
+    REQUIRE(ids[1] == "gen_caesar");
+    REQUIRE(ids[2] == "gen_atbash_caesar");
+    REQUIRE(ids[3] == "gen_affine");
+    REQUIRE(ids[4] == "gen_vigenere_explicit_keys");
+    REQUIRE(GeneratorRegistry::is_known("gen_caesar"));
+    REQUIRE_FALSE(GeneratorRegistry::is_known("gen_nope"));
+
+    const std::vector<GeneratorCatalogEntry> entries = GeneratorRegistry::catalog();
+    REQUIRE(entries.size() == 5);
+    REQUIRE(entries[1].bounded_count() == 29);
+    REQUIRE_FALSE(entries[1].requires_params());
+    REQUIRE(entries[4].requires_params());
+    REQUIRE(entries[4].bounded_count() == 0);
+    REQUIRE(entries[1].to_json().at("generator_id").get<std::string>() == "gen_caesar");
+
+    const std::vector<Index29> cipher = {I(0), I(5), I(10)};
+    StatusOr<std::vector<TransformCandidate>> via_registry =
+        GeneratorRegistry::generate("gen_caesar", cipher);
+    StatusOr<std::vector<TransformCandidate>> direct =
+        CaesarCandidateGenerator::generate(cipher);
+    REQUIRE(via_registry.ok());
+    REQUIRE(direct.ok());
+    REQUIRE(via_registry.value().size() == direct.value().size());
+    REQUIRE(via_registry.value()[3].params() == direct.value()[3].params());
+    REQUIRE(via_registry.value()[3].output_indices() == direct.value()[3].output_indices());
+
+    StatusOr<std::vector<TransformCandidate>> atbash =
+        GeneratorRegistry::generate("gen_atbash", cipher);
+    REQUIRE(atbash.ok());
+    REQUIRE(atbash.value().size() == 1);
+
+    REQUIRE_FALSE(GeneratorRegistry::generate("gen_vigenere_explicit_keys", cipher).ok());
+
+    const nlohmann::json vig_params = {
+        {"key_indices_list", {{1, 2, 3}, {4, 5}}},
+    };
+    StatusOr<std::vector<TransformCandidate>> vig =
+        GeneratorRegistry::generate("gen_vigenere_explicit_keys", cipher, TransformDirection::Decrypt, vig_params);
+    REQUIRE(vig.ok());
+    REQUIRE(vig.value().size() == 2);
+
+    const nlohmann::json vig_keys = {
+        {"keys",
+         {{{"key_indices", {1, 2}}, {"key_latin", "BC"}},
+          {{"key_indices", {3, 4, 5}}}}},
+    };
+    StatusOr<std::vector<TransformCandidate>> vig2 =
+        GeneratorRegistry::generate(
+            "gen_vigenere_explicit_keys", cipher, TransformDirection::Decrypt, vig_keys);
+    REQUIRE(vig2.ok());
+    REQUIRE(vig2.value().size() == 2);
+    REQUIRE(vig2.value()[0].params().at("key_latin").get<std::string>() == "BC");
+
+    REQUIRE_FALSE(GeneratorRegistry::generate("gen_unknown", cipher).ok());
 }
