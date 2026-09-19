@@ -83,7 +83,7 @@ Workstreams below; **layout overrides** any earlier sketch that used
 | 36 | feat: CLI `--backend cuda` on decode/score |
 | 37 | feat: `parcae-parity` tool — dump/compare records |
 | 38–39 | docs: [`cuda-reference.md`](cuda-reference.md) + CUDA exit checklist in handoff (**done**) |
-| 40 | property round-trips on CUDA |
+| 40 | test: property round-trips on CUDA (**done** — `[cuda][property]`) |
 | 41–42 | version 0.3.0 + annotated tag `v0.3.0-cuda-parity` |
 
 ## Non-goals (still)

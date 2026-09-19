@@ -86,6 +86,7 @@ Targets:
 | `[cuda][batch][score]` | Skip / SUCCEED marker | `CudaBatchScore` vs serial `BatchRunner` top-k |
 | `[cuda][batch][rank1]` | Skip / SUCCEED marker | CUDA batch apply + exact_match recovers known params |
 | `[cuda][batch][chi2][fuse]` | Skip / SUCCEED marker | Fused Caesar χ² vs CPU `ScoreRegistry` |
+| `[cuda][property]` | Skip / SUCCEED marker | Encrypt↔decrypt round-trips + CPU byte match via `CudaBackend` |
 | `[run][search]` | Always (CPU path) | SearchRun throughput / fixture eval; CUDA family parity when built |
 
 ```bash

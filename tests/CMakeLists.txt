@@ -16,6 +16,7 @@ add_executable(parcae_tests
   tool_api_test.cpp
   parity_test.cpp
   transform_property_test.cpp
+  cuda_property_test.cpp
   cuda_device_buffer_test.cpp
   cuda_params_test.cpp
   cuda_interrupt_device_view_test.cpp

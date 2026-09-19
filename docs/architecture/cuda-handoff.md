@@ -249,7 +249,7 @@ following hold. Architecture narrative: [`cuda-reference.md`](cuda-reference.md)
 - [x] Committed `data/parity/` goldens; `parcae-parity check --all` green
 - [x] `[cuda][parity][golden]` + `[cuda][parity][solved]` green with Toolkit+GPU
 - [x] Hosted CI CPU-default; `[cuda]` host stubs pass without Toolkit
-- [ ] CUDA property round-trips (roadmap commit 40)
+- [x] CUDA property round-trips (roadmap commit 40)
 - [ ] Annotated tag `v0.3.0-cuda-parity` (commits 41–42)
 
 ### Docs

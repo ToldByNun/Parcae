@@ -165,6 +165,7 @@ for golden digests: [`cuda-handoff.md`](cuda-handoff.md).
 |-------------|------|
 | `[solved]` | Locked solved-page oracles (CI gate for the CPU reference tag) |
 | `[transform]` / `[property]` | Hand vectors + seeded round-trips |
+| `[cuda][property]` | CUDA `CudaBackend` encrypt↔decrypt + CPU byte match |
 | `[score]` / `[batch]` / `[tool]` | Scores, generators, library API |
 | `cli_*` ctests | Smoke the CLIs (incl. parity / search-run when built) |
 

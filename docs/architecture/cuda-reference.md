@@ -128,7 +128,7 @@ CLI: `parcae-search-run --backend cuda --family caesar|atbash|atbash_caesar|affi
 | `[cuda][parity][*]` | Per-family / golden / solved consumable digests |
 | `[cuda][score][*]` | Tier-A twins + noise separation |
 | `[cuda][batch][*]` | SoA apply, batch score, rank-1 recovery |
-| `[cuda][batch][chi2][fuse]` | Fused Caesar χ² vs CPU |
+| `[cuda][property]` | Encrypt↔decrypt round-trips + CPU match (`CudaBackend`) |
 | `[run][search]` | SearchRun CPU + CUDA (+ family parity) |
 | `cli_*_cuda` ctests | decode / score / parity / search-run smoke |
 
@@ -156,7 +156,7 @@ Prerequisites for annotated tag `v0.3.0-cuda-parity` (also mirrored in
 ### Docs & release
 
 - [x] This reference + ABI / reduction / build / handoff
-- [ ] Property round-trips on CUDA (roadmap commit 40)
+- [x] Property round-trips on CUDA (roadmap commit 40)
 - [ ] Version bump + annotated tag `v0.3.0-cuda-parity` (commits 41–42)
 
 ## Related docs
