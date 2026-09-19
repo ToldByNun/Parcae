@@ -1,0 +1,15 @@
+{
+  "schema": "parcae.workspace.v0",
+  "id": "_example",
+  "created_utc": "2026-09-19T00:00:00Z",
+  "updated_utc": "2026-09-19T00:00:00Z",
+  "title": "Committed workspace layout example",
+  "notes": "Illustration only — not a real Liber Primus claim.",
+  "input": {
+    "kind": "fixture_ciphertext",
+    "fixture_id": "a-warning",
+    "path": null
+  },
+  "default_score_id": "chi2_english_gp_v0",
+  "default_score_version": "v0"
+}

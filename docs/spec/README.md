@@ -18,6 +18,7 @@ are binding for conforming implementations.
 | [fixtures.md](fixtures.md) | Fixture manifest format (incl. literals) |
 | [tools.md](tools.md) | Deterministic library + CLI contracts |
 | [agent-tools.md](agent-tools.md) | Agent allow-list, JSON envelope, loop contract |
+| [hypothesis-workspace.md](hypothesis-workspace.md) | Workspace + HypothesisRecord + transcripts |
 | [parity.md](parity.md) | CPU↔CUDA parity contract |
 | [checklist.md](checklist.md) | Spec completeness checklist |
 

@@ -1,0 +1,33 @@
+{
+  "schema": "parcae.hypothesis.v0",
+  "id": "h-atbash-example",
+  "workspace_id": "_example",
+  "created_utc": "2026-09-19T00:00:00Z",
+  "updated_utc": "2026-09-19T00:00:00Z",
+  "status": "proposed",
+  "title": "Atbash on a-warning (example)",
+  "rationale": "Example HypothesisRecord for schema docs — not an unverified solve claim.",
+  "method": {
+    "transform_id": "atbash",
+    "direction": "decrypt",
+    "params": {}
+  },
+  "source": {
+    "generator_id": null,
+    "candidate_id": null,
+    "agent_run_id": null
+  },
+  "scores": [],
+  "preview": {
+    "latin_prefix": null,
+    "max_chars": 64
+  },
+  "digests": {
+    "method_sha256": null,
+    "output_indices_sha256": null
+  },
+  "promotion": {
+    "target_fixture_id": null,
+    "notes": "Tools MUST NOT auto-write fixtures."
+  }
+}

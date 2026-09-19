@@ -21,7 +21,7 @@ for agent tool calls, **this** envelope and allow-list apply.
 4. Success **and** failure MUST emit `parcae.tool_response.v0` on stdout when the
    tool is invoked in agent JSON mode (`--json`).
 5. Fixtures under `data/fixtures/` are **read-only**. Writes go only to
-   `data/workspaces/<id>/` (see hypothesis/workspace schema).
+   `data/workspaces/<id>/` (see [`hypothesis-workspace.md`](hypothesis-workspace.md)).
 6. No GitHub Actions, CI workflows, or hosted runners are part of this contract —
    local/tests only from the agent/tool perspective.
 
@@ -218,7 +218,7 @@ Budgets are hard stops. Exhaustion without success criterion is a failed run.
 - Embedding an LLM inside C++ tools
 - Closed-loop GPU search scheduling (Phase 5)
 - Requiring Cursor Skill / MCP for Phase 4 exit
-- Defining HypothesisRecord field layout (separate workspace schema doc)
+- Defining HypothesisRecord field layout — see [`hypothesis-workspace.md`](hypothesis-workspace.md)
 - Authoring or modifying GitHub Actions / CI workflow files as part of this surface
 
 ## Conformance (preview)

@@ -1,0 +1,2 @@
+{"schema":"parcae.transcript_step.v0","workspace_id":"_example","run_id":"deadbeef","seq":0,"utc":"2026-09-19T00:00:00Z","role":"system","tool":null,"ok":null,"summary":"example transcript line only","hypothesis_id":null,"envelope_ref":null}
+{"schema":"parcae.transcript_step.v0","workspace_id":"_example","run_id":"deadbeef","seq":1,"utc":"2026-09-19T00:00:01Z","role":"tool","tool":"catalog","ok":true,"summary":"listed transforms (example)","hypothesis_id":null,"envelope_ref":null}
