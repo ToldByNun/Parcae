@@ -16,5 +16,5 @@ Guides for how the C++ toolkit is structured and how CUDA attaches.
 
 **CUDA implementation directory:** [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio).
 
-**Agent (planned):** Python LLM loop under `agents/parcae_agent/` calling C++ CLIs only — see Phase 4 freeze.
-Specs remain authoritative: [`docs/spec/`](../spec/README.md).
+**Agent (Phase 4):** Python LLM loop under [`agents/parcae_agent/`](../../agents/parcae_agent/) calling C++ CLIs only — see Phase 4 freeze.
+Config schema `parcae.agent_config.v0`: [`docs/spec/agent-tools.md`](../spec/agent-tools.md).

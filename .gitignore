@@ -55,3 +55,14 @@ CMakeUserPresets.json
 /data/workspaces/*
 !/data/workspaces/_example/
 !/data/workspaces/_example/**
+
+# Python agent (agents/)
+**/__pycache__/
+**/*.py[cod]
+agents/.venv/
+agents/*.egg-info/
+agents/.pytest_cache/
+agents/dist/
+agents/build/
+.venv/
+.pytest_cache/

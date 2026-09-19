@@ -194,14 +194,53 @@ Rules:
   or `not_built` as appropriate.
 - `backend` in the envelope MUST reflect the backend that actually ran.
 
+## Agent config schema (`parcae.agent_config.v0`)
+
+YAML (or JSON) file loaded by `parcae-agent`. Schema id MUST be exactly
+`parcae.agent_config.v0`. Secrets MUST be referenced by environment variable
+name (`api_key_env`); plaintext keys MUST NOT appear in config files.
+
+```yaml
+schema: parcae.agent_config.v0
+provider:
+  base_url: http://127.0.0.1:11434/v1
+  api_key_env: null          # or e.g. OPENROUTER_API_KEY
+  model: llama3.1
+parcae_bin_dir: ../build/tools/Debug
+data_dir: ../data
+workspace: my-workspace
+allow_cuda: false
+budgets:
+  max_steps: 32
+  max_tool_calls: 64
+  max_wall_seconds: 600
+```
+
+| Field | Type | Rules |
+|-------|------|--------|
+| `schema` | string | MUST be `parcae.agent_config.v0` |
+| `provider.base_url` | string | Non-empty; MUST start with `http://` or `https://` |
+| `provider.api_key_env` | string \| null | Env var **name** only; null = no Authorization header |
+| `provider.model` | string | Non-empty model id for `/v1/chat/completions` |
+| `parcae_bin_dir` | string | Directory containing `parcae-*` CLIs |
+| `data_dir` | string | Parcae data root (`fixtures/`, `workspaces/`); MUST NOT sit under `fixtures/` |
+| `workspace` | string | Workspace id (same rules as HypothesisRecord: `^[a-z_][a-z0-9_-]{0,63}$`) |
+| `allow_cuda` | bool | Default `false`; when true, ToolBridge MAY pass `--allow-cuda` |
+| `budgets.max_steps` | int | ≥ 1 |
+| `budgets.max_tool_calls` | int | ≥ 1 |
+| `budgets.max_wall_seconds` | int | ≥ 1 |
+
+Example configs live under [`agents/configs/`](../../agents/configs/). Loader:
+`agents/parcae_agent/config.py`.
+
 ## Agent loop contract (`parcae-agent`)
 
 Normative behavior for the CMD agent (implementation language: Python 3.11+
 under `agents/parcae_agent/`):
 
-1. **Config** (`parcae.agent_config.v0`): provider (`base_url`, `api_key_env`,
-   `model`), `parcae_bin_dir`, `data_dir`, workspace id, budgets
-   (`max_steps`, `max_tool_calls`, `max_wall_seconds`).
+1. **Config** (`parcae.agent_config.v0`): see [Agent config schema](#agent-config-schema-parcaeagent_configv0)
+   above (`provider`, `parcae_bin_dir`, `data_dir`, `workspace`, budgets,
+   `allow_cuda`).
 2. **LLM transport:** OpenAI-compatible `POST /v1/chat/completions` with tool /
    function calling. Same client for local servers and OpenRouter-style APIs.
 3. **ToolBridge:** maps each tool call name → argv from the allow-list schemas

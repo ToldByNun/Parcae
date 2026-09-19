@@ -1,0 +1,20 @@
+# Example: OpenRouter (or any OpenAI-compatible cloud gateway).
+# Set the env var named below before running — never commit API keys.
+#
+#   set OPENROUTER_API_KEY=...   # Windows
+#   export OPENROUTER_API_KEY=...  # Unix
+#   cd agents && python -m parcae_agent check-config configs/openrouter.example.yaml
+#
+schema: parcae.agent_config.v0
+provider:
+  base_url: https://openrouter.ai/api/v1
+  api_key_env: OPENROUTER_API_KEY
+  model: anthropic/claude-sonnet-4
+parcae_bin_dir: ../../build-cuda/tools/Debug
+data_dir: ../../data
+workspace: _example
+allow_cuda: false
+budgets:
+  max_steps: 32
+  max_tool_calls: 64
+  max_wall_seconds: 600

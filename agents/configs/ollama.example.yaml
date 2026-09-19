@@ -1,0 +1,20 @@
+# Example: local OpenAI-compatible server (Ollama, LM Studio, llama.cpp, …)
+# Secrets: none required when api_key_env is null.
+#
+#   cd agents && python -m parcae_agent check-config configs/ollama.example.yaml
+#
+schema: parcae.agent_config.v0
+provider:
+  base_url: http://127.0.0.1:11434/v1
+  api_key_env: null
+  model: llama3.1
+# Adjust to your local build tree (Debug vs Release / Ninja vs VS).
+# Paths are relative to this file (agents/configs/).
+parcae_bin_dir: ../../build-cuda/tools/Debug
+data_dir: ../../data
+workspace: _example
+allow_cuda: false
+budgets:
+  max_steps: 32
+  max_tool_calls: 64
+  max_wall_seconds: 600
