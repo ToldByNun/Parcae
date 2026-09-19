@@ -46,6 +46,9 @@ private:
         if (id == "caesar") {
             return "Caesar";
         }
+        if (id == "atbash_caesar") {
+            return "Atbash+Caesar";
+        }
         if (id == "vigenere_key") {
             return "Vigenere";
         }

@@ -24,6 +24,9 @@ set(PARCAE_CUDA_SOURCES
   ic_mod29_score.cu
   self_repeat_rate_score.cu
   chi2_english_gp_score.cu
+  chi2_batch_score.cu
+  caesar_chi2_batch.cu
+  family_chi2_batch.cu
 )
 
 add_library(parcae_cuda STATIC ${PARCAE_CUDA_SOURCES})

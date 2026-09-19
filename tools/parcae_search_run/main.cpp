@@ -29,7 +29,7 @@ void print_help() {
         << "AI-style search-run dashboard: throughput (runes/s), sweep scores,\n"
         << "and locked-fixture scorer eval. Timing covers transform+score only\n"
         << "(setup/init excluded). tok_per_sec is intentionally non-deterministic.\n"
-        << "\nv0 family: caesar (shift 0–28).\n";
+        << "\nv0 families: caesar|atbash|atbash_caesar|affine|vigenere\n";
 }
 
 [[nodiscard]] nlohmann::json metrics_to_json(const SearchRunMetrics& metrics) {
@@ -100,6 +100,17 @@ int main(int argc, char** argv) {
     options.family = optional_option(args, "--family", "caesar");
     options.score_id = optional_option(args, "--score-id", "chi2_english_gp_v0");
     options.compare_cpu_cuda = !has_flag(args, "--no-compare");
+
+    // CUDA defaults: large stream so fused kernels are not launch-bound.
+    if (backend.value() == parcae::tool::Backend::Cuda) {
+        if (options.family == "affine") {
+            options.stream_length = 1u << 18;  // 256k (812 candidates)
+            options.throughput_repeats = 16;
+        } else {
+            options.stream_length = 1u << 20;  // 1M
+            options.throughput_repeats = 64;
+        }
+    }
 
     const std::string seed_text = optional_option(args, "--seed");
     if (!seed_text.empty()) {

@@ -68,4 +68,26 @@ TEST_CASE("SearchRun CUDA caesar sweep + CPU↔CUDA parity", "[run][search][cuda
     REQUIRE(report.find("PARCAE - CUDA SEARCH RUN") != std::string::npos);
     REQUIRE(report.find("CPU <-> CUDA      PASS") != std::string::npos);
 }
+
+TEST_CASE("SearchRun CUDA all families parity", "[run][search][cuda][families]") {
+    const parcae::tool::Context ctx{PARCAE_TEST_DATA_DIR};
+    const std::vector<std::string> families = {
+        "caesar", "atbash", "atbash_caesar", "affine", "vigenere"};
+    for (const std::string& family : families) {
+        SearchRun::Options options;
+        options.backend = parcae::tool::Backend::Cuda;
+        options.family = family;
+        options.seed = 42u;
+        options.stream_length = 128;
+        options.throughput_repeats = 1;
+        options.compare_cpu_cuda = true;
+        StatusOr<SearchRunMetrics> metrics = SearchRun::run(ctx, options);
+        INFO(family);
+        REQUIRE(metrics.ok());
+        REQUIRE(metrics.value().tok_per_sec() > 0.0);
+        REQUIRE(metrics.value().eval_passed() == 9);
+        REQUIRE(metrics.value().cpu_cuda_pass().has_value());
+        REQUIRE(metrics.value().cpu_cuda_pass().value());
+    }
+}
 #endif

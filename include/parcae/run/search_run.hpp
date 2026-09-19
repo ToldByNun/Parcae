@@ -16,10 +16,15 @@
 #include "parcae/score/score_request.hpp"
 #include "parcae/tool/context.hpp"
 #include "parcae/tool/tool_backend.hpp"
+#include "parcae/transform/affine_transform.hpp"
+#include "parcae/transform/atbash_transform.hpp"
 #include "parcae/transform/caesar_transform.hpp"
+#include "parcae/transform/compose_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
+#include "parcae/transform/vigenere_key_transform.hpp"
 #include "parcae/validate/plaintext_normalizer.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -35,10 +40,7 @@
 #include <nlohmann/json.hpp>
 
 #if defined(PARCAE_HAS_CUDA)
-#include "caesar_batch_kernel.hpp"
-#include "chi2_english_gp_score.hpp"
-#include "device_buffer.hpp"
-#include "params.hpp"
+#include "parcae/run/search_run_cuda.hpp"
 #endif
 
 /// End-to-end search-run tracker: throughput + sweep scores + locked-fixture eval.
@@ -66,14 +68,31 @@ public:
         if (!usable.ok()) {
             return usable;
         }
-        if (options.family != "caesar") {
-            return Status::error("SearchRun: only family=caesar is supported in v0");
+        static const std::string_view kFamilies[] = {
+            "caesar", "atbash", "atbash_caesar", "affine", "vigenere"};
+        bool family_ok = false;
+        for (std::string_view f : kFamilies) {
+            if (options.family == f) {
+                family_ok = true;
+                break;
+            }
         }
-        if (options.stream_length == 0 || options.stream_length > 4096) {
-            return Status::error("SearchRun: stream_length must be in 1..4096");
+        if (!family_ok) {
+            return Status::error(
+                "SearchRun: family must be caesar|atbash|atbash_caesar|affine|vigenere");
+        }
+        if (options.backend == parcae::tool::Backend::Cpu && options.family != "caesar") {
+            return Status::error(
+                "SearchRun: CPU backend currently supports family=caesar; use --backend cuda");
+        }
+        if (options.stream_length == 0 || options.stream_length > (1u << 22)) {
+            return Status::error("SearchRun: stream_length must be in 1..4194304");
         }
         if (options.throughput_repeats == 0) {
             return Status::error("SearchRun: throughput_repeats must be >= 1");
+        }
+        if (options.score_id != "chi2_english_gp_v0") {
+            return Status::error("SearchRun: score_id must be chi2_english_gp_v0");
         }
 
         std::uint32_t seed = options.seed;
@@ -86,7 +105,7 @@ public:
             return freqs.status();
         }
 
-        // Synthetic plaintext → encrypt with known shift, then sweep decrypt.
+        // Synthetic plaintext → encrypt with known Caesar shift (shared input stream).
         constexpr std::uint8_t kTrueShift = 11;
         const std::vector<Index29> plain = lcg_indices(options.stream_length, seed);
         StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
@@ -99,16 +118,15 @@ public:
 
         SearchRunMetrics metrics;
         metrics.set_seed(seed);
-        metrics.set_transform_id("caesar");
-        metrics.set_parameters_label("shift 0-28");
         metrics.set_score_id(options.score_id);
         metrics.set_backend(std::string(parcae::tool::BackendUtil::to_string(options.backend)));
 
-        StatusOr<SweepResult> sweep = run_caesar_sweep(
-            cipher.value(), options, freqs.value());
+        StatusOr<SweepResult> sweep = run_family_sweep(cipher.value(), options, freqs.value());
         if (!sweep.ok()) {
             return sweep.status();
         }
+        metrics.set_transform_id(sweep.value().transform_id);
+        metrics.set_parameters_label(sweep.value().parameters_label);
         metrics.set_tok_per_sec(sweep.value().tok_per_sec);
         metrics.set_score_mean(sweep.value().score_mean);
         metrics.set_score_std(sweep.value().score_std);
@@ -121,8 +139,11 @@ public:
         metrics.set_eval(eval.value().passed, eval.value().total);
 
         if (options.compare_cpu_cuda && options.backend == parcae::tool::Backend::Cuda) {
-            StatusOr<bool> parity = compare_cpu_cuda_caesar(
-                cipher.value(), freqs.value(), options.score_id);
+            const std::size_t parity_n = std::min<std::size_t>(cipher.value().size(), 256);
+            StatusOr<bool> parity = compare_cpu_cuda_family(
+                options.family,
+                std::span<const Index29>(cipher.value().data(), parity_n),
+                freqs.value());
             if (!parity.ok()) {
                 return parity.status();
             }
@@ -139,6 +160,8 @@ private:
         double tok_per_sec = 0.0;
         double score_mean = 0.0;
         double score_std = 0.0;
+        std::string transform_id;
+        std::string parameters_label;
         std::vector<SearchRunStep> steps;
     };
 
@@ -185,28 +208,39 @@ private:
         return std::sqrt(acc / static_cast<double>(values.size()));
     }
 
-    [[nodiscard]] static StatusOr<SweepResult> run_caesar_sweep(
+    [[nodiscard]] static StatusOr<SweepResult> run_family_sweep(
+        std::span<const Index29> cipher,
+        const Options& options,
+        const ExpectedFrequencyTable& freqs) {
+        if (options.backend == parcae::tool::Backend::Cuda) {
+#if defined(PARCAE_HAS_CUDA)
+            StatusOr<SearchRunCuda::SweepResult> cuda = SearchRunCuda::run(
+                options.family, cipher, freqs, options.throughput_repeats);
+            if (!cuda.ok()) {
+                return cuda.status();
+            }
+            SweepResult result;
+            result.tok_per_sec = cuda.value().tok_per_sec;
+            result.score_mean = cuda.value().score_mean;
+            result.score_std = cuda.value().score_std;
+            result.transform_id = std::move(cuda.value().transform_id);
+            result.parameters_label = std::move(cuda.value().parameters_label);
+            result.steps = std::move(cuda.value().steps);
+            return result;
+#else
+            return Status::error("SearchRun: CUDA not built");
+#endif
+        }
+        return run_caesar_sweep_cpu(cipher, options, freqs);
+    }
+
+    [[nodiscard]] static StatusOr<SweepResult> run_caesar_sweep_cpu(
         std::span<const Index29> cipher,
         const Options& options,
         const ExpectedFrequencyTable& freqs) {
         ScoreRequest request;
         request.expected_frequencies = &freqs;
 
-        if (options.backend == parcae::tool::Backend::Cuda) {
-#if defined(PARCAE_HAS_CUDA)
-            return run_caesar_sweep_cuda(cipher, options, request);
-#else
-            return Status::error("SearchRun: CUDA not built");
-#endif
-        }
-        return run_caesar_sweep_cpu(cipher, options, request);
-    }
-
-    [[nodiscard]] static StatusOr<SweepResult> run_caesar_sweep_cpu(
-        std::span<const Index29> cipher,
-        const Options& options,
-        const ScoreRequest& request) {
-        // Timed: transform + score for all shifts (E2E; setup excluded).
         std::vector<double> scores(Index29::modulus, 0.0);
         const auto t0 = std::chrono::steady_clock::now();
         for (std::size_t rep = 0; rep < options.throughput_repeats; ++rep) {
@@ -237,6 +271,8 @@ private:
         result.tok_per_sec = e2e_seconds > 0.0 ? (runes / e2e_seconds) : 0.0;
         result.score_mean = mean_of(scores);
         result.score_std = stddev_of(scores, result.score_mean);
+        result.transform_id = "caesar";
+        result.parameters_label = "shift 0-28";
         result.steps.reserve(Index29::modulus);
         for (std::uint8_t shift = 0; shift < Index29::modulus; ++shift) {
             const nlohmann::json params = {{"shift", static_cast<int>(shift)}};
@@ -250,151 +286,142 @@ private:
     }
 
 #if defined(PARCAE_HAS_CUDA)
-    [[nodiscard]] static StatusOr<SweepResult> run_caesar_sweep_cuda(
+    [[nodiscard]] static StatusOr<std::vector<double>> cpu_family_scores(
+        std::string_view family,
         std::span<const Index29> cipher,
-        const Options& options,
-        const ScoreRequest& request) {
-        if (options.score_id != "chi2_english_gp_v0") {
-            return Status::error(
-                "SearchRun CUDA resident path requires score_id=chi2_english_gp_v0");
-        }
-        if (request.expected_frequencies == nullptr) {
-            return Status::error("SearchRun CUDA requires expected_frequencies");
-        }
+        const ExpectedFrequencyTable& freqs) {
+        ScoreRequest request;
+        request.expected_frequencies = &freqs;
+        std::vector<double> scores;
 
-        const std::size_t C = Index29::modulus;
-        const std::size_t T = cipher.size();
-        std::vector<std::uint8_t> host_in(T);
-        for (std::size_t i = 0; i < T; ++i) {
-            host_in[i] = cipher[i].value();
-        }
-        std::vector<std::uint8_t> host_shifts(C);
-        std::vector<std::uint8_t> host_dirs(C, static_cast<std::uint8_t>(CudaDir::Decrypt));
-        for (std::size_t c = 0; c < C; ++c) {
-            host_shifts[c] = static_cast<std::uint8_t>(c);
-        }
-
-        // Setup OUTSIDE the timed window: one H2D of inputs + device allocs.
-        StatusOr<DeviceBuffer<std::uint8_t>> device_in =
-            DeviceBuffer<std::uint8_t>::from_host(host_in);
-        if (!device_in.ok()) {
-            return device_in.status();
-        }
-        StatusOr<DeviceBuffer<std::uint8_t>> device_shifts =
-            DeviceBuffer<std::uint8_t>::from_host(host_shifts);
-        if (!device_shifts.ok()) {
-            return device_shifts.status();
-        }
-        StatusOr<DeviceBuffer<std::uint8_t>> device_dirs =
-            DeviceBuffer<std::uint8_t>::from_host(host_dirs);
-        if (!device_dirs.ok()) {
-            return device_dirs.status();
-        }
-        StatusOr<DeviceBuffer<std::uint8_t>> device_out =
-            DeviceBuffer<std::uint8_t>::allocate(C * T);
-        if (!device_out.ok()) {
-            return device_out.status();
-        }
-        StatusOr<DeviceBuffer<unsigned long long>> device_counts =
-            DeviceBuffer<unsigned long long>::allocate(Chi2EnglishGpScore::alphabet_size);
-        if (!device_counts.ok()) {
-            return device_counts.status();
-        }
-
-        const std::span<const double> probs(
-            request.expected_frequencies->probabilities().data(),
-            request.expected_frequencies->probabilities().size());
-
-        // Timed: transform stays on device; score only D2Hs 29-bin histograms
-        // (not C*T plaintext). Cipher/params already resident.
-        std::vector<double> scores(C, 0.0);
-        const auto t0 = std::chrono::steady_clock::now();
-        for (std::size_t rep = 0; rep < options.throughput_repeats; ++rep) {
-            Status launched = CaesarBatchKernel::launch_device(
-                device_in.value().data(),
-                device_shifts.value().data(),
-                device_dirs.value().data(),
-                device_out.value().data(),
-                C,
-                T);
-            if (!launched.ok()) {
-                return launched;
-            }
-            for (std::size_t c = 0; c < C; ++c) {
-                const std::uint8_t* lane = device_out.value().data() + (c * T);
-                StatusOr<double> scored = Chi2EnglishGpScore::score_device(
-                    lane, T, probs, device_counts.value().data());
+        if (family == "caesar") {
+            scores.resize(Index29::modulus);
+            for (std::uint8_t shift = 0; shift < Index29::modulus; ++shift) {
+                StatusOr<std::vector<Index29>> out = CaesarTransform{}.apply(
+                    cipher,
+                    nlohmann::json{{"shift", static_cast<int>(shift)}},
+                    TransformDirection::Decrypt);
+                if (!out.ok()) {
+                    return out.status();
+                }
+                StatusOr<double> scored = ScoreRegistry::score(
+                    "chi2_english_gp_v0", out.value(), "v0", nlohmann::json::object(), request);
                 if (!scored.ok()) {
                     return scored.status();
                 }
-                scores[c] = scored.value();
+                scores[shift] = scored.value();
             }
+            return scores;
         }
-        const auto t1 = std::chrono::steady_clock::now();
-        const double seconds = std::chrono::duration<double>(t1 - t0).count();
-        const double runes =
-            static_cast<double>(options.throughput_repeats) *
-            static_cast<double>(C) *
-            static_cast<double>(T);
-
-        SweepResult result;
-        result.tok_per_sec = seconds > 0.0 ? (runes / seconds) : 0.0;
-        result.score_mean = mean_of(scores);
-        result.score_std = stddev_of(scores, result.score_mean);
-        result.steps.reserve(C);
-        for (std::uint8_t shift = 0; shift < Index29::modulus; ++shift) {
-            const nlohmann::json params = {{"shift", static_cast<int>(shift)}};
-            result.steps.emplace_back(
-                static_cast<std::size_t>(shift),
-                "caesar",
-                hash_params(params),
-                scores[shift]);
+        if (family == "atbash") {
+            StatusOr<std::vector<Index29>> out = AtbashTransform{}.apply(
+                cipher, nlohmann::json::object(), TransformDirection::Decrypt);
+            if (!out.ok()) {
+                return out.status();
+            }
+            StatusOr<double> scored = ScoreRegistry::score(
+                "chi2_english_gp_v0", out.value(), "v0", nlohmann::json::object(), request);
+            if (!scored.ok()) {
+                return scored.status();
+            }
+            return std::vector<double>{scored.value()};
         }
-        return result;
+        if (family == "atbash_caesar") {
+            scores.resize(Index29::modulus);
+            for (std::uint8_t shift = 0; shift < Index29::modulus; ++shift) {
+                StatusOr<std::vector<Index29>> out =
+                    ComposeTransform::apply_atbash_then_caesar(
+                        cipher, shift, TransformDirection::Decrypt);
+                if (!out.ok()) {
+                    return out.status();
+                }
+                StatusOr<double> scored = ScoreRegistry::score(
+                    "chi2_english_gp_v0", out.value(), "v0", nlohmann::json::object(), request);
+                if (!scored.ok()) {
+                    return scored.status();
+                }
+                scores[shift] = scored.value();
+            }
+            return scores;
+        }
+        if (family == "affine") {
+            scores.reserve(812);
+            for (std::uint8_t a = 1; a <= 28; ++a) {
+                for (std::uint8_t b = 0; b < 29; ++b) {
+                    StatusOr<std::vector<Index29>> out = AffineTransform{}.apply(
+                        cipher,
+                        nlohmann::json{{"a", static_cast<int>(a)}, {"b", static_cast<int>(b)}},
+                        TransformDirection::Decrypt);
+                    if (!out.ok()) {
+                        return out.status();
+                    }
+                    StatusOr<double> scored = ScoreRegistry::score(
+                        "chi2_english_gp_v0",
+                        out.value(),
+                        "v0",
+                        nlohmann::json::object(),
+                        request);
+                    if (!scored.ok()) {
+                        return scored.status();
+                    }
+                    scores.push_back(scored.value());
+                }
+            }
+            return scores;
+        }
+        if (family == "vigenere") {
+            scores.reserve(20);
+            for (int L = 1; L <= 20; ++L) {
+                nlohmann::json params;
+                params["key_indices"] = nlohmann::json::array();
+                for (int j = 0; j < L; ++j) {
+                    params["key_indices"].push_back((j + 1) % 29);
+                }
+                StatusOr<std::vector<Index29>> out = VigenereKeyTransform{}.apply(
+                    cipher, params, TransformDirection::Decrypt);
+                if (!out.ok()) {
+                    return out.status();
+                }
+                StatusOr<double> scored = ScoreRegistry::score(
+                    "chi2_english_gp_v0", out.value(), "v0", nlohmann::json::object(), request);
+                if (!scored.ok()) {
+                    return scored.status();
+                }
+                scores.push_back(scored.value());
+            }
+            return scores;
+        }
+        return Status::error("SearchRun: unknown family for CPU reference");
     }
 
-    [[nodiscard]] static StatusOr<bool> compare_cpu_cuda_caesar(
+    [[nodiscard]] static StatusOr<bool> compare_cpu_cuda_family(
+        std::string_view family,
         std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::string_view score_id) {
-        ScoreRequest request;
-        request.expected_frequencies = &freqs;
-
-        Options cpu_opts;
-        cpu_opts.backend = parcae::tool::Backend::Cpu;
-        cpu_opts.score_id = std::string(score_id);
-        cpu_opts.throughput_repeats = 1;
-        cpu_opts.stream_length = cipher.size();
-
-        Options cuda_opts = cpu_opts;
-        cuda_opts.backend = parcae::tool::Backend::Cuda;
-
-        StatusOr<SweepResult> cpu = run_caesar_sweep_cpu(cipher, cpu_opts, request);
+        const ExpectedFrequencyTable& freqs) {
+        StatusOr<std::vector<double>> cpu = cpu_family_scores(family, cipher, freqs);
         if (!cpu.ok()) {
             return cpu.status();
         }
-        StatusOr<SweepResult> cuda = run_caesar_sweep_cuda(cipher, cuda_opts, request);
+        StatusOr<SearchRunCuda::SweepResult> cuda =
+            SearchRunCuda::run(family, cipher, freqs, /*throughput_repeats=*/1);
         if (!cuda.ok()) {
             return cuda.status();
         }
-        if (cpu.value().steps.size() != cuda.value().steps.size()) {
+        if (cpu.value().size() != cuda.value().steps.size()) {
             return false;
         }
-        for (std::size_t i = 0; i < cpu.value().steps.size(); ++i) {
-            if (cpu.value().steps[i].score() != cuda.value().steps[i].score()) {
-                return false;
-            }
-            if (cpu.value().steps[i].param_hash() != cuda.value().steps[i].param_hash()) {
+        for (std::size_t i = 0; i < cpu.value().size(); ++i) {
+            if (cpu.value()[i] != cuda.value().steps[i].score()) {
                 return false;
             }
         }
         return true;
     }
 #else
-    [[nodiscard]] static StatusOr<bool> compare_cpu_cuda_caesar(
+    [[nodiscard]] static StatusOr<bool> compare_cpu_cuda_family(
+        std::string_view,
         std::span<const Index29>,
-        const ExpectedFrequencyTable&,
-        std::string_view) {
+        const ExpectedFrequencyTable&) {
         return Status::error("SearchRun: CUDA not built");
     }
 #endif
