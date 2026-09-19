@@ -10,6 +10,13 @@ function(parcae_add_cli name)
   target_compile_definitions(${name} PRIVATE
     PARCAE_DEFAULT_DATA_DIR="${CMAKE_SOURCE_DIR}/data"
   )
+  # Optional CUDA twins for --backend cuda (same sources as parcae_tests).
+  if(TARGET parcae::cuda)
+    target_link_libraries(${name} PRIVATE parcae::cuda)
+    target_include_directories(${name} PRIVATE
+      "${CMAKE_SOURCE_DIR}/Parcae/Parcae/cuda"
+    )
+  endif()
   parcae_set_project_warnings(${name})
 endfunction()
 
@@ -43,6 +50,27 @@ if(PARCAE_BUILD_TESTS)
       --transform-id atbash
       --direction decrypt
   )
+
+  if(TARGET parcae::cuda)
+    add_test(
+      NAME cli_decode_flags_atbash_cuda
+      COMMAND $<TARGET_FILE:parcae-decode>
+        --data-dir "${CMAKE_SOURCE_DIR}/data"
+        --input "${CMAKE_SOURCE_DIR}/data/fixtures/solved/a-warning/ciphertext.txt"
+        --transform-id atbash
+        --direction decrypt
+        --backend cuda
+    )
+    add_test(
+      NAME cli_score_ic_indices_cuda
+      COMMAND $<TARGET_FILE:parcae-score>
+        --data-dir "${CMAKE_SOURCE_DIR}/data"
+        --score-id ic_mod29
+        --indices
+        --backend cuda
+        --input "${CMAKE_SOURCE_DIR}/data/fixtures/cli/score-indices.txt"
+    )
+  endif()
 
   add_test(
     NAME cli_score_ic_indices

@@ -35,6 +35,7 @@ void print_help() {
         << "\n"
         << "  --score-id       Registry id (e.g. ic_mod29, chi2_english_gp_v0)\n"
         << "  --params-json    Optional params object (e.g. {\"reference\":[…]})\n"
+        << "  --backend        cpu|cuda (default cpu; exit 2 if cuda not built)\n"
         << "  --list           Print known score ids and exit\n"
         << "  --json           Machine-readable JSON on stdout\n"
         << "  --data-dir       Parcae data/ root\n"
@@ -130,6 +131,19 @@ int main(int argc, char** argv) {
     const bool json_mode = has_flag(args, "--json");
     const std::string data_dir = optional_option(args, "--data-dir");
 
+    StatusOr<parcae::tool::Backend> backend = parcae::tool::BackendUtil::from_string(
+        optional_option(args, "--backend", "cpu"));
+    if (!backend.ok()) {
+        std::cerr << backend.status().message() << '\n';
+        print_help();
+        return kExitUsage;
+    }
+    Status backend_ok = parcae::tool::BackendUtil::ensure_usable(backend.value());
+    if (!backend_ok.ok()) {
+        std::cerr << backend_ok.message() << '\n';
+        return kExitUsage;
+    }
+
     StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
         std::cerr << ctx.status().message() << '\n';
@@ -207,8 +221,14 @@ int main(int argc, char** argv) {
         }
     }
 
-    StatusOr<double> value =
-        parcae::tool::score(ctx.value(), candidate.value(), score_id.value(), "v0", params);
+    StatusOr<double> value = parcae::tool::score(
+        ctx.value(),
+        candidate.value(),
+        score_id.value(),
+        "v0",
+        params,
+        {},
+        backend.value());
     if (!value.ok()) {
         std::cerr << value.status().message() << '\n';
         return kExitFail;
@@ -218,6 +238,7 @@ int main(int argc, char** argv) {
         std::cout << nlohmann::json{
                          {"score_id", score_id.value()},
                          {"score_version", "v0"},
+                         {"backend", parcae::tool::BackendUtil::to_string(backend.value())},
                          {"value", value.value()},
                      }
                          .dump(2)

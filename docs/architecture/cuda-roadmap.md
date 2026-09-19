@@ -79,7 +79,9 @@ Workstreams below; **layout overrides** any earlier sketch that used
 
 | Commit | Title |
 |--------|-------|
-| 35–37 | tool/CLI `--backend cuda`, `parcae-parity` |
+| 35 | feat: tool backend switch (cpu\|cuda) |
+| 36 | feat: CLI `--backend cuda` on decode/score |
+| 37 | feat: `parcae-parity` tool — dump/compare records |
 | 38–39 | cuda-reference + exit checklist docs |
 | 40 | property round-trips on CUDA |
 | 41–42 | version 0.3.0 + annotated tag `v0.3.0-cuda-parity` |

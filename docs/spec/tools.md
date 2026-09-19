@@ -32,12 +32,15 @@ tokenize(ctx, source_utf8, grammar_id="rtkd-separator-grammar-v0", strict=true)
 ### `apply_transform`
 
 ```text
-apply_to_indices(span<Index29> | TokenStream, TransformEnvelope)
+apply_to_indices(span<Index29> | TokenStream, TransformEnvelope, backend=cpu)
   → vector<Index29> | Status
 
-apply_and_rebuild_text(ctx, TokenStream, TransformEnvelope)
+apply_and_rebuild_text(ctx, TokenStream, TransformEnvelope, backend=cpu)
   → string | Status   // preserves non-rune separators
 ```
+
+`backend` is `cpu` (default) or `cuda`. CUDA requires a build with
+`PARCAE_BUILD_CUDA=ON` (`PARCAE_HAS_CUDA`); otherwise the call returns an error.
 
 When given a `TokenStream`, apply only to consumable runes. Both index-only and
 rebuild-text paths are provided as above.
@@ -56,12 +59,13 @@ in tests.
 ### `score`
 
 ```text
-score(ctx, span<Index29>, score_id, score_version="v0", params_json?, request?)
+score(ctx, span<Index29>, score_id, score_version="v0", params_json?, request?, backend=cpu)
   → float | Status
 ```
 
 `chi2_english_gp_v0` auto-loads `profiles/scores/english-gp-expected-v0.json`
-when `request.expected_frequencies` is null.
+when `request.expected_frequencies` is null. `backend=cuda` dispatches to
+`CudaScore` when CUDA is linked.
 
 ### `validate_fixture`
 
@@ -116,23 +120,26 @@ JSON shape:
 ### `parcae-decode`
 
 ```text
-parcae-decode --manifest <fixture_dir|manifest.json> [--json]
-parcae-decode --transform-json <path> --input <file|-> [--json]
+parcae-decode --manifest <fixture_dir|manifest.json> [--backend cpu|cuda] [--json]
+parcae-decode --transform-json <path> --input <file|-> [--backend cpu|cuda] [--json]
 parcae-decode --input <file|-> --transform-id <id>
               [--direction decrypt|encrypt]
               [--params-json <json> | --key-indices <list> --key-latin <text> --shift <n>]
               [--skip-indices <list>]
+              [--backend cpu|cuda]
               [--json]
 ```
 
 Prints Latin plaintext (or JSON with `indices` + `latin`). Method/key/skips come
 from the fixture manifest, a transform envelope JSON file, or explicit flags.
+`--backend cuda` requires a CUDA-linked build; otherwise exit status **2**.
 
 ### `parcae-score`
 
 ```text
 parcae-score --score-id <id> --input <file|->
              [--latin|--runes|--indices] [--params-json <json>]
+             [--backend cpu|cuda]
              [--json] [--data-dir <path>]
 parcae-score --list [--json] [--data-dir <path>]
 ```
@@ -141,9 +148,10 @@ Default input mode is `--latin` (letters only → delatinize). `--runes` tokeniz
 UTF-8 Liber Primus text; `--indices` parses `0..28` integers. JSON shape:
 
 ```json
-{ "score_id": "ic_mod29", "score_version": "v0", "value": 1.0 }
+{ "score_id": "ic_mod29", "score_version": "v0", "backend": "cpu", "value": 1.0 }
 ```
 
+`parcae-validate` stays CPU-only (no `--backend`).
 ### `parcae-validate`
 
 ```text

@@ -102,6 +102,57 @@ TEST_CASE("tool::apply_to_indices and apply_and_rebuild_text", "[tool][apply]") 
     REQUIRE(rebuilt.value() == e3.value() + "-" + e4.value());
 }
 
+TEST_CASE("tool::apply_to_indices Backend::Cuda matches CPU when available", "[tool][backend]") {
+    StatusOr<parcae::tool::Backend> parsed = parcae::tool::BackendUtil::from_string("cuda");
+    REQUIRE(parsed.ok());
+    REQUIRE(parsed.value() == parcae::tool::Backend::Cuda);
+    REQUIRE(parcae::tool::BackendUtil::from_string("cpu").value() == parcae::tool::Backend::Cpu);
+    REQUIRE_FALSE(parcae::tool::BackendUtil::from_string("gpu").ok());
+
+#if defined(PARCAE_HAS_CUDA)
+    REQUIRE(parcae::tool::BackendUtil::cuda_built());
+    REQUIRE(parcae::tool::BackendUtil::ensure_usable(parcae::tool::Backend::Cuda).ok());
+
+    StatusOr<parcae::tool::TransformEnvelope> env = parcae::tool::TransformEnvelope::from_json(
+        nlohmann::json{
+            {"transform_id", "caesar"},
+            {"direction", "decrypt"},
+            {"params", {{"shift", 5}}},
+        });
+    REQUIRE(env.ok());
+
+    const std::vector<Index29> cipher = {I(5), I(6), I(7), I(10)};
+    StatusOr<std::vector<Index29>> cpu =
+        parcae::tool::apply_to_indices(cipher, env.value(), parcae::tool::Backend::Cpu);
+    StatusOr<std::vector<Index29>> cuda =
+        parcae::tool::apply_to_indices(cipher, env.value(), parcae::tool::Backend::Cuda);
+    REQUIRE(cpu.ok());
+    REQUIRE(cuda.ok());
+    REQUIRE(cuda.value() == cpu.value());
+
+    StatusOr<double> cpu_score =
+        parcae::tool::score(test_ctx(), cpu.value(), "ic_mod29", "v0", {}, {}, parcae::tool::Backend::Cpu);
+    StatusOr<double> cuda_score =
+        parcae::tool::score(test_ctx(), cpu.value(), "ic_mod29", "v0", {}, {}, parcae::tool::Backend::Cuda);
+    REQUIRE(cpu_score.ok());
+    REQUIRE(cuda_score.ok());
+    REQUIRE(cuda_score.value() == cpu_score.value());
+#else
+    REQUIRE_FALSE(parcae::tool::BackendUtil::cuda_built());
+    REQUIRE_FALSE(parcae::tool::BackendUtil::ensure_usable(parcae::tool::Backend::Cuda).ok());
+    StatusOr<parcae::tool::TransformEnvelope> env = parcae::tool::TransformEnvelope::from_json(
+        nlohmann::json{
+            {"transform_id", "identity"},
+            {"direction", "decrypt"},
+            {"params", nlohmann::json::object()},
+        });
+    REQUIRE(env.ok());
+    REQUIRE_FALSE(
+        parcae::tool::apply_to_indices(std::vector<Index29>{I(1)}, env.value(), parcae::tool::Backend::Cuda)
+            .ok());
+#endif
+}
+
 TEST_CASE("tool::to_latin preferred labels", "[tool][latin]") {
     const auto ctx = test_ctx();
     // Index 0 preferred is typically F; 1 is U — join without spaces.

@@ -36,6 +36,7 @@ void print_help() {
         << "  --shift <n>             Shortcut for caesar params.shift\n"
         << "\n"
         << "Global:\n"
+        << "  --backend    cpu|cuda (default cpu; exit 2 if cuda not built)\n"
         << "  --json       JSON with indices + latin on stdout\n"
         << "  --data-dir   Parcae data/ root\n"
         << "  -h, --help   Show this help\n";
@@ -166,6 +167,19 @@ int main(int argc, char** argv) {
     const bool json_mode = has_flag(args, "--json");
     const std::string data_dir = optional_option(args, "--data-dir");
 
+    StatusOr<parcae::tool::Backend> backend = parcae::tool::BackendUtil::from_string(
+        optional_option(args, "--backend", "cpu"));
+    if (!backend.ok()) {
+        std::cerr << backend.status().message() << '\n';
+        print_help();
+        return kExitUsage;
+    }
+    Status backend_ok = parcae::tool::BackendUtil::ensure_usable(backend.value());
+    if (!backend_ok.ok()) {
+        std::cerr << backend_ok.message() << '\n';
+        return kExitUsage;
+    }
+
     StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
         std::cerr << ctx.status().message() << '\n';
@@ -216,7 +230,7 @@ int main(int argc, char** argv) {
         }
 
         StatusOr<std::vector<Index29>> plain =
-            parcae::tool::apply_to_indices(stream.value(), envelope.value());
+            parcae::tool::apply_to_indices(stream.value(), envelope.value(), backend.value());
         if (!plain.ok()) {
             std::cerr << plain.status().message() << '\n';
             return kExitFail;
@@ -264,7 +278,7 @@ int main(int argc, char** argv) {
     }
 
     StatusOr<std::vector<Index29>> plain =
-        parcae::tool::apply_to_indices(stream.value(), envelope.value());
+        parcae::tool::apply_to_indices(stream.value(), envelope.value(), backend.value());
     if (!plain.ok()) {
         std::cerr << plain.status().message() << '\n';
         return kExitFail;

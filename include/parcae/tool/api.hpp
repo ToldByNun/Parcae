@@ -12,12 +12,18 @@
 #include "parcae/score/score_id.hpp"
 #include "parcae/score/score_registry.hpp"
 #include "parcae/score/score_request.hpp"
+#include "parcae/tool/tool_backend.hpp"
 #include "parcae/tool/context.hpp"
 #include "parcae/tool/transform_envelope.hpp"
 #include "parcae/transform/apply_transform.hpp"
 #include "parcae/transform/transform_id.hpp"
 #include "parcae/validate/fixture_validator.hpp"
 #include "parcae/validate/validation_report.hpp"
+
+#if defined(PARCAE_HAS_CUDA)
+#include "backend.hpp"
+#include "cuda_score.hpp"
+#endif
 
 #include <cstddef>
 #include <optional>
@@ -48,31 +54,56 @@ namespace parcae::tool {
     return Tokenizer{profile.value(), grammar.value()}.tokenize(source_utf8, strict);
 }
 
-/// Apply envelope to a consumable Index29 span.
+/// Apply envelope to a consumable Index29 span (`Backend::Cpu` default).
 [[nodiscard]] inline StatusOr<std::vector<Index29>> apply_to_indices(
     std::span<const Index29> input,
-    const TransformEnvelope& envelope) {
-    return ApplyTransform::apply(
+    const TransformEnvelope& envelope,
+    Backend backend = Backend::Cpu) {
+    Status usable = BackendUtil::ensure_usable(backend);
+    if (!usable.ok()) {
+        return usable;
+    }
+
+    if (backend == Backend::Cpu) {
+        return ApplyTransform::apply(
+            envelope.transform_id(),
+            input,
+            envelope.params(),
+            envelope.direction(),
+            envelope.interrupt());
+    }
+
+#if defined(PARCAE_HAS_CUDA)
+    if (!CudaBackend::available()) {
+        return Status::error("CUDA backend requested but CUDA is not available");
+    }
+    return CudaBackend::apply(
         envelope.transform_id(),
         input,
         envelope.params(),
         envelope.direction(),
         envelope.interrupt());
+#else
+    return Status::error(
+        "CUDA backend requested but Parcae was built without CUDA (PARCAE_BUILD_CUDA)");
+#endif
 }
 
 /// Apply envelope to consumable runes of a token stream (indices only).
 [[nodiscard]] inline StatusOr<std::vector<Index29>> apply_to_indices(
     const TokenStream& stream,
-    const TransformEnvelope& envelope) {
-    return apply_to_indices(stream.consumable_indices(), envelope);
+    const TransformEnvelope& envelope,
+    Backend backend = Backend::Cpu) {
+    return apply_to_indices(stream.consumable_indices(), envelope, backend);
 }
 
 /// Apply to consumable runes and rebuild UTF-8 text, preserving non-rune tokens.
 [[nodiscard]] inline StatusOr<std::string> apply_and_rebuild_text(
     const Context& ctx,
     const TokenStream& stream,
-    const TransformEnvelope& envelope) {
-    StatusOr<std::vector<Index29>> plain = apply_to_indices(stream, envelope);
+    const TransformEnvelope& envelope,
+    Backend backend = Backend::Cpu) {
+    StatusOr<std::vector<Index29>> plain = apply_to_indices(stream, envelope, backend);
     if (!plain.ok()) {
         return plain.status();
     }
@@ -140,14 +171,20 @@ namespace parcae::tool {
     return codec.latinize(std::vector<Index29>(indices.begin(), indices.end()));
 }
 
-/// Score via `ScoreRegistry`. Loads english-gp table for chi² when not supplied.
+/// Score via CPU `ScoreRegistry` or CUDA `CudaScore` (`Backend::Cpu` default).
 [[nodiscard]] inline StatusOr<double> score(
     const Context& ctx,
     std::span<const Index29> indices,
     std::string_view score_id,
     std::string_view score_version = "v0",
     const nlohmann::json& params = nlohmann::json::object(),
-    ScoreRequest request = {}) {
+    ScoreRequest request = {},
+    Backend backend = Backend::Cpu) {
+    Status usable = BackendUtil::ensure_usable(backend);
+    if (!usable.ok()) {
+        return usable;
+    }
+
     std::optional<ExpectedFrequencyTable> owned_table;
     if (score_id == ScoreId::chi2_english_gp_v0().str() &&
         request.expected_frequencies == nullptr) {
@@ -158,7 +195,20 @@ namespace parcae::tool {
         owned_table = std::move(table.value());
         request.expected_frequencies = &owned_table.value();
     }
-    return ScoreRegistry::score(score_id, indices, score_version, params, request);
+
+    if (backend == Backend::Cpu) {
+        return ScoreRegistry::score(score_id, indices, score_version, params, request);
+    }
+
+#if defined(PARCAE_HAS_CUDA)
+    if (!CudaScore::available()) {
+        return Status::error("CUDA backend requested but CUDA is not available");
+    }
+    return CudaScore::score(score_id, indices, score_version, params, request);
+#else
+    return Status::error(
+        "CUDA backend requested but Parcae was built without CUDA (PARCAE_BUILD_CUDA)");
+#endif
 }
 
 /// Validate a fixture directory path or solved-fixture id.
