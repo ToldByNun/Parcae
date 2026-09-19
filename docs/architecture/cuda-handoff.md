@@ -5,7 +5,8 @@ that match it bit-for-bit.
 
 **CUDA status:** twin catalog + batch + tools + fused search-run landed —
 architecture in [`cuda-reference.md`](cuda-reference.md), device ABI in
-[`cuda-abi.md`](cuda-abi.md). Exit tag `v0.3.0-cuda-parity` pending commits 40–42.  
+[`cuda-abi.md`](cuda-abi.md). Exit tag `v0.3.0-cuda-parity` cut when twins +
+property suite are green (see exit checklist below).  
 **CUDA source home:** [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio).
 
 See also: [`cpu-reference.md`](cpu-reference.md), [`docs/spec/parity.md`](../spec/parity.md).
@@ -250,7 +251,7 @@ following hold. Architecture narrative: [`cuda-reference.md`](cuda-reference.md)
 - [x] `[cuda][parity][golden]` + `[cuda][parity][solved]` green with Toolkit+GPU
 - [x] Hosted CI CPU-default; `[cuda]` host stubs pass without Toolkit
 - [x] CUDA property round-trips (roadmap commit 40)
-- [ ] Annotated tag `v0.3.0-cuda-parity` (commits 41–42)
+- [x] Annotated tag `v0.3.0-cuda-parity` (commits 41–42)
 
 ### Docs
 

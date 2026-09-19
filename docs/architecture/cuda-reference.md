@@ -10,8 +10,8 @@ Normative ABI: [`cuda-abi.md`](cuda-abi.md). Reduction rules:
 procedure: [`cuda-handoff.md`](cuda-handoff.md). Build notes:
 [`cuda-build.md`](cuda-build.md).
 
-**Status:** twin catalog + batch SoA + tool backends + fused search-run path
-landed; exit tag not yet cut (see [Exit checklist](#cuda-exit-checklist)).
+**Status:** twin catalog + batch SoA + tool backends + fused search-run +
+`[cuda][property]` landed; annotated exit tag `v0.3.0-cuda-parity`.
 
 ## Design rules
 
@@ -157,7 +157,7 @@ Prerequisites for annotated tag `v0.3.0-cuda-parity` (also mirrored in
 
 - [x] This reference + ABI / reduction / build / handoff
 - [x] Property round-trips on CUDA (roadmap commit 40)
-- [ ] Version bump + annotated tag `v0.3.0-cuda-parity` (commits 41–42)
+- [x] Version bump + annotated tag `v0.3.0-cuda-parity` (commits 41–42)
 
 ## Related docs
 
