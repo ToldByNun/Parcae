@@ -13,7 +13,7 @@
 class Chi2BatchScore {
 public:
     static constexpr std::size_t alphabet_size = 29;
-    static constexpr std::size_t kMaxCandidates = 8192;
+    static constexpr std::size_t kMaxCandidates = 16384;
     static constexpr std::size_t kMaxTokens = 1u << 22;
 
     /// Multi-block histogram of `device_out[c * T + t]` into `device_counts[C * 29]`.

@@ -27,6 +27,7 @@ set(PARCAE_CUDA_SOURCES
   chi2_batch_score.cu
   caesar_chi2_batch.cu
   family_chi2_batch.cu
+  deep_score_batch.cu
 )
 
 add_library(parcae_cuda STATIC ${PARCAE_CUDA_SOURCES})

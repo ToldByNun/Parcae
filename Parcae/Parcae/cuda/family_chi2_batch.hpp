@@ -13,7 +13,7 @@
 class FamilyChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;
-    static constexpr std::size_t kMaxCandidates = 8192;
+    static constexpr std::size_t kMaxCandidates = 16384;
     static constexpr std::size_t kMaxTokens = 1u << 22;
 
     /// Atbash: `y = 28 - x` for every candidate lane (typically C=1).

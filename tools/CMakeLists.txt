@@ -27,6 +27,8 @@ parcae_add_cli(parcae-validate parcae_validate/main.cpp)
 parcae_add_cli(parcae-parity-gen parcae_parity_gen/main.cpp)
 parcae_add_cli(parcae-parity parcae_parity/main.cpp)
 parcae_add_cli(parcae-search-run parcae_search_run/main.cpp)
+parcae_add_cli(parcae-blind-crack parcae_blind_crack/main.cpp)
+parcae_add_cli(parcae-throughput-tiers parcae_throughput_tiers/main.cpp)
 
 if(PARCAE_BUILD_TESTS)
   add_test(
