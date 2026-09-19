@@ -96,6 +96,18 @@ if(PARCAE_BUILD_TESTS)
   )
 
   add_test(
+    NAME cli_hypothesis_init_data_dir_under_fixtures_denied
+    COMMAND $<TARGET_FILE:parcae-hypothesis>
+      --data-dir "${CMAKE_SOURCE_DIR}/data/fixtures/solved/a-warning"
+      init
+      --workspace evil-ws
+      --id h-evil
+      --json
+  )
+  set_tests_properties(
+    cli_hypothesis_init_data_dir_under_fixtures_denied PROPERTIES WILL_FAIL TRUE)
+
+  add_test(
     NAME cli_tokenize_a_warning
     COMMAND $<TARGET_FILE:parcae-tokenize>
       --data-dir "${CMAKE_SOURCE_DIR}/data"

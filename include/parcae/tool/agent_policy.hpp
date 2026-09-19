@@ -129,7 +129,12 @@ public:
     }
 
     /// Writes MUST stay under `data_root` and MUST NOT land under `fixtures/`.
+    /// Also rejects a mis-pointed `--data-dir` that itself sits under `fixtures/`.
     [[nodiscard]] Status allow_write(const std::filesystem::path& write_path) const {
+        Status root_ok = deny_data_root_inside_fixtures();
+        if (!root_ok.ok()) {
+            return root_ok;
+        }
         Status under = require_under_data_root(write_path);
         if (!under.ok()) {
             return under;
@@ -150,6 +155,10 @@ public:
     [[nodiscard]] Status allow_workspace_write(
         std::string_view workspace_id,
         const std::filesystem::path& relative) const {
+        Status root_ok = deny_data_root_inside_fixtures();
+        if (!root_ok.ok()) {
+            return root_ok;
+        }
         StatusOr<std::filesystem::path> ws =
             WorkspacePaths::workspace_root(data_root_, workspace_id);
         if (!ws.ok()) {
@@ -175,13 +184,35 @@ public:
             msg.find("absolute paths are not allowed") != std::string::npos ||
             msg.find("deny-listed") != std::string::npos ||
             msg.find("allow-list") != std::string::npos ||
-            msg.find("allow_cuda") != std::string::npos) {
+            msg.find("allow_cuda") != std::string::npos ||
+            msg.find("under fixtures/") != std::string::npos) {
             return ToolErrorCode::Policy;
         }
         return ToolErrorCode::Internal;
     }
 
 private:
+    /// `--data-dir` must not point at (or inside) the corpus `fixtures/` tree.
+    [[nodiscard]] Status deny_data_root_inside_fixtures() const {
+        std::error_code ec;
+        std::filesystem::path cur = std::filesystem::weakly_canonical(data_root_, ec);
+        if (ec) {
+            cur = data_root_.lexically_normal();
+        }
+        while (true) {
+            if (cur.filename() == "fixtures") {
+                return Status::error(
+                    "AgentPolicy: data_root must not be under fixtures/ (refusing writes)");
+            }
+            const std::filesystem::path parent = cur.parent_path();
+            if (parent.empty() || parent == cur) {
+                break;
+            }
+            cur = parent;
+        }
+        return Status::success();
+    }
+
     [[nodiscard]] Status require_under_data_root(const std::filesystem::path& candidate) const {
         std::error_code ec;
         const std::filesystem::path root_canon =

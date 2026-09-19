@@ -16,6 +16,7 @@ add_executable(parcae_tests
   tool_api_test.cpp
   tool_response_test.cpp
   agent_policy_test.cpp
+  agent_policy_cli_test.cpp
   hypothesis_record_test.cpp
   hypothesis_sandbox_test.cpp
   parity_test.cpp

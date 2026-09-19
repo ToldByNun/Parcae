@@ -87,6 +87,7 @@ paths or selecting backends:
 | Binary deny-list | `allow_binary` | `policy` |
 | CUDA without opt-in | `allow_backend` / `check_backend_string` | `policy` |
 | Write under `fixtures/` or outside `data_root` | `allow_write` | `policy` |
+| `--data-dir` pointing inside `fixtures/` | `allow_workspace_write` / `allow_write` | `policy` |
 | Workspace-relative escape | `allow_workspace_write` | `policy` |
 
 `allow_cuda` defaults to **false**. Operator opt-in is `--allow-cuda` on
