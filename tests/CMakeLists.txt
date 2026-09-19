@@ -44,6 +44,7 @@ add_executable(parcae_tests
   cuda_score_noise_test.cpp
   cuda_batch_score_test.cpp
   cuda_batch_rank1_test.cpp
+  search_run_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE

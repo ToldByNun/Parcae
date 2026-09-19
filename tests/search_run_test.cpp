@@ -1,0 +1,71 @@
+#include <catch2/catch_test_macros.hpp>
+
+#include "parcae/run/search_run.hpp"
+#include "parcae/run/search_run_console.hpp"
+#include "parcae/tool/context.hpp"
+#include "parcae/tool/tool_backend.hpp"
+
+#include <string>
+
+#ifndef PARCAE_TEST_DATA_DIR
+#error "PARCAE_TEST_DATA_DIR must be defined"
+#endif
+
+TEST_CASE("SearchRun CPU caesar sweep + fixture eval", "[run][search]") {
+    const parcae::tool::Context ctx{PARCAE_TEST_DATA_DIR};
+
+    SearchRun::Options options;
+    options.backend = parcae::tool::Backend::Cpu;
+    options.family = "caesar";
+    options.seed = 2109016688u;
+    options.stream_length = 256;
+    options.throughput_repeats = 2;
+    options.compare_cpu_cuda = false;
+
+    StatusOr<SearchRunMetrics> metrics = SearchRun::run(ctx, options);
+    REQUIRE(metrics.ok());
+    REQUIRE(metrics.value().transform_id() == "caesar");
+    REQUIRE(metrics.value().seed() == 2109016688u);
+    REQUIRE(metrics.value().steps().size() == 29);
+    REQUIRE(metrics.value().tok_per_sec() > 0.0);
+    REQUIRE(metrics.value().eval_total() == 9);
+    REQUIRE(metrics.value().eval_passed() == 9);
+    REQUIRE(metrics.value().eval_set_pass_rate() == 1.0);
+    REQUIRE_FALSE(metrics.value().cpu_cuda_pass().has_value());
+
+    const std::string report = SearchRunConsole::format(metrics.value());
+    REQUIRE(report.find("PARCAE - SEARCH RUN") != std::string::npos);
+    REQUIRE(report.find("Transform:      Caesar") != std::string::npos);
+    REQUIRE(report.find("Parameters:     shift 0-28") != std::string::npos);
+    REQUIRE(report.find("Seed:           2109016688") != std::string::npos);
+    REQUIRE(report.find("Throughput") != std::string::npos);
+    REQUIRE(report.find('#') != std::string::npos);
+    REQUIRE(report.find("Fixture Eval    9 / 9") != std::string::npos);
+}
+
+#if defined(PARCAE_HAS_CUDA)
+TEST_CASE("SearchRun CUDA caesar sweep + CPU↔CUDA parity", "[run][search][cuda]") {
+    const parcae::tool::Context ctx{PARCAE_TEST_DATA_DIR};
+
+    SearchRun::Options options;
+    options.backend = parcae::tool::Backend::Cuda;
+    options.family = "caesar";
+    options.seed = 2109016688u;
+    options.stream_length = 256;
+    options.throughput_repeats = 2;
+    options.compare_cpu_cuda = true;
+
+    StatusOr<SearchRunMetrics> metrics = SearchRun::run(ctx, options);
+    REQUIRE(metrics.ok());
+    REQUIRE(metrics.value().backend() == "cuda");
+    REQUIRE(metrics.value().steps().size() == 29);
+    REQUIRE(metrics.value().tok_per_sec() > 0.0);
+    REQUIRE(metrics.value().eval_passed() == 9);
+    REQUIRE(metrics.value().cpu_cuda_pass().has_value());
+    REQUIRE(metrics.value().cpu_cuda_pass().value());
+
+    const std::string report = SearchRunConsole::format(metrics.value());
+    REQUIRE(report.find("PARCAE - CUDA SEARCH RUN") != std::string::npos);
+    REQUIRE(report.find("CPU <-> CUDA      PASS") != std::string::npos);
+}
+#endif

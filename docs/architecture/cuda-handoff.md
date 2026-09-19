@@ -148,6 +148,9 @@ and that both sides emit the same `ParityRecord` digests (except `backend`).
    data/parity/<name>.out.idx29     # optional raw uint8 output bytes
    ```
 
+   Replay / CUDA compare: `parcae-parity check [--compare-cuda]`.
+   Dump a live record: `parcae-parity dump --name <golden> [--backend cuda]`.
+
 4. Record `output_sha256` (and input/params/interrupt hashes) in the JSON.
    **Do not** rewrite locked solved-fixture hashes for CUDA experiments.
 

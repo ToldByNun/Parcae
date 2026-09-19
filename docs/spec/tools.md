@@ -2,7 +2,8 @@
 
 **Status:** Normative  
 **Headers (planned):** `parcae/tool/api.hpp`  
-**Binaries:** `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate`
+**Binaries:** `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate`,
+`parcae-parity`, `parcae-parity-gen`, `parcae-search-run`
 
 ## Principles
 
@@ -152,6 +153,36 @@ UTF-8 Liber Primus text; `--indices` parses `0..28` integers. JSON shape:
 ```
 
 `parcae-validate` stays CPU-only (no `--backend`).
+
+### `parcae-parity`
+
+```text
+parcae-parity check [--all|--name <golden>] [--compare-cuda]
+                    [--parity-dir <path>] [--data-dir <path>] [--json]
+parcae-parity dump  --name <golden> [--backend cpu|cuda]
+                    [--parity-dir <path>] [--data-dir <path>]
+```
+
+Replays committed goldens under `data/parity/` (see `parcae-parity-gen`).
+`check` verifies CPU digests; `--compare-cuda` also runs `CudaBackend` and
+requires matching digests except `backend` (`cpu` vs `cuda`). Exit **2** if
+CUDA is requested but not built.
+
+### `parcae-search-run`
+
+```text
+parcae-search-run [--backend cpu|cuda] [--family caesar]
+                  [--seed <u32>] [--stream-length <n>] [--repeats <n>]
+                  [--score-id <id>] [--no-compare] [--json] [--data-dir <path>]
+```
+
+AI-style search dashboard: **throughput** (runes/s over transform+score),
+**sweep scores** (parameter axis), and **locked-fixture eval** (scorer sanity).
+`tok_per_sec` is intentionally non-deterministic. v0 family is `caesar`
+(shift 0–28). With `--backend cuda`, also reports CPU↔CUDA score parity unless
+`--no-compare`. Exit **1** if fixture eval is not all-pass or CUDA parity fails;
+exit **2** if CUDA is requested but not built.
+
 ### `parcae-validate`
 
 ```text

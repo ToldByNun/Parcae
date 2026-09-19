@@ -25,6 +25,8 @@ parcae_add_cli(parcae-decode parcae_decode/main.cpp)
 parcae_add_cli(parcae-score parcae_score/main.cpp)
 parcae_add_cli(parcae-validate parcae_validate/main.cpp)
 parcae_add_cli(parcae-parity-gen parcae_parity_gen/main.cpp)
+parcae_add_cli(parcae-parity parcae_parity/main.cpp)
+parcae_add_cli(parcae-search-run parcae_search_run/main.cpp)
 
 if(PARCAE_BUILD_TESTS)
   add_test(
@@ -87,6 +89,54 @@ if(PARCAE_BUILD_TESTS)
       --data-dir "${CMAKE_SOURCE_DIR}/data"
       --list
       --json
+  )
+
+  add_test(
+    NAME cli_parity_check_all
+    COMMAND $<TARGET_FILE:parcae-parity>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      check
+      --all
+      --json
+  )
+
+  if(TARGET parcae::cuda)
+    add_test(
+      NAME cli_parity_check_all_cuda
+      COMMAND $<TARGET_FILE:parcae-parity>
+        --data-dir "${CMAKE_SOURCE_DIR}/data"
+        check
+        --all
+        --compare-cuda
+        --json
+    )
+    add_test(
+      NAME cli_parity_dump_caesar_cuda
+      COMMAND $<TARGET_FILE:parcae-parity>
+        --data-dir "${CMAKE_SOURCE_DIR}/data"
+        dump
+        --name caesar-s3-len64
+        --backend cuda
+    )
+    add_test(
+      NAME cli_search_run_caesar_cuda
+      COMMAND $<TARGET_FILE:parcae-search-run>
+        --data-dir "${CMAKE_SOURCE_DIR}/data"
+        --backend cuda
+        --seed 2109016688
+        --stream-length 256
+        --repeats 2
+    )
+  endif()
+
+  add_test(
+    NAME cli_search_run_caesar_cpu
+    COMMAND $<TARGET_FILE:parcae-search-run>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --backend cpu
+      --seed 2109016688
+      --stream-length 256
+      --repeats 2
   )
 
   add_test(

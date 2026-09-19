@@ -26,6 +26,19 @@ hash fields; regenerate with the tool instead.
 | `compose-atbash-caesar3` | Koan-1 compose, len 40 |
 | `a-warning-atbash` | Locked fixture consumable stream |
 
+## Verify / dump
+
+```bash
+# CPU replay vs committed digests
+parcae-parity check --all --data-dir data
+
+# Optional CUDA compare (requires PARCAE_BUILD_CUDA)
+parcae-parity check --all --compare-cuda --data-dir data
+
+# Print a live ParityRecord for one golden
+parcae-parity dump --name caesar-s3-len64 --backend cpu --data-dir data
+```
+
 ## Regenerate
 
 ```bash
