@@ -43,10 +43,14 @@ Files:
 | `ic_mod29_score.hpp` / `.cu` | `IcMod29Score` — hist 29 bins → fixed-order IC finalize |
 | `self_repeat_rate_score.hpp` / `.cu` | `SelfRepeatRateScore` — adjacent-equal edges → one FP divide |
 | `chi2_english_gp_score.hpp` / `.cu` | `Chi2EnglishGpScore` — hist + fixed-order χ² finalize |
+| `chi2_batch_score.hpp` / `.cu` | `Chi2BatchScore` — multi-block hist from `out[C·T]` + finalize |
+| `caesar_chi2_batch.hpp` / `.cu` | `CaesarChi2Batch` — fused Caesar decrypt→χ² (no out materialize) |
+| `family_chi2_batch.hpp` / `.cu` | `FamilyChi2Batch` — fused atbash / atbash∘caesar / affine / vigenère χ² |
 | `CMakeLists.txt` | Defines `parcae_cuda` when parent enables CUDA |
 
 CPU reference headers remain under repo-root `include/parcae/`.
 
 ABI: [`docs/architecture/cuda-abi.md`](../../../docs/architecture/cuda-abi.md)  
+Reference: [`docs/architecture/cuda-reference.md`](../../../docs/architecture/cuda-reference.md)  
 Twins list: [`docs/architecture/cuda-handoff.md`](../../../docs/architecture/cuda-handoff.md)  
 Roadmap: [`docs/architecture/cuda-roadmap.md`](../../../docs/architecture/cuda-roadmap.md)

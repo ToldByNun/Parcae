@@ -1,6 +1,6 @@
 # Local CUDA build notes
 
-**Status:** Scaffold through smoke identity copy (roadmap commits 1–7)  
+**Status:** Twins through batch + fused search-run (roadmap through commits 38–39 docs)  
 **Sources:** [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/)  
 **CI:** GitHub Actions stays **CPU-only** (`PARCAE_BUILD_CUDA` unset / default `OFF`). GPU jobs are optional and local (or a future self-hosted runner).
 
@@ -85,6 +85,8 @@ Targets:
 | `[cuda][score][noise][suite]` | Catalog always; noise skip without CUDA | Plaintext vs LCG noise separation via `CudaScore` |
 | `[cuda][batch][score]` | Skip / SUCCEED marker | `CudaBatchScore` vs serial `BatchRunner` top-k |
 | `[cuda][batch][rank1]` | Skip / SUCCEED marker | CUDA batch apply + exact_match recovers known params |
+| `[cuda][batch][chi2][fuse]` | Skip / SUCCEED marker | Fused Caesar χ² vs CPU `ScoreRegistry` |
+| `[run][search]` | Always (CPU path) | SearchRun throughput / fixture eval; CUDA family parity when built |
 
 ```bash
 # CPU CI path — smoke/buffer markers must still pass
@@ -92,6 +94,7 @@ build/tests/Release/parcae_tests.exe "[cuda]"
 
 # Real device smoke (CUDA build)
 build-cuda/tests/Release/parcae_tests.exe "[cuda][smoke]" -s
+build-cuda/tools/Release/parcae-search-run.exe --backend cuda --family caesar
 ```
 
 If `PARCAE_BUILD_CUDA=ON` but no nvcc is found, configure **fails** with a clear error (no silent half-build).
@@ -118,6 +121,8 @@ Rules:
 ```text
 Parcae/Parcae/cuda/     canonical .cu / CUDA headers (VS + optional CMake)
 include/parcae/         CPU reference (header-only) — unchanged
+include/parcae/run/     SearchRun metrics / console / CUDA sweeps
 ```
 
-ABI: [cuda-abi.md](cuda-abi.md) · Twins: [cuda-handoff.md](cuda-handoff.md) · Roadmap: [cuda-roadmap.md](cuda-roadmap.md)
+ABI: [cuda-abi.md](cuda-abi.md) · Twins: [cuda-handoff.md](cuda-handoff.md) ·
+Reference: [cuda-reference.md](cuda-reference.md) · Roadmap: [cuda-roadmap.md](cuda-roadmap.md)

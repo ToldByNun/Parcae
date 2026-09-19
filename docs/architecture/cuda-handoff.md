@@ -3,8 +3,9 @@
 Checklist for declaring the CPU reference complete, and for landing CUDA twins
 that match it bit-for-bit.
 
-**CUDA status:** started — frozen roadmap in [`cuda-roadmap.md`](cuda-roadmap.md),
-device ABI in [`cuda-abi.md`](cuda-abi.md).  
+**CUDA status:** twin catalog + batch + tools + fused search-run landed —
+architecture in [`cuda-reference.md`](cuda-reference.md), device ABI in
+[`cuda-abi.md`](cuda-abi.md). Exit tag `v0.3.0-cuda-parity` pending commits 40–42.  
 **CUDA source home:** [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio).
 
 See also: [`cpu-reference.md`](cpu-reference.md), [`docs/spec/parity.md`](../spec/parity.md).
@@ -223,6 +224,36 @@ v0.3.0-cuda-parity
 ```
 
 Prerequisites for the CPU tag: exit criteria above, including `[solved]` green on CI.  
-Prerequisites for the CUDA tag: twin list implemented under `Parcae/Parcae/cuda/`,
-`data/parity/` goldens match, `[cuda][parity]` green where Toolkit is available.
-Do not move tags; cut new versions for later milestones.
+Prerequisites for the CUDA tag: see **CUDA exit checklist** below and
+[`cuda-reference.md`](cuda-reference.md).
+
+---
+
+## CUDA exit checklist
+
+Declare CUDA parity complete (then cut `v0.3.0-cuda-parity`) when all of the
+following hold. Architecture narrative: [`cuda-reference.md`](cuda-reference.md).
+
+### Twins & tools
+
+- [x] Full transform catalog through `CudaBackend`
+- [x] Tier-A score twins + `CudaScore` dispatch
+- [x] Candidate Batch ABI v0 + batch apply (caesar / atbash / atbash∘caesar /
+      affine / vigenère) + `CudaBatchScore` top-k
+- [x] `parcae-decode` / `parcae-score` `--backend cuda`
+- [x] `parcae-parity` check/dump (+ `--compare-cuda`)
+- [x] Device-resident fused χ² search-run (`parcae-search-run`, families above)
+
+### Gates
+
+- [x] Committed `data/parity/` goldens; `parcae-parity check --all` green
+- [x] `[cuda][parity][golden]` + `[cuda][parity][solved]` green with Toolkit+GPU
+- [x] Hosted CI CPU-default; `[cuda]` host stubs pass without Toolkit
+- [ ] CUDA property round-trips (roadmap commit 40)
+- [ ] Annotated tag `v0.3.0-cuda-parity` (commits 41–42)
+
+### Docs
+
+- [x] [`cuda-abi.md`](cuda-abi.md), [`cuda-score-reduction.md`](cuda-score-reduction.md),
+      [`cuda-build.md`](cuda-build.md), [`cuda-roadmap.md`](cuda-roadmap.md)
+- [x] [`cuda-reference.md`](cuda-reference.md) (this era’s architecture guide)

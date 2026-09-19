@@ -8,9 +8,10 @@ is in [`docs/research/`](../research/README.md). CUDA twin expectations are in
 [`cuda-handoff.md`](cuda-handoff.md); device ABI in [`cuda-abi.md`](cuda-abi.md);
 roadmap in [`cuda-roadmap.md`](cuda-roadmap.md).
 
-CPU reference is the source of truth. CUDA twin work is **in progress** — sources
-land under [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio
-project), not under a parallel `include/parcae/cuda/` tree.
+CPU reference is the source of truth. CUDA twin architecture:
+[`cuda-reference.md`](cuda-reference.md). Sources land under
+[`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio project), not
+under a parallel `include/parcae/cuda/` tree.
 
 ## Design rules
 
@@ -44,6 +45,7 @@ include/parcae/
 
 tools/
   parcae-tokenize | parcae-decode | parcae-score | parcae-validate
+  parcae-parity | parcae-parity-gen | parcae-search-run
 
 Parcae/Parcae/                 # Visual Studio app + CUDA twins
   main.cpp
@@ -164,7 +166,7 @@ for golden digests: [`cuda-handoff.md`](cuda-handoff.md).
 | `[solved]` | Locked solved-page oracles (CI gate for the CPU reference tag) |
 | `[transform]` / `[property]` | Hand vectors + seeded round-trips |
 | `[score]` / `[batch]` / `[tool]` | Scores, generators, library API |
-| `cli_*` ctests | Smoke the four CLIs |
+| `cli_*` ctests | Smoke the CLIs (incl. parity / search-run when built) |
 
 Locked fixture ids: `a-warning`, `some-wisdom`, `loss-of-divinity`,
 `an-instruction`, `koan-1`, `welcome`, `koan-2`, `an-end`, `lp2-57-identity`.
@@ -175,5 +177,6 @@ Locked fixture ids: `a-warning`, `some-wisdom`, `loss-of-divinity`,
 - [`docs/spec/transforms.md`](../spec/transforms.md) — family schemas
 - [`docs/spec/parity.md`](../spec/parity.md) — bit-identity obligations
 - [`cuda-handoff.md`](cuda-handoff.md) — exit criteria and CUDA twin list
+- [`cuda-reference.md`](cuda-reference.md) — CUDA twin architecture + exit checklist
 - [`cuda-abi.md`](cuda-abi.md) — device SoA / interrupt encoding
 - [`cuda-roadmap.md`](cuda-roadmap.md) — frozen CUDA commit roadmap
