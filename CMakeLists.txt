@@ -62,6 +62,10 @@ if(PARCAE_BUILD_CUDA)
   endif()
 endif()
 
+if(PARCAE_BUILD_TESTS OR PARCAE_BUILD_TOOLS)
+  enable_testing()
+endif()
+
 if(PARCAE_BUILD_TOOLS)
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/CMakeLists.txt")
     add_subdirectory(tools)
@@ -69,7 +73,6 @@ if(PARCAE_BUILD_TOOLS)
 endif()
 
 if(PARCAE_BUILD_TESTS)
-  enable_testing()
   add_subdirectory(tests)
 endif()
 

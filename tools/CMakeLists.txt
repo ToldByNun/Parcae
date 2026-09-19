@@ -24,6 +24,7 @@ parcae_add_cli(parcae-tokenize parcae_tokenize/main.cpp)
 parcae_add_cli(parcae-decode parcae_decode/main.cpp)
 parcae_add_cli(parcae-score parcae_score/main.cpp)
 parcae_add_cli(parcae-validate parcae_validate/main.cpp)
+parcae_add_cli(parcae-catalog parcae_catalog/main.cpp)
 parcae_add_cli(parcae-parity-gen parcae_parity_gen/main.cpp)
 parcae_add_cli(parcae-parity parcae_parity/main.cpp)
 parcae_add_cli(parcae-search-run parcae_search_run/main.cpp)
@@ -31,6 +32,19 @@ parcae_add_cli(parcae-blind-crack parcae_blind_crack/main.cpp)
 parcae_add_cli(parcae-throughput-tiers parcae_throughput_tiers/main.cpp)
 
 if(PARCAE_BUILD_TESTS)
+  add_test(
+    NAME cli_catalog_json
+    COMMAND $<TARGET_FILE:parcae-catalog>
+      --json
+  )
+
+  add_test(
+    NAME cli_catalog_generators_json
+    COMMAND $<TARGET_FILE:parcae-catalog>
+      --generators
+      --json
+  )
+
   add_test(
     NAME cli_tokenize_a_warning
     COMMAND $<TARGET_FILE:parcae-tokenize>

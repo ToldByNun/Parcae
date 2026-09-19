@@ -3,7 +3,7 @@
 **Status:** Normative  
 **Headers (planned):** `parcae/tool/api.hpp`  
 **Binaries:** `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate`,
-`parcae-parity`, `parcae-parity-gen`, `parcae-search-run`
+`parcae-catalog`, `parcae-parity`, `parcae-parity-gen`, `parcae-search-run`
 
 ## Principles
 
@@ -168,6 +168,18 @@ UTF-8 Liber Primus text; `--indices` parses `0..28` integers. JSON shape:
 
 `--list --json` emits a rich catalog under `result.scores[]` (`score_id`,
 `score_version`, `order`, `arity`) plus flat `result.score_ids` for compatibility.
+
+### `parcae-catalog`
+
+```text
+parcae-catalog [--all] [--transforms] [--scores] [--generators] [--backends]
+               [--json] [--data-dir <path>]
+```
+
+Lists agent-facing registries. With no section flags, all sections are included.
+`--json` emits `parcae.tool_response.v0` with `backend: null` and a `result`
+object containing the selected sections (`transforms`, `scores`/`score_ids`,
+`generators`/`generator_ids`, `backends`).
 
 ### `parcae-parity`
 
