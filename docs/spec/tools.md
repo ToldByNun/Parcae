@@ -3,7 +3,7 @@
 **Status:** Normative  
 **Headers (planned):** `parcae/tool/api.hpp`  
 **Binaries:** `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate`,
-`parcae-catalog`, `parcae-parity`, `parcae-parity-gen`, `parcae-search-run`
+`parcae-catalog`, `parcae-generate`, `parcae-parity`, `parcae-parity-gen`, `parcae-search-run`
 
 ## Principles
 
@@ -180,6 +180,19 @@ Lists agent-facing registries. With no section flags, all sections are included.
 `--json` emits `parcae.tool_response.v0` with `backend: null` and a `result`
 object containing the selected sections (`transforms`, `scores`/`score_ids`,
 `generators`/`generator_ids`, `backends`).
+
+### `parcae-generate`
+
+```text
+parcae-generate --generator-id <id> --input <file|->
+                [--latin|--runes|--indices] [--direction decrypt|encrypt]
+                [--params-json <json>] [--json] [--data-dir <path>]
+parcae-generate --list [--json] [--data-dir <path>]
+```
+
+Runs `GenerateCandidates` / `GeneratorRegistry` and emits candidates. `--json`
+wraps `result.candidates[]` (`TransformCandidate::to_json`) plus `count`,
+`generator_id`, `direction`, `input_mode`. Default input mode is `--runes`.
 
 ### `parcae-parity`
 
