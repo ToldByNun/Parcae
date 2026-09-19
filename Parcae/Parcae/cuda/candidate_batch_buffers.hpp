@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <span>
 #include <utility>
 #include <vector>
@@ -292,6 +293,57 @@ public:
         return Status::success();
     }
 
+    /// Pack caller-supplied Vigenère/Beaufort key lists into the key arena.
+    /// Requires `key_arena_capacity` ≥ sum of key lengths and `keys.size() == C`.
+    [[nodiscard]] Status pack_explicit_keys(
+        const std::vector<std::vector<Index29>>& keys) {
+        if (family_ != CudaFamilyId::VigenereKey && family_ != CudaFamilyId::BeaufortKey) {
+            return Status::error(
+                "CandidateBatchBuffers::pack_explicit_keys requires VigenereKey or BeaufortKey");
+        }
+        if (keys.size() != candidate_count_) {
+            return Status::error("CandidateBatchBuffers::pack_explicit_keys size must equal C");
+        }
+        if (key_begin_.size() != candidate_count_ || key_len_.size() != candidate_count_) {
+            return Status::error("CandidateBatchBuffers: key lanes missing (set key_arena_capacity)");
+        }
+
+        std::size_t cursor = 0;
+        for (std::size_t c = 0; c < candidate_count_; ++c) {
+            if (keys[c].empty()) {
+                return Status::error("CandidateBatchBuffers::pack_explicit_keys empty key");
+            }
+            if (cursor + keys[c].size() > key_bytes_.size()) {
+                return Status::error("CandidateBatchBuffers::pack_explicit_keys arena overflow");
+            }
+            if (keys[c].size() > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) ||
+                cursor > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
+                return Status::error("CandidateBatchBuffers::pack_explicit_keys exceeds uint32_t");
+            }
+            key_begin_[c] = static_cast<std::uint32_t>(cursor);
+            key_len_[c] = static_cast<std::uint32_t>(keys[c].size());
+            for (const Index29 idx : keys[c]) {
+                key_bytes_[cursor++] = idx.value();
+            }
+        }
+        return Status::success();
+    }
+
+    /// Total key-byte capacity reserved at allocate time.
+    [[nodiscard]] std::size_t key_arena_capacity() const noexcept {
+        return key_bytes_.size();
+    }
+
+    /// Sum of key lengths for sizing `AllocateOptions::key_arena_capacity`.
+    [[nodiscard]] static std::size_t key_arena_bytes_needed(
+        const std::vector<std::vector<Index29>>& keys) noexcept {
+        std::size_t total = 0;
+        for (const std::vector<Index29>& key : keys) {
+            total += key.size();
+        }
+        return total;
+    }
+
 private:
     CandidateBatchBuffers() = default;
 
@@ -313,6 +365,8 @@ private:
             break;
         case CudaFamilyId::VigenereKey:
         case CudaFamilyId::BeaufortKey:
+            // key_begin / key_len / key_bytes come from AllocateOptions::key_arena_capacity
+            break;
         case CudaFamilyId::TotientPrimeStream:
         case CudaFamilyId::Identity:
         case CudaFamilyId::Atbash:

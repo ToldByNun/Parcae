@@ -33,6 +33,7 @@ Files:
 | `affine_kernel.hpp` / `affine_kernel.cu` | `AffineKernel` — `a·x+b` / `inv(a)·(x-b)` twin |
 | `affine_batch_kernel.hpp` / `.cu` | `AffineBatchKernel` — shared tokens + 812 `(a,b)` lanes |
 | `vigenere_key_kernel.hpp` / `.cu` | `VigenereKeyKernel` — key ring + interrupt skips twin |
+| `vigenere_batch_kernel.hpp` / `.cu` | `VigenereBatchKernel` — explicit key-list SoA batch |
 | `beaufort_key_kernel.hpp` / `.cu` | `BeaufortKeyKernel` — `key-in` involution + skips twin |
 | `totient_prime_stream_kernel.hpp` / `.cu` | `TotientPrimeStreamKernel` — host shifts + skips twin |
 | `compose_driver.hpp` / `compose_driver.cu` | `ComposeDriver` — host-orchestrated stages + ping-pong |

@@ -30,6 +30,7 @@ add_executable(parcae_tests
   cuda_affine_test.cpp
   cuda_affine_batch_test.cpp
   cuda_vigenere_test.cpp
+  cuda_vigenere_batch_test.cpp
   cuda_beaufort_test.cpp
   cuda_totient_test.cpp
   cuda_compose_test.cpp

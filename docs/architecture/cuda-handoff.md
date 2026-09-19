@@ -101,6 +101,7 @@ Document reduction associativity before claiming parallel CUDA score speedups
 | `AtbashBatchKernel` | `Parcae/Parcae/cuda/atbash_batch_kernel.hpp` | Shared ciphertext → atbash lanes |
 | `AtbashCaesarBatchKernel` | `Parcae/Parcae/cuda/atbash_caesar_batch_kernel.hpp` | Koan-1 compose 29 shifts |
 | `AffineBatchKernel` | `Parcae/Parcae/cuda/affine_batch_kernel.hpp` | Shared ciphertext + 812 `(a,b)` lanes |
+| `VigenereBatchKernel` | `Parcae/Parcae/cuda/vigenere_batch_kernel.hpp` | Explicit key-list SoA + shared interrupts |
 
 ### Explicitly **not** CUDA twins
 

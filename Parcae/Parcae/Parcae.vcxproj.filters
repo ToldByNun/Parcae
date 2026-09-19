@@ -80,6 +80,9 @@
     <ClInclude Include="cuda\vigenere_key_kernel.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\vigenere_batch_kernel.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
     <ClInclude Include="cuda\beaufort_key_kernel.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
@@ -134,6 +137,9 @@
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\vigenere_key_kernel.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\vigenere_batch_kernel.cu">
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\beaufort_key_kernel.cu">

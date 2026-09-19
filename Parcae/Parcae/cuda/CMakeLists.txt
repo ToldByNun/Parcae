@@ -15,6 +15,7 @@ set(PARCAE_CUDA_SOURCES
   affine_kernel.cu
   affine_batch_kernel.cu
   vigenere_key_kernel.cu
+  vigenere_batch_kernel.cu
   beaufort_key_kernel.cu
   totient_prime_stream_kernel.cu
   compose_driver.cu

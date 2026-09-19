@@ -71,7 +71,8 @@ Workstreams below; **layout overrides** any earlier sketch that used
 | 29 | feat: CUDA batch apply — caesar all 29 shifts |
 | 30 | feat: CUDA batch apply — atbash + atbash∘caesar |
 | 31 | feat: CUDA batch apply — affine 812 |
-| 32–33 | vigenere batches, score + top-k |
+| 32 | feat: CUDA batch Vigenère for explicit key lists |
+| 33 | feat: CUDA batch score + deterministic top-k |
 | 34 | test: rank-1 recovery on CUDA batch |
 
 ### E — Tools & exit
