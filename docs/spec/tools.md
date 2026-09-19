@@ -243,8 +243,11 @@ Library compute primitives agents SHOULD build on:
 3. `to_latin`
 4. `score`
 5. `validate_fixture`
+6. `GenerateCandidates` (`from_indices` / `from_stream` / `from_source`) — `gen_*` dispatch
+7. `rank_candidates` (planned)
 
-Plus read-only listing of `transform_id` / `score_id` registries.
+Plus read-only listing of `transform_id` / `score_id` / `generator_id` registries
+(`parcae-catalog`, `GenerateCandidates::list_generator_ids`).
 
 **Normative agent CLI surface** (allow-list, deny-list, `parcae.tool_response.v0`
 envelope, exit codes, `parcae-agent` loop): see [`agent-tools.md`](agent-tools.md).

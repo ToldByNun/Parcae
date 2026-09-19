@@ -1,6 +1,7 @@
 #include <parcae/gematria/rune_codec.hpp>
 #include <parcae/tool/api.hpp>
 #include <parcae/tool/context.hpp>
+#include <parcae/tool/generate_candidates.hpp>
 #include <parcae/tool/transform_envelope.hpp>
 
 #include <catch2/catch_approx.hpp>
@@ -199,4 +200,46 @@ TEST_CASE("tool::list registries", "[tool]") {
     const auto scores = parcae::tool::list_score_ids();
     REQUIRE(scores.size() == 5);
     REQUIRE(std::find(scores.begin(), scores.end(), "ic_mod29") != scores.end());
+}
+
+TEST_CASE("GenerateCandidates from_indices and from_source", "[tool][generate]") {
+    const auto ctx = test_ctx();
+    REQUIRE(GenerateCandidates::list_generator_ids().size() == 5);
+
+    const std::vector<Index29> cipher = {I(0), I(5), I(10)};
+    StatusOr<std::vector<TransformCandidate>> from_idx =
+        GenerateCandidates::from_indices("gen_caesar", cipher);
+    REQUIRE(from_idx.ok());
+    REQUIRE(from_idx.value().size() == 29);
+    REQUIRE(from_idx.value()[3].params().at("shift").get<int>() == 3);
+
+    StatusOr<std::vector<TransformCandidate>> from_indices_text =
+        GenerateCandidates::from_source(ctx, "gen_atbash", "0,5,10", "indices");
+    REQUIRE(from_indices_text.ok());
+    REQUIRE(from_indices_text.value().size() == 1);
+
+    StatusOr<std::vector<TransformCandidate>> from_latin =
+        GenerateCandidates::from_source(ctx, "gen_caesar", "ABC", "latin");
+    REQUIRE(from_latin.ok());
+    REQUIRE(from_latin.value().size() == 29);
+
+    // Build a stream via indices path then wrap as TokenStream isn't needed —
+    // from_stream is covered by applying registry on consumable indices of a
+    // fixture ciphertext after tokenize.
+    const auto cipher_path =
+        ctx.data_root() / "fixtures" / "solved" / "a-warning" / "ciphertext.txt";
+    std::ifstream in(cipher_path, std::ios::binary);
+    REQUIRE(in);
+    std::ostringstream buf;
+    buf << in.rdbuf();
+    StatusOr<TokenStream> stream = parcae::tool::tokenize(ctx, buf.str());
+    REQUIRE(stream.ok());
+    StatusOr<std::vector<TransformCandidate>> from_stream =
+        GenerateCandidates::from_stream("gen_atbash", stream.value());
+    REQUIRE(from_stream.ok());
+    REQUIRE(from_stream.value().size() == 1);
+
+    REQUIRE_FALSE(GenerateCandidates::from_indices("gen_nope", cipher).ok());
+    REQUIRE_FALSE(
+        GenerateCandidates::from_source(ctx, "gen_caesar", "", "indices").ok());
 }
