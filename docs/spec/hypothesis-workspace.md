@@ -19,7 +19,7 @@ data/workspaces/
       <hypothesis_id>.json
     transcripts/
       <utc_stamp>_<seq>.jsonl        # optional in example
-  <workspace_id>/                    # runtime (gitignored later)
+  <workspace_id>/                    # runtime (gitignored; see .gitignore)
     workspace.json
     hypotheses/
       <hypothesis_id>.json
@@ -265,8 +265,8 @@ Implementations (CLI + AgentPolicy) MUST:
 
 Committed illustration: [`data/workspaces/_example/`](../../data/workspaces/_example/).
 
-Runtime workspaces (anything other than `_example/`) are expected to be local
-scratch and will be gitignored in a later Phase 4 commit.
+Runtime workspaces (anything other than `_example/`) are local scratch and are
+gitignored (see repo `.gitignore`).
 
 ## Non-goals
 

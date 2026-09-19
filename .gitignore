@@ -49,3 +49,9 @@ compile_commands.json
 *.vsidx
 CMakeUserPresets.json
 /build-cuda
+
+# Agent / hypothesis workspaces: local scratch only.
+# Keep the committed illustration tree under data/workspaces/_example/.
+/data/workspaces/*
+!/data/workspaces/_example/
+!/data/workspaces/_example/**
