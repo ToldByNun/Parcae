@@ -209,7 +209,8 @@ When non-null:
 Canonicalization for digests: UTF-8, compact separators, object keys sorted
 lexicographically via `HypothesisRecord::canonicalize_json` /
 `HypothesisRecord::method_sha256` (and `output_indices_sha256` for Index29
-arrays).
+arrays). Callers MAY check integrity with `verify_method_digest` /
+`verify_output_indices_digest` (non-null digests must match).
 
 ## Transcripts — `parcae.transcript_step.v0`
 

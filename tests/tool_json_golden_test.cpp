@@ -22,7 +22,8 @@
 #if !defined(PARCAE_CLI_TOKENIZE) || !defined(PARCAE_CLI_DECODE) ||             \
     !defined(PARCAE_CLI_SCORE) || !defined(PARCAE_CLI_VALIDATE) ||             \
     !defined(PARCAE_CLI_SEARCH_RUN) || !defined(PARCAE_CLI_GENERATE) ||       \
-    !defined(PARCAE_CLI_RANK) || !defined(PARCAE_TEST_DATA_DIR)
+    !defined(PARCAE_CLI_RANK) || !defined(PARCAE_CLI_HYPOTHESIS) ||           \
+    !defined(PARCAE_TEST_DATA_DIR)
 #error "CLI golden tests require PARCAE_CLI_* and PARCAE_TEST_DATA_DIR"
 #endif
 

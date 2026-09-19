@@ -191,6 +191,40 @@ public:
         digests_["output_indices_sha256"] = output_indices_sha256(indices);
     }
 
+    /// Return error when a non-null stored digest does not match current method.
+    [[nodiscard]] Status verify_method_digest() const {
+        if (!digests_.is_object() || !digests_.contains("method_sha256") ||
+            digests_.at("method_sha256").is_null()) {
+            return Status::success();
+        }
+        if (!digests_.at("method_sha256").is_string()) {
+            return Status::error("digests.method_sha256 must be a string or null");
+        }
+        const std::string expected = digests_.at("method_sha256").get<std::string>();
+        const std::string actual = method_sha256(method_);
+        if (expected != actual) {
+            return Status::error("digests.method_sha256 does not match method JSON");
+        }
+        return Status::success();
+    }
+
+    /// Return error when a non-null stored digest does not match `indices`.
+    [[nodiscard]] Status verify_output_indices_digest(std::span<const Index29> indices) const {
+        if (!digests_.is_object() || !digests_.contains("output_indices_sha256") ||
+            digests_.at("output_indices_sha256").is_null()) {
+            return Status::success();
+        }
+        if (!digests_.at("output_indices_sha256").is_string()) {
+            return Status::error("digests.output_indices_sha256 must be a string or null");
+        }
+        const std::string expected = digests_.at("output_indices_sha256").get<std::string>();
+        const std::string actual = output_indices_sha256(indices);
+        if (expected != actual) {
+            return Status::error("digests.output_indices_sha256 does not match indices");
+        }
+        return Status::success();
+    }
+
     [[nodiscard]] nlohmann::json to_json() const {
         return nlohmann::json{
             {"schema", std::string(schema_id)},
