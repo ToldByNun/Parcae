@@ -1,0 +1,31 @@
+{
+  "candidates": [
+    {
+      "candidate_id": "caesar:shift=0",
+      "envelope": {
+        "transform_id": "caesar",
+        "direction": "decrypt",
+        "params": { "shift": 0 }
+      },
+      "output_indices": [3, 3, 3, 3]
+    },
+    {
+      "candidate_id": "caesar:shift=1",
+      "envelope": {
+        "transform_id": "caesar",
+        "direction": "decrypt",
+        "params": { "shift": 1 }
+      },
+      "output_indices": [2, 2, 2, 2]
+    },
+    {
+      "candidate_id": "caesar:shift=3",
+      "envelope": {
+        "transform_id": "caesar",
+        "direction": "decrypt",
+        "params": { "shift": 3 }
+      },
+      "output_indices": [0, 0, 0, 0]
+    }
+  ]
+}

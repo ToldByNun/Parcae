@@ -26,6 +26,7 @@ parcae_add_cli(parcae-score parcae_score/main.cpp)
 parcae_add_cli(parcae-validate parcae_validate/main.cpp)
 parcae_add_cli(parcae-catalog parcae_catalog/main.cpp)
 parcae_add_cli(parcae-generate parcae_generate/main.cpp)
+parcae_add_cli(parcae-rank parcae_rank/main.cpp)
 parcae_add_cli(parcae-parity-gen parcae_parity_gen/main.cpp)
 parcae_add_cli(parcae-parity parcae_parity/main.cpp)
 parcae_add_cli(parcae-search-run parcae_search_run/main.cpp)
@@ -61,6 +62,16 @@ if(PARCAE_BUILD_TESTS)
     COMMAND $<TARGET_FILE:parcae-generate>
       --data-dir "${CMAKE_SOURCE_DIR}/data"
       --list
+      --json
+  )
+
+  add_test(
+    NAME cli_rank_caesar_ic_json
+    COMMAND $<TARGET_FILE:parcae-rank>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --candidates "${CMAKE_SOURCE_DIR}/data/fixtures/cli/rank-candidates.json"
+      --score-id ic_mod29
+      --k 3
       --json
   )
 

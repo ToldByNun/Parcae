@@ -3,7 +3,8 @@
 **Status:** Normative  
 **Headers (planned):** `parcae/tool/api.hpp`  
 **Binaries:** `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate`,
-`parcae-catalog`, `parcae-generate`, `parcae-parity`, `parcae-parity-gen`, `parcae-search-run`
+`parcae-catalog`, `parcae-generate`, `parcae-rank`, `parcae-parity`, `parcae-parity-gen`,
+`parcae-search-run`
 
 ## Principles
 
@@ -193,6 +194,22 @@ parcae-generate --list [--json] [--data-dir <path>]
 Runs `GenerateCandidates` / `GeneratorRegistry` and emits candidates. `--json`
 wraps `result.candidates[]` (`TransformCandidate::to_json`) plus `count`,
 `generator_id`, `direction`, `input_mode`. Default input mode is `--runes`.
+
+### `parcae-rank`
+
+```text
+parcae-rank --candidates <file|-> --score-id <id> --k <n>
+            [--params-json <json>] [--latin-max <n>] [--no-latin]
+            [--json] [--data-dir <path>]
+```
+
+Ranks `TransformCandidate` JSON via `RankCandidates` (stable ties:
+score → `candidate_id` → `source_index`). `--candidates` accepts a generate
+`--json` envelope, a `{"candidates":[…]}` object, or a bare candidate array.
+`--json` emits `result` from `RankCandidates::result_to_json` (hits with
+`rank`, `candidate_id`, `score`, `source_index`, `envelope`, optional `latin`
+preview). Pairwise scores may pass `reference` via `--params-json`. χ² loads
+expected frequencies from `--data-dir` automatically.
 
 ### `parcae-parity`
 
