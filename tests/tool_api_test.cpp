@@ -2,6 +2,7 @@
 #include <parcae/tool/api.hpp>
 #include <parcae/tool/context.hpp>
 #include <parcae/tool/generate_candidates.hpp>
+#include <parcae/tool/rank_candidates.hpp>
 #include <parcae/tool/transform_envelope.hpp>
 
 #include <catch2/catch_approx.hpp>
@@ -242,4 +243,64 @@ TEST_CASE("GenerateCandidates from_indices and from_source", "[tool][generate]")
     REQUIRE_FALSE(GenerateCandidates::from_indices("gen_nope", cipher).ok());
     REQUIRE_FALSE(
         GenerateCandidates::from_source(ctx, "gen_caesar", "", "indices").ok());
+}
+
+TEST_CASE("RankCandidates top-k stable ties and JSON", "[tool][rank]") {
+    const auto ctx = test_ctx();
+
+    const std::vector<Index29> plain = {I(0), I(1), I(2), I(3)};
+    StatusOr<std::vector<Index29>> cipher = [&]() {
+        StatusOr<parcae::tool::TransformEnvelope> env =
+            parcae::tool::TransformEnvelope::from_json(nlohmann::json{
+                {"transform_id", "caesar"},
+                {"direction", "encrypt"},
+                {"params", {{"shift", 7}}},
+            });
+        REQUIRE(env.ok());
+        return parcae::tool::apply_to_indices(plain, env.value());
+    }();
+    REQUIRE(cipher.ok());
+
+    StatusOr<std::vector<TransformCandidate>> candidates =
+        GenerateCandidates::from_indices("gen_caesar", cipher.value());
+    REQUIRE(candidates.ok());
+
+    ScoreRequest request;
+    request.reference = std::span<const Index29>(plain);
+
+    StatusOr<BatchResult> ranked = RankCandidates::run(
+        candidates.value(),
+        "exact_match",
+        /*k=*/3,
+        &ctx,
+        request);
+    REQUIRE(ranked.ok());
+    REQUIRE(ranked.value().top().size() == 3);
+    REQUIRE(ranked.value().top()[0].score() == 1.0);
+    REQUIRE(ranked.value().top()[0].candidate_id() == "caesar:shift=7");
+
+    // Equal non-matches: stable order by candidate_id then source_index.
+    REQUIRE(ranked.value().top()[1].score() == 0.0);
+    REQUIRE(ranked.value().top()[2].score() == 0.0);
+    REQUIRE(
+        ranked.value().top()[1].candidate_id() < ranked.value().top()[2].candidate_id());
+
+    StatusOr<nlohmann::json> payload =
+        RankCandidates::result_to_json(ranked.value(), candidates.value(), &ctx);
+    REQUIRE(payload.ok());
+    REQUIRE(payload.value().at("order").get<std::string>() == "desc");
+    REQUIRE(payload.value().at("hits").size() == 3);
+    REQUIRE(payload.value().at("hits").at(0).at("rank").get<std::size_t>() == 0);
+    REQUIRE(payload.value().at("hits").at(0).at("envelope").is_object());
+    REQUIRE(payload.value().at("hits").at(0).at("latin").is_string());
+
+    REQUIRE_FALSE(RankCandidates::run(candidates.value(), "exact_match", 0, &ctx, request).ok());
+    REQUIRE_FALSE(RankCandidates::run({}, "ic_mod29", 1, &ctx).ok());
+    REQUIRE_FALSE(
+        RankCandidates::run(candidates.value(), "chi2_english_gp_v0", 1, nullptr).ok());
+
+    StatusOr<BatchResult> chi2 =
+        RankCandidates::run(candidates.value(), "chi2_english_gp_v0", 2, &ctx);
+    REQUIRE(chi2.ok());
+    REQUIRE(chi2.value().top().size() == 2);
 }

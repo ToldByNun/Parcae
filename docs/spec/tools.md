@@ -257,7 +257,7 @@ Library compute primitives agents SHOULD build on:
 4. `score`
 5. `validate_fixture`
 6. `GenerateCandidates` (`from_indices` / `from_stream` / `from_source`) — `gen_*` dispatch
-7. `rank_candidates` (planned)
+7. `RankCandidates` (`run` / `result_to_json`) — top-k with stable ties
 
 Plus read-only listing of `transform_id` / `score_id` / `generator_id` registries
 (`parcae-catalog`, `GenerateCandidates::list_generator_ids`).
