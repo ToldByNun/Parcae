@@ -86,6 +86,14 @@ if(PARCAE_BUILD_TESTS)
   )
 
   add_test(
+    NAME cli_tokenize_json_usage_envelope
+    COMMAND $<TARGET_FILE:parcae-tokenize>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --json
+  )
+  set_tests_properties(cli_tokenize_json_usage_envelope PROPERTIES WILL_FAIL TRUE)
+
+  add_test(
     NAME cli_score_list_json
     COMMAND $<TARGET_FILE:parcae-score>
       --data-dir "${CMAKE_SOURCE_DIR}/data"

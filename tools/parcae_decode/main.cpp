@@ -1,4 +1,5 @@
 #include "cli_io.hpp"
+#include "tool_cli_json.hpp"
 
 #include "parcae/corpus/fixture_loader.hpp"
 #include "parcae/interrupt/policy.hpp"
@@ -7,6 +8,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -18,6 +20,8 @@
 #endif
 
 namespace {
+
+constexpr std::string_view kTool = "decode";
 
 void print_help() {
     std::cerr
@@ -37,9 +41,22 @@ void print_help() {
         << "\n"
         << "Global:\n"
         << "  --backend    cpu|cuda (default cpu; exit 2 if cuda not built)\n"
-        << "  --json       JSON with indices + latin on stdout\n"
+        << "  --json       JSON envelope on stdout (parcae.tool_response.v0)\n"
         << "  --data-dir   Parcae data/ root\n"
         << "  -h, --help   Show this help\n";
+}
+
+[[nodiscard]] int fail(
+    bool json_mode,
+    const std::optional<std::string>& backend,
+    ToolErrorCode code,
+    std::string message,
+    int plain_exit) {
+    if (json_mode) {
+        return ToolCliJson::err(kTool, backend, code, std::move(message));
+    }
+    std::cerr << message << '\n';
+    return plain_exit;
 }
 
 [[nodiscard]] StatusOr<parcae::tool::TransformEnvelope> envelope_from_fixture(
@@ -129,31 +146,33 @@ void print_help() {
 [[nodiscard]] int emit_result(
     const parcae::tool::Context& ctx,
     const std::vector<Index29>& indices,
-    bool json_mode) {
+    bool json_mode,
+    const std::string& backend) {
     StatusOr<std::string> latin = parcae::tool::to_latin(ctx, indices);
     if (!latin.ok()) {
-        std::cerr << latin.status().message() << '\n';
-        return parcae::cli::kExitFail;
+        return fail(json_mode, backend, ToolErrorCode::Internal, latin.status().message(),
+                    parcae::cli::kExitFail);
     }
 
-    if (json_mode) {
-        nlohmann::json index_json = nlohmann::json::array();
-        for (Index29 idx : indices) {
-            index_json.push_back(idx.value());
-        }
-        std::cout << nlohmann::json{
-                         {"indices", std::move(index_json)},
-                         {"latin", latin.value()},
-                     }
-                         .dump(2)
-                  << '\n';
-    } else {
+    if (!json_mode) {
         std::cout << latin.value() << '\n';
+        return parcae::cli::kExitOk;
     }
-    return parcae::cli::kExitOk;
+
+    nlohmann::json index_json = nlohmann::json::array();
+    for (Index29 idx : indices) {
+        index_json.push_back(idx.value());
+    }
+    return ToolCliJson::ok(
+        kTool,
+        backend,
+        nlohmann::json{
+            {"indices", std::move(index_json)},
+            {"latin", latin.value()},
+        });
 }
 
-} // namespace
+}  // namespace
 
 int main(int argc, char** argv) {
     using namespace parcae::cli;
@@ -166,24 +185,27 @@ int main(int argc, char** argv) {
 
     const bool json_mode = has_flag(args, "--json");
     const std::string data_dir = optional_option(args, "--data-dir");
+    std::optional<std::string> backend_label;
 
     StatusOr<parcae::tool::Backend> backend = parcae::tool::BackendUtil::from_string(
         optional_option(args, "--backend", "cpu"));
     if (!backend.ok()) {
-        std::cerr << backend.status().message() << '\n';
         print_help();
-        return kExitUsage;
+        return fail(json_mode, std::nullopt, ToolErrorCode::Usage, backend.status().message(),
+                    kExitUsage);
     }
+    backend_label = std::string(parcae::tool::BackendUtil::to_string(backend.value()));
+
     Status backend_ok = parcae::tool::BackendUtil::ensure_usable(backend.value());
     if (!backend_ok.ok()) {
-        std::cerr << backend_ok.message() << '\n';
-        return kExitUsage;
+        return fail(json_mode, backend_label, ToolErrorCode::NotBuilt, backend_ok.message(),
+                    kExitUsage);
     }
 
     StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        std::cerr << ctx.status().message() << '\n';
-        return kExitUsage;
+        return fail(json_mode, backend_label, ToolErrorCode::Io, ctx.status().message(),
+                    kExitUsage);
     }
 
     const bool has_manifest = has_flag(args, "--manifest");
@@ -193,16 +215,20 @@ int main(int argc, char** argv) {
         static_cast<int>(has_manifest) + static_cast<int>(has_transform_json) +
         static_cast<int>(has_transform_id);
     if (modes != 1) {
-        std::cerr << "Choose exactly one of --manifest, --transform-json, or --transform-id\n";
         print_help();
-        return kExitUsage;
+        return fail(
+            json_mode,
+            backend_label,
+            ToolErrorCode::Usage,
+            "Choose exactly one of --manifest, --transform-json, or --transform-id",
+            kExitUsage);
     }
 
     if (has_manifest) {
         StatusOr<std::string> manifest_path = require_option(args, "--manifest");
         if (!manifest_path.ok()) {
-            std::cerr << manifest_path.status().message() << '\n';
-            return kExitUsage;
+            return fail(json_mode, backend_label, ToolErrorCode::Usage,
+                        manifest_path.status().message(), kExitUsage);
         }
 
         std::filesystem::path fixture_dir(manifest_path.value());
@@ -212,76 +238,76 @@ int main(int argc, char** argv) {
 
         StatusOr<Fixture> fixture = FixtureLoader::load_directory(fixture_dir.string());
         if (!fixture.ok()) {
-            std::cerr << fixture.status().message() << '\n';
-            return kExitFail;
+            return fail(json_mode, backend_label, ToolErrorCode::Io, fixture.status().message(),
+                        kExitFail);
         }
 
         StatusOr<parcae::tool::TransformEnvelope> envelope = envelope_from_fixture(fixture.value());
         if (!envelope.ok()) {
-            std::cerr << envelope.status().message() << '\n';
-            return kExitFail;
+            return fail(json_mode, backend_label, ToolErrorCode::Schema,
+                        envelope.status().message(), kExitFail);
         }
 
         StatusOr<TokenStream> stream =
             parcae::tool::tokenize(ctx.value(), fixture.value().ciphertext());
         if (!stream.ok()) {
-            std::cerr << stream.status().message() << '\n';
-            return kExitFail;
+            return fail(json_mode, backend_label, ToolErrorCode::Internal,
+                        stream.status().message(), kExitFail);
         }
 
         StatusOr<std::vector<Index29>> plain =
             parcae::tool::apply_to_indices(stream.value(), envelope.value(), backend.value());
         if (!plain.ok()) {
-            std::cerr << plain.status().message() << '\n';
-            return kExitFail;
+            return fail(json_mode, backend_label, ToolErrorCode::Internal,
+                        plain.status().message(), kExitFail);
         }
-        return emit_result(ctx.value(), plain.value(), json_mode);
+        return emit_result(ctx.value(), plain.value(), json_mode, *backend_label);
     }
 
     StatusOr<std::string> input_path = require_option(args, "--input");
     if (!input_path.ok()) {
-        std::cerr << input_path.status().message() << '\n';
         print_help();
-        return kExitUsage;
+        return fail(json_mode, backend_label, ToolErrorCode::Usage, input_path.status().message(),
+                    kExitUsage);
     }
     StatusOr<std::string> source = read_all_utf8(input_path.value());
     if (!source.ok()) {
-        std::cerr << source.status().message() << '\n';
-        return kExitUsage;
+        return fail(json_mode, backend_label, ToolErrorCode::Io, source.status().message(),
+                    kExitUsage);
     }
 
     StatusOr<parcae::tool::TransformEnvelope> envelope{Status::error("unset")};
     if (has_transform_json) {
         StatusOr<std::string> path = require_option(args, "--transform-json");
         if (!path.ok()) {
-            std::cerr << path.status().message() << '\n';
-            return kExitUsage;
+            return fail(json_mode, backend_label, ToolErrorCode::Usage, path.status().message(),
+                        kExitUsage);
         }
         StatusOr<std::string> json_text = read_file_utf8(path.value());
         if (!json_text.ok()) {
-            std::cerr << json_text.status().message() << '\n';
-            return kExitUsage;
+            return fail(json_mode, backend_label, ToolErrorCode::Io, json_text.status().message(),
+                        kExitUsage);
         }
         envelope = parcae::tool::TransformEnvelope::from_string(json_text.value());
     } else {
         envelope = envelope_from_flags(args);
     }
     if (!envelope.ok()) {
-        std::cerr << envelope.status().message() << '\n';
-        return kExitFail;
+        return fail(json_mode, backend_label, ToolErrorCode::Schema, envelope.status().message(),
+                    kExitFail);
     }
 
     StatusOr<TokenStream> stream = parcae::tool::tokenize(ctx.value(), source.value());
     if (!stream.ok()) {
-        std::cerr << stream.status().message() << '\n';
-        return kExitFail;
+        return fail(json_mode, backend_label, ToolErrorCode::Internal, stream.status().message(),
+                    kExitFail);
     }
 
     StatusOr<std::vector<Index29>> plain =
         parcae::tool::apply_to_indices(stream.value(), envelope.value(), backend.value());
     if (!plain.ok()) {
-        std::cerr << plain.status().message() << '\n';
-        return kExitFail;
+        return fail(json_mode, backend_label, ToolErrorCode::Internal, plain.status().message(),
+                    kExitFail);
     }
-    return emit_result(ctx.value(), plain.value(), json_mode);
+    return emit_result(ctx.value(), plain.value(), json_mode, *backend_label);
 }

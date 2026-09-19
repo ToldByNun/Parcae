@@ -1,4 +1,5 @@
 #include "cli_io.hpp"
+#include "tool_cli_json.hpp"
 
 #include "parcae/corpus/token_kind.hpp"
 #include "parcae/tool/api.hpp"
@@ -15,18 +16,32 @@
 
 namespace {
 
+constexpr std::string_view kTool = "tokenize";
+
 void print_help() {
     std::cerr
         << "Usage: parcae-tokenize [--json] [--strict|--no-strict] [--data-dir <path>] <file|->\n"
         << "  Tokenize Liber Primus UTF-8 transcript text.\n"
-        << "  --json       Machine-readable JSON on stdout\n"
+        << "  --json       Machine-readable JSON on stdout (parcae.tool_response.v0)\n"
         << "  --strict     Reject unknown symbols (default)\n"
         << "  --no-strict  Allow unknown symbols as Unknown tokens\n"
         << "  --data-dir   Parcae data/ root (else PARCAE_DATA_DIR or ./data)\n"
         << "  -h, --help   Show this help\n";
 }
 
-} // namespace
+[[nodiscard]] int fail(
+    bool json_mode,
+    ToolErrorCode code,
+    std::string message,
+    int plain_exit) {
+    if (json_mode) {
+        return ToolCliJson::err(kTool, std::nullopt, code, std::move(message));
+    }
+    std::cerr << message << '\n';
+    return plain_exit;
+}
+
+}  // namespace
 
 int main(int argc, char** argv) {
     using namespace parcae::cli;
@@ -53,63 +68,37 @@ int main(int argc, char** argv) {
             continue;
         }
         if (!args[i].empty() && args[i][0] == '-') {
-            std::cerr << "Unknown option: " << args[i] << '\n';
             print_help();
-            return kExitUsage;
+            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + args[i], kExitUsage);
         }
         if (!input_path.empty()) {
-            std::cerr << "Multiple input paths provided\n";
-            return kExitUsage;
+            return fail(json_mode, ToolErrorCode::Usage, "Multiple input paths provided", kExitUsage);
         }
         input_path = args[i];
     }
     if (input_path.empty()) {
-        std::cerr << "Missing input path (file or -)\n";
         print_help();
-        return kExitUsage;
+        return fail(
+            json_mode, ToolErrorCode::Usage, "Missing input path (file or -)", kExitUsage);
     }
 
     StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        std::cerr << ctx.status().message() << '\n';
-        return kExitUsage;
+        return fail(json_mode, ToolErrorCode::Io, ctx.status().message(), kExitUsage);
     }
 
     StatusOr<std::string> source = read_all_utf8(input_path);
     if (!source.ok()) {
-        std::cerr << source.status().message() << '\n';
-        return kExitUsage;
+        return fail(json_mode, ToolErrorCode::Io, source.status().message(), kExitUsage);
     }
 
     StatusOr<TokenStream> stream =
         parcae::tool::tokenize(ctx.value(), source.value(), "rtkd-separator-grammar-v0", strict);
     if (!stream.ok()) {
-        std::cerr << stream.status().message() << '\n';
-        return kExitFail;
+        return fail(json_mode, ToolErrorCode::Internal, stream.status().message(), kExitFail);
     }
 
-    if (json_mode) {
-        nlohmann::json tokens = nlohmann::json::array();
-        for (std::size_t i = 0; i < stream.value().size(); ++i) {
-            const Token& token = stream.value().at(i);
-            nlohmann::json row{
-                {"kind", TokenKindUtil::to_string(token.kind())},
-                {"text", token.text()},
-            };
-            if (token.index29().has_value()) {
-                row["index29"] = token.index29()->value();
-            } else {
-                row["index29"] = nullptr;
-            }
-            if (token.consumable_index().has_value()) {
-                row["consumable_index"] = token.consumable_index().value();
-            } else {
-                row["consumable_index"] = nullptr;
-            }
-            tokens.push_back(std::move(row));
-        }
-        std::cout << nlohmann::json{{"tokens", std::move(tokens)}}.dump(2) << '\n';
-    } else {
+    if (!json_mode) {
         for (std::size_t i = 0; i < stream.value().size(); ++i) {
             const Token& token = stream.value().at(i);
             std::cout << TokenKindUtil::to_string(token.kind());
@@ -125,7 +114,27 @@ int main(int argc, char** argv) {
             }
             std::cout << '\t' << token.text() << '\n';
         }
+        return kExitOk;
     }
 
-    return kExitOk;
+    nlohmann::json tokens = nlohmann::json::array();
+    for (std::size_t i = 0; i < stream.value().size(); ++i) {
+        const Token& token = stream.value().at(i);
+        nlohmann::json row{
+            {"kind", TokenKindUtil::to_string(token.kind())},
+            {"text", token.text()},
+        };
+        if (token.index29().has_value()) {
+            row["index29"] = token.index29()->value();
+        } else {
+            row["index29"] = nullptr;
+        }
+        if (token.consumable_index().has_value()) {
+            row["consumable_index"] = token.consumable_index().value();
+        } else {
+            row["consumable_index"] = nullptr;
+        }
+        tokens.push_back(std::move(row));
+    }
+    return ToolCliJson::ok(kTool, std::nullopt, nlohmann::json{{"tokens", std::move(tokens)}});
 }

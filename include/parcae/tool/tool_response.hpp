@@ -103,23 +103,27 @@ public:
         };
     }
 
-    /// Failure envelope: `ok=false`, `result=null`, `error={code,message}`.
+    /// Failure envelope: `ok=false`, `result=null`, `error={code,message[,details]}`.
     [[nodiscard]] static nlohmann::json failure(
         std::string_view tool,
         std::optional<std::string> backend,
         ToolErrorCode code,
-        std::string message) {
+        std::string message,
+        nlohmann::json details = nlohmann::json(nullptr)) {
+        nlohmann::json error{
+            {"code", std::string(ToolErrorCodeUtil::to_string(code))},
+            {"message", std::move(message)},
+        };
+        if (!details.is_null()) {
+            error["details"] = std::move(details);
+        }
         return nlohmann::json{
             {"schema", std::string(schema_id)},
             {"ok", false},
             {"tool", std::string(tool)},
             {"backend", backend.has_value() ? nlohmann::json(*backend) : nlohmann::json(nullptr)},
             {"result", nullptr},
-            {"error",
-             nlohmann::json{
-                 {"code", std::string(ToolErrorCodeUtil::to_string(code))},
-                 {"message", std::move(message)},
-             }},
+            {"error", std::move(error)},
         };
     }
 
@@ -188,6 +192,9 @@ public:
         }
         if (!err.contains("message") || !err.at("message").is_string()) {
             return Status::error("tool response.error.message must be a string");
+        }
+        if (err.contains("details") && err.at("details").is_null()) {
+            return Status::error("tool response.error.details must not be null when present");
         }
         StatusOr<ToolErrorCode> code =
             ToolErrorCodeUtil::from_string(err.at("code").get<std::string>());

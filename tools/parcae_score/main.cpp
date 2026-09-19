@@ -1,4 +1,5 @@
 #include "cli_io.hpp"
+#include "tool_cli_json.hpp"
 
 #include "parcae/gematria/latin_codec.hpp"
 #include "parcae/score/score_id.hpp"
@@ -8,6 +9,7 @@
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -20,6 +22,8 @@
 #endif
 
 namespace {
+
+constexpr std::string_view kTool = "score";
 
 void print_help() {
     std::cerr
@@ -37,9 +41,22 @@ void print_help() {
         << "  --params-json    Optional params object (e.g. {\"reference\":[…]})\n"
         << "  --backend        cpu|cuda (default cpu; exit 2 if cuda not built)\n"
         << "  --list           Print known score ids and exit\n"
-        << "  --json           Machine-readable JSON on stdout\n"
+        << "  --json           JSON envelope on stdout (parcae.tool_response.v0)\n"
         << "  --data-dir       Parcae data/ root\n"
         << "  -h, --help       Show this help\n";
+}
+
+[[nodiscard]] int fail(
+    bool json_mode,
+    const std::optional<std::string>& backend,
+    ToolErrorCode code,
+    std::string message,
+    int plain_exit) {
+    if (json_mode) {
+        return ToolCliJson::err(kTool, backend, code, std::move(message));
+    }
+    std::cerr << message << '\n';
+    return plain_exit;
 }
 
 [[nodiscard]] std::string letters_only_upper(std::string_view text) {
@@ -104,7 +121,6 @@ void print_help() {
         return stream.value().consumable_indices();
     }
 
-    // latin (default)
     StatusOr<GematriaProfile> profile = ctx.load_gematria();
     if (!profile.ok()) {
         return profile.status();
@@ -117,7 +133,7 @@ void print_help() {
     return codec.delatinize(letters);
 }
 
-} // namespace
+}  // namespace
 
 int main(int argc, char** argv) {
     using namespace parcae::cli;
@@ -130,54 +146,57 @@ int main(int argc, char** argv) {
 
     const bool json_mode = has_flag(args, "--json");
     const std::string data_dir = optional_option(args, "--data-dir");
+    std::optional<std::string> backend_label;
 
     StatusOr<parcae::tool::Backend> backend = parcae::tool::BackendUtil::from_string(
         optional_option(args, "--backend", "cpu"));
     if (!backend.ok()) {
-        std::cerr << backend.status().message() << '\n';
         print_help();
-        return kExitUsage;
+        return fail(json_mode, std::nullopt, ToolErrorCode::Usage, backend.status().message(),
+                    kExitUsage);
     }
+    backend_label = std::string(parcae::tool::BackendUtil::to_string(backend.value()));
+
     Status backend_ok = parcae::tool::BackendUtil::ensure_usable(backend.value());
     if (!backend_ok.ok()) {
-        std::cerr << backend_ok.message() << '\n';
-        return kExitUsage;
+        return fail(json_mode, backend_label, ToolErrorCode::NotBuilt, backend_ok.message(),
+                    kExitUsage);
     }
 
     StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        std::cerr << ctx.status().message() << '\n';
-        return kExitUsage;
+        return fail(json_mode, backend_label, ToolErrorCode::Io, ctx.status().message(),
+                    kExitUsage);
     }
 
     if (has_flag(args, "--list")) {
         const std::vector<std::string> ids = parcae::tool::list_score_ids();
-        if (json_mode) {
-            std::cout << nlohmann::json{{"score_ids", ids}}.dump(2) << '\n';
-        } else {
+        if (!json_mode) {
             for (const std::string& id : ids) {
                 std::cout << id << '\n';
             }
+            return kExitOk;
         }
-        return kExitOk;
+        return ToolCliJson::ok(
+            kTool, std::nullopt, nlohmann::json{{"score_ids", ids}});
     }
 
     StatusOr<std::string> score_id = require_option(args, "--score-id");
     if (!score_id.ok()) {
-        std::cerr << score_id.status().message() << '\n';
         print_help();
-        return kExitUsage;
+        return fail(json_mode, backend_label, ToolErrorCode::Usage, score_id.status().message(),
+                    kExitUsage);
     }
     if (!ScoreId::from_string(score_id.value()).ok()) {
-        std::cerr << "Unknown score_id: " << score_id.value() << '\n';
-        return kExitUsage;
+        return fail(json_mode, backend_label, ToolErrorCode::Usage,
+                    "Unknown score_id: " + score_id.value(), kExitUsage);
     }
 
     StatusOr<std::string> input_path = require_option(args, "--input");
     if (!input_path.ok()) {
-        std::cerr << input_path.status().message() << '\n';
         print_help();
-        return kExitUsage;
+        return fail(json_mode, backend_label, ToolErrorCode::Usage, input_path.status().message(),
+                    kExitUsage);
     }
 
     const bool mode_latin = has_flag(args, "--latin");
@@ -187,23 +206,23 @@ int main(int argc, char** argv) {
         static_cast<int>(mode_latin) + static_cast<int>(mode_runes) +
         static_cast<int>(mode_indices);
     if (modes > 1) {
-        std::cerr << "Choose at most one of --latin, --runes, --indices\n";
-        return kExitUsage;
+        return fail(json_mode, backend_label, ToolErrorCode::Usage,
+                    "Choose at most one of --latin, --runes, --indices", kExitUsage);
     }
     const std::string_view mode =
         mode_runes ? "runes" : (mode_indices ? "indices" : "latin");
 
     StatusOr<std::string> source = read_all_utf8(input_path.value());
     if (!source.ok()) {
-        std::cerr << source.status().message() << '\n';
-        return kExitUsage;
+        return fail(json_mode, backend_label, ToolErrorCode::Io, source.status().message(),
+                    kExitUsage);
     }
 
     StatusOr<std::vector<Index29>> candidate =
         load_candidate(ctx.value(), source.value(), mode);
     if (!candidate.ok()) {
-        std::cerr << candidate.status().message() << '\n';
-        return kExitFail;
+        return fail(json_mode, backend_label, ToolErrorCode::Internal,
+                    candidate.status().message(), kExitFail);
     }
 
     nlohmann::json params = nlohmann::json::object();
@@ -212,12 +231,12 @@ int main(int argc, char** argv) {
         try {
             params = nlohmann::json::parse(params_json);
         } catch (const nlohmann::json::exception& ex) {
-            std::cerr << "Invalid --params-json: " << ex.what() << '\n';
-            return kExitUsage;
+            return fail(json_mode, backend_label, ToolErrorCode::Schema,
+                        std::string("Invalid --params-json: ") + ex.what(), kExitUsage);
         }
         if (!params.is_object()) {
-            std::cerr << "--params-json must be an object\n";
-            return kExitUsage;
+            return fail(json_mode, backend_label, ToolErrorCode::Schema,
+                        "--params-json must be an object", kExitUsage);
         }
     }
 
@@ -230,23 +249,24 @@ int main(int argc, char** argv) {
         {},
         backend.value());
     if (!value.ok()) {
-        std::cerr << value.status().message() << '\n';
-        return kExitFail;
+        return fail(json_mode, backend_label, ToolErrorCode::Internal, value.status().message(),
+                    kExitFail);
     }
 
-    if (json_mode) {
-        std::cout << nlohmann::json{
-                         {"score_id", score_id.value()},
-                         {"score_version", "v0"},
-                         {"backend", parcae::tool::BackendUtil::to_string(backend.value())},
-                         {"value", value.value()},
-                     }
-                         .dump(2)
-                  << '\n';
-    } else {
+    if (!json_mode) {
         std::ostringstream out;
         out << std::setprecision(17) << value.value();
         std::cout << out.str() << '\n';
+        return kExitOk;
     }
-    return kExitOk;
+
+    return ToolCliJson::ok(
+        kTool,
+        backend_label,
+        nlohmann::json{
+            {"score_id", score_id.value()},
+            {"score_version", "v0"},
+            {"backend", *backend_label},
+            {"value", value.value()},
+        });
 }

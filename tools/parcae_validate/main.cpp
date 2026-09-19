@@ -1,4 +1,5 @@
 #include "cli_io.hpp"
+#include "tool_cli_json.hpp"
 
 #include "parcae/tool/api.hpp"
 #include "parcae/validate/validation_report.hpp"
@@ -18,6 +19,8 @@
 
 namespace {
 
+constexpr std::string_view kTool = "validate";
+
 void print_help() {
     std::cerr
         << "Usage: parcae-validate --id <fixture_id|path> [--require-locked] [--json]\n"
@@ -27,11 +30,24 @@ void print_help() {
         << "  --all              All fixtures under data/fixtures/solved/\n"
         << "                     (with --require-locked: locked fixtures only)\n"
         << "  --require-locked   Fail (or skip under --all) non-locked fixtures\n"
-        << "  --json             Machine-readable JSON on stdout\n"
+        << "  --json             JSON envelope on stdout (parcae.tool_response.v0)\n"
         << "  --data-dir         Parcae data/ root\n"
         << "  -h, --help         Show this help\n"
         << "\n"
         << "Exit: 0 all selected passed; 1 validation failure; 2 usage/I/O error\n";
+}
+
+[[nodiscard]] int fail(
+    bool json_mode,
+    ToolErrorCode code,
+    std::string message,
+    int plain_exit,
+    nlohmann::json details = nlohmann::json(nullptr)) {
+    if (json_mode) {
+        return ToolCliJson::err(kTool, std::nullopt, code, std::move(message), std::move(details));
+    }
+    std::cerr << message << '\n';
+    return plain_exit;
 }
 
 [[nodiscard]] nlohmann::json report_to_json(const ValidationReport& report) {
@@ -120,7 +136,7 @@ void print_report_human(const ValidationReport& report) {
     return ids;
 }
 
-} // namespace
+}  // namespace
 
 int main(int argc, char** argv) {
     using namespace parcae::cli;
@@ -138,15 +154,14 @@ int main(int argc, char** argv) {
     const std::string data_dir = optional_option(args, "--data-dir");
 
     if (static_cast<int>(all_mode) + static_cast<int>(has_id) != 1) {
-        std::cerr << "Choose exactly one of --id or --all\n";
         print_help();
-        return kExitUsage;
+        return fail(json_mode, ToolErrorCode::Usage, "Choose exactly one of --id or --all",
+                    kExitUsage);
     }
 
     StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        std::cerr << ctx.status().message() << '\n';
-        return kExitUsage;
+        return fail(json_mode, ToolErrorCode::Io, ctx.status().message(), kExitUsage);
     }
 
     std::vector<std::string> targets;
@@ -154,16 +169,14 @@ int main(int argc, char** argv) {
         StatusOr<std::vector<std::string>> ids =
             list_solved_fixture_ids(ctx.value(), /*locked_only=*/require_locked);
         if (!ids.ok()) {
-            std::cerr << ids.status().message() << '\n';
-            return kExitUsage;
+            return fail(json_mode, ToolErrorCode::Io, ids.status().message(), kExitUsage);
         }
         targets = std::move(ids.value());
     } else {
         StatusOr<std::string> id = require_option(args, "--id");
         if (!id.ok()) {
-            std::cerr << id.status().message() << '\n';
             print_help();
-            return kExitUsage;
+            return fail(json_mode, ToolErrorCode::Usage, id.status().message(), kExitUsage);
         }
         targets.push_back(id.value());
     }
@@ -184,18 +197,26 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (json_mode) {
-        std::cout << nlohmann::json{
-                         {"ok", all_ok},
-                         {"count", reports.size()},
-                         {"reports", std::move(reports)},
-                     }
-                         .dump(2)
-                  << '\n';
-    } else if (targets.size() > 1) {
-        std::cout << (all_ok ? "ALL PASS" : "SOME FAILED") << " (" << targets.size()
-                  << " fixtures)\n";
+    if (!json_mode) {
+        if (targets.size() > 1) {
+            std::cout << (all_ok ? "ALL PASS" : "SOME FAILED") << " (" << targets.size()
+                      << " fixtures)\n";
+        }
+        return all_ok ? kExitOk : kExitFail;
     }
 
-    return all_ok ? kExitOk : kExitFail;
+    nlohmann::json payload{
+        {"ok", all_ok},
+        {"count", reports.size()},
+        {"reports", std::move(reports)},
+    };
+    if (all_ok) {
+        return ToolCliJson::ok(kTool, std::nullopt, std::move(payload));
+    }
+    return ToolCliJson::err(
+        kTool,
+        std::nullopt,
+        ToolErrorCode::Validation,
+        "one or more fixtures failed validation",
+        std::move(payload));
 }

@@ -88,6 +88,17 @@ TEST_CASE("ToolResponse::write emits compact JSON line", "[tool][response]") {
     REQUIRE(parsed.value().at("tool").get<std::string>() == "tokenize");
 }
 
+TEST_CASE("ToolResponse::failure may carry optional details", "[tool][response]") {
+    const nlohmann::json env = ToolResponse::failure(
+        "validate",
+        std::nullopt,
+        ToolErrorCode::Validation,
+        "failed",
+        nlohmann::json{{"count", 1}});
+    REQUIRE(ToolResponse::validate(env).ok());
+    REQUIRE(env.at("error").at("details").at("count").get<int>() == 1);
+}
+
 TEST_CASE("ToolResponse::validate rejects mismatched ok/error/result", "[tool][response]") {
     nlohmann::json bad = ToolResponse::success("score", std::string("cpu"), nlohmann::json::object());
     bad["error"] = nlohmann::json{{"code", "usage"}, {"message", "x"}};
