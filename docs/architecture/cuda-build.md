@@ -84,6 +84,7 @@ Targets:
 | `[cuda][score][dispatch]` | Catalog / unavailable always | `CudaScore` vs `ScoreRegistry` for all Tier A ids |
 | `[cuda][score][noise][suite]` | Catalog always; noise skip without CUDA | Plaintext vs LCG noise separation via `CudaScore` |
 | `[cuda][batch][score]` | Skip / SUCCEED marker | `CudaBatchScore` vs serial `BatchRunner` top-k |
+| `[cuda][batch][rank1]` | Skip / SUCCEED marker | CUDA batch apply + exact_match recovers known params |
 
 ```bash
 # CPU CI path — smoke/buffer markers must still pass
