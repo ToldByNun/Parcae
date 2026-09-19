@@ -57,6 +57,7 @@ target_link_libraries(parcae_tests PRIVATE
 
 target_compile_definitions(parcae_tests PRIVATE
   PARCAE_TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/data"
+  PARCAE_GOLDENS_TOOL_JSON_DIR="${CMAKE_SOURCE_DIR}/tests/goldens/tool-json"
 )
 
 # Host-side CUDA façade headers (params POD / JSON) live under Parcae/Parcae/cuda/.
@@ -66,6 +67,26 @@ target_include_directories(parcae_tests PRIVATE
 
 if(TARGET parcae::cuda)
   target_link_libraries(parcae_tests PRIVATE parcae::cuda)
+endif()
+
+# CLI golden tests: emit a per-config header so Windows paths are not
+# mangled by C string escapes (\t in \tools, etc.).
+if(TARGET parcae-tokenize)
+  target_sources(parcae_tests PRIVATE tool_json_golden_test.cpp)
+  add_dependencies(parcae_tests
+    parcae-tokenize
+    parcae-decode
+    parcae-score
+    parcae-validate
+    parcae-search-run
+  )
+  set(_parcae_cli_paths_dir "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>")
+  file(GENERATE
+    OUTPUT "${_parcae_cli_paths_dir}/parcae_cli_paths.h"
+    CONTENT "#pragma once\n#define PARCAE_CLI_TOKENIZE R\"($<TARGET_FILE:parcae-tokenize>)\"\n#define PARCAE_CLI_DECODE R\"($<TARGET_FILE:parcae-decode>)\"\n#define PARCAE_CLI_SCORE R\"($<TARGET_FILE:parcae-score>)\"\n#define PARCAE_CLI_VALIDATE R\"($<TARGET_FILE:parcae-validate>)\"\n#define PARCAE_CLI_SEARCH_RUN R\"($<TARGET_FILE:parcae-search-run>)\"\n"
+  )
+  target_include_directories(parcae_tests PRIVATE "${_parcae_cli_paths_dir}")
+  target_compile_definitions(parcae_tests PRIVATE PARCAE_HAS_CLI_GOLDENS=1)
 endif()
 
 parcae_set_project_warnings(parcae_tests)

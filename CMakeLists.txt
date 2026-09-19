@@ -62,15 +62,15 @@ if(PARCAE_BUILD_CUDA)
   endif()
 endif()
 
-if(PARCAE_BUILD_TESTS)
-  enable_testing()
-  add_subdirectory(tests)
-endif()
-
 if(PARCAE_BUILD_TOOLS)
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/CMakeLists.txt")
     add_subdirectory(tools)
   endif()
+endif()
+
+if(PARCAE_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
 endif()
 
 message(STATUS "Parcae ${PROJECT_VERSION}")
