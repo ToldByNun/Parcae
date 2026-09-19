@@ -15,6 +15,7 @@ add_executable(parcae_tests
   batch_test.cpp
   tool_api_test.cpp
   tool_response_test.cpp
+  hypothesis_record_test.cpp
   parity_test.cpp
   transform_property_test.cpp
   cuda_property_test.cpp

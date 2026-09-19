@@ -33,8 +33,8 @@ Rules:
 
 | Rule | Requirement |
 |------|-------------|
-| `workspace_id` | `[a-z][a-z0-9_-]{0,63}` — MUST match directory name |
-| `hypothesis_id` | `[a-z][a-z0-9_-]{0,63}` — MUST match filename stem |
+| `workspace_id` | `[a-z_][a-z0-9_-]{0,63}` — MUST match directory name (leading `_` allowed for reserved trees such as `_example`) |
+| `hypothesis_id` | `[a-z_][a-z0-9_-]{0,63}` — MUST match filename stem |
 | Paths | All relative paths inside a workspace MUST resolve under that workspace root (no `..`, no absolute escapes) |
 | Encoding | UTF-8; LF preferred |
 | Fixtures | References to fixtures use fixture **ids** or paths under `data/fixtures/` for **read** only |
@@ -207,8 +207,9 @@ When non-null:
 | `output_indices_sha256` | SHA-256 of compact JSON array of Index29 integers from a recorded apply |
 
 Canonicalization for digests: UTF-8, compact separators, object keys sorted
-lexicographically (same spirit as parity records). Exact helper lands with the
-HypothesisRecord C++ I/O commit.
+lexicographically via `HypothesisRecord::canonicalize_json` /
+`HypothesisRecord::method_sha256` (and `output_indices_sha256` for Index29
+arrays).
 
 ## Transcripts — `parcae.transcript_step.v0`
 
