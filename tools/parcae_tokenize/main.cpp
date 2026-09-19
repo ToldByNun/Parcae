@@ -123,6 +123,8 @@ int main(int argc, char** argv) {
         nlohmann::json row{
             {"kind", TokenKindUtil::to_string(token.kind())},
             {"text", token.text()},
+            {"byte_begin", token.byte_begin()},
+            {"byte_end", token.byte_end()},
         };
         if (token.index29().has_value()) {
             row["index29"] = token.index29()->value();
@@ -136,5 +138,12 @@ int main(int argc, char** argv) {
         }
         tokens.push_back(std::move(row));
     }
-    return ToolCliJson::ok(kTool, std::nullopt, nlohmann::json{{"tokens", std::move(tokens)}});
+    return ToolCliJson::ok(
+        kTool,
+        std::nullopt,
+        nlohmann::json{
+            {"token_count", stream.value().size()},
+            {"consumable_count", stream.value().consumable_count()},
+            {"tokens", std::move(tokens)},
+        });
 }

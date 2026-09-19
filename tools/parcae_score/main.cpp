@@ -2,7 +2,9 @@
 #include "tool_cli_json.hpp"
 
 #include "parcae/gematria/latin_codec.hpp"
+#include "parcae/score/score_catalog_entry.hpp"
 #include "parcae/score/score_id.hpp"
+#include "parcae/score/score_registry.hpp"
 #include "parcae/tool/api.hpp"
 
 #include <cctype>
@@ -170,15 +172,23 @@ int main(int argc, char** argv) {
     }
 
     if (has_flag(args, "--list")) {
-        const std::vector<std::string> ids = parcae::tool::list_score_ids();
         if (!json_mode) {
-            for (const std::string& id : ids) {
+            for (const std::string& id : parcae::tool::list_score_ids()) {
                 std::cout << id << '\n';
             }
             return kExitOk;
         }
+        nlohmann::json scores = nlohmann::json::array();
+        for (const ScoreCatalogEntry& entry : ScoreRegistry::catalog()) {
+            scores.push_back(entry.to_json());
+        }
         return ToolCliJson::ok(
-            kTool, std::nullopt, nlohmann::json{{"score_ids", ids}});
+            kTool,
+            std::nullopt,
+            nlohmann::json{
+                {"scores", std::move(scores)},
+                {"score_ids", parcae::tool::list_score_ids()},
+            });
     }
 
     StatusOr<std::string> score_id = require_option(args, "--score-id");

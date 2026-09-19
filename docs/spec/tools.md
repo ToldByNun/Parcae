@@ -108,12 +108,21 @@ Global flags (all tools):
 parcae-tokenize [--json] <file|->
 ```
 
-JSON shape:
+JSON shape (`--json` → `parcae.tool_response.v0`, `result`):
 
 ```json
 {
+  "token_count": 3,
+  "consumable_count": 1,
   "tokens": [
-    { "kind": "Rune", "index29": 4, "consumable_index": 0, "text": "ᚱ" }
+    {
+      "kind": "Rune",
+      "index29": 4,
+      "consumable_index": 0,
+      "byte_begin": 0,
+      "byte_end": 3,
+      "text": "ᚱ"
+    }
   ]
 }
 ```
@@ -121,17 +130,20 @@ JSON shape:
 ### `parcae-decode`
 
 ```text
-parcae-decode --manifest <fixture_dir|manifest.json> [--backend cpu|cuda] [--json]
-parcae-decode --transform-json <path> --input <file|-> [--backend cpu|cuda] [--json]
+parcae-decode --manifest <fixture_dir|manifest.json> [--backend cpu|cuda] [--rebuild-text] [--json]
+parcae-decode --transform-json <path> --input <file|-> [--backend cpu|cuda] [--rebuild-text] [--json]
 parcae-decode --input <file|-> --transform-id <id>
               [--direction decrypt|encrypt]
               [--params-json <json> | --key-indices <list> --key-latin <text> --shift <n>]
               [--skip-indices <list>]
               [--backend cpu|cuda]
+              [--rebuild-text]
               [--json]
 ```
 
-Prints Latin plaintext (or JSON with `indices` + `latin`). Method/key/skips come
+Prints Latin plaintext (or JSON with `indices` + `latin`). With `--rebuild-text`, also
+rebuilds UTF-8 preserving non-rune separators (`result.text` in JSON; human mode prints
+that text instead of Latin). Method/key/skips come
 from the fixture manifest, a transform envelope JSON file, or explicit flags.
 `--backend cuda` requires a CUDA-linked build; otherwise exit status **2**.
 
@@ -153,6 +165,9 @@ UTF-8 Liber Primus text; `--indices` parses `0..28` integers. JSON shape:
 ```
 
 `parcae-validate` stays CPU-only (no `--backend`).
+
+`--list --json` emits a rich catalog under `result.scores[]` (`score_id`,
+`score_version`, `order`, `arity`) plus flat `result.score_ids` for compatibility.
 
 ### `parcae-parity`
 

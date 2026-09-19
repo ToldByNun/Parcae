@@ -7,6 +7,8 @@
 #include <string_view>
 #include <utility>
 
+#include <nlohmann/json.hpp>
+
 /// Read-only catalog row for tool / agent listing of score_ids.
 class ScoreCatalogEntry {
 public:
@@ -53,6 +55,15 @@ public:
             return "unary_with_table";
         }
         return "unary";
+    }
+
+    [[nodiscard]] nlohmann::json to_json() const {
+        return nlohmann::json{
+            {"score_id", id_},
+            {"score_version", version_},
+            {"order", std::string(ScoreOrderUtil::to_string(order_))},
+            {"arity", std::string(arity_string(arity_))},
+        };
     }
 
 private:

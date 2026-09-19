@@ -55,6 +55,17 @@ if(PARCAE_BUILD_TESTS)
       --direction decrypt
   )
 
+  add_test(
+    NAME cli_decode_rebuild_text_json
+    COMMAND $<TARGET_FILE:parcae-decode>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --input "${CMAKE_SOURCE_DIR}/data/fixtures/solved/a-warning/ciphertext.txt"
+      --transform-id atbash
+      --direction decrypt
+      --rebuild-text
+      --json
+  )
+
   if(TARGET parcae::cuda)
     add_test(
       NAME cli_decode_flags_atbash_cuda

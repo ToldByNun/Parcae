@@ -8,6 +8,7 @@
 #include <parcae/score/expected_frequency_table.hpp>
 #include <parcae/score/hamming_agreement.hpp>
 #include <parcae/score/ic_mod29.hpp>
+#include <parcae/score/score_catalog_entry.hpp>
 #include <parcae/score/score_id.hpp>
 #include <parcae/score/score_order.hpp>
 #include <parcae/score/score_registry.hpp>
@@ -182,6 +183,34 @@ TEST_CASE("ScoreRegistry dispatches by string id", "[score][registry]") {
         REQUIRE(direct.ok());
         REQUIRE(via_registry.value() == Catch::Approx(direct.value()).margin(0.0));
     }
+}
+
+TEST_CASE("ScoreRegistry catalog entries expose order and arity JSON", "[score][catalog]") {
+    const std::vector<ScoreCatalogEntry> entries = ScoreRegistry::catalog();
+    REQUIRE(entries.size() == 5);
+
+    bool saw_chi2 = false;
+    bool saw_exact = false;
+    for (const ScoreCatalogEntry& entry : entries) {
+        const nlohmann::json row = entry.to_json();
+        REQUIRE(row.contains("score_id"));
+        REQUIRE(row.contains("score_version"));
+        REQUIRE(row.contains("order"));
+        REQUIRE(row.contains("arity"));
+        REQUIRE(row.at("score_version").get<std::string>() == "v0");
+        if (entry.id() == "chi2_english_gp_v0") {
+            saw_chi2 = true;
+            REQUIRE(row.at("order").get<std::string>() == "asc");
+            REQUIRE(row.at("arity").get<std::string>() == "unary_with_table");
+        }
+        if (entry.id() == "exact_match") {
+            saw_exact = true;
+            REQUIRE(row.at("order").get<std::string>() == "desc");
+            REQUIRE(row.at("arity").get<std::string>() == "pairwise");
+        }
+    }
+    REQUIRE(saw_chi2);
+    REQUIRE(saw_exact);
 }
 
 TEST_CASE("ExactMatch hand vectors", "[score][exact]") {

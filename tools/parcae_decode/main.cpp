@@ -41,6 +41,7 @@ void print_help() {
         << "\n"
         << "Global:\n"
         << "  --backend    cpu|cuda (default cpu; exit 2 if cuda not built)\n"
+        << "  --rebuild-text  Also rebuild UTF-8 with separators preserved\n"
         << "  --json       JSON envelope on stdout (parcae.tool_response.v0)\n"
         << "  --data-dir   Parcae data/ root\n"
         << "  -h, --help   Show this help\n";
@@ -145,31 +146,59 @@ void print_help() {
 
 [[nodiscard]] int emit_result(
     const parcae::tool::Context& ctx,
-    const std::vector<Index29>& indices,
+    const TokenStream& stream,
+    const parcae::tool::TransformEnvelope& envelope,
+    parcae::tool::Backend backend,
     bool json_mode,
-    const std::string& backend) {
-    StatusOr<std::string> latin = parcae::tool::to_latin(ctx, indices);
-    if (!latin.ok()) {
-        return fail(json_mode, backend, ToolErrorCode::Internal, latin.status().message(),
+    bool rebuild_text,
+    const std::string& backend_label) {
+    StatusOr<std::vector<Index29>> indices =
+        parcae::tool::apply_to_indices(stream, envelope, backend);
+    if (!indices.ok()) {
+        return fail(json_mode, backend_label, ToolErrorCode::Internal, indices.status().message(),
                     parcae::cli::kExitFail);
     }
 
+    StatusOr<std::string> latin = parcae::tool::to_latin(ctx, indices.value());
+    if (!latin.ok()) {
+        return fail(json_mode, backend_label, ToolErrorCode::Internal, latin.status().message(),
+                    parcae::cli::kExitFail);
+    }
+
+    std::optional<std::string> rebuilt;
+    if (rebuild_text) {
+        StatusOr<std::string> text =
+            parcae::tool::apply_and_rebuild_text(ctx, stream, envelope, backend);
+        if (!text.ok()) {
+            return fail(json_mode, backend_label, ToolErrorCode::Internal, text.status().message(),
+                        parcae::cli::kExitFail);
+        }
+        rebuilt = std::move(text.value());
+    }
+
     if (!json_mode) {
-        std::cout << latin.value() << '\n';
+        if (rebuilt.has_value()) {
+            std::cout << rebuilt.value() << '\n';
+        } else {
+            std::cout << latin.value() << '\n';
+        }
         return parcae::cli::kExitOk;
     }
 
     nlohmann::json index_json = nlohmann::json::array();
-    for (Index29 idx : indices) {
+    for (Index29 idx : indices.value()) {
         index_json.push_back(idx.value());
     }
-    return ToolCliJson::ok(
-        kTool,
-        backend,
-        nlohmann::json{
-            {"indices", std::move(index_json)},
-            {"latin", latin.value()},
-        });
+    nlohmann::json result{
+        {"indices", std::move(index_json)},
+        {"latin", latin.value()},
+    };
+    if (rebuilt.has_value()) {
+        result["text"] = std::move(*rebuilt);
+    } else {
+        result["text"] = nullptr;
+    }
+    return ToolCliJson::ok(kTool, backend_label, std::move(result));
 }
 
 }  // namespace
@@ -184,6 +213,7 @@ int main(int argc, char** argv) {
     }
 
     const bool json_mode = has_flag(args, "--json");
+    const bool rebuild_text = has_flag(args, "--rebuild-text");
     const std::string data_dir = optional_option(args, "--data-dir");
     std::optional<std::string> backend_label;
 
@@ -255,13 +285,14 @@ int main(int argc, char** argv) {
                         stream.status().message(), kExitFail);
         }
 
-        StatusOr<std::vector<Index29>> plain =
-            parcae::tool::apply_to_indices(stream.value(), envelope.value(), backend.value());
-        if (!plain.ok()) {
-            return fail(json_mode, backend_label, ToolErrorCode::Internal,
-                        plain.status().message(), kExitFail);
-        }
-        return emit_result(ctx.value(), plain.value(), json_mode, *backend_label);
+        return emit_result(
+            ctx.value(),
+            stream.value(),
+            envelope.value(),
+            backend.value(),
+            json_mode,
+            rebuild_text,
+            *backend_label);
     }
 
     StatusOr<std::string> input_path = require_option(args, "--input");
@@ -303,11 +334,12 @@ int main(int argc, char** argv) {
                     kExitFail);
     }
 
-    StatusOr<std::vector<Index29>> plain =
-        parcae::tool::apply_to_indices(stream.value(), envelope.value(), backend.value());
-    if (!plain.ok()) {
-        return fail(json_mode, backend_label, ToolErrorCode::Internal, plain.status().message(),
-                    kExitFail);
-    }
-    return emit_result(ctx.value(), plain.value(), json_mode, *backend_label);
+    return emit_result(
+        ctx.value(),
+        stream.value(),
+        envelope.value(),
+        backend.value(),
+        json_mode,
+        rebuild_text,
+        *backend_label);
 }
