@@ -17,6 +17,7 @@ are binding for conforming implementations.
 | [scores.md](scores.md) | Score suite + determinism rules |
 | [fixtures.md](fixtures.md) | Fixture manifest format (incl. literals) |
 | [tools.md](tools.md) | Deterministic library + CLI contracts |
+| [agent-tools.md](agent-tools.md) | Agent allow-list, JSON envelope, loop contract |
 | [parity.md](parity.md) | CPU↔CUDA parity contract |
 | [checklist.md](checklist.md) | Spec completeness checklist |
 

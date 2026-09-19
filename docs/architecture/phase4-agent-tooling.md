@@ -74,7 +74,7 @@ Numbering is **local to Phase 4** (not a continuation of CUDA commits 1–42).
 | Commit | Title |
 |--------|-------|
 | 1 | docs: Phase 4 CMD-agent plan freeze (**this**) |
-| 2 | docs: normative agent tool surface v0 ([agent-tools.md](../spec/agent-tools.md) — planned) |
+| 2 | docs: normative agent tool surface v0 ([agent-tools.md](../spec/agent-tools.md)) |
 | 3 | docs: hypothesis and workspace schema v0 |
 
 ### B — Shared JSON / CLI foundation

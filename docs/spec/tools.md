@@ -205,7 +205,7 @@ Exit codes:
 
 ## Agent-facing stability
 
-These five operations are the **only** compute primitives agents SHOULD get:
+Library compute primitives agents SHOULD build on:
 
 1. `tokenize`
 2. `apply_transform`
@@ -214,6 +214,9 @@ These five operations are the **only** compute primitives agents SHOULD get:
 5. `validate_fixture`
 
 Plus read-only listing of `transform_id` / `score_id` registries.
+
+**Normative agent CLI surface** (allow-list, deny-list, `parcae.tool_response.v0`
+envelope, exit codes, `parcae-agent` loop): see [`agent-tools.md`](agent-tools.md).
 
 Agents MUST NOT receive:
 
