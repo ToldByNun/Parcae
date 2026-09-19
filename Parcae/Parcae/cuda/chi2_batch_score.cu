@@ -9,8 +9,8 @@ __global__ void chi2_hist_from_out_kernel(
     const std::uint8_t* out,
     std::uint32_t* counts,
     std::size_t token_count) {
-    __shared__ std::uint32_t shared[HistFast::alphabet];
-    HistFast::clear_shared(shared);
+    __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
+    HistFast::clear_private(priv);
 
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
@@ -22,15 +22,10 @@ __global__ void chi2_hist_from_out_kernel(
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count;
          t += stride) {
-        atomicAdd(&shared[lane[t]], 1u);
+        HistFast::add_private(priv, lane[t]);
     }
-    __syncthreads();
-    if (threadIdx.x < HistFast::alphabet) {
-        atomicAdd(
-            &counts[candidate * static_cast<std::size_t>(HistFast::alphabet) +
-                    static_cast<std::size_t>(threadIdx.x)],
-            shared[threadIdx.x]);
-    }
+    HistFast::flush_private(
+        priv, counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
 __global__ void chi2_finalize_kernel(
@@ -59,14 +54,7 @@ __global__ void chi2_finalize_kernel(
 }
 
 int Chi2BatchScore::tiles_for(std::size_t token_count) {
-    const int by_work = static_cast<int>(
-        (token_count + static_cast<std::size_t>(HistFast::threads) - 1u) /
-        static_cast<std::size_t>(HistFast::threads));
-    constexpr int kMaxTiles = 1024;
-    if (by_work < 1) {
-        return 1;
-    }
-    return by_work < kMaxTiles ? by_work : kMaxTiles;
+    return HistFast::tiles_for(token_count);
 }
 
 Status Chi2BatchScore::histogram_from_out_async(

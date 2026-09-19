@@ -126,4 +126,5 @@ include/parcae/run/     SearchRun metrics / console / CUDA sweeps
 ```
 
 ABI: [cuda-abi.md](cuda-abi.md) · Twins: [cuda-handoff.md](cuda-handoff.md) ·
-Reference: [cuda-reference.md](cuda-reference.md) · Roadmap: [cuda-roadmap.md](cuda-roadmap.md)
+Reference: [cuda-reference.md](cuda-reference.md) · Throughput: [cuda-throughput.md](cuda-throughput.md) ·
+Roadmap: [cuda-roadmap.md](cuda-roadmap.md)

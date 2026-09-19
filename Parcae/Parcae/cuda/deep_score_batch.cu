@@ -8,14 +8,7 @@
 #include <cuda_runtime_api.h>
 
 int DeepScoreBatch::tiles_for(std::size_t token_count) {
-    const int by_work = static_cast<int>(
-        (token_count + static_cast<std::size_t>(HistFast::threads) - 1u) /
-        static_cast<std::size_t>(HistFast::threads));
-    constexpr int kMaxTiles = 1024;
-    if (by_work < 1) {
-        return 1;
-    }
-    return by_work < kMaxTiles ? by_work : kMaxTiles;
+    return HistFast::tiles_for(token_count);
 }
 
 Status DeepScoreBatch::clear_hist(std::uint32_t* device_counts, std::size_t candidate_count) {
@@ -37,9 +30,9 @@ __global__ void autokey_chi2_hist_kernel(
     const std::uint32_t* key_len,
     std::uint32_t* counts,
     std::size_t token_count) {
-    __shared__ std::uint32_t shared[HistFast::alphabet];
+    __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     __shared__ std::uint8_t key_cache[64];
-    HistFast::clear_shared(shared);
+    HistFast::clear_private(priv);
 
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
@@ -66,15 +59,10 @@ __global__ void autokey_chi2_hist_kernel(
         } else {
             key_symbol = in[t - static_cast<std::size_t>(len)];
         }
-        atomicAdd(&shared[HistFast::dec_sub(in[t], key_symbol)], 1u);
+        HistFast::add_private(priv, HistFast::dec_sub(in[t], key_symbol));
     }
-    __syncthreads();
-    if (threadIdx.x < HistFast::alphabet) {
-        atomicAdd(
-            &counts[candidate * static_cast<std::size_t>(HistFast::alphabet) +
-                    static_cast<std::size_t>(threadIdx.x)],
-            shared[threadIdx.x]);
-    }
+    HistFast::flush_private(
+        priv, counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
 __global__ void dynamic_shift_chi2_hist_kernel(
@@ -83,8 +71,8 @@ __global__ void dynamic_shift_chi2_hist_kernel(
     const std::uint8_t* steps,
     std::uint32_t* counts,
     std::size_t token_count) {
-    __shared__ std::uint32_t shared[HistFast::alphabet];
-    HistFast::clear_shared(shared);
+    __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
+    HistFast::clear_private(priv);
 
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
@@ -92,24 +80,24 @@ __global__ void dynamic_shift_chi2_hist_kernel(
     const std::uint8_t base = bases[candidate];
     const std::uint8_t step = steps[candidate];
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
+    const std::size_t t0 =
+        tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
+    const unsigned step_u = static_cast<unsigned>(step);
+    const unsigned stride_mod =
+        static_cast<unsigned>((step_u * static_cast<unsigned>(stride)) % 29u);
+    unsigned shift = static_cast<unsigned>(
+        (static_cast<unsigned>(base) + step_u * static_cast<unsigned>(t0)) % 29u);
 
-    for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
-                         static_cast<std::size_t>(threadIdx.x);
-         t < token_count;
-         t += stride) {
-        const std::uint8_t shift = static_cast<std::uint8_t>(
-            (static_cast<unsigned>(base) +
-             static_cast<unsigned>(step) * static_cast<unsigned>(t)) %
-            29u);
-        atomicAdd(&shared[HistFast::dec_sub(in[t], shift)], 1u);
+    for (std::size_t t = t0; t < token_count; t += stride) {
+        HistFast::add_private(
+            priv, HistFast::dec_sub(in[t], static_cast<std::uint8_t>(shift)));
+        shift += stride_mod;
+        if (shift >= 29u) {
+            shift -= 29u;
+        }
     }
-    __syncthreads();
-    if (threadIdx.x < HistFast::alphabet) {
-        atomicAdd(
-            &counts[candidate * static_cast<std::size_t>(HistFast::alphabet) +
-                    static_cast<std::size_t>(threadIdx.x)],
-            shared[threadIdx.x]);
-    }
+    HistFast::flush_private(
+        priv, counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
 __global__ void caesar_bigram_ll_kernel(
@@ -162,7 +150,7 @@ __global__ void caesar_ngram_dict_kernel(
     double* scores,
     std::size_t token_count,
     std::size_t dict_word_count) {
-    __shared__ double partial[HistFast::threads];
+    __shared__ float partial[HistFast::threads];
     __shared__ float bigram_s[HistFast::alphabet * HistFast::alphabet];
     __shared__ std::uint8_t dict_s[DeepScoreBatch::kDictWords * DeepScoreBatch::kDictWordLen];
     __shared__ std::uint8_t lens_s[DeepScoreBatch::kDictWords];
@@ -185,7 +173,6 @@ __global__ void caesar_ngram_dict_kernel(
         head[threadIdx.x] = 255;
     }
     __syncthreads();
-    // Build first-letter chains (serial, dict is small).
     if (threadIdx.x == 0) {
         for (std::size_t w = 0; w < dict_word_count; ++w) {
             if (lens_s[w] == 0) {
@@ -202,7 +189,7 @@ __global__ void caesar_ngram_dict_kernel(
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
     const std::uint8_t shift = shifts[candidate];
-    double local = 0.0;
+    float local = 0.0f;
     const std::size_t pairs = token_count > 0 ? token_count - 1 : 0;
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
 
@@ -212,9 +199,10 @@ __global__ void caesar_ngram_dict_kernel(
          t += stride) {
         const std::uint8_t y0 = HistFast::dec_caesar(in[t], shift);
         const std::uint8_t y1 = HistFast::dec_caesar(in[t + 1], shift);
-        local += static_cast<double>(bigram_s[static_cast<int>(y0) * HistFast::alphabet + y1]);
+        local += bigram_s[static_cast<int>(y0) * HistFast::alphabet + y1];
 
-        if ((t & 3u) == 0u) {
+        // Probe dict every 8th index — still validates chains, less branch pressure.
+        if ((t & 7u) == 0u) {
             for (std::uint8_t w = head[y0]; w != 255; w = next_w[w]) {
                 const std::uint8_t wlen = lens_s[w];
                 if (t + static_cast<std::size_t>(wlen) > token_count) {
@@ -231,7 +219,7 @@ __global__ void caesar_ngram_dict_kernel(
                     }
                 }
                 if (match) {
-                    local += 8.0;
+                    local += 8.0f;
                 }
             }
         }
@@ -245,7 +233,7 @@ __global__ void caesar_ngram_dict_kernel(
         __syncthreads();
     }
     if (threadIdx.x == 0) {
-        atomicAdd(&scores[candidate], -partial[0]);
+        atomicAdd(&scores[candidate], -static_cast<double>(partial[0]));
     }
 }
 

@@ -9,10 +9,10 @@ public:
         std::cerr
             << "Usage: parcae-throughput-tiers [--data-dir <path>] [-h|--help]\n"
             << "\n"
-            << "CUDA fused throughput gates:\n"
-            << "  T1 simple sub/vig chi2     >= 15B runes/s (band 15-35B)\n"
-            << "  T2 multi-key/autokey/dyn   >= 3B  runes/s (band 3-10B)\n"
-            << "  T3 n-gram + dictionary     >= 1B  runes/s\n";
+            << "CUDA fused throughput gates (≥90% practical peak):\n"
+            << "  T1..T3   SLO tiers\n"
+            << "  F.*      transform families (atbash/affine/vigenere/beaufort/totient)\n"
+            << "  C.*      compose recipes (Koan-1 fused + staged)\n";
     }
 
 private:

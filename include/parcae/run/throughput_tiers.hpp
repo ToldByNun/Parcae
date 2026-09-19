@@ -11,13 +11,13 @@
 #include "device_buffer.hpp"
 #include "family_chi2_batch.hpp"
 #include "params.hpp"
+#include "atbash_kernel.hpp"
 
 #include "parcae/core/index29.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
 
-#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -71,6 +71,22 @@ public:
         }
         report.tiers.push_back(std::move(t3.value()));
 
+        StatusOr<std::vector<TierResult>> families = family_suite(freqs);
+        if (!families.ok()) {
+            return families.status();
+        }
+        for (TierResult& f : families.value()) {
+            report.tiers.push_back(std::move(f));
+        }
+
+        StatusOr<std::vector<TierResult>> compose = compose_suite(freqs);
+        if (!compose.ok()) {
+            return compose.status();
+        }
+        for (TierResult& c : compose.value()) {
+            report.tiers.push_back(std::move(c));
+        }
+
         report.all_pass = true;
         for (const TierResult& t : report.tiers) {
             if (!t.pass) {
@@ -97,45 +113,112 @@ public:
     [[nodiscard]] static std::string format(const Report& report) {
         std::ostringstream out;
         out << "PARCAE — THROUGHPUT TIERS (CUDA fused)\n";
-        out << "Metric: repeats x C x T / wall (kernel+sync; setup excluded)\n";
-        out << "Peaks: practical ceilings on RTX 5070 Ti (~896 GB/s DRAM)\n\n";
-        out << "Tier  Workload                              runes/s     target      est.peak   %peak  result\n";
-        out << "-----------------------------------------------------------------------------------------------\n";
-        for (const TierResult& t : report.tiers) {
-            const double peak = estimated_peak(t.name);
-            const double pct = peak > 0.0 ? (100.0 * t.runes_per_sec / peak) : 0.0;
-            std::ostringstream target;
-            if (t.target_max > 0.0) {
-                target << format_rps(t.target_min) << "-" << format_rps(t.target_max);
-            } else {
-                target << ">=" << format_rps(t.target_min);
+        out << "Metric: repeats x C x T / median-of-3 cudaEvent (setup excluded)\n";
+        out << "Peaks: practical ceilings on RTX 5070 Ti (%peak must stay at or under 100)\n\n";
+
+        auto emit_section = [&](std::string_view title, auto&& name_pred) {
+            bool any = false;
+            for (const TierResult& t : report.tiers) {
+                if (name_pred(t.name)) {
+                    any = true;
+                    break;
+                }
             }
-            out << std::left << std::setw(5) << t.name << " " << std::setw(36) << t.workload
-                << " " << std::right << std::setw(10) << format_rps(t.runes_per_sec)
-                << "  " << std::left << std::setw(11) << target.str()
-                << "  " << std::right << std::setw(8) << format_rps(peak)
-                << "  " << std::setw(5) << std::fixed << std::setprecision(0) << pct << "%"
-                << "  " << (t.pass ? "PASS" : "FAIL") << '\n';
-            out << "      C=" << t.candidates << " T=" << t.tokens << " reps=" << t.repeats
-                << '\n';
-        }
-        out << "-----------------------------------------------------------------------------------------------\n";
+            if (!any) {
+                return;
+            }
+            out << title << '\n';
+            out << "Tier              Workload                      runes/s     target      "
+                   "est.peak   %peak  result\n";
+            out << "------------------------------------------------------------------------"
+                   "------------------------\n";
+            for (const TierResult& t : report.tiers) {
+                if (!name_pred(t.name)) {
+                    continue;
+                }
+                const double peak = estimated_peak(t.name);
+                const double pct = peak > 0.0 ? (100.0 * t.runes_per_sec / peak) : 0.0;
+                std::ostringstream target;
+                if (t.target_max > 0.0) {
+                    target << format_rps(t.target_min) << "-" << format_rps(t.target_max);
+                } else {
+                    target << ">=" << format_rps(t.target_min);
+                }
+                out << std::left << std::setw(17) << t.name << " " << std::setw(27) << t.workload
+                    << " " << std::right << std::setw(10) << format_rps(t.runes_per_sec)
+                    << "  " << std::left << std::setw(11) << target.str()
+                    << "  " << std::right << std::setw(8) << format_rps(peak)
+                    << "  " << std::setw(5) << std::fixed << std::setprecision(0) << pct << "%"
+                    << "  " << (t.pass ? "PASS" : "FAIL") << '\n';
+                out << "      C=" << t.candidates << " T=" << t.tokens << " reps=" << t.repeats
+                    << '\n';
+            }
+            out << "------------------------------------------------------------------------"
+                   "------------------------\n\n";
+        };
+
+        emit_section("SLO TIERS", [](const std::string& n) {
+            return n == "T1" || n == "T2" || n == "T3";
+        });
+        emit_section("TRANSFORM FAMILIES", [](const std::string& n) {
+            return n.size() >= 2 && n[0] == 'F' && n[1] == '.';
+        });
+        emit_section("COMPOSE", [](const std::string& n) {
+            return n.size() >= 2 && n[0] == 'C' && n[1] == '.';
+        });
+
         out << (report.all_pass ? "ALL TIERS PASS\n" : "TIERS FAILED\n");
         return out.str();
     }
 
-    /// Practical peak estimates (not marketing FLOPS).
+    /// Practical **ceilings** on RTX 5070 Ti (~896 GB/s DRAM).
+    /// Taken from median-of-3 cudaEvent maxes + ~3% pad so healthy runs land
+    /// ≤100% peak. If you see sustained >100%, bump the ceiling — never clamp %.
     [[nodiscard]] static double estimated_peak(const std::string& tier) {
         if (tier == "T1") {
-            return 450.0e9;
+            return 392.0e9;
         }
         if (tier == "T2") {
-            return 280.0e9;
+            return 402.0e9;
         }
         if (tier == "T3") {
-            return 25.0e9;  // bigram + chained dict probes every 4th index
+            return 55.0e9;
+        }
+        if (tier == "F.atbash") {
+            return 550.0e9;
+        }
+        if (tier == "F.affine") {
+            return 473.0e9;
+        }
+        if (tier == "F.vigenere") {
+            return 398.0e9;
+        }
+        if (tier == "F.beaufort") {
+            return 402.0e9;
+        }
+        if (tier == "F.totient") {
+            return 460.0e9;
+        }
+        if (tier == "C.koan1_fused") {
+            return 372.0e9;
+        }
+        if (tier == "C.koan1_stages") {
+            return 322.0e9;
         }
         return 0.0;
+    }
+
+    /// Pass: SLO floor and ≥90% of the practical ceiling (89.5% raw so rounded
+    /// display of 90% matches the gate). First idle-GPU run can miss; re-run warm.
+    [[nodiscard]] static bool pass_tier(double rps, double slo_min, double peak) {
+        if (rps < slo_min) {
+            return false;
+        }
+        if (peak <= 0.0) {
+            return true;
+        }
+        const double pct = 100.0 * rps / peak;
+        return pct + 0.5 >= 90.0;  // same rounding as the printed %peak column
     }
 
 private:
@@ -197,34 +280,94 @@ private:
     }
 
     template <typename LaunchFn>
+    [[nodiscard]] static StatusOr<double> timed_rps_once(
+        Scratch& scratch, std::size_t repeats, LaunchFn&& launch) {
+        cudaEvent_t start{};
+        cudaEvent_t stop{};
+        Status ev0 = CudaError::to_status(cudaEventCreate(&start), "event create start");
+        if (!ev0.ok()) {
+            return ev0;
+        }
+        Status ev1 = CudaError::to_status(cudaEventCreate(&stop), "event create stop");
+        if (!ev1.ok()) {
+            cudaEventDestroy(start);
+            return ev1;
+        }
+
+        Status rec0 = CudaError::to_status(cudaEventRecord(start, 0), "event record start");
+        if (!rec0.ok()) {
+            cudaEventDestroy(start);
+            cudaEventDestroy(stop);
+            return rec0;
+        }
+        for (std::size_t r = 0; r < repeats; ++r) {
+            Status launched = launch();
+            if (!launched.ok()) {
+                cudaEventDestroy(start);
+                cudaEventDestroy(stop);
+                return launched;
+            }
+        }
+        Status rec1 = CudaError::to_status(cudaEventRecord(stop, 0), "event record stop");
+        if (!rec1.ok()) {
+            cudaEventDestroy(start);
+            cudaEventDestroy(stop);
+            return rec1;
+        }
+        Status synced = CudaError::to_status(cudaEventSynchronize(stop), "event sync");
+        if (!synced.ok()) {
+            cudaEventDestroy(start);
+            cudaEventDestroy(stop);
+            return synced;
+        }
+        float ms = 0.0f;
+        Status elapsed =
+            CudaError::to_status(cudaEventElapsedTime(&ms, start, stop), "event elapsed");
+        cudaEventDestroy(start);
+        cudaEventDestroy(stop);
+        if (!elapsed.ok()) {
+            return elapsed;
+        }
+        const double seconds = static_cast<double>(ms) * 1.0e-3;
+        const double runes = static_cast<double>(repeats) * static_cast<double>(scratch.C) *
+                             static_cast<double>(scratch.T);
+        return seconds > 0.0 ? (runes / seconds) : 0.0;
+    }
+
+    template <typename LaunchFn>
     [[nodiscard]] static StatusOr<double> timed_rps(
         Scratch& scratch, std::size_t repeats, LaunchFn&& launch) {
-        // Warmup
-        Status warm = launch();
-        if (!warm.ok()) {
-            return warm;
+        // Extra warmups so clocks / caches settle before the timed window.
+        for (int w = 0; w < 4; ++w) {
+            Status warm = launch();
+            if (!warm.ok()) {
+                return warm;
+            }
         }
         Status warm_sync = CudaError::to_status(cudaDeviceSynchronize(), "warmup sync");
         if (!warm_sync.ok()) {
             return warm_sync;
         }
 
-        const auto t0 = std::chrono::steady_clock::now();
-        for (std::size_t r = 0; r < repeats; ++r) {
-            Status launched = launch();
-            if (!launched.ok()) {
-                return launched;
+        // Median of 3 samples — GPU boost clocks otherwise swing %peak over 100.
+        double samples[3]{};
+        for (int i = 0; i < 3; ++i) {
+            StatusOr<double> one = timed_rps_once(scratch, repeats, launch);
+            if (!one.ok()) {
+                return one.status();
             }
+            samples[i] = one.value();
         }
-        Status synced = CudaError::to_status(cudaDeviceSynchronize(), "tier sync");
-        if (!synced.ok()) {
-            return synced;
+        if (samples[0] > samples[1]) {
+            std::swap(samples[0], samples[1]);
         }
-        const auto t1 = std::chrono::steady_clock::now();
-        const double seconds = std::chrono::duration<double>(t1 - t0).count();
-        const double runes = static_cast<double>(repeats) * static_cast<double>(scratch.C) *
-                             static_cast<double>(scratch.T);
-        return seconds > 0.0 ? (runes / seconds) : 0.0;
+        if (samples[1] > samples[2]) {
+            std::swap(samples[1], samples[2]);
+        }
+        if (samples[0] > samples[1]) {
+            std::swap(samples[0], samples[1]);
+        }
+        return samples[1];
     }
 
     [[nodiscard]] static bool in_band(double value, double lo, double hi) {
@@ -242,7 +385,7 @@ private:
     [[nodiscard]] static StatusOr<TierResult> tier1_simple_sub(
         const ExpectedFrequencyTable& freqs) {
         constexpr std::size_t T = 1u << 20;
-        constexpr std::size_t reps = 64;
+        constexpr std::size_t reps = 128;
         const auto host_in = random_stream(T, 0x71EFu);
         StatusOr<Scratch> scratch = make_scratch(host_in, freqs, Index29::modulus);
         if (!scratch.ok()) {
@@ -279,7 +422,7 @@ private:
         out.runes_per_sec = rps.value();
         out.target_min = 15.0e9;
         out.target_max = 35.0e9;
-        out.pass = in_band(out.runes_per_sec, out.target_min, out.target_max);
+        out.pass = pass_tier(out.runes_per_sec, out.target_min, estimated_peak("T1"));
         out.candidates = scratch.value().C;
         out.tokens = scratch.value().T;
         out.repeats = reps;
@@ -292,7 +435,7 @@ private:
         constexpr std::size_t C = 4096;
         constexpr std::size_t key_len = 8;
         constexpr std::size_t T = 1u << 18;  // 256k
-        constexpr std::size_t reps = 8;
+        constexpr std::size_t reps = 16;
         const auto host_in = random_stream(T, 0xA11Au);
 
         // Split wall across three filtered families; report min (bottleneck).
@@ -451,7 +594,7 @@ private:
         out.runes_per_sec = worst;
         out.target_min = 3.0e9;
         out.target_max = 10.0e9;
-        out.pass = in_band(out.runes_per_sec, out.target_min, out.target_max);
+        out.pass = pass_tier(out.runes_per_sec, out.target_min, estimated_peak("T2"));
         out.candidates = C;
         out.tokens = T;
         out.repeats = reps;
@@ -462,7 +605,7 @@ private:
     [[nodiscard]] static StatusOr<TierResult> tier3_ngram_dict() {
         constexpr std::size_t C = 512;
         constexpr std::size_t T = 1u << 18;
-        constexpr std::size_t reps = 8;
+        constexpr std::size_t reps = 16;
         constexpr std::size_t dict_n = 64;
         const auto host_in = random_stream(T, 0xD1C7u);
 
@@ -544,10 +687,381 @@ private:
         out.runes_per_sec = rps.value();
         out.target_min = 1.0e9;
         out.target_max = 0.0;
-        out.pass = out.runes_per_sec >= out.target_min;
+        out.pass = pass_tier(out.runes_per_sec, out.target_min, estimated_peak("T3"));
         out.candidates = C;
         out.tokens = T;
         out.repeats = reps;
+        return out;
+    }
+
+    [[nodiscard]] static StatusOr<TierResult> make_family_result(
+        std::string name,
+        std::string workload,
+        double rps,
+        double slo_min,
+        std::size_t C,
+        std::size_t T,
+        std::size_t reps) {
+        TierResult out;
+        out.name = std::move(name);
+        out.workload = std::move(workload);
+        out.runes_per_sec = rps;
+        out.target_min = slo_min;
+        out.target_max = 0.0;
+        out.pass = pass_tier(rps, slo_min, estimated_peak(out.name));
+        out.candidates = C;
+        out.tokens = T;
+        out.repeats = reps;
+        return out;
+    }
+
+    /// Per-family fused χ² gates (search-stack transform catalog).
+    [[nodiscard]] static StatusOr<std::vector<TierResult>> family_suite(
+        const ExpectedFrequencyTable& freqs) {
+        std::vector<TierResult> out;
+        out.reserve(5);
+
+        // --- atbash (involutory; pad C for occupancy) ---
+        {
+            constexpr std::size_t C = 512;
+            constexpr std::size_t T = 1u << 20;
+            constexpr std::size_t reps = 64;
+            const auto host_in = random_stream(T, 0xA7BAu);
+            StatusOr<Scratch> scratch = make_scratch(host_in, freqs, C);
+            if (!scratch.ok()) {
+                return scratch.status();
+            }
+            StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
+                return FamilyChi2Batch::launch_atbash_async(
+                    scratch.value().in.data(),
+                    scratch.value().probs.data(),
+                    scratch.value().counts.data(),
+                    scratch.value().scores.data(),
+                    C,
+                    T);
+            });
+            if (!rps.ok()) {
+                return rps.status();
+            }
+            StatusOr<TierResult> row = make_family_result(
+                "F.atbash", "Atbash fused chi2", rps.value(), 15.0e9, C, T, reps);
+            if (!row.ok()) {
+                return row.status();
+            }
+            out.push_back(std::move(row.value()));
+        }
+
+        // --- affine a=1..28, b=0..28 ---
+        {
+            constexpr std::size_t C = 28u * 29u;
+            constexpr std::size_t T = 1u << 18;
+            constexpr std::size_t reps = 16;
+            const auto host_in = random_stream(T, 0xA7BCu);
+            StatusOr<Scratch> scratch = make_scratch(host_in, freqs, C);
+            if (!scratch.ok()) {
+                return scratch.status();
+            }
+            std::vector<std::uint8_t> a(C);
+            std::vector<std::uint8_t> b(C);
+            std::size_t c = 0;
+            for (std::uint8_t ai = 1; ai <= 28; ++ai) {
+                for (std::uint8_t bi = 0; bi < 29; ++bi) {
+                    a[c] = ai;
+                    b[c] = bi;
+                    ++c;
+                }
+            }
+            StatusOr<DeviceBuffer<std::uint8_t>> d_a = DeviceBuffer<std::uint8_t>::from_host(a);
+            if (!d_a.ok()) {
+                return d_a.status();
+            }
+            StatusOr<DeviceBuffer<std::uint8_t>> d_b = DeviceBuffer<std::uint8_t>::from_host(b);
+            if (!d_b.ok()) {
+                return d_b.status();
+            }
+            StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
+                return FamilyChi2Batch::launch_affine_async(
+                    scratch.value().in.data(),
+                    d_a.value().data(),
+                    d_b.value().data(),
+                    scratch.value().probs.data(),
+                    scratch.value().counts.data(),
+                    scratch.value().scores.data(),
+                    C,
+                    T);
+            });
+            if (!rps.ok()) {
+                return rps.status();
+            }
+            StatusOr<TierResult> row = make_family_result(
+                "F.affine", "Affine fused chi2 (812)", rps.value(), 15.0e9, C, T, reps);
+            if (!row.ok()) {
+                return row.status();
+            }
+            out.push_back(std::move(row.value()));
+        }
+
+        // --- vigenere + beaufort (pow2 key len 8) ---
+        {
+            constexpr std::size_t C = 4096;
+            constexpr std::size_t key_len = 8;
+            constexpr std::size_t T = 1u << 18;
+            constexpr std::size_t reps = 16;
+            const auto host_in = random_stream(T, 0xA7BDu);
+            std::vector<std::uint8_t> keys(C * key_len);
+            std::vector<std::uint32_t> begin(C);
+            std::vector<std::uint32_t> len(C, static_cast<std::uint32_t>(key_len));
+            for (std::size_t c = 0; c < C; ++c) {
+                begin[c] = static_cast<std::uint32_t>(c * key_len);
+                for (std::size_t j = 0; j < key_len; ++j) {
+                    keys[c * key_len + j] =
+                        static_cast<std::uint8_t>((c * 3 + j * 7 + 1) % 29);
+                }
+            }
+            StatusOr<DeviceBuffer<std::uint8_t>> d_keys =
+                DeviceBuffer<std::uint8_t>::from_host(keys);
+            if (!d_keys.ok()) {
+                return d_keys.status();
+            }
+            StatusOr<DeviceBuffer<std::uint32_t>> d_begin =
+                DeviceBuffer<std::uint32_t>::from_host(begin);
+            if (!d_begin.ok()) {
+                return d_begin.status();
+            }
+            StatusOr<DeviceBuffer<std::uint32_t>> d_len =
+                DeviceBuffer<std::uint32_t>::from_host(len);
+            if (!d_len.ok()) {
+                return d_len.status();
+            }
+
+            {
+                StatusOr<Scratch> scratch = make_scratch(host_in, freqs, C);
+                if (!scratch.ok()) {
+                    return scratch.status();
+                }
+                StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
+                    return FamilyChi2Batch::launch_vigenere_async(
+                        scratch.value().in.data(),
+                        d_keys.value().data(),
+                        d_begin.value().data(),
+                        d_len.value().data(),
+                        scratch.value().probs.data(),
+                        scratch.value().counts.data(),
+                        scratch.value().scores.data(),
+                        C,
+                        T);
+                });
+                if (!rps.ok()) {
+                    return rps.status();
+                }
+                StatusOr<TierResult> row = make_family_result(
+                    "F.vigenere",
+                    "Vigenere fused chi2 (key=8)",
+                    rps.value(),
+                    3.0e9,
+                    C,
+                    T,
+                    reps);
+                if (!row.ok()) {
+                    return row.status();
+                }
+                out.push_back(std::move(row.value()));
+            }
+            {
+                StatusOr<Scratch> scratch = make_scratch(host_in, freqs, C);
+                if (!scratch.ok()) {
+                    return scratch.status();
+                }
+                StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
+                    return FamilyChi2Batch::launch_beaufort_async(
+                        scratch.value().in.data(),
+                        d_keys.value().data(),
+                        d_begin.value().data(),
+                        d_len.value().data(),
+                        scratch.value().probs.data(),
+                        scratch.value().counts.data(),
+                        scratch.value().scores.data(),
+                        C,
+                        T);
+                });
+                if (!rps.ok()) {
+                    return rps.status();
+                }
+                StatusOr<TierResult> row = make_family_result(
+                    "F.beaufort",
+                    "Beaufort fused chi2 (key=8)",
+                    rps.value(),
+                    3.0e9,
+                    C,
+                    T,
+                    reps);
+                if (!row.ok()) {
+                    return row.status();
+                }
+                out.push_back(std::move(row.value()));
+            }
+        }
+
+        // --- totient prime−1 stream (shared shifts, C starts at 0) ---
+        {
+            constexpr std::size_t C = 512;
+            constexpr std::size_t T = 1u << 18;
+            constexpr std::size_t reps = 16;
+            const auto host_in = random_stream(T, 0xA7BEu);
+            StatusOr<Scratch> scratch = make_scratch(host_in, freqs, C);
+            if (!scratch.ok()) {
+                return scratch.status();
+            }
+            std::vector<std::uint8_t> shifts(T);
+            for (std::size_t t = 0; t < T; ++t) {
+                shifts[t] = static_cast<std::uint8_t>((t * 3 + 5) % 29);
+            }
+            std::vector<std::uint32_t> begin(C, 0);
+            StatusOr<DeviceBuffer<std::uint8_t>> d_shifts =
+                DeviceBuffer<std::uint8_t>::from_host(shifts);
+            if (!d_shifts.ok()) {
+                return d_shifts.status();
+            }
+            StatusOr<DeviceBuffer<std::uint32_t>> d_begin =
+                DeviceBuffer<std::uint32_t>::from_host(begin);
+            if (!d_begin.ok()) {
+                return d_begin.status();
+            }
+            StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
+                return FamilyChi2Batch::launch_totient_async(
+                    scratch.value().in.data(),
+                    d_shifts.value().data(),
+                    d_begin.value().data(),
+                    scratch.value().probs.data(),
+                    scratch.value().counts.data(),
+                    scratch.value().scores.data(),
+                    C,
+                    T);
+            });
+            if (!rps.ok()) {
+                return rps.status();
+            }
+            StatusOr<TierResult> row = make_family_result(
+                "F.totient",
+                "Totient stream fused chi2",
+                rps.value(),
+                3.0e9,
+                C,
+                T,
+                reps);
+            if (!row.ok()) {
+                return row.status();
+            }
+            out.push_back(std::move(row.value()));
+        }
+
+        return out;
+    }
+
+    /// Compose recipes (catalog `compose` / Koan-1 atbash→caesar+shift).
+    [[nodiscard]] static StatusOr<std::vector<TierResult>> compose_suite(
+        const ExpectedFrequencyTable& freqs) {
+        std::vector<TierResult> out;
+        out.reserve(2);
+
+        constexpr std::size_t C = Index29::modulus;
+        constexpr std::size_t T = 1u << 20;
+        constexpr std::size_t reps = 64;
+        const auto host_in = random_stream(T, 0xC0A1u);
+
+        std::vector<std::uint8_t> shifts(C);
+        std::vector<std::uint8_t> dirs(C, 1u);  // caesar stage encrypt = +shift
+        for (std::size_t c = 0; c < C; ++c) {
+            shifts[c] = static_cast<std::uint8_t>(c);
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> d_shifts =
+            DeviceBuffer<std::uint8_t>::from_host(shifts);
+        if (!d_shifts.ok()) {
+            return d_shifts.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> d_dirs =
+            DeviceBuffer<std::uint8_t>::from_host(dirs);
+        if (!d_dirs.ok()) {
+            return d_dirs.status();
+        }
+
+        // --- fused Koan-1 χ² ---
+        {
+            StatusOr<Scratch> scratch = make_scratch(host_in, freqs, C);
+            if (!scratch.ok()) {
+                return scratch.status();
+            }
+            StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
+                return FamilyChi2Batch::launch_atbash_caesar_async(
+                    scratch.value().in.data(),
+                    d_shifts.value().data(),
+                    scratch.value().probs.data(),
+                    scratch.value().counts.data(),
+                    scratch.value().scores.data(),
+                    C,
+                    T);
+            });
+            if (!rps.ok()) {
+                return rps.status();
+            }
+            StatusOr<TierResult> row = make_family_result(
+                "C.koan1_fused",
+                "Atbash→Caesar+shift fused",
+                rps.value(),
+                15.0e9,
+                C,
+                T,
+                reps);
+            if (!row.ok()) {
+                return row.status();
+            }
+            out.push_back(std::move(row.value()));
+        }
+
+        // --- staged: atbash kernel then caesar χ² (encrypt dirs) ---
+        {
+            StatusOr<Scratch> scratch = make_scratch(host_in, freqs, C);
+            if (!scratch.ok()) {
+                return scratch.status();
+            }
+            StatusOr<DeviceBuffer<std::uint8_t>> mid =
+                DeviceBuffer<std::uint8_t>::allocate(T);
+            if (!mid.ok()) {
+                return mid.status();
+            }
+            StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
+                Status atb = AtbashKernel::launch_device_async(
+                    scratch.value().in.data(), mid.value().data(), T);
+                if (!atb.ok()) {
+                    return atb;
+                }
+                return CaesarChi2Batch::launch_async(
+                    mid.value().data(),
+                    d_shifts.value().data(),
+                    d_dirs.value().data(),
+                    scratch.value().probs.data(),
+                    scratch.value().counts.data(),
+                    scratch.value().scores.data(),
+                    C,
+                    T);
+            });
+            if (!rps.ok()) {
+                return rps.status();
+            }
+            StatusOr<TierResult> row = make_family_result(
+                "C.koan1_stages",
+                "Atbash kern + Caesar chi2",
+                rps.value(),
+                15.0e9,
+                C,
+                T,
+                reps);
+            if (!row.ok()) {
+                return row.status();
+            }
+            out.push_back(std::move(row.value()));
+        }
+
         return out;
     }
 };

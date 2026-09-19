@@ -32,7 +32,7 @@ License: [MIT](LICENSE).
 |------|----------|
 | Research (alphabet, solved methods, hypotheses) | [docs/research/](docs/research/README.md) |
 | Normative specs (Z29, tokens, transforms, fixtures, tools, parity) | [docs/spec/](docs/spec/README.md) |
-| Architecture (CPU map, CUDA ABI / roadmap) | [docs/architecture/](docs/architecture/README.md) |
+| Architecture (CPU map, CUDA ABI / roadmap / throughput) | [docs/architecture/](docs/architecture/README.md) |
 | CUDA sources (Visual Studio) | [Parcae/Parcae/cuda/](Parcae/Parcae/cuda/) |
 
 ## Roadmap (high level)

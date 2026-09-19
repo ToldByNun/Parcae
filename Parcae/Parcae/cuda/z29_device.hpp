@@ -16,19 +16,24 @@ public:
     static constexpr std::uint8_t modulus = 29;
 
     [[nodiscard]] PARCAE_HD static std::uint8_t add(std::uint8_t x, std::uint8_t y) noexcept {
-        return static_cast<std::uint8_t>((x + y) % modulus);
+        const unsigned s = static_cast<unsigned>(x) + static_cast<unsigned>(y);
+        return static_cast<std::uint8_t>(s >= modulus ? s - modulus : s);
     }
 
     [[nodiscard]] PARCAE_HD static std::uint8_t neg(std::uint8_t x) noexcept {
-        return x == 0 ? static_cast<std::uint8_t>(0) : static_cast<std::uint8_t>(modulus - x);
+        return x == 0 ? static_cast<std::uint8_t>(0)
+                      : static_cast<std::uint8_t>(modulus - x);
     }
 
     [[nodiscard]] PARCAE_HD static std::uint8_t sub(std::uint8_t x, std::uint8_t y) noexcept {
-        return add(x, neg(y));
+        const unsigned s = static_cast<unsigned>(x) + modulus - static_cast<unsigned>(y);
+        return static_cast<std::uint8_t>(s >= modulus ? s - modulus : s);
     }
 
     [[nodiscard]] PARCAE_HD static std::uint8_t mul(std::uint8_t x, std::uint8_t y) noexcept {
-        return static_cast<std::uint8_t>((x * y) % modulus);
+        // Product < 841; NVCC lowers `% 29` to a mul-high reciprocal.
+        return static_cast<std::uint8_t>(
+            (static_cast<unsigned>(x) * static_cast<unsigned>(y)) % modulus);
     }
 
     /// Modular inverse for `a` in 1..28. Index 0 is unused (do not call with 0).

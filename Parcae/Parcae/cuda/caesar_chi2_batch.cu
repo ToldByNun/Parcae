@@ -11,8 +11,8 @@ __global__ void caesar_chi2_histogram_decrypt_kernel(
     const std::uint8_t* shifts,
     std::uint32_t* counts,
     std::size_t token_count) {
-    __shared__ std::uint32_t shared[HistFast::alphabet];
-    HistFast::clear_shared(shared);
+    __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
+    HistFast::clear_private(priv);
 
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
@@ -27,24 +27,19 @@ __global__ void caesar_chi2_histogram_decrypt_kernel(
          i < n4;
          i += stride) {
         const uchar4 v = in4[i];
-        atomicAdd(&shared[HistFast::dec_caesar(v.x, shift)], 1u);
-        atomicAdd(&shared[HistFast::dec_caesar(v.y, shift)], 1u);
-        atomicAdd(&shared[HistFast::dec_caesar(v.z, shift)], 1u);
-        atomicAdd(&shared[HistFast::dec_caesar(v.w, shift)], 1u);
+        HistFast::add_private(priv, HistFast::dec_caesar(v.x, shift));
+        HistFast::add_private(priv, HistFast::dec_caesar(v.y, shift));
+        HistFast::add_private(priv, HistFast::dec_caesar(v.z, shift));
+        HistFast::add_private(priv, HistFast::dec_caesar(v.w, shift));
     }
     for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count;
          t += stride) {
-        atomicAdd(&shared[HistFast::dec_caesar(in[t], shift)], 1u);
+        HistFast::add_private(priv, HistFast::dec_caesar(in[t], shift));
     }
-    __syncthreads();
-    if (threadIdx.x < HistFast::alphabet) {
-        atomicAdd(
-            &counts[candidate * static_cast<std::size_t>(HistFast::alphabet) +
-                    static_cast<std::size_t>(threadIdx.x)],
-            shared[threadIdx.x]);
-    }
+    HistFast::flush_private(
+        priv, counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
 __global__ void caesar_chi2_histogram_kernel(
@@ -53,8 +48,8 @@ __global__ void caesar_chi2_histogram_kernel(
     const std::uint8_t* directions,
     std::uint32_t* counts,
     std::size_t token_count) {
-    __shared__ std::uint32_t shared[HistFast::alphabet];
-    HistFast::clear_shared(shared);
+    __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
+    HistFast::clear_private(priv);
 
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
@@ -70,26 +65,14 @@ __global__ void caesar_chi2_histogram_kernel(
         const std::uint8_t x = in[t];
         const std::uint8_t y =
             encrypt != 0u ? HistFast::enc_caesar(x, shift) : HistFast::dec_caesar(x, shift);
-        atomicAdd(&shared[y], 1u);
+        HistFast::add_private(priv, y);
     }
-    __syncthreads();
-    if (threadIdx.x < HistFast::alphabet) {
-        atomicAdd(
-            &counts[candidate * static_cast<std::size_t>(HistFast::alphabet) +
-                    static_cast<std::size_t>(threadIdx.x)],
-            shared[threadIdx.x]);
-    }
+    HistFast::flush_private(
+        priv, counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
 int CaesarChi2Batch::tiles_for(std::size_t token_count) {
-    const int by_work = static_cast<int>(
-        (token_count + static_cast<std::size_t>(HistFast::threads) - 1u) /
-        static_cast<std::size_t>(HistFast::threads));
-    constexpr int kMaxTiles = 1024;
-    if (by_work < 1) {
-        return 1;
-    }
-    return by_work < kMaxTiles ? by_work : kMaxTiles;
+    return HistFast::tiles_for(token_count);
 }
 
 Status CaesarChi2Batch::validate(

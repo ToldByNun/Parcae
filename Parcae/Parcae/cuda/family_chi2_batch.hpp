@@ -55,6 +55,30 @@ public:
         std::size_t candidate_count,
         std::size_t token_count);
 
+    /// Beaufort decrypt hist: `out = key[j] - in` (involution; same API as Vigenère).
+    [[nodiscard]] static Status launch_beaufort_async(
+        const std::uint8_t* device_in,
+        const std::uint8_t* device_key_bytes,
+        const std::uint32_t* device_key_begin,
+        const std::uint32_t* device_key_len,
+        const double* device_probabilities,
+        std::uint32_t* device_counts,
+        double* device_scores,
+        std::size_t candidate_count,
+        std::size_t token_count);
+
+    /// Totient / prime−1 stream decrypt hist: `out = in - shifts[begin[c] + t]`.
+    /// `device_shifts` must cover `begin[c] + token_count` for every candidate.
+    [[nodiscard]] static Status launch_totient_async(
+        const std::uint8_t* device_in,
+        const std::uint8_t* device_shifts,
+        const std::uint32_t* device_shift_begin,
+        const double* device_probabilities,
+        std::uint32_t* device_counts,
+        double* device_scores,
+        std::size_t candidate_count,
+        std::size_t token_count);
+
 private:
     FamilyChi2Batch() = delete;
 

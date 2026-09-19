@@ -23,7 +23,7 @@ __global__ void atbash_kernel(
 
 }  // namespace
 
-Status AtbashKernel::launch_device(
+Status AtbashKernel::launch_device_async(
     const std::uint8_t* device_in,
     std::uint8_t* device_out,
     std::size_t count) {
@@ -31,16 +31,22 @@ Status AtbashKernel::launch_device(
         return Status::success();
     }
     if (device_in == nullptr || device_out == nullptr) {
-        return Status::error("AtbashKernel::launch_device null device pointer");
+        return Status::error("AtbashKernel::launch_device_async null device pointer");
     }
 
     const int blocks = static_cast<int>((count + static_cast<std::size_t>(kThreadsPerBlock) - 1u) /
                                         static_cast<std::size_t>(kThreadsPerBlock));
     atbash_kernel<<<blocks, kThreadsPerBlock>>>(device_in, device_out, count);
+    return CudaError::to_status(cudaGetLastError(), "AtbashKernel::launch_device_async");
+}
 
-    Status launch = CudaError::to_status(cudaGetLastError(), "AtbashKernel::launch_device");
-    if (!launch.ok()) {
-        return launch;
+Status AtbashKernel::launch_device(
+    const std::uint8_t* device_in,
+    std::uint8_t* device_out,
+    std::size_t count) {
+    Status launched = launch_device_async(device_in, device_out, count);
+    if (!launched.ok()) {
+        return launched;
     }
     return CudaError::to_status(cudaDeviceSynchronize(), "AtbashKernel::launch_device sync");
 }
