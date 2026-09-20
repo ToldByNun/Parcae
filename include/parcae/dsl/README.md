@@ -43,6 +43,7 @@ private:
 | `dsl_ir_applicator.hpp` | `DslIrApplicator` | Done (CPU apply_into) |
 | `dsl_emit_cpu.hpp` | `DslEmitCpu` | Done (Transform-shaped source text) |
 | `dsl_emit_cuda.hpp` | `DslEmitCuda` | Done (Z29Device + Kernel façade) |
+| `dsl_verifier.hpp` | `DslVerifier` | Done (exhaustive arity ≤ 4) |
 | `dsl.hpp` | umbrella | Done |
 
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md forbidden kinds → stable `E031`/`E021`.
@@ -50,10 +51,11 @@ Tests: `[dsl][ingest][fuzz]` adversarial mutations + limit rejects (no crash).
 Tests: `[dsl][applicator]` IR → Index29 stream apply_into.
 Tests: `[dsl][emit]` DslEmitCpu / DslEmitCuda source text.
 Tests: `[dsl][oracle][poly2]` exhaustive poly2 IR vs host Z29.
+Tests: `[dsl][verify]` DslVerifier exhaustive gates.
 
 ## Planned (later commits)
 
-`dsl_build_ir`, `dsl_verifier`, `dsl_optimize`,
+`dsl_build_ir`, fuzz verify, `dsl_optimize`,
 `dsl_fuse`, `theory_artifact`, `theory_registry`,
 `theory_uri`.
 

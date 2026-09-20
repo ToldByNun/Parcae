@@ -15,7 +15,8 @@
 ///   - DslIrApplicator
 ///   - DslEmitCpu
 ///   - DslEmitCuda
-/// Later commits fill DslBuildIr, verify, registry.
+///   - DslVerifier (exhaustive ≤4)
+/// Later commits fill fuzz verify, DslBuildIr, optimize, registry.
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
@@ -29,6 +30,7 @@
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/dsl_semantic_gate.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
+#include "parcae/dsl/dsl_verifier.hpp"
 #include "parcae/dsl/param_ir.hpp"
 #include "parcae/dsl/primitive_ir.hpp"
 #include "parcae/dsl/theory_ir.hpp"

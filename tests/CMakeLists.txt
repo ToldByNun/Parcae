@@ -15,6 +15,7 @@ add_executable(parcae_tests
   dsl_emit_cpu_test.cpp
   dsl_emit_cuda_test.cpp
   dsl_poly2_oracle_test.cpp
+  dsl_verify_test.cpp
   token_stream_test.cpp
   gematria_profile_test.cpp
   corpus_test.cpp
