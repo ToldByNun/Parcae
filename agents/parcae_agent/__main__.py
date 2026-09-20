@@ -67,6 +67,11 @@ def main(argv: list[str] | None = None) -> int:
         default=0.0,
         help="LLM sampling temperature (default 0)",
     )
+    run.add_argument(
+        "--no-transcript",
+        action="store_true",
+        help="Do not write a workspace JSONL transcript",
+    )
 
     providers = sub.add_parser("providers", help="Provider helpers")
     providers_sub = providers.add_subparsers(dest="providers_command", required=True)
@@ -116,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
             as_json=args.json,
             verbose=args.verbose,
             temperature=args.temperature,
+            persist_transcript=not args.no_transcript,
         )
     if args.command == "providers":
         if args.providers_command == "test":

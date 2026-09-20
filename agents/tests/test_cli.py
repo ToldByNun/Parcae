@@ -79,6 +79,7 @@ def test_cmd_run_with_injected_llm(tmp_path: Path) -> None:
     code = cmd_run(
         cfg_path,
         prompt="hello",
+        persist_transcript=False,
         llm_factory=lambda cfg: _fake_llm("done"),  # type: ignore[arg-type,return-value]
         bridge_factory=_quiet_bridge,
         stdout=out,
@@ -96,6 +97,7 @@ def test_cmd_run_json_summary(tmp_path: Path) -> None:
         cfg_path,
         prompt="x",
         as_json=True,
+        persist_transcript=False,
         llm_factory=lambda cfg: _fake_llm("summary"),  # type: ignore[arg-type,return-value]
         bridge_factory=_quiet_bridge,
         stdout=out,

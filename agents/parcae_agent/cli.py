@@ -66,6 +66,7 @@ def cmd_run(
     as_json: bool = False,
     verbose: bool = False,
     temperature: float = 0.0,
+    persist_transcript: bool = True,
     llm_factory: LlmFactory | None = None,
     bridge_factory: BridgeFactory | None = None,
     stdout: TextIO = sys.stdout,
@@ -85,6 +86,16 @@ def cmd_run(
     llm = (llm_factory or _default_llm)(cfg)
     bridge = (bridge_factory or _default_bridge)(cfg)
 
+    transcript = None
+    if persist_transcript:
+        try:
+            from parcae_agent.transcript import TranscriptError, TranscriptWriter
+
+            transcript = TranscriptWriter(cfg)
+        except TranscriptError as exc:
+            print(f"error: transcript: {exc}", file=stderr)
+            return 2
+
     def on_step(step: AgentStep) -> None:
         if not verbose:
             return
@@ -93,7 +104,14 @@ def cmd_run(
             status = "ok" if inv.ok else "fail"
             print(f"  tool {inv.tool} → {status} (exit {inv.returncode})", file=stderr)
 
-    loop = AgentLoop(cfg, llm, bridge, temperature=temperature, on_step=on_step)
+    loop = AgentLoop(
+        cfg,
+        llm,
+        bridge,
+        temperature=temperature,
+        on_step=on_step,
+        transcript=transcript,
+    )
     result = loop.run(user_prompt)
     _print_run_result(result, as_json=as_json, stdout=stdout, stderr=stderr)
     return result.exit_code
@@ -333,6 +351,10 @@ def _print_run_result(
                     "wall_seconds": result.wall_seconds,
                     "final_text": result.final_text,
                     "error": result.error,
+                    "run_id": result.run_id,
+                    "transcript_path": str(result.transcript_path)
+                    if result.transcript_path
+                    else None,
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -350,3 +372,5 @@ def _print_run_result(
         f"steps={len(result.steps)} wall={result.wall_seconds:.2f}s",
         file=stderr,
     )
+    if result.transcript_path is not None:
+        print(f"transcript: {result.transcript_path}", file=stderr)

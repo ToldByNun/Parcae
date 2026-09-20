@@ -264,8 +264,12 @@ under `agents/parcae_agent/`):
      → non-zero exit.
    CLI: `parcae-agent run|doctor|providers test|check-config`
    (`agents/parcae_agent/__main__.py`).
-6. **Persistence:** each step MAY be appended under
-   `data/workspaces/<id>/transcripts/`; hypotheses only via `hypothesis_*` tools.
+6. **Persistence:** each `parcae-agent run` appends JSON Lines under
+   `data/workspaces/<id>/transcripts/` (`parcae.transcript_step.v0`, see
+   [`hypothesis-workspace.md`](hypothesis-workspace.md); implementation:
+   `agents/parcae_agent/transcript.py`). Hypotheses are written **only** via
+   `hypothesis_*` tools. Disable with `--no-transcript`. API keys MUST NEVER
+   appear in summaries.
 7. **No crypto in the LLM:** the system prompt MUST instruct the model to use
    `catalog` / `generate` / `rank` rather than inventing transforms.
 

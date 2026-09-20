@@ -55,4 +55,8 @@ lockstep with ToolBridge via an import-time assert.
 ToolBridge until the model stops, a success criterion hits, or a budget ends.
 Unit tests use a scripted mock LLM (no network).
 
-Transcript persistence lands in a later Phase 4 commit.
+## Transcripts
+
+By default `parcae-agent run` writes `parcae.transcript_step.v0` JSONL under
+`data/workspaces/<id>/transcripts/` (plus optional envelope snippets). Pass
+`--no-transcript` to skip. Hypotheses still go only through `hypothesis_*` tools.
