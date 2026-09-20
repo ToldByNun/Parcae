@@ -14,8 +14,7 @@ syntax frontend (`ast.parse` → JSON); it **MUST NOT** run verification or emit
 loops.
 
 Architecture overview (non-normative implementation guide):
-[`docs/architecture/python-transpiler.md`](../architecture/python-transpiler.md)
-(when present).
+[`docs/architecture/python-transpiler.md`](../architecture/python-transpiler.md).
 
 ---
 
@@ -60,7 +59,7 @@ Normative artifact field details: [theory-artifact.md](theory-artifact.md).
 | Stage | Implementation | Requirement |
 |-------|----------------|-------------|
 | Authoring | `.py` sources | Human/IDE-editable; valid Python syntax for the allowed subset |
-| Syntax frontend | CPython `ast.parse` → `parcae.dsl_ast_json.v0` | One shot per compile; JSON schema doc lands as `dsl-ast-json.md` alongside this spec |
+| Syntax frontend | CPython `ast.parse` → `parcae.dsl_ast_json.v0` | One shot per compile; wire format in [dsl-ast-json.md](dsl-ast-json.md) |
 | Semantic gate, IR, verify, optimize, fuse, emit | C++20 | **MUST NOT** call CPython inside verify/emit loops |
 | IDE stubs (`parcae.dsl.*`) | Thin Python package | Import OK; **fail-loud** on semantic runtime — see below |
 

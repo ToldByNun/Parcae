@@ -30,6 +30,7 @@ with [`docs/research/`](../research/README.md) (including confidence demotions).
 ### Theory DSL & artifacts
 
 - [x] [dsl.md](dsl.md) — language subset, tiers/interrupts, verify gates, `dsl_spec_version`
+- [x] [dsl-ast-json.md](dsl-ast-json.md) — `parcae.dsl_ast_json.v0`, ingest limits, node whitelist
 - [x] [theory-artifact.md](theory-artifact.md) — `parcae.theory_artifact.v0`, URIs, stale-spec reject
 
 ### Index / process
@@ -60,6 +61,7 @@ docs/spec/fixtures.md
 docs/spec/tools.md
 docs/spec/parity.md
 docs/spec/dsl.md
+docs/spec/dsl-ast-json.md
 docs/spec/theory-artifact.md
 docs/spec/checklist.md
 ```

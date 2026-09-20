@@ -22,6 +22,7 @@ are binding for conforming implementations.
 | [hypothesis-workspace.md](hypothesis-workspace.md) | Workspace + HypothesisRecord + transcripts |
 | [parity.md](parity.md) | CPU↔CUDA parity contract |
 | [dsl.md](dsl.md) | Theory DSL language, `dsl_spec_version`, verify gates |
+| [dsl-ast-json.md](dsl-ast-json.md) | `parcae.dsl_ast_json.v0` CPython→C++ AST wire format |
 | [theory-artifact.md](theory-artifact.md) | `parcae.theory_artifact.v0`, URIs, registry invalidate rules |
 | [checklist.md](checklist.md) | Spec completeness checklist |
 
