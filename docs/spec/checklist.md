@@ -27,6 +27,11 @@ with [`docs/research/`](../research/README.md) (including confidence demotions).
 - [x] [hypothesis-workspace.md](hypothesis-workspace.md) — workspace layout, HypothesisRecord, transcripts
 - [x] [parity.md](parity.md) — CPU obligations for later CUDA bit-identity
 
+### Theory DSL & artifacts
+
+- [x] [dsl.md](dsl.md) — language subset, tiers/interrupts, verify gates, `dsl_spec_version`
+- [x] [theory-artifact.md](theory-artifact.md) — `parcae.theory_artifact.v0`, URIs, stale-spec reject
+
 ### Index / process
 
 - [x] [README.md](README.md) — map of specs + MUST/SHOULD language
@@ -39,7 +44,8 @@ with [`docs/research/`](../research/README.md) (including confidence demotions).
 | artwaste stats | scores Tier C optional only; not required |
 | An End hash | fixtures `non_rune_literal_regions` |
 | Why 29 runes | research; transforms assume frozen profile id |
-| No Python | tools/parity C++-first |
+| Crypto runtime | tools/parity C++-first; DSL authoring may be `.py`, compile/verify in C++ |
+| Stale theories | theory-artifact + dsl `dsl_spec_version` MAJOR mismatch → reject |
 
 ## Artifacts
 
@@ -53,6 +59,8 @@ docs/spec/scores.md
 docs/spec/fixtures.md
 docs/spec/tools.md
 docs/spec/parity.md
+docs/spec/dsl.md
+docs/spec/theory-artifact.md
 docs/spec/checklist.md
 ```
 

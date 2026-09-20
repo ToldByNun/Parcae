@@ -1,7 +1,8 @@
 # Specifications
 
 This folder holds **normative contracts** for the C++20 Liber Primus toolkit:
-arithmetic, tokens, transforms, scores, fixtures, CLIs, and CPU↔CUDA parity.
+arithmetic, tokens, transforms, scores, fixtures, CLIs, CPU↔CUDA parity, and the
+theory DSL / artifact contracts.
 
 Research background lives in [`docs/research/`](../research/README.md). Specs here
 are binding for conforming implementations.
@@ -20,6 +21,8 @@ are binding for conforming implementations.
 | [agent-tools.md](agent-tools.md) | Agent allow-list, JSON envelope, `parcae.agent_config.v0`, loop contract |
 | [hypothesis-workspace.md](hypothesis-workspace.md) | Workspace + HypothesisRecord + transcripts |
 | [parity.md](parity.md) | CPU↔CUDA parity contract |
+| [dsl.md](dsl.md) | Theory DSL language, `dsl_spec_version`, verify gates |
+| [theory-artifact.md](theory-artifact.md) | `parcae.theory_artifact.v0`, URIs, registry invalidate rules |
 | [checklist.md](checklist.md) | Spec completeness checklist |
 
 ## Normative language
