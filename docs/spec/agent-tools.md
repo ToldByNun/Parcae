@@ -251,14 +251,18 @@ under `agents/parcae_agent/`):
    `workspace`, `argv`, `command`, …); always injects `--json` + config
    `data_dir` / `workspace`; parses `parcae.tool_response.v0` (synthesizes
    `internal` if stdout is unusable).
-4. **Loop:** alternate model turn ↔ tool results until:
+4. **Tool schemas:** OpenAI function definitions for every allow-listed tool
+   (`agents/parcae_agent/tool_schemas.py` → `openai_tools()`). Property names
+   MUST match ToolBridge `TOOL_ARG_KEYS`; bridge-owned keys MUST be omitted;
+   `additionalProperties` MUST be `false`.
+5. **Loop:** alternate model turn ↔ tool results until:
    - the model emits a terminal `finish` (or equivalent), or
    - a success criterion is met (e.g. `validate` with `ok: true`, or hypothesis
      status promoted per workspace schema), or
    - a budget is exhausted → process exits **non-zero**.
-5. **Persistence:** each step MAY be appended under
+6. **Persistence:** each step MAY be appended under
    `data/workspaces/<id>/transcripts/`; hypotheses only via `hypothesis_*` tools.
-6. **No crypto in the LLM:** the system prompt MUST instruct the model to use
+7. **No crypto in the LLM:** the system prompt MUST instruct the model to use
    `catalog` / `generate` / `rank` rather than inventing transforms.
 
 Budgets are hard stops. Exhaustion without success criterion is a failed run.

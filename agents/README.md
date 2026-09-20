@@ -37,4 +37,10 @@ Unit tests inject a fake `http_post` — no live network required.
 `parcae_agent.tool_bridge.ToolBridge` builds argv from the allow-list only and
 runs `subprocess` with `shell=False`. The model never supplies a shell string.
 
+## Tool schemas
+
+`parcae_agent.tool_schemas.openai_tools()` returns the OpenAI `tools` array
+(function name + JSON Schema parameters) for chat completions. Keys stay in
+lockstep with ToolBridge via an import-time assert.
+
 Full `run` / `providers test` / `doctor` land in later Phase 4 commits.
