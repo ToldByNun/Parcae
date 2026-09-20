@@ -49,6 +49,7 @@ Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md forbidden kinds → stabl
 Tests: `[dsl][ingest][fuzz]` adversarial mutations + limit rejects (no crash).
 Tests: `[dsl][applicator]` IR → Index29 stream apply_into.
 Tests: `[dsl][emit]` DslEmitCpu / DslEmitCuda source text.
+Tests: `[dsl][oracle][poly2]` exhaustive poly2 IR vs host Z29.
 
 ## Planned (later commits)
 
