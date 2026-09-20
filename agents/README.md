@@ -3,11 +3,15 @@
 Python 3.11+ CMD agent that drives Parcae C++ CLIs via an OpenAI-compatible
 LLM. Crypto stays in C++; this package only chooses allow-listed tools.
 
-See:
+**Operator handbook (start here):**  
+[`docs/architecture/agent-handbook.md`](../docs/architecture/agent-handbook.md)
+
+Also:
 
 - Plan freeze: [`docs/architecture/phase4-agent-tooling.md`](../docs/architecture/phase4-agent-tooling.md)
 - Tool surface: [`docs/spec/agent-tools.md`](../docs/spec/agent-tools.md)
-- Config schema: `parcae.agent_config.v0` (examples in [`configs/`](configs/))
+- Live provider smoke: [`docs/architecture/agent-provider-smoke.md`](../docs/architecture/agent-provider-smoke.md)
+- Config examples: [`configs/`](configs/)
 
 ## Setup
 

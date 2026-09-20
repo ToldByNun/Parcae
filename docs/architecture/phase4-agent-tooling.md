@@ -131,7 +131,7 @@ Numbering is **local to Phase 4** (not a continuation of CUDA commits 1–42).
 | 29 | feat: transcript + hypothesis persistence |
 | 30 | test: agent loop with mock LLM (CI-safe, no network) |
 | 31 | test: provider smoke docs (Ollama + OpenRouter; CI skips live keys) |
-| 32 | docs: agent handbook (CMD) |
+| 32 | docs: agent handbook (CMD) ([agent-handbook.md](agent-handbook.md)) |
 
 ### G — Exit
 

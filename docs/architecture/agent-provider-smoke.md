@@ -3,6 +3,7 @@
 **Status:** Optional live checks for Phase 4 `parcae-agent`  
 **CI default:** skipped — no API keys, no local GPU models on hosted runners  
 **Related:** [`phase4-agent-tooling.md`](phase4-agent-tooling.md),
+[`agent-handbook.md`](agent-handbook.md),
 [`agents/README.md`](../../agents/README.md)
 
 Phase 4 exit requires **documented** live paths for:
