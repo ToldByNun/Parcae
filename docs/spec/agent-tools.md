@@ -245,9 +245,12 @@ under `agents/parcae_agent/`):
    tool / function calling (`agents/parcae_agent/llm.py`). Same client for local
    servers (`api_key_env: null`) and OpenRouter-style APIs (Bearer from the named
    env var). API keys MUST NOT be logged or written to transcripts.
-3. **ToolBridge:** maps each tool call name → argv from the allow-list schemas
-   only; runs as a subprocess **without** `shell=True` on raw LLM text; parses
-   `parcae.tool_response.v0`.
+3. **ToolBridge:** maps each tool call name → argv from the allow-list only
+   (`agents/parcae_agent/tool_bridge.py`); runs as a subprocess **without**
+   `shell=True` on raw LLM text; rejects bridge-owned keys (`data_dir`,
+   `workspace`, `argv`, `command`, …); always injects `--json` + config
+   `data_dir` / `workspace`; parses `parcae.tool_response.v0` (synthesizes
+   `internal` if stdout is unusable).
 4. **Loop:** alternate model turn ↔ tool results until:
    - the model emits a terminal `finish` (or equivalent), or
    - a success criterion is met (e.g. `validate` with `ok: true`, or hypothesis

@@ -32,4 +32,9 @@ pytest
 `POST {base_url}/chat/completions` (local Ollama / LM Studio **or** OpenRouter).
 Unit tests inject a fake `http_post` — no live network required.
 
+## ToolBridge
+
+`parcae_agent.tool_bridge.ToolBridge` builds argv from the allow-list only and
+runs `subprocess` with `shell=False`. The model never supplies a shell string.
+
 Full `run` / `providers test` / `doctor` land in later Phase 4 commits.
