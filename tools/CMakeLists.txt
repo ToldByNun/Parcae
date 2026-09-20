@@ -25,6 +25,7 @@ parcae_add_cli(parcae-decode parcae_decode/main.cpp)
 parcae_add_cli(parcae-score parcae_score/main.cpp)
 parcae_add_cli(parcae-validate parcae_validate/main.cpp)
 parcae_add_cli(parcae-catalog parcae_catalog/main.cpp)
+parcae_add_cli(parcae-compile parcae_compile/main.cpp)
 parcae_add_cli(parcae-generate parcae_generate/main.cpp)
 parcae_add_cli(parcae-rank parcae_rank/main.cpp)
 parcae_add_cli(parcae-hypothesis parcae_hypothesis/main.cpp)
@@ -40,6 +41,22 @@ if(PARCAE_BUILD_TESTS)
     COMMAND $<TARGET_FILE:parcae-catalog>
       --json
   )
+
+  add_test(
+    NAME cli_compile_status_json
+    COMMAND $<TARGET_FILE:parcae-compile>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --status
+      --json
+  )
+
+  add_test(
+    NAME cli_compile_missing_path_json
+    COMMAND $<TARGET_FILE:parcae-compile>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --json
+  )
+  set_tests_properties(cli_compile_missing_path_json PROPERTIES WILL_FAIL TRUE)
 
   add_test(
     NAME cli_catalog_generators_json

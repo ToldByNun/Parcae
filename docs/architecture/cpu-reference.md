@@ -46,7 +46,7 @@ include/parcae/
 
 tools/
   parcae-tokenize | parcae-decode | parcae-score | parcae-validate
-  parcae-parity | parcae-parity-gen | parcae-search-run
+  parcae-catalog | parcae-compile | parcae-parity | parcae-parity-gen | parcae-search-run
 
 Parcae/Parcae/                 # Visual Studio app + CUDA twins
   main.cpp

@@ -3,8 +3,8 @@
 **Status:** Normative  
 **Headers (planned):** `parcae/tool/api.hpp`  
 **Binaries:** `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate`,
-`parcae-catalog`, `parcae-generate`, `parcae-rank`, `parcae-hypothesis`, `parcae-parity`,
-`parcae-parity-gen`, `parcae-search-run`
+`parcae-catalog`, `parcae-compile`, `parcae-generate`, `parcae-rank`, `parcae-hypothesis`,
+`parcae-parity`, `parcae-parity-gen`, `parcae-search-run`
 
 ## Principles
 
@@ -182,6 +182,21 @@ Lists agent-facing registries. With no section flags, all sections are included.
 `--json` emits `parcae.tool_response.v0` with `backend: null` and a `result`
 object containing the selected sections (`transforms`, `scores`/`score_ids`,
 `generators`/`generator_ids`, `backends`).
+
+### `parcae-compile`
+
+```text
+parcae-compile --status [--json] [--data-dir <path>]
+parcae-compile <theory.py> [--json] [--data-dir <path>]
+```
+
+Compiles a theory DSL `.py` source into a versioned artifact under
+`data/theories/` (see [dsl.md](dsl.md), [theory-artifact.md](theory-artifact.md)).
+
+`--status` reports toolchain / `dsl_spec_version` / AST-JSON protocol versions
+without compiling. Until the AST→IR→verify→emit pipeline is wired, compiling a
+`.py` path **MUST** fail with `error.code = not_built` (hard exit). `--json`
+uses `parcae.tool_response.v0` with `tool: "compile"`.
 
 ### `parcae-generate`
 
