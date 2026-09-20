@@ -40,10 +40,12 @@ private:
 | `primitive_ir.hpp` | `PrimitiveIr` | Done |
 | `theory_ir.hpp` | `TheoryIr` | Done |
 | `compose_ir.hpp` | `ComposeIr` | Done |
+| `dsl_ir_applicator.hpp` | `DslIrApplicator` | Done (CPU apply_into) |
 | `dsl.hpp` | umbrella | Done |
 
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md forbidden kinds → stable `E031`/`E021`.
 Tests: `[dsl][ingest][fuzz]` adversarial mutations + limit rejects (no crash).
+Tests: `[dsl][applicator]` IR → Index29 stream apply_into.
 
 ## Planned (later commits)
 

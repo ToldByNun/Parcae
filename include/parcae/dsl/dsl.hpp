@@ -12,6 +12,7 @@
 ///   - DslSemanticGate
 ///   - Z29Expr
 ///   - ParamIr / PrimitiveIr / TheoryIr / ComposeIr
+///   - DslIrApplicator
 /// Later commits fill DslBuildIr, verify, emit, registry.
 
 #include "parcae/dsl/compose_ir.hpp"
@@ -20,6 +21,7 @@
 #include "parcae/dsl/dsl_ast_json_version.hpp"
 #include "parcae/dsl/dsl_ast_limits.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
+#include "parcae/dsl/dsl_ir_applicator.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/dsl_semantic_gate.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
