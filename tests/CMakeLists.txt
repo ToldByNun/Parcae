@@ -3,6 +3,7 @@ include(Catch)
 add_executable(parcae_tests
   smoke.cpp
   z29_test.cpp
+  dsl_spec_version_test.cpp
   token_stream_test.cpp
   gematria_profile_test.cpp
   corpus_test.cpp
