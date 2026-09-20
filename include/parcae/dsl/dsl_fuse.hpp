@@ -264,12 +264,14 @@ public:
 
         std::vector<std::string> flat_steps;
         std::vector<ComposeIr::StepParamBinding> flat_bindings;
+        std::unordered_map<std::string, TransformDirection> recipe_dirs;
         bool nested = false;
         Status flatten_st = flatten_steps(
             compose,
             compose_by_name,
             flat_steps,
             flat_bindings,
+            recipe_dirs,
             nested,
             /*depth=*/0);
         if (!flatten_st.ok()) {
@@ -290,8 +292,17 @@ public:
                     compose,
                     "fuse step '" + step_id + "' is not a TheoryIr in the catalog");
             }
+            const TransformDirection recipe = [&]() {
+                const auto it = recipe_dirs.find(step_id);
+                return it != recipe_dirs.end() ? it->second : TransformDirection::Decrypt;
+            }();
             StatusOr<Z29Expr::Ptr> next = inline_stage(
-                *th, step_id, flat_bindings, decrypt, cipher_var, /*use_encrypt=*/false);
+                *th,
+                step_id,
+                flat_bindings,
+                decrypt,
+                cipher_var,
+                uses_encrypt_step(recipe));
             if (!next.ok()) {
                 return next.status();
             }
@@ -306,8 +317,17 @@ public:
                     compose,
                     "fuse step '" + step_id + "' is not a TheoryIr in the catalog");
             }
+            const TransformDirection recipe = [&]() {
+                const auto it = recipe_dirs.find(step_id);
+                return it != recipe_dirs.end() ? it->second : TransformDirection::Decrypt;
+            }();
             StatusOr<Z29Expr::Ptr> next = inline_stage(
-                *th, step_id, flat_bindings, encrypt, cipher_var, /*use_encrypt=*/true);
+                *th,
+                step_id,
+                flat_bindings,
+                encrypt,
+                cipher_var,
+                uses_encrypt_step(invert_direction(recipe)));
             if (!next.ok()) {
                 return next.status();
             }
@@ -359,6 +379,10 @@ public:
             nlohmann::json stage;
             stage["transform_id"] = family.value();
             stage["params"] = stage_params_json(*th, step_id, flat.value().bindings, param_values);
+            const TransformDirection dir = recipe_dir_for(flat.value(), step_id);
+            if (dir == TransformDirection::Encrypt) {
+                stage["direction"] = "encrypt";
+            }
             stages.push_back(std::move(stage));
         }
 
@@ -556,8 +580,29 @@ private:
         std::vector<std::string> steps;
         std::vector<ComposeIr::StepParamBinding> bindings;
         std::unordered_map<std::string, const TheoryIr*> theory_by_name;
+        /// Decrypt-recipe direction per leaf step (ComposeTransform semantics).
+        std::unordered_map<std::string, TransformDirection> recipe_dirs;
         bool nested = false;
     };
+
+    [[nodiscard]] static TransformDirection invert_direction(TransformDirection d) noexcept {
+        return d == TransformDirection::Encrypt ? TransformDirection::Decrypt
+                                                : TransformDirection::Encrypt;
+    }
+
+    [[nodiscard]] static TransformDirection recipe_dir_for(
+        const Flattened& flat,
+        const std::string& step_id) noexcept {
+        const auto it = flat.recipe_dirs.find(step_id);
+        if (it != flat.recipe_dirs.end()) {
+            return it->second;
+        }
+        return TransformDirection::Decrypt;
+    }
+
+    [[nodiscard]] static bool uses_encrypt_step(TransformDirection effective) noexcept {
+        return effective == TransformDirection::Encrypt;
+    }
 
     [[nodiscard]] static Z29Expr::Env make_compose_env(
         const ComposeIr& compose,
@@ -616,8 +661,10 @@ private:
         for (const std::string& step_id : flat.steps) {
             const TheoryIr* th = flat.theory_by_name.at(step_id);
             Z29Expr::Env env = make_stage_env(*th, step_id, flat.bindings, values);
-            Status st =
-                DslIrApplicator::apply_into(th->decrypt_step(), cipher_var, env, cur, dst);
+            const TransformDirection recipe = recipe_dir_for(flat, step_id);
+            const Z29Expr::Ptr& step =
+                uses_encrypt_step(recipe) ? th->encrypt_step() : th->decrypt_step();
+            Status st = DslIrApplicator::apply_into(step, cipher_var, env, cur, dst);
             if (!st.ok()) {
                 return st;
             }
@@ -734,6 +781,7 @@ private:
             compose_by_name,
             out.steps,
             out.bindings,
+            out.recipe_dirs,
             out.nested,
             /*depth=*/0);
         if (!st.ok()) {
@@ -757,6 +805,7 @@ private:
         const std::unordered_map<std::string, const ComposeIr*>& compose_by_name,
         std::vector<std::string>& out_steps,
         std::vector<ComposeIr::StepParamBinding>& out_bindings,
+        std::unordered_map<std::string, TransformDirection>& out_dirs,
         bool& nested_flattened,
         std::size_t depth) {
         if (depth > max_depth) {
@@ -781,6 +830,7 @@ private:
                     compose_by_name,
                     out_steps,
                     out_bindings,
+                    out_dirs,
                     nested_flattened,
                     depth + 1);
                 if (!st.ok()) {
@@ -789,6 +839,7 @@ private:
                 continue;
             }
             out_steps.push_back(step_id);
+            out_dirs[step_id] = compose.recipe_direction_for(step_id);
         }
         return Status::success();
     }
@@ -959,7 +1010,9 @@ private:
             const TheoryIr* th = flat.theory_by_name.at(step_id);
             StatusOr<std::string> fam = cuda_family_enum(step_id);
             out << "        recipe.stages[" << i << "].family = " << fam.value() << ";\n";
-            out << "        recipe.stages[" << i << "].direction = CudaDir::Decrypt;\n";
+            const TransformDirection dir = recipe_dir_for(flat, step_id);
+            out << "        recipe.stages[" << i << "].direction = CudaDir::"
+                << (dir == TransformDirection::Encrypt ? "Encrypt" : "Decrypt") << ";\n";
             if (step_id == "caesar") {
                 const std::string compose_param =
                     bound_compose_param(step_id, "shift", flat.bindings);

@@ -7,15 +7,18 @@
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/param_ir.hpp"
 #include "parcae/dsl/theory_ir.hpp"
+#include "parcae/transform/transform_direction.hpp"
 
 #include <cstddef>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 /// Compiled `@ComposedTheory` record: ordered steps + step_params bindings.
-/// Fusion / staged fallback: `DslFuse` (inline) + later emit/bench commits.
+/// Optional per-stage direction overrides match `ComposeTransform` (Koan-1 Caesar
+/// uses encrypt-on-decrypt). Fusion: `DslFuse`.
 class ComposeIr {
 public:
     /// One binding from `step_params()`: stage id → param name → value ref
@@ -45,6 +48,26 @@ public:
         std::string value_ref_;
     };
 
+    /// Per-stage direction override (ComposeTransform JSON `"direction"`).
+    /// Absent → default decrypt on the decrypt recipe path.
+    class StageDirection {
+    public:
+        StageDirection(std::string step_id, TransformDirection direction)
+            : step_id_(std::move(step_id)), direction_(direction) {}
+
+        [[nodiscard]] const std::string& step_id() const noexcept {
+            return step_id_;
+        }
+
+        [[nodiscard]] TransformDirection direction() const noexcept {
+            return direction_;
+        }
+
+    private:
+        std::string step_id_;
+        TransformDirection direction_ = TransformDirection::Decrypt;
+    };
+
     [[nodiscard]] static StatusOr<ComposeIr> make(
         std::string name,
         TheoryIr::Tier tier,
@@ -54,7 +77,8 @@ public:
         std::optional<std::string> structural_claim = std::nullopt,
         std::string source_path = {},
         std::optional<int> lineno = std::nullopt,
-        std::optional<int> col = std::nullopt) {
+        std::optional<int> col = std::nullopt,
+        std::vector<StageDirection> stage_directions = {}) {
         if (name.empty()) {
             return DslDiag::make(
                        DslRuleId::E032_primitive_body,
@@ -94,6 +118,7 @@ public:
             std::move(source_path),
             lineno,
             col,
+            std::move(stage_directions),
         };
         Status st = ir.validate();
         if (!st.ok()) {
@@ -122,8 +147,22 @@ public:
         return step_params_;
     }
 
+    [[nodiscard]] const std::vector<StageDirection>& stage_directions() const noexcept {
+        return stage_directions_;
+    }
+
     [[nodiscard]] const std::optional<std::string>& structural_claim() const noexcept {
         return structural_claim_;
+    }
+
+    /// Recipe direction for `step_id` on the decrypt path (default Decrypt).
+    [[nodiscard]] TransformDirection recipe_direction_for(std::string_view step_id) const noexcept {
+        for (const StageDirection& d : stage_directions_) {
+            if (d.step_id() == step_id) {
+                return d.direction();
+            }
+        }
+        return TransformDirection::Decrypt;
     }
 
     [[nodiscard]] Status validate() const {
@@ -131,7 +170,11 @@ public:
         if (!st.ok()) {
             return st;
         }
-        return validate_step_params();
+        st = validate_step_params();
+        if (!st.ok()) {
+            return st;
+        }
+        return validate_stage_directions();
     }
 
     [[nodiscard]] Status validate_tier_claim() const {
@@ -195,6 +238,28 @@ public:
         return Status::success();
     }
 
+    [[nodiscard]] Status validate_stage_directions() const {
+        for (const StageDirection& d : stage_directions_) {
+            bool step_known = false;
+            for (const std::string& s : steps_) {
+                if (s == d.step_id()) {
+                    step_known = true;
+                    break;
+                }
+            }
+            if (!step_known) {
+                return DslDiag::make(
+                           DslRuleId::E032_primitive_body,
+                           "stage_directions references unknown step '" + d.step_id() + "'",
+                           source_path_,
+                           lineno_,
+                           col_)
+                    .to_status();
+            }
+        }
+        return Status::success();
+    }
+
 private:
     ComposeIr(
         std::string name,
@@ -205,7 +270,8 @@ private:
         std::optional<std::string> structural_claim,
         std::string source_path,
         std::optional<int> lineno,
-        std::optional<int> col)
+        std::optional<int> col,
+        std::vector<StageDirection> stage_directions)
         : name_(std::move(name)),
           tier_(tier),
           steps_(std::move(steps)),
@@ -214,7 +280,8 @@ private:
           structural_claim_(std::move(structural_claim)),
           source_path_(std::move(source_path)),
           lineno_(lineno),
-          col_(col) {}
+          col_(col),
+          stage_directions_(std::move(stage_directions)) {}
 
     std::string name_;
     TheoryIr::Tier tier_ = TheoryIr::Tier::A;
@@ -225,6 +292,7 @@ private:
     std::string source_path_;
     std::optional<int> lineno_;
     std::optional<int> col_;
+    std::vector<StageDirection> stage_directions_;
 };
 
 #endif // COMPOSE_IR_HPP

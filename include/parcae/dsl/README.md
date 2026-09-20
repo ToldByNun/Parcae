@@ -54,7 +54,7 @@ Tests: `[dsl][emit]` DslEmitCpu / DslEmitCuda source text.
 Tests: `[dsl][oracle][poly2]` exhaustive poly2 IR vs host Z29.
 Tests: `[dsl][verify]` / `[dsl][verify][gate]` DslVerifier exhaustive + fuzz +
 CPU↔CUDA mirror; inv-domain + poly2 \(29^4\) hard gates.
-Tests: `[dsl][fuse]` DslFuse inline + emit + CPU fusion bench gate.
+Tests: `[dsl][fuse]` / `[dsl][fuse][koan][parity]` DslFuse + Koan-1 vs ComposeTransform.
 
 ## Planned (later commits)
 
