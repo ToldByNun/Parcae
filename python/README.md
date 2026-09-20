@@ -15,6 +15,18 @@ Compile and verify with:
 parcae-compile path/to/theory.py
 ```
 
+## AST dump frontend (B7)
+
+One-shot CPython syntax frontend (no `exec`):
+
+```text
+python -m parcae.dsl.ast_dump path/to/theory.py
+# or: parcae-dsl-ast-dump path/to/theory.py
+```
+
+Emits `parcae.dsl_ast_json.v0` on stdout (see `docs/spec/dsl-ast-json.md`).
+Exit `0` on success, `1` on failure envelope (`ok: false`).
+
 Normative: [`docs/spec/dsl.md`](../docs/spec/dsl.md) § IDE stubs.  
 Architecture: [`docs/architecture/python-transpiler.md`](../docs/architecture/python-transpiler.md).
 

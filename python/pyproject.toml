@@ -16,6 +16,9 @@ dev = [
   "pytest>=7.4",
 ]
 
+[project.scripts]
+parcae-dsl-ast-dump = "parcae.dsl.ast_dump:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["parcae*"]
