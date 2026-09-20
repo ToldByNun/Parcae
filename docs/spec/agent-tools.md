@@ -255,11 +255,13 @@ under `agents/parcae_agent/`):
    (`agents/parcae_agent/tool_schemas.py` → `openai_tools()`). Property names
    MUST match ToolBridge `TOOL_ARG_KEYS`; bridge-owned keys MUST be omitted;
    `additionalProperties` MUST be `false`.
-5. **Loop:** alternate model turn ↔ tool results until:
-   - the model emits a terminal `finish` (or equivalent), or
-   - a success criterion is met (e.g. `validate` with `ok: true`, or hypothesis
-     status promoted per workspace schema), or
-   - a budget is exhausted → process exits **non-zero**.
+5. **Loop:** `agents/parcae_agent/loop.py` + Liber Primus system prompt
+   (`prompts.py`). Alternate model turn ↔ tool results until:
+   - the model replies with **no** tool calls (terminal summary), or
+   - a success criterion is met (`validate` with `ok: true`, or
+     `hypothesis_set_status` → `promoted` with `ok: true`), or
+   - a budget is exhausted (`max_steps` / `max_tool_calls` / `max_wall_seconds`)
+     → non-zero exit.
 6. **Persistence:** each step MAY be appended under
    `data/workspaces/<id>/transcripts/`; hypotheses only via `hypothesis_*` tools.
 7. **No crypto in the LLM:** the system prompt MUST instruct the model to use

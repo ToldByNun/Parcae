@@ -43,4 +43,10 @@ runs `subprocess` with `shell=False`. The model never supplies a shell string.
 (function name + JSON Schema parameters) for chat completions. Keys stay in
 lockstep with ToolBridge via an import-time assert.
 
+## Agent loop
+
+`parcae_agent.loop.AgentLoop` runs Liber Primus system prompt → LLM →
+ToolBridge until the model stops, a success criterion hits, or a budget ends.
+Unit tests use a scripted mock LLM (no network).
+
 Full `run` / `providers test` / `doctor` land in later Phase 4 commits.
