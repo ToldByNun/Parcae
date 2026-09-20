@@ -19,12 +19,18 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-## Config check (scaffold)
+## CLI
 
 ```bash
 python -m parcae_agent check-config configs/ollama.example.yaml
-pytest
+python -m parcae_agent doctor --config configs/ollama.example.yaml
+python -m parcae_agent providers test --config configs/ollama.example.yaml
+python -m parcae_agent run --config configs/ollama.example.yaml \
+  --prompt "List catalog transforms for a-warning"
 ```
+
+`run` accepts `--prompt`, `--prompt-file`, or stdin. Exit codes follow the agent
+loop (0 completed/succeeded, 1 budget, 2 error/usage).
 
 ## LLM client
 
@@ -49,4 +55,4 @@ lockstep with ToolBridge via an import-time assert.
 ToolBridge until the model stops, a success criterion hits, or a budget ends.
 Unit tests use a scripted mock LLM (no network).
 
-Full `run` / `providers test` / `doctor` land in later Phase 4 commits.
+Transcript persistence lands in a later Phase 4 commit.

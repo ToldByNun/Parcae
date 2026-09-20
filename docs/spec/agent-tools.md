@@ -262,6 +262,8 @@ under `agents/parcae_agent/`):
      `hypothesis_set_status` → `promoted` with `ok: true`), or
    - a budget is exhausted (`max_steps` / `max_tool_calls` / `max_wall_seconds`)
      → non-zero exit.
+   CLI: `parcae-agent run|doctor|providers test|check-config`
+   (`agents/parcae_agent/__main__.py`).
 6. **Persistence:** each step MAY be appended under
    `data/workspaces/<id>/transcripts/`; hypotheses only via `hypothesis_*` tools.
 7. **No crypto in the LLM:** the system prompt MUST instruct the model to use
