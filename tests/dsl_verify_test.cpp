@@ -24,9 +24,30 @@ namespace {
     return prim.value();
 }
 
+[[nodiscard]] PrimitiveIr make_poly2_calls() {
+    const Z29Expr::Ptr i = Z29Expr::var("i");
+    const Z29Expr::Ptr c2 = Z29Expr::var("c2");
+    const Z29Expr::Ptr c1 = Z29Expr::var("c1");
+    const Z29Expr::Ptr c0 = Z29Expr::var("c0");
+    // ((c2*i)*i) + (c1*i) + c0 via z29_* calls (same as dsl.md poly2).
+    const Z29Expr::Ptr body = Z29Expr::call(
+        "z29_add",
+        {Z29Expr::call(
+             "z29_add",
+             {Z29Expr::call(
+                  "z29_mul",
+                  {Z29Expr::call("z29_mul", {c2, i}), i}),
+              Z29Expr::call("z29_mul", {c1, i})}),
+         c0});
+    const StatusOr<PrimitiveIr> prim = PrimitiveIr::make(
+        "poly2_mod29", "(i: Z29, c2: Z29, c1: Z29, c0: Z29) -> Z29", body);
+    REQUIRE(prim.ok());
+    return prim.value();
+}
+
 }  // namespace
 
-TEST_CASE("DslVerifier exhaustive poly2 arity 4 passes", "[dsl][verify]") {
+TEST_CASE("DslVerifier exhaustive poly2 arity 4 passes", "[dsl][verify][gate]") {
     const PrimitiveIr prim = make_poly2();
     const StatusOr<DslVerifier::Report> report =
         DslVerifier::verify_primitive_exhaustive(prim);
@@ -34,7 +55,10 @@ TEST_CASE("DslVerifier exhaustive poly2 arity 4 passes", "[dsl][verify]") {
     REQUIRE(report.value().passed());
     REQUIRE(report.value().mode() == DslVerifier::Mode::Exhaustive);
     REQUIRE(report.value().samples_checked() == DslVerifier::max_exhaustive_samples);
+    REQUIRE(report.value().samples_checked() == 707281u);
     REQUIRE(report.value().primitive_name() == "poly2_mod29");
+    REQUIRE_FALSE(report.value().seed().has_value());
+    REQUIRE(report.value().detail().find("cuda_mirror") != std::string::npos);
 }
 
 TEST_CASE("DslVerifier exhaustive identity arity 1 passes", "[dsl][verify]") {
@@ -59,7 +83,7 @@ TEST_CASE("DslVerifier exhaustive arity 0 passes", "[dsl][verify]") {
     REQUIRE(report.value().samples_checked() == 1);
 }
 
-TEST_CASE("DslVerifier exhaustive inv fails on domain 0 with E050", "[dsl][verify]") {
+TEST_CASE("DslVerifier exhaustive inv fails on domain 0 with E050", "[dsl][verify][gate]") {
     const StatusOr<PrimitiveIr> prim = PrimitiveIr::make(
         "unsafe_inv", "(x: Z29) -> Z29", Z29Expr::inv(Z29Expr::var("x")));
     REQUIRE(prim.ok());
@@ -201,7 +225,72 @@ TEST_CASE("Z29Expr eval_cuda_mirror atbash uses device sub(28,x)", "[dsl][verify
     }
 }
 
-TEST_CASE("DslVerifier max_exhaustive_samples is 29^4", "[dsl][verify]") {
+TEST_CASE("DslVerifier inv domain: constants 1..28 pass exhaustive", "[dsl][verify][gate]") {
+    for (std::uint8_t a = 1; a < Index29::modulus; ++a) {
+        const StatusOr<PrimitiveIr> prim = PrimitiveIr::make(
+            "inv_const",
+            "() -> Z29",
+            Z29Expr::inv(Z29Expr::constant(a).value()));
+        REQUIRE(prim.ok());
+        const StatusOr<DslVerifier::Report> report =
+            DslVerifier::verify_primitive_exhaustive(prim.value());
+        REQUIRE(report.ok());
+        REQUIRE(report.value().passed());
+        REQUIRE(report.value().samples_checked() == 1);
+    }
+}
+
+TEST_CASE("DslVerifier inv domain: z29_inv call fails on x=0 with E050", "[dsl][verify][gate]") {
+    const StatusOr<PrimitiveIr> prim = PrimitiveIr::make(
+        "unsafe_z29_inv",
+        "(x: Z29) -> Z29",
+        Z29Expr::call("z29_inv", {Z29Expr::var("x")}));
+    REQUIRE(prim.ok());
+    const StatusOr<DslVerifier::Report> report =
+        DslVerifier::verify_primitive_exhaustive(prim.value());
+    REQUIRE_FALSE(report.ok());
+    REQUIRE(report.status().message().find(DslRuleId::E050_verify_failed) != std::string::npos);
+    REQUIRE(report.status().message().find("totality") != std::string::npos);
+    REQUIRE(report.status().message().find("x=0") != std::string::npos);
+}
+
+TEST_CASE("DslVerifier inv domain: inv(a)*a == 1 for a in 1..28", "[dsl][verify][gate]") {
+    const Z29Expr::Ptr body = Z29Expr::mul(
+        Z29Expr::inv(Z29Expr::var("a")), Z29Expr::var("a"));
+    // Not run through full-domain verify (hits a=0); check 1..28 directly.
+    for (std::uint8_t a = 1; a < Index29::modulus; ++a) {
+        Z29Expr::Env env;
+        env.emplace("a", Index29{a});
+        const StatusOr<Index29> cpu = body->eval(env);
+        const StatusOr<Index29> cuda = body->eval_cuda_mirror(env);
+        REQUIRE(cpu.ok());
+        REQUIRE(cuda.ok());
+        REQUIRE(cpu.value() == cuda.value());
+        REQUIRE(cpu.value().value() == 1);
+    }
+}
+
+TEST_CASE("DslVerifier poly2 verify_primitive auto uses 29^4 exhaustive", "[dsl][verify][gate]") {
+    const PrimitiveIr prim = make_poly2();
+    REQUIRE(prim.arity() == 4);
+    const StatusOr<DslVerifier::Report> report = DslVerifier::verify_primitive(prim);
+    REQUIRE(report.ok());
+    REQUIRE(report.value().passed());
+    REQUIRE(report.value().mode() == DslVerifier::Mode::Exhaustive);
+    REQUIRE(report.value().samples_checked() == 29u * 29u * 29u * 29u);
+    REQUIRE(report.value().detail().find("cuda_mirror") != std::string::npos);
+}
+
+TEST_CASE("DslVerifier poly2 Call-shaped body passes 29^4 gate", "[dsl][verify][gate]") {
+    const PrimitiveIr prim = make_poly2_calls();
+    const StatusOr<DslVerifier::Report> report =
+        DslVerifier::verify_primitive_exhaustive(prim);
+    REQUIRE(report.ok());
+    REQUIRE(report.value().passed());
+    REQUIRE(report.value().samples_checked() == DslVerifier::max_exhaustive_samples);
+}
+
+TEST_CASE("DslVerifier max_exhaustive_samples is 29^4", "[dsl][verify][gate]") {
     REQUIRE(DslVerifier::max_exhaustive_samples == 707281u);
     REQUIRE(DslVerifier::max_exhaustive_arity == 4u);
     REQUIRE(DslVerifier::default_fuzz_seed == 0xC1CADAu);

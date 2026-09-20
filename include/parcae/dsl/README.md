@@ -51,7 +51,8 @@ Tests: `[dsl][ingest][fuzz]` adversarial mutations + limit rejects (no crash).
 Tests: `[dsl][applicator]` IR → Index29 stream apply_into.
 Tests: `[dsl][emit]` DslEmitCpu / DslEmitCuda source text.
 Tests: `[dsl][oracle][poly2]` exhaustive poly2 IR vs host Z29.
-Tests: `[dsl][verify]` DslVerifier exhaustive + fuzz + CPU↔CUDA mirror gates.
+Tests: `[dsl][verify]` / `[dsl][verify][gate]` DslVerifier exhaustive + fuzz +
+CPU↔CUDA mirror; inv-domain + poly2 \(29^4\) hard gates.
 
 ## Planned (later commits)
 
