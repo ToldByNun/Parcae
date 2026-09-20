@@ -41,16 +41,18 @@ private:
 | `theory_ir.hpp` | `TheoryIr` | Done |
 | `compose_ir.hpp` | `ComposeIr` | Done |
 | `dsl_ir_applicator.hpp` | `DslIrApplicator` | Done (CPU apply_into) |
+| `dsl_emit_cpu.hpp` | `DslEmitCpu` | Done (Transform-shaped source text) |
 | `dsl.hpp` | umbrella | Done |
 
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md forbidden kinds → stable `E031`/`E021`.
 Tests: `[dsl][ingest][fuzz]` adversarial mutations + limit rejects (no crash).
 Tests: `[dsl][applicator]` IR → Index29 stream apply_into.
+Tests: `[dsl][emit]` DslEmitCpu header text.
 
 ## Planned (later commits)
 
 `dsl_build_ir`, `dsl_verifier`, `dsl_optimize`,
-`dsl_fuse`, `dsl_emit_cpu`, `dsl_emit_cuda`, `theory_artifact`, `theory_registry`,
+`dsl_fuse`, `dsl_emit_cuda`, `theory_artifact`, `theory_registry`,
 `theory_uri`.
 
 Headers are part of the header-only `parcae::core` INTERFACE include tree
