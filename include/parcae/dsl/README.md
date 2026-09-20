@@ -34,11 +34,12 @@ private:
 | `dsl_ast_limits.hpp` | `DslAstLimits` | Done (v0 ceilings) |
 | `dsl_ast.hpp` | `DslAstNode` / `DslAstDocument` | Done |
 | `dsl_ast_json_ingest.hpp` | `DslAstJsonIngest` | Done (strict + limits) |
+| `dsl_semantic_gate.hpp` | `DslSemanticGate` | Done (whitelist + imports) |
 | `dsl.hpp` | umbrella | Done |
 
 ## Planned (later commits)
 
-`dsl_semantic_gate`, `z29_expr`,
+`z29_expr`,
 `primitive_ir`, `theory_ir`, `dsl_build_ir`, `dsl_verifier`, `dsl_optimize`,
 `dsl_fuse`, `dsl_emit_cpu`, `dsl_emit_cuda`, `theory_artifact`, `theory_registry`,
 `theory_uri`.
