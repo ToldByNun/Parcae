@@ -28,3 +28,6 @@ include = ["parcae_agent*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+  "ci: CI-safe agent tests (mock LLM, no network, no live provider keys)",
+]

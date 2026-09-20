@@ -55,6 +55,9 @@ lockstep with ToolBridge via an import-time assert.
 ToolBridge until the model stops, a success criterion hits, or a budget ends.
 Unit tests use a scripted mock LLM (no network).
 
+CI contract: `pytest -m ci` (see `tests/test_agent_loop_mock_ci.py`) — mock LLM +
+fake ToolBridge runner, no sockets and no built CLIs required.
+
 ## Transcripts
 
 By default `parcae-agent run` writes `parcae.transcript_step.v0` JSONL under
