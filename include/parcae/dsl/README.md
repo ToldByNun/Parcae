@@ -36,11 +36,15 @@ private:
 | `dsl_ast_json_ingest.hpp` | `DslAstJsonIngest` | Done (strict + limits) |
 | `dsl_semantic_gate.hpp` | `DslSemanticGate` | Done (whitelist + imports) |
 | `z29_expr.hpp` | `Z29Expr` | Done (IR + eval via Z29) |
+| `param_ir.hpp` | `ParamIr` | Done |
+| `primitive_ir.hpp` | `PrimitiveIr` | Done |
+| `theory_ir.hpp` | `TheoryIr` | Done |
+| `compose_ir.hpp` | `ComposeIr` | Done |
 | `dsl.hpp` | umbrella | Done |
 
 ## Planned (later commits)
 
-`primitive_ir`, `theory_ir`, `dsl_build_ir`, `dsl_verifier`, `dsl_optimize`,
+`dsl_build_ir`, `dsl_verifier`, `dsl_optimize`,
 `dsl_fuse`, `dsl_emit_cpu`, `dsl_emit_cuda`, `theory_artifact`, `theory_registry`,
 `theory_uri`.
 

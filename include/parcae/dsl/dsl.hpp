@@ -11,8 +11,10 @@
 ///   - DslAst / DslAstLimits / DslAstJsonIngest
 ///   - DslSemanticGate
 ///   - Z29Expr
-/// Later commits fill PrimitiveIr / TheoryIr, verify, emit, registry.
+///   - ParamIr / PrimitiveIr / TheoryIr / ComposeIr
+/// Later commits fill DslBuildIr, verify, emit, registry.
 
+#include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
 #include "parcae/dsl/dsl_ast_json_ingest.hpp"
 #include "parcae/dsl/dsl_ast_json_version.hpp"
@@ -21,6 +23,9 @@
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/dsl_semantic_gate.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
+#include "parcae/dsl/param_ir.hpp"
+#include "parcae/dsl/primitive_ir.hpp"
+#include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/z29_expr.hpp"
 
 #endif // DSL_HPP

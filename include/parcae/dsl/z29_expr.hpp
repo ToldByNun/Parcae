@@ -19,7 +19,8 @@
 
 /// Immutable \(\mathbb{Z}_{29}\) expression IR for the theory DSL (docs/spec/dsl.md).
 /// Construction builds trees only; evaluation uses host `Z29` (never aborts on
-/// `inv(0)` — returns E040). Non-builtin primitive calls fail until PrimitiveIr.
+/// `inv(0)` — returns E040). Non-builtin primitive calls fail until a registry
+/// binds them (PrimitiveIr + DslBuildIr).
 class Z29Expr {
 public:
     enum class Kind : std::uint8_t {
