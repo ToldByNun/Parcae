@@ -46,6 +46,7 @@ private:
 | `dsl_verifier.hpp` | `DslVerifier` | Done (exhaustive ≤4 + fuzz + CPU↔CUDA mirror) |
 | `dsl_fuse.hpp` | `DslFuse` | Done (inline + emit + CPU bench gate) |
 | `dsl_optimize.hpp` | `DslOptimize` | Done (const-fold + `inv` hoist) |
+| `dsl_launch_plan.hpp` | `DslLaunchPlan` | Done (1D / HistFast 2D twin grids) |
 | `dsl.hpp` | umbrella | Done |
 
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md forbidden kinds → stable `E031`/`E021`.
@@ -57,10 +58,11 @@ Tests: `[dsl][verify]` / `[dsl][verify][gate]` DslVerifier exhaustive + fuzz +
 CPU↔CUDA mirror; inv-domain + poly2 \(29^4\) hard gates.
 Tests: `[dsl][fuse]` / `[dsl][fuse][koan][parity]` DslFuse + Koan-1 vs ComposeTransform.
 Tests: `[dsl][optimize]` DslOptimize const-fold + inv hoist.
+Tests: `[dsl][launch]` DslLaunchPlan vs HistFast / 1D twin formula.
 
 ## Planned (later commits)
 
-`dsl_build_ir`, LaunchPlan / peak sanity,
+`dsl_build_ir`, peak sanity vs ThroughputTiers,
 `theory_artifact`, `theory_registry`,
 `theory_uri`.
 

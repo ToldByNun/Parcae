@@ -18,7 +18,8 @@
 ///   - DslVerifier (exhaustive ≤4 + seeded fuzz + CPU↔CUDA mirror)
 ///   - DslFuse (inline + fused/staged emit + CPU bench gate)
 ///   - DslOptimize (const-fold + z29_inv hoist)
-/// Later commits fill LaunchPlan, DslBuildIr, registry.
+///   - DslLaunchPlan (twin 1D / HistFast 2D grids)
+/// Later commits fill peak sanity, DslBuildIr, registry.
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
@@ -30,6 +31,7 @@
 #include "parcae/dsl/dsl_emit_cuda.hpp"
 #include "parcae/dsl/dsl_fuse.hpp"
 #include "parcae/dsl/dsl_ir_applicator.hpp"
+#include "parcae/dsl/dsl_launch_plan.hpp"
 #include "parcae/dsl/dsl_optimize.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/dsl_semantic_gate.hpp"

@@ -5,6 +5,7 @@
 #include "parcae/core/status_or.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_emit_cpu.hpp"
+#include "parcae/dsl/dsl_launch_plan.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/param_ir.hpp"
 #include "parcae/dsl/primitive_ir.hpp"
@@ -57,7 +58,8 @@ public:
         out << "#include <span>\n";
         out << "#include <string_view>\n\n";
         out << "/// Emitted CUDA twin for theory `" << theory.name() << "`.\n";
-        out << "/// Uses Z29Device in the .cu; grid is 1D C·T/256 (existing twin convention).\n";
+        out << "/// Uses Z29Device in the .cu; grid is 1D ceil(n/"
+            << DslLaunchPlan::threads_per_block << ") (DslLaunchPlan / twin convention).\n";
         out << "/// Elementwise v0: interrupts unused on device (same as CaesarKernel).\n";
         out << "class " << class_name << " {\n";
         out << "public:\n";
@@ -119,7 +121,7 @@ public:
         out << "#include \"../z29_device.hpp\"\n\n";
         out << "#include <cuda_runtime_api.h>\n\n";
         out << "namespace {\n\n";
-        out << "constexpr int kThreadsPerBlock = 256;\n\n";
+        out << "constexpr int kThreadsPerBlock = " << DslLaunchPlan::threads_per_block << ";\n\n";
 
         out << "__global__ void " << kern_fn << "(\n";
         out << "    const std::uint8_t* in,\n";
