@@ -31,7 +31,7 @@ under a parallel `include/parcae/cuda/` tree.
 ```text
 include/parcae/
   core/          Index29, Z29, Status, SHA-256, Version
-  dsl/           Theory DSL compiler (+ DslVerifier exhaustive/fuzz; CUDA mirror later)
+  dsl/           Theory DSL compiler (+ DslVerifier: exhaustive/fuzz + CPU↔CUDA mirror)
   gematria/      Profile load, RuneCodec, LatinCodec / labels
   corpus/        Tokenizer, TokenStream, Fixture + loader, masks
   interrupt/     InterruptPolicy (explicit skip indices)
@@ -63,7 +63,7 @@ data/
 | Module | Responsibility | CUDA twin? |
 |--------|----------------|------------|
 | `core` / `gematria` / `corpus` | Host setup, UTF-8, fixtures | No (CPU setup) |
-| `dsl` | Theory DSL compile (+ DslVerifier exhaustive/fuzz; CUDA mirror later) | Emitted twins under `cuda/emitted/` |
+| `dsl` | Theory DSL compile (+ DslVerifier: exhaustive/fuzz + CPU↔CUDA mirror) | Emitted twins under `cuda/emitted/` |
 | `interrupt` | Skip-set policy | Policy bytes mirrored on device |
 | `transform` + `math` | Index29 kernels / keystream | **Yes — primary** |
 | `score` | Pure scores on Index29 | **Yes — reductions** |

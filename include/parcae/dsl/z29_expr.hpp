@@ -18,9 +18,9 @@
 #include <vector>
 
 /// Immutable \(\mathbb{Z}_{29}\) expression IR for the theory DSL (docs/spec/dsl.md).
-/// Construction builds trees only; evaluation uses host `Z29` (never aborts on
-/// `inv(0)` — returns E040). Non-builtin primitive calls fail until a registry
-/// binds them (PrimitiveIr + DslBuildIr).
+/// Construction builds trees only; host `eval` uses `Z29`, `eval_cuda_mirror`
+/// uses `Z29Device` op-sequence semantics (never aborts on `inv(0)` — returns E040).
+/// Non-builtin primitive calls fail until a registry binds them (PrimitiveIr + DslBuildIr).
 class Z29Expr {
 public:
     enum class Kind : std::uint8_t {
@@ -208,8 +208,206 @@ public:
         return diag_fail(DslRuleId::E032_primitive_body, "unknown Z29Expr kind");
     }
 
+    /// Host evaluation using the CUDA emit op-sequence (`Z29Device` semantics).
+    /// Matches `DslEmitCuda` (add/sub/mul/neg/inv; atbash → `sub(28,x)`; mod → `%`).
+    /// No device launch — used by `DslVerifier` CPU↔CUDA mirror gate (docs/spec/dsl.md).
+    [[nodiscard]] StatusOr<Index29> eval_cuda_mirror(const Env& env) const {
+        switch (kind_) {
+        case Kind::Const:
+            return Index29{const_value_};
+        case Kind::Var: {
+            const auto it = env.find(name_);
+            if (it == env.end()) {
+                return diag_fail(
+                    DslRuleId::E032_primitive_body, "unbound variable '" + name_ + "'");
+            }
+            return it->second;
+        }
+        case Kind::Add: {
+            StatusOr<Index29> l = require_bin_left_mirror(env);
+            if (!l.ok()) {
+                return l.status();
+            }
+            StatusOr<Index29> r = require_bin_right_mirror(env);
+            if (!r.ok()) {
+                return r.status();
+            }
+            return Index29{device_add(l.value().value(), r.value().value())};
+        }
+        case Kind::Sub: {
+            StatusOr<Index29> l = require_bin_left_mirror(env);
+            if (!l.ok()) {
+                return l.status();
+            }
+            StatusOr<Index29> r = require_bin_right_mirror(env);
+            if (!r.ok()) {
+                return r.status();
+            }
+            return Index29{device_sub(l.value().value(), r.value().value())};
+        }
+        case Kind::Mul: {
+            StatusOr<Index29> l = require_bin_left_mirror(env);
+            if (!l.ok()) {
+                return l.status();
+            }
+            StatusOr<Index29> r = require_bin_right_mirror(env);
+            if (!r.ok()) {
+                return r.status();
+            }
+            return Index29{device_mul(l.value().value(), r.value().value())};
+        }
+        case Kind::Neg: {
+            StatusOr<Index29> a = require_unary_mirror(env);
+            if (!a.ok()) {
+                return a.status();
+            }
+            return Index29{device_neg(a.value().value())};
+        }
+        case Kind::Inv: {
+            StatusOr<Index29> a = require_unary_mirror(env);
+            if (!a.ok()) {
+                return a.status();
+            }
+            if (a.value().value() == 0) {
+                return diag_fail(DslRuleId::E040_param_domain, "z29_inv(0) is undefined");
+            }
+            return Index29{device_inv(a.value().value())};
+        }
+        case Kind::Mod: {
+            if (!left_ || !right_) {
+                return diag_fail(DslRuleId::E032_primitive_body, "Mod missing operands");
+            }
+            StatusOr<Index29> l = left_->eval_cuda_mirror(env);
+            if (!l.ok()) {
+                return l.status();
+            }
+            StatusOr<Index29> r = right_->eval_cuda_mirror(env);
+            if (!r.ok()) {
+                return r.status();
+            }
+            if (r.value().value() == 0) {
+                return diag_fail(DslRuleId::E040_param_domain, "z29_mod divisor is 0");
+            }
+            // Same as DslEmitCuda: `static_cast<uint8_t>((l % r))`.
+            return Index29{static_cast<std::uint8_t>(l.value().value() % r.value().value())};
+        }
+        case Kind::Atbash: {
+            StatusOr<Index29> a = require_unary_mirror(env);
+            if (!a.ok()) {
+                return a.status();
+            }
+            // Z29Device has no atbash — emit uses `Z29Device::sub(28, x)`.
+            return Index29{device_sub(28, a.value().value())};
+        }
+        case Kind::Call:
+            return eval_call_cuda_mirror(env);
+        }
+        return diag_fail(DslRuleId::E032_primitive_body, "unknown Z29Expr kind");
+    }
+
 private:
     explicit Z29Expr(Kind kind) : kind_(kind) {}
+
+    /// Bit-identical to `Z29Device` host/device ops (Parcae/Parcae/cuda/z29_device.hpp).
+    [[nodiscard]] static std::uint8_t device_add(std::uint8_t x, std::uint8_t y) noexcept {
+        const unsigned s = static_cast<unsigned>(x) + static_cast<unsigned>(y);
+        return static_cast<std::uint8_t>(s >= Index29::modulus ? s - Index29::modulus : s);
+    }
+
+    [[nodiscard]] static std::uint8_t device_neg(std::uint8_t x) noexcept {
+        return x == 0 ? static_cast<std::uint8_t>(0)
+                      : static_cast<std::uint8_t>(Index29::modulus - x);
+    }
+
+    [[nodiscard]] static std::uint8_t device_sub(std::uint8_t x, std::uint8_t y) noexcept {
+        const unsigned s =
+            static_cast<unsigned>(x) + Index29::modulus - static_cast<unsigned>(y);
+        return static_cast<std::uint8_t>(s >= Index29::modulus ? s - Index29::modulus : s);
+    }
+
+    [[nodiscard]] static std::uint8_t device_mul(std::uint8_t x, std::uint8_t y) noexcept {
+        return static_cast<std::uint8_t>(
+            (static_cast<unsigned>(x) * static_cast<unsigned>(y)) % Index29::modulus);
+    }
+
+    [[nodiscard]] static std::uint8_t device_inv(std::uint8_t a) noexcept {
+        // Must match Z29Device::inv / Z29::inv_table for 1..28.
+        constexpr std::uint8_t inv_table[Index29::modulus] = {
+            0,  1,  15, 10, 22, 6,  5,  25, 11, 13, 3,  8,  17, 9,  27,
+            2,  20, 12, 21, 26, 16, 18, 4,  24, 23, 7,  19, 14, 28};
+        return inv_table[a];
+    }
+
+    [[nodiscard]] StatusOr<Index29> require_bin_left_mirror(const Env& env) const {
+        if (!left_ || !right_) {
+            return diag_fail(DslRuleId::E032_primitive_body, "binary Z29Expr missing operands");
+        }
+        return left_->eval_cuda_mirror(env);
+    }
+
+    [[nodiscard]] StatusOr<Index29> require_bin_right_mirror(const Env& env) const {
+        return right_->eval_cuda_mirror(env);
+    }
+
+    [[nodiscard]] StatusOr<Index29> require_unary_mirror(const Env& env) const {
+        if (!left_) {
+            return diag_fail(DslRuleId::E032_primitive_body, "unary Z29Expr missing operand");
+        }
+        return left_->eval_cuda_mirror(env);
+    }
+
+    [[nodiscard]] StatusOr<Index29> eval_call_cuda_mirror(const Env& env) const {
+        if (name_ == "z29_add") {
+            return eval_call_as_bin_cuda_mirror(env, Kind::Add);
+        }
+        if (name_ == "z29_sub") {
+            return eval_call_as_bin_cuda_mirror(env, Kind::Sub);
+        }
+        if (name_ == "z29_mul") {
+            return eval_call_as_bin_cuda_mirror(env, Kind::Mul);
+        }
+        if (name_ == "z29_mod") {
+            return eval_call_as_bin_cuda_mirror(env, Kind::Mod);
+        }
+        if (name_ == "z29_inv") {
+            return eval_call_as_unary_cuda_mirror(env, Kind::Inv);
+        }
+        if (name_ == "z29_neg") {
+            return eval_call_as_unary_cuda_mirror(env, Kind::Neg);
+        }
+        if (name_ == "z29_atbash") {
+            return eval_call_as_unary_cuda_mirror(env, Kind::Atbash);
+        }
+        return diag_fail(
+            DslRuleId::E032_primitive_body,
+            "unknown primitive call '" + name_ + "' (not a builtin; registry comes later)");
+    }
+
+    [[nodiscard]] StatusOr<Index29> eval_call_as_bin_cuda_mirror(
+        const Env& env, Kind as_kind) const {
+        if (args_.size() != 2 || !args_[0] || !args_[1]) {
+            return diag_fail(
+                DslRuleId::E032_primitive_body, "call '" + name_ + "' expects 2 arguments");
+        }
+        auto tmp = make_bin(as_kind, args_[0], args_[1]);
+        tmp->source_path_ = source_path_;
+        tmp->lineno_ = lineno_;
+        tmp->col_offset_ = col_offset_;
+        return tmp->eval_cuda_mirror(env);
+    }
+
+    [[nodiscard]] StatusOr<Index29> eval_call_as_unary_cuda_mirror(
+        const Env& env, Kind as_kind) const {
+        if (args_.size() != 1 || !args_[0]) {
+            return diag_fail(
+                DslRuleId::E032_primitive_body, "call '" + name_ + "' expects 1 argument");
+        }
+        auto tmp = make_unary(as_kind, args_[0]);
+        tmp->source_path_ = source_path_;
+        tmp->lineno_ = lineno_;
+        tmp->col_offset_ = col_offset_;
+        return tmp->eval_cuda_mirror(env);
+    }
 
     [[nodiscard]] static Ptr make_bin(Kind kind, Ptr left, Ptr right) {
         auto node = std::shared_ptr<Z29Expr>(new Z29Expr(kind));

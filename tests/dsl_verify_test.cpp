@@ -157,6 +157,50 @@ TEST_CASE("DslVerifier fuzz is deterministic for fixed seed", "[dsl][verify][fuz
     REQUIRE(a.value().detail() == b.value().detail());
 }
 
+TEST_CASE("DslVerifier cuda mirror gate covers atbash+add+mul", "[dsl][verify][mirror]") {
+    // Body uses ops that emit via Z29Device (atbash → sub(28,x)).
+    const Z29Expr::Ptr body = Z29Expr::add(
+        Z29Expr::atbash(Z29Expr::var("x")),
+        Z29Expr::mul(Z29Expr::var("y"), Z29Expr::constant(3).value()));
+    const StatusOr<PrimitiveIr> prim =
+        PrimitiveIr::make("mirror_mix", "(x: Z29, y: Z29) -> Z29", body);
+    REQUIRE(prim.ok());
+    const StatusOr<DslVerifier::Report> report =
+        DslVerifier::verify_primitive_exhaustive(prim.value());
+    REQUIRE(report.ok());
+    REQUIRE(report.value().passed());
+    REQUIRE(report.value().samples_checked() == 29u * 29u);
+    REQUIRE(report.value().detail().find("cuda_mirror") != std::string::npos);
+}
+
+TEST_CASE("Z29Expr eval_cuda_mirror matches CPU eval for poly2 cell", "[dsl][verify][mirror]") {
+    const PrimitiveIr prim = make_poly2();
+    Z29Expr::Env env;
+    env.emplace("i", Index29{7});
+    env.emplace("c2", Index29{3});
+    env.emplace("c1", Index29{11});
+    env.emplace("c0", Index29{5});
+    const StatusOr<Index29> cpu = prim.body()->eval(env);
+    const StatusOr<Index29> cuda = prim.body()->eval_cuda_mirror(env);
+    REQUIRE(cpu.ok());
+    REQUIRE(cuda.ok());
+    REQUIRE(cpu.value() == cuda.value());
+}
+
+TEST_CASE("Z29Expr eval_cuda_mirror atbash uses device sub(28,x)", "[dsl][verify][mirror]") {
+    const Z29Expr::Ptr expr = Z29Expr::atbash(Z29Expr::var("x"));
+    for (std::uint8_t x = 0; x < 29; ++x) {
+        Z29Expr::Env env;
+        env.emplace("x", Index29{x});
+        const StatusOr<Index29> cpu = expr->eval(env);
+        const StatusOr<Index29> cuda = expr->eval_cuda_mirror(env);
+        REQUIRE(cpu.ok());
+        REQUIRE(cuda.ok());
+        REQUIRE(cpu.value() == cuda.value());
+        REQUIRE(cuda.value().value() == static_cast<std::uint8_t>(28 - x));
+    }
+}
+
 TEST_CASE("DslVerifier max_exhaustive_samples is 29^4", "[dsl][verify]") {
     REQUIRE(DslVerifier::max_exhaustive_samples == 707281u);
     REQUIRE(DslVerifier::max_exhaustive_arity == 4u);

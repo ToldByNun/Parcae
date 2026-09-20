@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <optional>
 #include <random>
+#include <span>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -22,7 +23,7 @@
 
 /// Compile-time verification gates for DSL IR (docs/spec/dsl.md).
 /// Exhaustive for arity ≤ 4; seeded fuzz (`0xC1CADA`) for larger arity.
-/// Full CPU↔CUDA device mirror lands in E22.
+/// Each sample: totality + determinism + CPU↔CUDA op-sequence mirror.
 class DslVerifier {
 public:
     static constexpr std::size_t max_exhaustive_arity = 4;
@@ -141,11 +142,12 @@ public:
         }
 
         report.passed_ = true;
-        report.detail_ = "exhaustive ok; samples=" + std::to_string(report.samples_checked_);
+        report.detail_ = "exhaustive ok; samples=" + std::to_string(report.samples_checked_) +
+                         "; gates=totality+determinism+cuda_mirror";
         return report;
     }
 
-    /// Seeded property fuzz (totality + determinism + CPU self-mirror).
+    /// Seeded property fuzz (totality + determinism + CPU↔CUDA mirror).
     /// Intended for arity > 4; also usable on smaller arities.
     [[nodiscard]] static StatusOr<Report> verify_primitive_fuzz(
         const PrimitiveIr& primitive,
@@ -189,7 +191,8 @@ public:
 
         report.passed_ = true;
         report.detail_ = "fuzz ok; seed=0x" + to_hex32(seed) +
-                         "; samples=" + std::to_string(report.samples_checked_);
+                         "; samples=" + std::to_string(report.samples_checked_) +
+                         "; gates=totality+determinism+cuda_mirror";
         return report;
     }
 
@@ -281,15 +284,24 @@ private:
                     " second=" + std::to_string(second.value().value()));
         }
 
-        // CPU self-mirror (CUDA device mirror in E22).
+        // CPU ↔ CUDA op-sequence mirror (Z29Expr::eval_cuda_mirror / DslEmitCuda).
         Z29Expr::Env env;
         for (std::size_t i = 0; i < args.size(); ++i) {
             env.emplace(primitive.param_names()[i], args[i]);
         }
-        StatusOr<Index29> mirror = primitive.body()->eval(env);
-        if (!mirror.ok() || mirror.value() != first.value()) {
+        StatusOr<Index29> cuda_mirror = primitive.body()->eval_cuda_mirror(env);
+        if (!cuda_mirror.ok()) {
             return fail_verify(
-                primitive, "cpu mirror failed at " + format_args(primitive, args));
+                primitive,
+                "cuda mirror failed at " + format_args(primitive, args) + ": " +
+                    cuda_mirror.status().message());
+        }
+        if (cuda_mirror.value() != first.value()) {
+            return fail_verify(
+                primitive,
+                "cpu/cuda mirror mismatch at " + format_args(primitive, args) +
+                    ": cpu=" + std::to_string(first.value().value()) +
+                    " cuda_mirror=" + std::to_string(cuda_mirror.value().value()));
         }
         return Status::success();
     }
