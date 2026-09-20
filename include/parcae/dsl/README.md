@@ -43,6 +43,7 @@ private:
 | `dsl.hpp` | umbrella | Done |
 
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md forbidden kinds → stable `E031`/`E021`.
+Tests: `[dsl][ingest][fuzz]` adversarial mutations + limit rejects (no crash).
 
 ## Planned (later commits)
 

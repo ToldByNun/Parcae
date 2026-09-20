@@ -10,6 +10,7 @@ add_executable(parcae_tests
   dsl_z29_expr_test.cpp
   dsl_ir_test.cpp
   dsl_forbidden_ast_test.cpp
+  dsl_ast_ingest_fuzz_test.cpp
   token_stream_test.cpp
   gematria_profile_test.cpp
   corpus_test.cpp
