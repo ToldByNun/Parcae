@@ -7,6 +7,7 @@ add_executable(parcae_tests
   dsl_diag_test.cpp
   dsl_ast_ingest_test.cpp
   dsl_semantic_gate_test.cpp
+  dsl_z29_expr_test.cpp
   token_stream_test.cpp
   gematria_profile_test.cpp
   corpus_test.cpp
