@@ -8,9 +8,13 @@
 /// Implemented so far:
 ///   - DslSpecVersion / DslAstJsonVersion
 ///   - DslDiag / DslRuleId
-/// Later commits fill ingest, IR, verify, emit, registry.
+///   - DslAst / DslAstLimits / DslAstJsonIngest
+/// Later commits fill semantic gate, IR, verify, emit, registry.
 
+#include "parcae/dsl/dsl_ast.hpp"
+#include "parcae/dsl/dsl_ast_json_ingest.hpp"
 #include "parcae/dsl/dsl_ast_json_version.hpp"
+#include "parcae/dsl/dsl_ast_limits.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"

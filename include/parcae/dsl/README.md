@@ -31,11 +31,14 @@ private:
 | `dsl_ast_json_version.hpp` | `DslAstJsonVersion` | Done (`1.0.0`) |
 | `dsl_rule_id.hpp` | `DslRuleId` | Done (stable E0xx / E1xx) |
 | `dsl_diag.hpp` | `DslDiag` | Done (`path:line:col: RULE message`) |
+| `dsl_ast_limits.hpp` | `DslAstLimits` | Done (v0 ceilings) |
+| `dsl_ast.hpp` | `DslAstNode` / `DslAstDocument` | Done |
+| `dsl_ast_json_ingest.hpp` | `DslAstJsonIngest` | Done (strict + limits) |
 | `dsl.hpp` | umbrella | Done |
 
 ## Planned (later commits)
 
-`dsl_ast`, `dsl_ast_json_ingest`, `dsl_semantic_gate`, `z29_expr`,
+`dsl_semantic_gate`, `z29_expr`,
 `primitive_ir`, `theory_ir`, `dsl_build_ir`, `dsl_verifier`, `dsl_optimize`,
 `dsl_fuse`, `dsl_emit_cpu`, `dsl_emit_cuda`, `theory_artifact`, `theory_registry`,
 `theory_uri`.
