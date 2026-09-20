@@ -18,6 +18,7 @@ add_executable(parcae_tests
   dsl_verify_test.cpp
   dsl_fuse_test.cpp
   dsl_koan_parity_test.cpp
+  dsl_optimize_test.cpp
   token_stream_test.cpp
   gematria_profile_test.cpp
   corpus_test.cpp
