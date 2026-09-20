@@ -58,6 +58,24 @@ Unit tests use a scripted mock LLM (no network).
 CI contract: `pytest -m ci` (see `tests/test_agent_loop_mock_ci.py`) — mock LLM +
 fake ToolBridge runner, no sockets and no built CLIs required.
 
+## Live providers (optional)
+
+Documented smoke paths (Ollama + OpenRouter):  
+[`docs/architecture/agent-provider-smoke.md`](../docs/architecture/agent-provider-smoke.md).
+
+```bash
+# Default CI / offline — live tests skip
+pytest -q
+
+# Developer machine with Ollama running
+PARCAE_AGENT_LIVE=1 pytest -m "live and ollama" -q
+
+# Developer machine with OpenRouter key
+PARCAE_AGENT_LIVE=1 pytest -m "live and openrouter" -q
+```
+
+Never commit API keys. Hosted CI must not set `PARCAE_AGENT_LIVE`.
+
 ## Transcripts
 
 By default `parcae-agent run` writes `parcae.transcript_step.v0` JSONL under

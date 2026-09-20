@@ -2,6 +2,7 @@
 # Secrets: none required when api_key_env is null.
 #
 #   cd agents && python -m parcae_agent check-config configs/ollama.example.yaml
+#   Live smoke: docs/architecture/agent-provider-smoke.md (PARCAE_AGENT_LIVE=1)
 #
 schema: parcae.agent_config.v0
 provider:

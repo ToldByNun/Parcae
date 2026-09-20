@@ -4,6 +4,7 @@
 #   set OPENROUTER_API_KEY=...   # Windows
 #   export OPENROUTER_API_KEY=...  # Unix
 #   cd agents && python -m parcae_agent check-config configs/openrouter.example.yaml
+#   Live smoke: docs/architecture/agent-provider-smoke.md (PARCAE_AGENT_LIVE=1)
 #
 schema: parcae.agent_config.v0
 provider:

@@ -30,4 +30,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
   "ci: CI-safe agent tests (mock LLM, no network, no live provider keys)",
+  "live: optional live provider smoke (requires PARCAE_AGENT_LIVE=1)",
+  "ollama: live smoke against local Ollama OpenAI-compatible endpoint",
+  "openrouter: live smoke against OpenRouter (needs OPENROUTER_API_KEY)",
 ]
