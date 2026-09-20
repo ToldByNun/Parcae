@@ -16,8 +16,8 @@
 ///   - DslEmitCpu
 ///   - DslEmitCuda
 ///   - DslVerifier (exhaustive ≤4 + seeded fuzz + CPU↔CUDA mirror)
-///   - DslFuse (inline compose + fused/staged ComposeDriver emit)
-/// Later commits fill fusion bench, DslBuildIr, optimize, registry.
+///   - DslFuse (inline + fused/staged emit + CPU bench gate)
+/// Later commits fill DslBuildIr, optimize, registry.
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"

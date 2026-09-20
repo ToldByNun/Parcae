@@ -44,7 +44,7 @@ private:
 | `dsl_emit_cpu.hpp` | `DslEmitCpu` | Done (Transform-shaped source text) |
 | `dsl_emit_cuda.hpp` | `DslEmitCuda` | Done (Z29Device + Kernel façade) |
 | `dsl_verifier.hpp` | `DslVerifier` | Done (exhaustive ≤4 + fuzz + CPU↔CUDA mirror) |
-| `dsl_fuse.hpp` | `DslFuse` | Done (inline + fused/staged emit) |
+| `dsl_fuse.hpp` | `DslFuse` | Done (inline + emit + CPU bench gate) |
 | `dsl.hpp` | umbrella | Done |
 
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md forbidden kinds → stable `E031`/`E021`.
@@ -54,11 +54,11 @@ Tests: `[dsl][emit]` DslEmitCpu / DslEmitCuda source text.
 Tests: `[dsl][oracle][poly2]` exhaustive poly2 IR vs host Z29.
 Tests: `[dsl][verify]` / `[dsl][verify][gate]` DslVerifier exhaustive + fuzz +
 CPU↔CUDA mirror; inv-domain + poly2 \(29^4\) hard gates.
-Tests: `[dsl][fuse]` DslFuse inline compose + nested flatten + fused/staged emit.
+Tests: `[dsl][fuse]` DslFuse inline + emit + CPU fusion bench gate.
 
 ## Planned (later commits)
 
-`dsl_build_ir`, `dsl_optimize`, fusion bench gate,
+`dsl_build_ir`, `dsl_optimize`, peak sanity,
 `theory_artifact`, `theory_registry`,
 `theory_uri`.
 

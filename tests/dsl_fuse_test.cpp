@@ -260,3 +260,75 @@ TEST_CASE("DslFuse fusion_status_str", "[dsl][fuse]") {
     REQUIRE(
         DslFuse::fusion_status_str(DslFuse::FusionStatus::FallbackStaged) == "fallback_staged");
 }
+
+TEST_CASE("DslFuse choose_status follows fused >= staged rule", "[dsl][fuse][bench]") {
+    REQUIRE(
+        DslFuse::choose_status(100.0, 90.0) == DslFuse::FusionStatus::Fused);
+    REQUIRE(
+        DslFuse::choose_status(100.0, 100.0) == DslFuse::FusionStatus::Fused);
+    REQUIRE(
+        DslFuse::choose_status(90.0, 100.0) == DslFuse::FusionStatus::FallbackStaged);
+}
+
+TEST_CASE("DslFuse bench_cpu returns positive rates and status", "[dsl][fuse][bench]") {
+    const TheoryIr atbash = make_atbash();
+    const TheoryIr caesar = make_caesar();
+    const StatusOr<ParamIr> shift = ParamIr::make("caesar_shift", 0, 28);
+    REQUIRE(shift.ok());
+    const StatusOr<ComposeIr> compose = ComposeIr::make(
+        "atbash_then_caesar",
+        TheoryIr::Tier::A,
+        {"atbash", "caesar"},
+        {shift.value()},
+        {ComposeIr::StepParamBinding{"caesar", "shift", "caesar_shift"}});
+    REQUIRE(compose.ok());
+
+    const std::vector<TheoryIr> catalog{atbash, caesar};
+    const StatusOr<DslFuse::BenchReport> bench = DslFuse::bench_cpu(
+        compose.value(),
+        catalog,
+        {},
+        {{"caesar_shift", static_cast<std::uint8_t>(3)}},
+        /*stream_len=*/1024,
+        /*reps=*/8);
+    REQUIRE(bench.ok());
+    REQUIRE(bench.value().fused_elems_per_sec() > 0.0);
+    REQUIRE(bench.value().staged_elems_per_sec() > 0.0);
+    REQUIRE(
+        bench.value().status() ==
+        DslFuse::choose_status(
+            bench.value().fused_elems_per_sec(), bench.value().staged_elems_per_sec()));
+    REQUIRE(bench.value().detail().find("cpu_bench") != std::string::npos);
+}
+
+TEST_CASE("DslFuse emit_compose_auto attaches bench report", "[dsl][fuse][bench]") {
+    const TheoryIr atbash = make_atbash();
+    const TheoryIr caesar = make_caesar();
+    const StatusOr<ParamIr> shift = ParamIr::make("caesar_shift", 0, 28);
+    REQUIRE(shift.ok());
+    const StatusOr<ComposeIr> compose = ComposeIr::make(
+        "atbash_then_caesar",
+        TheoryIr::Tier::A,
+        {"atbash", "caesar"},
+        {shift.value()},
+        {ComposeIr::StepParamBinding{"caesar", "shift", "caesar_shift"}});
+    REQUIRE(compose.ok());
+
+    const std::vector<TheoryIr> catalog{atbash, caesar};
+    const StatusOr<DslFuse::EmitBundle> bundle = DslFuse::emit_compose_auto(
+        compose.value(),
+        catalog,
+        {},
+        {{"caesar_shift", static_cast<std::uint8_t>(3)}},
+        /*stream_len=*/512,
+        /*reps=*/4);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().bench().has_value());
+    REQUIRE(bundle.value().status() == bundle.value().bench()->status());
+    REQUIRE(bundle.value().status_str() == DslFuse::fusion_status_str(bundle.value().status()));
+    if (bundle.value().status() == DslFuse::FusionStatus::Fused) {
+        REQUIRE(bundle.value().selected_cpu_header() == bundle.value().fused_cpu_header());
+    } else {
+        REQUIRE(bundle.value().selected_cpu_header() == bundle.value().staged_cpu_header());
+    }
+}

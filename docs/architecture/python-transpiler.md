@@ -120,7 +120,7 @@ compile.
 ### Fusion
 
 `ComposedTheory` chains: try fused kernel; if fused throughput &lt; staged
-(`ThroughputTiers`-style compose protocol), write
+(CPU `DslFuse::bench_cpu` / ThroughputTiers-style compose protocol), write
 `fusion.status = "fallback_staged"` and keep ping-pong compose. Verify still
 hard-fails independently.
 

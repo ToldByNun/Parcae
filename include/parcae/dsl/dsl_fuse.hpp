@@ -7,14 +7,19 @@
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_emit_cpu.hpp"
 #include "parcae/dsl/dsl_emit_cuda.hpp"
+#include "parcae/dsl/dsl_ir_applicator.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/param_ir.hpp"
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/z29_expr.hpp"
+#include "parcae/interrupt/policy.hpp"
+#include "parcae/transform/transform_direction.hpp"
 
 #include <cctype>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <sstream>
 #include <span>
 #include <string>
@@ -26,8 +31,8 @@
 #include <nlohmann/json.hpp>
 
 /// Inline `ComposedTheory` chains + emit fused / staged ComposeDriver fallback
-/// (docs/spec/dsl.md § Compose fusion). Bench selection of fused vs staged is F26;
-/// callers pass `FusionStatus` explicitly until then.
+/// (docs/spec/dsl.md § Compose fusion). CPU bench gate selects `FusionStatus`
+/// (`fused` iff fused elems/s ≥ staged); CUDA twin benches remain F-later / tools.
 class DslFuse {
 public:
     /// Match `ComposeTransform::max_depth`.
@@ -87,6 +92,66 @@ public:
     /// (compose param name → value). Missing keys fall back to `ParamIr::min()`.
     using ParamValues = std::unordered_map<std::string, std::uint8_t>;
 
+    /// CPU fusion gate report (elems/s = Index29 samples processed per second).
+    class BenchReport {
+    public:
+        BenchReport(
+            double fused_elems_per_sec,
+            double staged_elems_per_sec,
+            FusionStatus status,
+            std::size_t stream_len,
+            std::size_t reps,
+            std::string detail)
+            : fused_elems_per_sec_(fused_elems_per_sec),
+              staged_elems_per_sec_(staged_elems_per_sec),
+              status_(status),
+              stream_len_(stream_len),
+              reps_(reps),
+              detail_(std::move(detail)) {}
+
+        [[nodiscard]] double fused_elems_per_sec() const noexcept {
+            return fused_elems_per_sec_;
+        }
+
+        [[nodiscard]] double staged_elems_per_sec() const noexcept {
+            return staged_elems_per_sec_;
+        }
+
+        [[nodiscard]] FusionStatus status() const noexcept {
+            return status_;
+        }
+
+        [[nodiscard]] std::size_t stream_len() const noexcept {
+            return stream_len_;
+        }
+
+        [[nodiscard]] std::size_t reps() const noexcept {
+            return reps_;
+        }
+
+        [[nodiscard]] const std::string& detail() const noexcept {
+            return detail_;
+        }
+
+    private:
+        double fused_elems_per_sec_ = 0;
+        double staged_elems_per_sec_ = 0;
+        FusionStatus status_ = FusionStatus::Fused;
+        std::size_t stream_len_ = 0;
+        std::size_t reps_ = 0;
+        std::string detail_;
+    };
+
+    /// Spec rule: fused ≥ staged → `Fused`, else `FallbackStaged`.
+    [[nodiscard]] static FusionStatus choose_status(
+        double fused_elems_per_sec,
+        double staged_elems_per_sec) noexcept {
+        if (fused_elems_per_sec >= staged_elems_per_sec) {
+            return FusionStatus::Fused;
+        }
+        return FusionStatus::FallbackStaged;
+    }
+
     class EmitBundle {
     public:
         EmitBundle(
@@ -97,7 +162,8 @@ public:
             std::string fused_cuda_cu,
             std::string staged_recipe_json,
             std::string staged_cpu_header,
-            std::string staged_cuda_header)
+            std::string staged_cuda_header,
+            std::optional<BenchReport> bench = std::nullopt)
             : status_(status),
               fused_(std::move(fused)),
               fused_cpu_header_(std::move(fused_cpu_header)),
@@ -105,7 +171,8 @@ public:
               fused_cuda_cu_(std::move(fused_cuda_cu)),
               staged_recipe_json_(std::move(staged_recipe_json)),
               staged_cpu_header_(std::move(staged_cpu_header)),
-              staged_cuda_header_(std::move(staged_cuda_header)) {}
+              staged_cuda_header_(std::move(staged_cuda_header)),
+              bench_(std::move(bench)) {}
 
         [[nodiscard]] FusionStatus status() const noexcept {
             return status_;
@@ -143,6 +210,10 @@ public:
             return staged_cuda_header_;
         }
 
+        [[nodiscard]] const std::optional<BenchReport>& bench() const noexcept {
+            return bench_;
+        }
+
         /// Artifact primary CPU text according to `status`.
         [[nodiscard]] const std::string& selected_cpu_header() const noexcept {
             return status_ == FusionStatus::FallbackStaged ? staged_cpu_header_
@@ -164,6 +235,7 @@ public:
         std::string staged_recipe_json_;
         std::string staged_cpu_header_;
         std::string staged_cuda_header_;
+        std::optional<BenchReport> bench_;
     };
 
     /// Flatten nested compose step ids, then inline encrypt/decrypt expressions.
@@ -296,14 +368,15 @@ public:
     }
 
     /// Emit fused CPU/CUDA twins + staged ComposeTransform/ComposeDriver façades.
-    /// `status` selects which texts `selected_*` return (bench gate is F26).
+    /// `status` selects which texts `selected_*` return (use `emit_compose_auto` for bench).
     [[nodiscard]] static StatusOr<EmitBundle> emit_compose(
         const ComposeIr& compose,
         std::span<const TheoryIr> theories,
         std::span<const ComposeIr> composes = {},
         FusionStatus status = FusionStatus::Fused,
         const ParamValues& staged_param_values = {},
-        std::string_view cipher_var = "x") {
+        std::string_view cipher_var = "x",
+        std::optional<BenchReport> bench = std::nullopt) {
         StatusOr<Result> fused = fuse_inline(compose, theories, composes, cipher_var);
         if (!fused.ok()) {
             return fused.status();
@@ -354,7 +427,125 @@ public:
             std::move(cuda_cu.value()),
             std::move(recipe.value()),
             std::move(staged_cpu.value()),
-            std::move(staged_cuda.value())};
+            std::move(staged_cuda.value()),
+            std::move(bench)};
+    }
+
+    /// CPU decrypt-path microbench (fused IR vs staged per-theory apply).
+    /// Does not fail compile when staged is faster — only selects status.
+    [[nodiscard]] static StatusOr<BenchReport> bench_cpu(
+        const ComposeIr& compose,
+        std::span<const TheoryIr> theories,
+        std::span<const ComposeIr> composes = {},
+        const ParamValues& param_values = {},
+        std::size_t stream_len = 4096,
+        std::size_t reps = 32,
+        std::string_view cipher_var = "x") {
+        if (stream_len == 0 || reps == 0) {
+            return fail(compose, "bench_cpu stream_len and reps must be > 0");
+        }
+
+        StatusOr<Result> fused = fuse_inline(compose, theories, composes, cipher_var);
+        if (!fused.ok()) {
+            return fused.status();
+        }
+        StatusOr<Flattened> flat = flatten_only(compose, theories, composes);
+        if (!flat.ok()) {
+            return flat.status();
+        }
+
+        Z29Expr::Env fused_env = make_compose_env(compose, param_values);
+        std::vector<Index29> input = make_bench_stream(stream_len);
+        std::vector<Index29> out_a(stream_len);
+        std::vector<Index29> out_b(stream_len);
+
+        // Warmup (not timed).
+        {
+            Status st = DslIrApplicator::apply_into(
+                fused.value().theory().decrypt_step(),
+                cipher_var,
+                fused_env,
+                input,
+                out_a);
+            if (!st.ok()) {
+                return st;
+            }
+            st = apply_staged_decrypt(
+                flat.value(), cipher_var, param_values, input, out_a, out_b);
+            if (!st.ok()) {
+                return st;
+            }
+        }
+
+        const auto t_fused0 = std::chrono::steady_clock::now();
+        for (std::size_t r = 0; r < reps; ++r) {
+            Status st = DslIrApplicator::apply_into(
+                fused.value().theory().decrypt_step(),
+                cipher_var,
+                fused_env,
+                input,
+                out_a);
+            if (!st.ok()) {
+                return st;
+            }
+        }
+        const auto t_fused1 = std::chrono::steady_clock::now();
+        const double fused_sec =
+            std::chrono::duration<double>(t_fused1 - t_fused0).count();
+
+        const auto t_staged0 = std::chrono::steady_clock::now();
+        for (std::size_t r = 0; r < reps; ++r) {
+            Status st = apply_staged_decrypt(
+                flat.value(), cipher_var, param_values, input, out_a, out_b);
+            if (!st.ok()) {
+                return st;
+            }
+        }
+        const auto t_staged1 = std::chrono::steady_clock::now();
+        const double staged_sec =
+            std::chrono::duration<double>(t_staged1 - t_staged0).count();
+
+        const double work = static_cast<double>(stream_len) * static_cast<double>(reps);
+        const double fused_eps = fused_sec > 0.0 ? (work / fused_sec) : 0.0;
+        const double staged_eps = staged_sec > 0.0 ? (work / staged_sec) : 0.0;
+        const FusionStatus status = choose_status(fused_eps, staged_eps);
+
+        std::ostringstream detail;
+        detail << "cpu_bench fused_eps=" << fused_eps << " staged_eps=" << staged_eps
+               << " status=" << fusion_status_str(status) << " stream_len=" << stream_len
+               << " reps=" << reps;
+        return BenchReport{
+            fused_eps, staged_eps, status, stream_len, reps, detail.str()};
+    }
+
+    /// Bench then emit with selected `FusionStatus` (still emits both path texts).
+    [[nodiscard]] static StatusOr<EmitBundle> emit_compose_auto(
+        const ComposeIr& compose,
+        std::span<const TheoryIr> theories,
+        std::span<const ComposeIr> composes = {},
+        const ParamValues& staged_param_values = {},
+        std::size_t stream_len = 4096,
+        std::size_t reps = 32,
+        std::string_view cipher_var = "x") {
+        StatusOr<BenchReport> bench = bench_cpu(
+            compose,
+            theories,
+            composes,
+            staged_param_values,
+            stream_len,
+            reps,
+            cipher_var);
+        if (!bench.ok()) {
+            return bench.status();
+        }
+        return emit_compose(
+            compose,
+            theories,
+            composes,
+            bench.value().status(),
+            staged_param_values,
+            cipher_var,
+            bench.value());
     }
 
 private:
@@ -367,6 +558,80 @@ private:
         std::unordered_map<std::string, const TheoryIr*> theory_by_name;
         bool nested = false;
     };
+
+    [[nodiscard]] static Z29Expr::Env make_compose_env(
+        const ComposeIr& compose,
+        const ParamValues& values) {
+        Z29Expr::Env env;
+        for (const ParamIr& p : compose.params()) {
+            const auto it = values.find(p.name());
+            const std::uint8_t v = it != values.end() ? it->second : p.min();
+            env.emplace(p.name(), Index29{v});
+        }
+        return env;
+    }
+
+    [[nodiscard]] static std::vector<Index29> make_bench_stream(std::size_t n) {
+        std::vector<Index29> out;
+        out.reserve(n);
+        std::uint32_t state = 0xC1CADAu;
+        for (std::size_t i = 0; i < n; ++i) {
+            state = state * 1664525u + 1013904223u;
+            out.push_back(Index29{static_cast<std::uint8_t>(state % 29u)});
+        }
+        return out;
+    }
+
+    [[nodiscard]] static Z29Expr::Env make_stage_env(
+        const TheoryIr& theory,
+        const std::string& step_id,
+        const std::vector<ComposeIr::StepParamBinding>& bindings,
+        const ParamValues& values) {
+        Z29Expr::Env env;
+        for (const ParamIr& p : theory.params()) {
+            const std::string compose_name = bound_compose_param(step_id, p.name(), bindings);
+            const auto it = values.find(compose_name);
+            const std::uint8_t v = it != values.end() ? it->second : p.min();
+            env.emplace(p.name(), Index29{v});
+        }
+        return env;
+    }
+
+    [[nodiscard]] static Status apply_staged_decrypt(
+        const Flattened& flat,
+        std::string_view cipher_var,
+        const ParamValues& values,
+        std::span<const Index29> input,
+        std::span<Index29> buf_a,
+        std::span<Index29> buf_b) {
+        if (input.size() != buf_a.size() || input.size() != buf_b.size()) {
+            return Status::error("staged bench buffer size mismatch");
+        }
+        for (std::size_t i = 0; i < input.size(); ++i) {
+            buf_a[i] = input[i];
+        }
+
+        std::span<const Index29> cur = buf_a;
+        std::span<Index29> dst = buf_b;
+        for (const std::string& step_id : flat.steps) {
+            const TheoryIr* th = flat.theory_by_name.at(step_id);
+            Z29Expr::Env env = make_stage_env(*th, step_id, flat.bindings, values);
+            Status st =
+                DslIrApplicator::apply_into(th->decrypt_step(), cipher_var, env, cur, dst);
+            if (!st.ok()) {
+                return st;
+            }
+            if (dst.data() == buf_b.data()) {
+                cur = buf_b;
+                dst = buf_a;
+            } else {
+                cur = buf_a;
+                dst = buf_b;
+            }
+        }
+        (void)cur;
+        return Status::success();
+    }
 
     [[nodiscard]] static Status fail(const ComposeIr& compose, std::string message) {
         return DslDiag::make(
