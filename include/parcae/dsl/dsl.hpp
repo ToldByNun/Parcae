@@ -14,7 +14,8 @@
 ///   - ParamIr / PrimitiveIr / TheoryIr / ComposeIr
 ///   - DslIrApplicator
 ///   - DslEmitCpu
-/// Later commits fill DslEmitCuda, DslBuildIr, verify, registry.
+///   - DslEmitCuda
+/// Later commits fill DslBuildIr, verify, registry.
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
@@ -23,6 +24,7 @@
 #include "parcae/dsl/dsl_ast_limits.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_emit_cpu.hpp"
+#include "parcae/dsl/dsl_emit_cuda.hpp"
 #include "parcae/dsl/dsl_ir_applicator.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/dsl_semantic_gate.hpp"
