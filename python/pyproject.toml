@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "parcae-dsl"
+version = "0.5.0.dev0"
+description = "IDE-only fail-loud stubs for parcae.dsl.* (not the compiler)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["parcae*"]
+
+[tool.setuptools.package-data]
+parcae = ["py.typed", "dsl/py.typed", "dsl/*.pyi"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+  "ci: CI-safe stub tests (no network, no compile pipeline)",
+]

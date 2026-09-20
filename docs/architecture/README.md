@@ -25,3 +25,4 @@ Config schema `parcae.agent_config.v0`: [`docs/spec/agent-tools.md`](../spec/age
 
 **Theory DSL:** Normative specs [`dsl.md`](../spec/dsl.md), [`dsl-ast-json.md`](../spec/dsl-ast-json.md),
 [`theory-artifact.md`](../spec/theory-artifact.md); architecture in [`python-transpiler.md`](python-transpiler.md).
+IDE stubs (fail-loud, not the compiler): [`python/`](../../python/).

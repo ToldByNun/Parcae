@@ -73,5 +73,14 @@ agents/*.egg-info/
 agents/.pytest_cache/
 agents/dist/
 agents/build/
+
+# Python DSL stubs (python/)
+python/.venv/
+python/*.egg-info/
+python/parcae_dsl.egg-info/
+python/.pytest_cache/
+python/dist/
+python/build/
+
 .venv/
 .pytest_cache/
