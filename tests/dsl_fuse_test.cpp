@@ -10,6 +10,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -179,4 +180,83 @@ TEST_CASE("DslFuse rejects missing decrypt_step", "[dsl][fuse]") {
         DslFuse::fuse_inline(compose.value(), catalog);
     REQUIRE_FALSE(fused.ok());
     REQUIRE(fused.status().message().find("decrypt_step") != std::string::npos);
+}
+
+TEST_CASE("DslFuse emit_compose fused selects fused headers", "[dsl][fuse][emit]") {
+    const TheoryIr atbash = make_atbash();
+    const TheoryIr caesar = make_caesar();
+    const StatusOr<ParamIr> shift = ParamIr::make("caesar_shift", 0, 28);
+    REQUIRE(shift.ok());
+    const StatusOr<ComposeIr> compose = ComposeIr::make(
+        "atbash_then_caesar",
+        TheoryIr::Tier::A,
+        {"atbash", "caesar"},
+        {shift.value()},
+        {ComposeIr::StepParamBinding{"caesar", "shift", "caesar_shift"}});
+    REQUIRE(compose.ok());
+
+    DslFuse::ParamValues values{{"caesar_shift", static_cast<std::uint8_t>(3)}};
+    const std::vector<TheoryIr> catalog{atbash, caesar};
+    const StatusOr<DslFuse::EmitBundle> bundle = DslFuse::emit_compose(
+        compose.value(),
+        catalog,
+        {},
+        DslFuse::FusionStatus::Fused,
+        values);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().status() == DslFuse::FusionStatus::Fused);
+    REQUIRE(bundle.value().status_str() == "fused");
+    REQUIRE(bundle.value().selected_cpu_header() == bundle.value().fused_cpu_header());
+    REQUIRE(bundle.value().selected_cuda_header() == bundle.value().fused_cuda_header());
+    REQUIRE(bundle.value().fused_cpu_header().find("AtbashThenCaesarTransform") !=
+            std::string::npos);
+    REQUIRE(bundle.value().fused_cuda_header().find("AtbashThenCaesarKernel") !=
+            std::string::npos);
+    REQUIRE(bundle.value().fused_cuda_cu().find("Z29Device::") != std::string::npos);
+    REQUIRE(bundle.value().staged_recipe_json().find("\"transform_id\": \"atbash\"") !=
+            std::string::npos);
+    REQUIRE(bundle.value().staged_recipe_json().find("\"shift\": 3") != std::string::npos);
+    REQUIRE(bundle.value().staged_cpu_header().find("StagedTransform") != std::string::npos);
+    REQUIRE(bundle.value().staged_cpu_header().find("ComposeTransform") != std::string::npos);
+    REQUIRE(bundle.value().staged_cuda_header().find("StagedKernel") != std::string::npos);
+    REQUIRE(bundle.value().staged_cuda_header().find("ComposeDriver::apply_host") !=
+            std::string::npos);
+    REQUIRE(bundle.value().staged_cuda_header().find("CudaFamilyId::Atbash") !=
+            std::string::npos);
+    REQUIRE(bundle.value().staged_cuda_header().find("caesar_shift") != std::string::npos);
+}
+
+TEST_CASE("DslFuse emit_compose fallback_staged selects staged headers", "[dsl][fuse][emit]") {
+    const TheoryIr atbash = make_atbash();
+    const TheoryIr caesar = make_caesar();
+    const StatusOr<ParamIr> shift = ParamIr::make("caesar_shift", 0, 28);
+    REQUIRE(shift.ok());
+    const StatusOr<ComposeIr> compose = ComposeIr::make(
+        "atbash_then_caesar",
+        TheoryIr::Tier::A,
+        {"atbash", "caesar"},
+        {shift.value()},
+        {ComposeIr::StepParamBinding{"caesar", "shift", "caesar_shift"}});
+    REQUIRE(compose.ok());
+
+    const std::vector<TheoryIr> catalog{atbash, caesar};
+    const StatusOr<DslFuse::EmitBundle> bundle = DslFuse::emit_compose(
+        compose.value(),
+        catalog,
+        {},
+        DslFuse::FusionStatus::FallbackStaged,
+        {{"caesar_shift", static_cast<std::uint8_t>(7)}});
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().status_str() == "fallback_staged");
+    REQUIRE(bundle.value().selected_cpu_header() == bundle.value().staged_cpu_header());
+    REQUIRE(bundle.value().selected_cuda_header() == bundle.value().staged_cuda_header());
+    REQUIRE(bundle.value().staged_cpu_header().find("fusion_status = \"fallback_staged\"") !=
+            std::string::npos);
+    REQUIRE(bundle.value().staged_recipe_json().find("\"shift\": 7") != std::string::npos);
+}
+
+TEST_CASE("DslFuse fusion_status_str", "[dsl][fuse]") {
+    REQUIRE(DslFuse::fusion_status_str(DslFuse::FusionStatus::Fused) == "fused");
+    REQUIRE(
+        DslFuse::fusion_status_str(DslFuse::FusionStatus::FallbackStaged) == "fallback_staged");
 }
