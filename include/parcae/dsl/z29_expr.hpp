@@ -305,6 +305,46 @@ public:
         return diag_fail(DslRuleId::E032_primitive_body, "unknown Z29Expr kind");
     }
 
+    /// Deep-clone with variable remapping: each `Var` whose name is a key in
+    /// `mapping` is replaced by that expression (used by `DslFuse` inlining).
+    [[nodiscard]] Ptr remap(const std::unordered_map<std::string, Ptr>& mapping) const {
+        switch (kind_) {
+        case Kind::Const:
+            return constant(const_value_).value();
+        case Kind::Var: {
+            const auto it = mapping.find(name_);
+            if (it != mapping.end()) {
+                return it->second;
+            }
+            return var(name_);
+        }
+        case Kind::Add:
+            return add(left_->remap(mapping), right_->remap(mapping));
+        case Kind::Sub:
+            return sub(left_->remap(mapping), right_->remap(mapping));
+        case Kind::Mul:
+            return mul(left_->remap(mapping), right_->remap(mapping));
+        case Kind::Mod:
+            return mod(left_->remap(mapping), right_->remap(mapping));
+        case Kind::Neg:
+            return neg(left_->remap(mapping));
+        case Kind::Inv:
+            return inv(left_->remap(mapping));
+        case Kind::Atbash:
+            return atbash(left_->remap(mapping));
+        case Kind::Call: {
+            std::vector<Ptr> mapped;
+            mapped.reserve(args_.size());
+            for (const Ptr& a : args_) {
+                mapped.push_back(a->remap(mapping));
+            }
+            return call(name_, std::move(mapped));
+        }
+        }
+        // Unreachable if Kind is exhaustive; keep a safe leaf.
+        return constant(0).value();
+    }
+
 private:
     explicit Z29Expr(Kind kind) : kind_(kind) {}
 

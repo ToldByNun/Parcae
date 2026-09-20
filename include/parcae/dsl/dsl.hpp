@@ -16,7 +16,8 @@
 ///   - DslEmitCpu
 ///   - DslEmitCuda
 ///   - DslVerifier (exhaustive ≤4 + seeded fuzz + CPU↔CUDA mirror)
-/// Later commits fill DslBuildIr, optimize, registry.
+///   - DslFuse (inline compose / flatten nested)
+/// Later commits fill fused emit fallback, DslBuildIr, optimize, registry.
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
@@ -26,6 +27,7 @@
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_emit_cpu.hpp"
 #include "parcae/dsl/dsl_emit_cuda.hpp"
+#include "parcae/dsl/dsl_fuse.hpp"
 #include "parcae/dsl/dsl_ir_applicator.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/dsl_semantic_gate.hpp"

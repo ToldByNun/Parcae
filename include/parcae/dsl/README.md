@@ -44,6 +44,7 @@ private:
 | `dsl_emit_cpu.hpp` | `DslEmitCpu` | Done (Transform-shaped source text) |
 | `dsl_emit_cuda.hpp` | `DslEmitCuda` | Done (Z29Device + Kernel façade) |
 | `dsl_verifier.hpp` | `DslVerifier` | Done (exhaustive ≤4 + fuzz + CPU↔CUDA mirror) |
+| `dsl_fuse.hpp` | `DslFuse` | Done (inline compose + flatten nested) |
 | `dsl.hpp` | umbrella | Done |
 
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md forbidden kinds → stable `E031`/`E021`.
@@ -53,11 +54,12 @@ Tests: `[dsl][emit]` DslEmitCpu / DslEmitCuda source text.
 Tests: `[dsl][oracle][poly2]` exhaustive poly2 IR vs host Z29.
 Tests: `[dsl][verify]` / `[dsl][verify][gate]` DslVerifier exhaustive + fuzz +
 CPU↔CUDA mirror; inv-domain + poly2 \(29^4\) hard gates.
+Tests: `[dsl][fuse]` DslFuse inline compose + nested flatten.
 
 ## Planned (later commits)
 
-`dsl_build_ir`, `dsl_optimize`,
-`dsl_fuse`, `theory_artifact`, `theory_registry`,
+`dsl_build_ir`, `dsl_optimize`, fused emit / staged fallback,
+`theory_artifact`, `theory_registry`,
 `theory_uri`.
 
 Headers are part of the header-only `parcae::core` INTERFACE include tree

@@ -15,7 +15,7 @@
 #include <vector>
 
 /// Compiled `@ComposedTheory` record: ordered steps + step_params bindings.
-/// Fusion / staged fallback is `DslFuse` (later).
+/// Fusion / staged fallback: `DslFuse` (inline) + later emit/bench commits.
 class ComposeIr {
 public:
     /// One binding from `step_params()`: stage id → param name → value ref
