@@ -71,7 +71,7 @@ TEST_CASE("DslVerifier exhaustive inv fails on domain 0 with E050", "[dsl][verif
     REQUIRE(report.status().message().find("x=0") != std::string::npos);
 }
 
-TEST_CASE("DslVerifier rejects arity greater than 4", "[dsl][verify]") {
+TEST_CASE("DslVerifier rejects arity greater than 4 for exhaustive", "[dsl][verify]") {
     // Five Z29 params — exhaustive not allowed.
     std::string sig = "(a: Z29, b: Z29, c: Z29, d: Z29, e: Z29) -> Z29";
     const Z29Expr::Ptr body = Z29Expr::var("a");
@@ -85,7 +85,80 @@ TEST_CASE("DslVerifier rejects arity greater than 4", "[dsl][verify]") {
     REQUIRE(report.status().message().find("fuzz") != std::string::npos);
 }
 
+TEST_CASE("DslVerifier fuzz arity 5 with seed 0xC1CADA passes", "[dsl][verify][fuzz]") {
+    std::string sig = "(a: Z29, b: Z29, c: Z29, d: Z29, e: Z29) -> Z29";
+    // (a*b) + (c*d) + e — total over full domain
+    const Z29Expr::Ptr body = Z29Expr::add(
+        Z29Expr::add(
+            Z29Expr::mul(Z29Expr::var("a"), Z29Expr::var("b")),
+            Z29Expr::mul(Z29Expr::var("c"), Z29Expr::var("d"))),
+        Z29Expr::var("e"));
+    const StatusOr<PrimitiveIr> prim = PrimitiveIr::make("wide5", sig, body);
+    REQUIRE(prim.ok());
+
+    const StatusOr<DslVerifier::Report> report = DslVerifier::verify_primitive_fuzz(prim.value());
+    REQUIRE(report.ok());
+    REQUIRE(report.value().passed());
+    REQUIRE(report.value().mode() == DslVerifier::Mode::Fuzz);
+    REQUIRE(report.value().seed().has_value());
+    REQUIRE(*report.value().seed() == DslVerifier::default_fuzz_seed);
+    REQUIRE(report.value().samples_checked() == DslVerifier::default_fuzz_samples);
+    REQUIRE(report.value().detail().find("C1CADA") != std::string::npos);
+}
+
+TEST_CASE("DslVerifier fuzz finds inv(0) with E050", "[dsl][verify][fuzz]") {
+    const StatusOr<PrimitiveIr> prim = PrimitiveIr::make(
+        "unsafe_inv", "(x: Z29) -> Z29", Z29Expr::inv(Z29Expr::var("x")));
+    REQUIRE(prim.ok());
+    // Enough samples that x=0 appears with high probability; seed is fixed.
+    const StatusOr<DslVerifier::Report> report =
+        DslVerifier::verify_primitive_fuzz(
+            prim.value(), DslVerifier::default_fuzz_seed, DslVerifier::default_fuzz_samples);
+    REQUIRE_FALSE(report.ok());
+    REQUIRE(report.status().message().find("E050") != std::string::npos);
+    REQUIRE(report.status().message().find("totality") != std::string::npos);
+}
+
+TEST_CASE("DslVerifier verify_primitive auto-selects fuzz for arity 5", "[dsl][verify][fuzz]") {
+    std::string sig = "(a: Z29, b: Z29, c: Z29, d: Z29, e: Z29) -> Z29";
+    const StatusOr<PrimitiveIr> prim =
+        PrimitiveIr::make("pick_fuzz", sig, Z29Expr::var("a"));
+    REQUIRE(prim.ok());
+    const StatusOr<DslVerifier::Report> report = DslVerifier::verify_primitive(prim.value());
+    REQUIRE(report.ok());
+    REQUIRE(report.value().mode() == DslVerifier::Mode::Fuzz);
+    REQUIRE(*report.value().seed() == 0xC1CADAu);
+}
+
+TEST_CASE("DslVerifier verify_primitive auto-selects exhaustive for arity 2", "[dsl][verify]") {
+    const StatusOr<PrimitiveIr> prim = PrimitiveIr::make(
+        "add2",
+        "(x: Z29, y: Z29) -> Z29",
+        Z29Expr::add(Z29Expr::var("x"), Z29Expr::var("y")));
+    REQUIRE(prim.ok());
+    const StatusOr<DslVerifier::Report> report = DslVerifier::verify_primitive(prim.value());
+    REQUIRE(report.ok());
+    REQUIRE(report.value().mode() == DslVerifier::Mode::Exhaustive);
+    REQUIRE_FALSE(report.value().seed().has_value());
+    REQUIRE(report.value().samples_checked() == 29u * 29u);
+}
+
+TEST_CASE("DslVerifier fuzz is deterministic for fixed seed", "[dsl][verify][fuzz]") {
+    std::string sig = "(a: Z29, b: Z29, c: Z29, d: Z29, e: Z29) -> Z29";
+    const StatusOr<PrimitiveIr> prim =
+        PrimitiveIr::make("det_fuzz", sig, Z29Expr::var("a"));
+    REQUIRE(prim.ok());
+    const StatusOr<DslVerifier::Report> a =
+        DslVerifier::verify_primitive_fuzz(prim.value(), 0xC1CADAu, 200);
+    const StatusOr<DslVerifier::Report> b =
+        DslVerifier::verify_primitive_fuzz(prim.value(), 0xC1CADAu, 200);
+    REQUIRE(a.ok());
+    REQUIRE(b.ok());
+    REQUIRE(a.value().detail() == b.value().detail());
+}
+
 TEST_CASE("DslVerifier max_exhaustive_samples is 29^4", "[dsl][verify]") {
     REQUIRE(DslVerifier::max_exhaustive_samples == 707281u);
     REQUIRE(DslVerifier::max_exhaustive_arity == 4u);
+    REQUIRE(DslVerifier::default_fuzz_seed == 0xC1CADAu);
 }

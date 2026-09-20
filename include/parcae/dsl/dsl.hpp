@@ -15,8 +15,8 @@
 ///   - DslIrApplicator
 ///   - DslEmitCpu
 ///   - DslEmitCuda
-///   - DslVerifier (exhaustive ≤4)
-/// Later commits fill fuzz verify, DslBuildIr, optimize, registry.
+///   - DslVerifier (exhaustive ≤4 + seeded fuzz)
+/// Later commits fill CUDA mirror gate, DslBuildIr, optimize, registry.
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"

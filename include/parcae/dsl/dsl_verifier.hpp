@@ -12,14 +12,17 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <random>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 /// Compile-time verification gates for DSL IR (docs/spec/dsl.md).
-/// E20: exhaustive enumeration for arity ≤ 4 (totality + determinism).
-/// Fuzz mode and full CPU↔CUDA mirror land in later commits.
+/// Exhaustive for arity ≤ 4; seeded fuzz (`0xC1CADA`) for larger arity.
+/// Full CPU↔CUDA device mirror lands in E22.
 class DslVerifier {
 public:
     static constexpr std::size_t max_exhaustive_arity = 4;
@@ -27,9 +30,15 @@ public:
     /// 29^4 — documented ceiling for exhaustive mode.
     static constexpr std::size_t max_exhaustive_samples = 29u * 29u * 29u * 29u; // 707281
 
+    /// Normative v0 fuzz seed (docs/spec/dsl.md, theory-artifact.md).
+    static constexpr std::uint32_t default_fuzz_seed = 0xC1CADAu;
+    static constexpr std::size_t default_fuzz_samples = 8192;
+    /// Safety cap on arity for fuzz (args buffer).
+    static constexpr std::size_t max_fuzz_arity = 32;
+
     enum class Mode : std::uint8_t {
         Exhaustive = 0,
-        Fuzz, // reserved (E21)
+        Fuzz,
     };
 
     class Report {
@@ -56,6 +65,10 @@ public:
             return detail_;
         }
 
+        [[nodiscard]] std::optional<std::uint32_t> seed() const noexcept {
+            return seed_;
+        }
+
     private:
         friend class DslVerifier;
 
@@ -64,10 +77,19 @@ public:
         std::size_t samples_checked_ = 0;
         std::string primitive_name_;
         std::string detail_;
+        std::optional<std::uint32_t> seed_;
     };
 
+    /// Auto: exhaustive if arity ≤ 4, else fuzz with `default_fuzz_seed`.
+    [[nodiscard]] static StatusOr<Report> verify_primitive(const PrimitiveIr& primitive) {
+        if (primitive.arity() <= max_exhaustive_arity) {
+            return verify_primitive_exhaustive(primitive);
+        }
+        return verify_primitive_fuzz(primitive);
+    }
+
     /// Exhaustive gate over `0..28^arity`. Arity 0 checks a single empty eval.
-    /// Arity > 4 → E050 (fuzz required; not implemented in this commit).
+    /// Arity > 4 → E050 (use fuzz).
     [[nodiscard]] static StatusOr<Report> verify_primitive_exhaustive(const PrimitiveIr& primitive) {
         Status st = primitive.validate();
         if (!st.ok()) {
@@ -80,12 +102,13 @@ public:
                 primitive,
                 "arity " + std::to_string(arity) + " > " +
                     std::to_string(max_exhaustive_arity) +
-                    "; exhaustive mode unsupported (use fuzz seed 0xC1CADA)");
+                    "; exhaustive mode unsupported (use verify_primitive_fuzz / seed 0xC1CADA)");
         }
 
         Report report;
         report.mode_ = Mode::Exhaustive;
         report.primitive_name_ = primitive.name();
+        report.seed_ = std::nullopt;
 
         std::array<Index29, max_exhaustive_arity> args{};
         std::array<std::uint8_t, max_exhaustive_arity> digits{};
@@ -98,46 +121,9 @@ public:
             }
 
             const std::span<const Index29> arg_span(args.data(), arity);
-            StatusOr<Index29> first = primitive.eval(arg_span);
-            if (!first.ok()) {
-                return fail_verify(
-                    primitive,
-                    "totality failed at " + format_args(primitive, arg_span) + ": " +
-                        first.status().message());
-            }
-            // Index29 construction already enforces 0..28; re-check value for the gate.
-            if (first.value().value() >= modulus) {
-                return fail_verify(
-                    primitive,
-                    "totality failed: result out of Index29 domain at " +
-                        format_args(primitive, arg_span));
-            }
-
-            StatusOr<Index29> second = primitive.eval(arg_span);
-            if (!second.ok()) {
-                return fail_verify(
-                    primitive,
-                    "determinism failed (second eval error) at " +
-                        format_args(primitive, arg_span) + ": " + second.status().message());
-            }
-            if (first.value() != second.value()) {
-                return fail_verify(
-                    primitive,
-                    "determinism failed at " + format_args(primitive, arg_span) +
-                        ": first=" + std::to_string(first.value().value()) +
-                        " second=" + std::to_string(second.value().value()));
-            }
-
-            // CPU self-mirror: re-eval body env independently (CUDA mirror in E22).
-            Z29Expr::Env env;
-            for (std::size_t i = 0; i < arity; ++i) {
-                env.emplace(primitive.param_names()[i], args[i]);
-            }
-            StatusOr<Index29> mirror = primitive.body()->eval(env);
-            if (!mirror.ok() || mirror.value() != first.value()) {
-                return fail_verify(
-                    primitive,
-                    "cpu mirror failed at " + format_args(primitive, arg_span));
+            Status sample_st = check_sample(primitive, arg_span);
+            if (!sample_st.ok()) {
+                return sample_st;
             }
 
             ++report.samples_checked_;
@@ -156,6 +142,54 @@ public:
 
         report.passed_ = true;
         report.detail_ = "exhaustive ok; samples=" + std::to_string(report.samples_checked_);
+        return report;
+    }
+
+    /// Seeded property fuzz (totality + determinism + CPU self-mirror).
+    /// Intended for arity > 4; also usable on smaller arities.
+    [[nodiscard]] static StatusOr<Report> verify_primitive_fuzz(
+        const PrimitiveIr& primitive,
+        std::uint32_t seed = default_fuzz_seed,
+        std::size_t sample_count = default_fuzz_samples) {
+        Status st = primitive.validate();
+        if (!st.ok()) {
+            return st;
+        }
+        if (sample_count == 0) {
+            return fail_verify(primitive, "fuzz sample_count must be > 0");
+        }
+
+        const std::size_t arity = primitive.arity();
+        if (arity > max_fuzz_arity) {
+            return fail_verify(
+                primitive,
+                "arity " + std::to_string(arity) + " > max_fuzz_arity " +
+                    std::to_string(max_fuzz_arity));
+        }
+
+        Report report;
+        report.mode_ = Mode::Fuzz;
+        report.primitive_name_ = primitive.name();
+        report.seed_ = seed;
+
+        std::mt19937 rng(seed);
+        std::uniform_int_distribution<int> dist(0, static_cast<int>(modulus - 1));
+        std::vector<Index29> args(arity);
+
+        for (std::size_t sample = 0; sample < sample_count; ++sample) {
+            for (std::size_t i = 0; i < arity; ++i) {
+                args[i] = Index29{static_cast<std::uint8_t>(dist(rng))};
+            }
+            Status sample_st = check_sample(primitive, args);
+            if (!sample_st.ok()) {
+                return sample_st;
+            }
+            ++report.samples_checked_;
+        }
+
+        report.passed_ = true;
+        report.detail_ = "fuzz ok; seed=0x" + to_hex32(seed) +
+                         "; samples=" + std::to_string(report.samples_checked_);
         return report;
     }
 
@@ -187,6 +221,16 @@ private:
         return false;
     }
 
+    [[nodiscard]] static std::string to_hex32(std::uint32_t v) {
+        static constexpr char kHex[] = "0123456789ABCDEF";
+        std::string out(8, '0');
+        for (int i = 7; i >= 0; --i) {
+            out[static_cast<std::size_t>(i)] = kHex[v & 0xFu];
+            v >>= 4;
+        }
+        return out;
+    }
+
     [[nodiscard]] static std::string format_args(
         const PrimitiveIr& primitive,
         std::span<const Index29> args) {
@@ -203,6 +247,51 @@ private:
         }
         oss << ")";
         return oss.str();
+    }
+
+    [[nodiscard]] static Status check_sample(
+        const PrimitiveIr& primitive,
+        std::span<const Index29> args) {
+        StatusOr<Index29> first = primitive.eval(args);
+        if (!first.ok()) {
+            return fail_verify(
+                primitive,
+                "totality failed at " + format_args(primitive, args) + ": " +
+                    first.status().message());
+        }
+        if (first.value().value() >= modulus) {
+            return fail_verify(
+                primitive,
+                "totality failed: result out of Index29 domain at " +
+                    format_args(primitive, args));
+        }
+
+        StatusOr<Index29> second = primitive.eval(args);
+        if (!second.ok()) {
+            return fail_verify(
+                primitive,
+                "determinism failed (second eval error) at " + format_args(primitive, args) +
+                    ": " + second.status().message());
+        }
+        if (first.value() != second.value()) {
+            return fail_verify(
+                primitive,
+                "determinism failed at " + format_args(primitive, args) +
+                    ": first=" + std::to_string(first.value().value()) +
+                    " second=" + std::to_string(second.value().value()));
+        }
+
+        // CPU self-mirror (CUDA device mirror in E22).
+        Z29Expr::Env env;
+        for (std::size_t i = 0; i < args.size(); ++i) {
+            env.emplace(primitive.param_names()[i], args[i]);
+        }
+        StatusOr<Index29> mirror = primitive.body()->eval(env);
+        if (!mirror.ok() || mirror.value() != first.value()) {
+            return fail_verify(
+                primitive, "cpu mirror failed at " + format_args(primitive, args));
+        }
+        return Status::success();
     }
 
     [[nodiscard]] static Status fail_verify(const PrimitiveIr& primitive, std::string message) {
