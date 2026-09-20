@@ -29,11 +29,13 @@ private:
 |--------|-------|--------|
 | `dsl_spec_version.hpp` | `DslSpecVersion` | Done (`1.0.0`) |
 | `dsl_ast_json_version.hpp` | `DslAstJsonVersion` | Done (`1.0.0`) |
+| `dsl_rule_id.hpp` | `DslRuleId` | Done (stable E0xx / E1xx) |
+| `dsl_diag.hpp` | `DslDiag` | Done (`path:line:col: RULE message`) |
 | `dsl.hpp` | umbrella | Done |
 
 ## Planned (later commits)
 
-`dsl_diag`, `dsl_ast`, `dsl_ast_json_ingest`, `dsl_semantic_gate`, `z29_expr`,
+`dsl_ast`, `dsl_ast_json_ingest`, `dsl_semantic_gate`, `z29_expr`,
 `primitive_ir`, `theory_ir`, `dsl_build_ir`, `dsl_verifier`, `dsl_optimize`,
 `dsl_fuse`, `dsl_emit_cpu`, `dsl_emit_cuda`, `theory_artifact`, `theory_registry`,
 `theory_uri`.
