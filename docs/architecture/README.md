@@ -16,6 +16,7 @@ Guides for how the C++ toolkit is structured and how CUDA attaches.
 | [agent-handbook.md](agent-handbook.md) | CMD operator handbook for `parcae-agent` |
 | [agent-provider-smoke.md](agent-provider-smoke.md) | Optional live Ollama / OpenRouter smoke (CI skips) |
 | [python-transpiler.md](python-transpiler.md) | Theory DSL → C++/CUDA compiler (AST-JSON frontend, IR, gates) |
+| [dsl-stubs.md](dsl-stubs.md) | Stubs vs compiler — only `parcae-compile` verifies |
 
 **CUDA implementation directory:** [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio).
 
@@ -25,4 +26,4 @@ Config schema `parcae.agent_config.v0`: [`docs/spec/agent-tools.md`](../spec/age
 
 **Theory DSL:** Normative specs [`dsl.md`](../spec/dsl.md), [`dsl-ast-json.md`](../spec/dsl-ast-json.md),
 [`theory-artifact.md`](../spec/theory-artifact.md); architecture in [`python-transpiler.md`](python-transpiler.md).
-IDE stubs (fail-loud, not the compiler): [`python/`](../../python/).
+IDE stubs (fail-loud, not the compiler): [`python/`](../../python/) — see [`dsl-stubs.md`](dsl-stubs.md).

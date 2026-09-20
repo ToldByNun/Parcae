@@ -80,6 +80,9 @@ Stub packages that provide `parcae.dsl.*` for editor autocomplete:
 
 Stubs **MUST NOT** be documented or behave as a substitute for `parcae-compile`.
 
+Contributor-facing clarification (non-normative guide):
+[`docs/architecture/dsl-stubs.md`](../architecture/dsl-stubs.md).
+
 ---
 
 ## Allowed imports

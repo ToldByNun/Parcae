@@ -96,9 +96,13 @@ pure C++.
 
 ### Stubs are not a compiler
 
-Package `python/parcae_dsl/` provides `parcae.dsl.*` for IDE autocomplete.
-Import succeeds; any semantic execution raises with an instruction to run
-`parcae-compile`. See [dsl.md](../spec/dsl.md) § IDE stubs.
+Package layout: [`python/`](../../python/) provides `parcae.dsl.*` for IDE
+autocomplete. Import succeeds; any semantic execution raises with an instruction
+to run `parcae-compile`. See [dsl.md](../spec/dsl.md) § IDE stubs and the
+operator guide [dsl-stubs.md](dsl-stubs.md).
+
+`python -m parcae.dsl.ast_dump` is syntax-only (wire format) and also does **not**
+verify theories.
 
 ### Dual lower targets
 
@@ -158,7 +162,7 @@ tools/
   (+ validate/catalog theory extensions)
 
 Parcae/Parcae/cuda/emitted/     # generated twins; do not hand-edit
-python/parcae_dsl/              # ast_dump + fail-loud stubs
+python/                         # parcae.dsl stubs + ast_dump (not the compiler)
 theories/                       # .py sources
 data/theories/                  # compiled artifacts
 ```
