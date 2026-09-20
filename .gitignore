@@ -56,6 +56,15 @@ CMakeUserPresets.json
 !/data/workspaces/_example/
 !/data/workspaces/_example/**
 
+# Compiled theory artifacts from parcae-compile (parcae://theories/…).
+# Keep the directory README; allow-list committed goldens explicitly later if needed.
+/data/theories/*
+!/data/theories/README.md
+
+# Generated CUDA twins from the theory DSL compiler (do not hand-edit).
+/Parcae/Parcae/cuda/emitted/*
+!/Parcae/Parcae/cuda/emitted/README.md
+
 # Python agent (agents/)
 **/__pycache__/
 **/*.py[cod]

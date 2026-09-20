@@ -51,10 +51,12 @@ tools/
 Parcae/Parcae/                 # Visual Studio app + CUDA twins
   main.cpp
   cuda/                        # device twins (see cuda-roadmap.md)
+    emitted/                   # generated DSL twins (gitignored except README)
 
 data/
   profiles/      gematria, separators, score tables
   fixtures/      solved oracles (+ synth drafts, CLI smoke inputs)
+  theories/      parcae-compile artifacts (gitignored except README)
   parity/        (planned) ParityRecord goldens for CPU↔CUDA
 ```
 

@@ -47,6 +47,7 @@ Files:
 | `caesar_chi2_batch.hpp` / `.cu` | `CaesarChi2Batch` — fused Caesar decrypt→χ² (no out materialize) |
 | `family_chi2_batch.hpp` / `.cu` | `FamilyChi2Batch` — fused atbash / atbash∘caesar / affine / vigenère χ² |
 | `CMakeLists.txt` | Defines `parcae_cuda` when parent enables CUDA |
+| [`emitted/`](emitted/) | **Generated** theory-DSL CUDA twins — do not hand-edit (see README there) |
 
 CPU reference headers remain under repo-root `include/parcae/`.
 
