@@ -42,6 +42,8 @@ private:
 | `compose_ir.hpp` | `ComposeIr` | Done |
 | `dsl.hpp` | umbrella | Done |
 
+Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md forbidden kinds → stable `E031`/`E021`.
+
 ## Planned (later commits)
 
 `dsl_build_ir`, `dsl_verifier`, `dsl_optimize`,
