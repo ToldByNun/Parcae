@@ -47,6 +47,7 @@ private:
 | `dsl_fuse.hpp` | `DslFuse` | Done (inline + emit + CPU bench gate) |
 | `dsl_optimize.hpp` | `DslOptimize` | Done (const-fold + `inv` hoist) |
 | `dsl_launch_plan.hpp` | `DslLaunchPlan` | Done (1D / HistFast 2D twin grids) |
+| `dsl_peak_sanity.hpp` | `DslPeakSanity` | Done (ThroughputTiers peak / SLO) |
 | `dsl.hpp` | umbrella | Done |
 
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md forbidden kinds → stable `E031`/`E021`.
@@ -59,11 +60,11 @@ CPU↔CUDA mirror; inv-domain + poly2 \(29^4\) hard gates.
 Tests: `[dsl][fuse]` / `[dsl][fuse][koan][parity]` DslFuse + Koan-1 vs ComposeTransform.
 Tests: `[dsl][optimize]` DslOptimize const-fold + inv hoist.
 Tests: `[dsl][launch]` DslLaunchPlan vs HistFast / 1D twin formula.
+Tests: `[dsl][peak]` DslPeakSanity vs ThroughputTiers ceilings / SLO.
 
 ## Planned (later commits)
 
-`dsl_build_ir`, peak sanity vs ThroughputTiers,
-`theory_artifact`, `theory_registry`,
+`dsl_build_ir`, `theory_artifact`, `theory_registry`,
 `theory_uri`.
 
 Headers are part of the header-only `parcae::core` INTERFACE include tree

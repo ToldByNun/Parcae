@@ -63,5 +63,6 @@ Ceilings match `ThroughputTiers::estimated_peak`. Typical healthy runs sit aroun
 ## Related
 
 - Implementation: [`include/parcae/run/throughput_tiers.hpp`](../../include/parcae/run/throughput_tiers.hpp)
+- DSL compile-time mirror (no CUDA): [`include/parcae/dsl/dsl_peak_sanity.hpp`](../../include/parcae/dsl/dsl_peak_sanity.hpp)
 - Kernels: [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (`hist_fast.hpp`, `*_chi2_batch.cu`)
 - Build notes: [cuda-build.md](cuda-build.md)
