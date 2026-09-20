@@ -24,5 +24,6 @@ Committed golden/example artifacts (if any) must be allow-listed explicitly in
 
 ## Stub
 
-Until the compile pipeline is wired, `parcae-compile --status` reports
-`theories_dir` pointing here but does not write artifacts.
+`TheoryArtifact::store` writes `manifest.json` under this tree. Until
+`parcae-compile` is wired end-to-end, `parcae-compile --status` reports
+`theories_dir` pointing here but does not run the full pipeline.

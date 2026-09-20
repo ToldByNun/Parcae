@@ -48,6 +48,8 @@ private:
 | `dsl_optimize.hpp` | `DslOptimize` | Done (const-fold + `inv` hoist) |
 | `dsl_launch_plan.hpp` | `DslLaunchPlan` | Done (1D / HistFast 2D twin grids) |
 | `dsl_peak_sanity.hpp` | `DslPeakSanity` | Done (ThroughputTiers peak / SLO) |
+| `theory_uri.hpp` | `TheoryUri` | Done (`parcae://theories/<name>@<ver>`) |
+| `theory_artifact.hpp` | `TheoryArtifact` | Done (writer embeds `dsl_spec_version`) |
 | `dsl.hpp` | umbrella | Done |
 
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md forbidden kinds → stable `E031`/`E021`.
@@ -61,11 +63,11 @@ Tests: `[dsl][fuse]` / `[dsl][fuse][koan][parity]` DslFuse + Koan-1 vs ComposeTr
 Tests: `[dsl][optimize]` DslOptimize const-fold + inv hoist.
 Tests: `[dsl][launch]` DslLaunchPlan vs HistFast / 1D twin formula.
 Tests: `[dsl][peak]` DslPeakSanity vs ThroughputTiers ceilings / SLO.
+Tests: `[dsl][artifact]` TheoryArtifact writer stamps `dsl_spec_version` + store/load.
 
 ## Planned (later commits)
 
-`dsl_build_ir`, `theory_artifact`, `theory_registry`,
-`theory_uri`.
+`dsl_build_ir`, `theory_registry`.
 
 Headers are part of the header-only `parcae::core` INTERFACE include tree
 (`include/` via root `CMakeLists.txt`).

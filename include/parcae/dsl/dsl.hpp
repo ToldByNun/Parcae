@@ -20,7 +20,8 @@
 ///   - DslOptimize (const-fold + z29_inv hoist)
 ///   - DslLaunchPlan (twin 1D / HistFast 2D grids)
 ///   - DslPeakSanity (ThroughputTiers peak / SLO gate)
-/// Later commits fill DslBuildIr, registry.
+///   - TheoryUri / TheoryArtifact (manifest writer embeds dsl_spec_version)
+/// Later commits fill DslBuildIr, TheoryRegistry.
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
@@ -41,7 +42,9 @@
 #include "parcae/dsl/dsl_verifier.hpp"
 #include "parcae/dsl/param_ir.hpp"
 #include "parcae/dsl/primitive_ir.hpp"
+#include "parcae/dsl/theory_artifact.hpp"
 #include "parcae/dsl/theory_ir.hpp"
+#include "parcae/dsl/theory_uri.hpp"
 #include "parcae/dsl/z29_expr.hpp"
 
 #endif // DSL_HPP
