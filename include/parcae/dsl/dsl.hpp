@@ -23,6 +23,7 @@
 ///   - TheoryUri / TheoryArtifact (manifest writer embeds dsl_spec_version)
 ///   - TheoryRegistry (rejects stale dsl_spec_version)
 ///   - TheoryValidate (manifest + dsl_spec + path files)
+///   - TheorySweep (expand sweep.param_grid plan)
 ///   - DslBuildIr / DslCompile (ast_dump → artifact)
 /// Later commits: envelope bridge, examples.
 
@@ -50,6 +51,7 @@
 #include "parcae/dsl/theory_artifact.hpp"
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/theory_registry.hpp"
+#include "parcae/dsl/theory_sweep.hpp"
 #include "parcae/dsl/theory_uri.hpp"
 #include "parcae/dsl/theory_validate.hpp"
 #include "parcae/dsl/z29_expr.hpp"

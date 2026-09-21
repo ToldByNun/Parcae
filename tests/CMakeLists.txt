@@ -29,6 +29,7 @@ add_executable(parcae_tests
   dsl_theory_artifact_test.cpp
   dsl_theory_registry_test.cpp
   dsl_theory_validate_test.cpp
+  dsl_theory_sweep_test.cpp
   dsl_spec_major_bump_test.cpp
   dsl_compile_test.cpp
   token_stream_test.cpp

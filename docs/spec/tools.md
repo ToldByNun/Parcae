@@ -3,8 +3,8 @@
 **Status:** Normative  
 **Headers (planned):** `parcae/tool/api.hpp`  
 **Binaries:** `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate`,
-`parcae-catalog`, `parcae-compile`, `parcae-generate`, `parcae-rank`, `parcae-hypothesis`,
-`parcae-parity`, `parcae-parity-gen`, `parcae-search-run`
+`parcae-catalog`, `parcae-compile`, `parcae-sweep`, `parcae-generate`, `parcae-rank`,
+`parcae-hypothesis`, `parcae-parity`, `parcae-parity-gen`, `parcae-search-run`
 
 ## Principles
 
@@ -200,6 +200,19 @@ runs ingest → semantic gate → `DslBuildIr` → verify → emit → `TheoryAr
 
 IDE `parcae.dsl` stubs and `ast_dump` alone are **not** substitutes for this tool —
 see [dsl-stubs.md](../architecture/dsl-stubs.md).
+
+### `parcae-sweep`
+
+```text
+parcae-sweep --theory <uri|name@version> [--limit <n>] [--json] [--data-dir <path>]
+```
+
+Expands `TheoryArtifact.sweep.param_grid` into a candidate plan
+([theory-artifact.md](theory-artifact.md)). Loads via `TheoryRegistry` (stale
+`dsl_spec_version` → fail). Tier B/C **MUST NOT** use a solved-oracle fixture id
+as `sweep.corpus`. v0 is **plan-only** (no apply/score until TheoryDispatch).
+`--limit` caps emitted candidates (default `100000`; `0` = unlimited). `--json`
+uses `parcae.tool_response.v0` with `tool: "sweep"`.
 
 ### `parcae-generate`
 

@@ -35,6 +35,7 @@ target_compile_definitions(parcae-compile PRIVATE
   PARCAE_PYTHON_DIR="${CMAKE_SOURCE_DIR}/python"
   PARCAE_PYTHON_EXE="${PARCAE_PYTHON_EXECUTABLE}"
 )
+parcae_add_cli(parcae-sweep parcae_sweep/main.cpp)
 parcae_add_cli(parcae-generate parcae_generate/main.cpp)
 parcae_add_cli(parcae-rank parcae_rank/main.cpp)
 parcae_add_cli(parcae-hypothesis parcae_hypothesis/main.cpp)
@@ -82,6 +83,14 @@ if(PARCAE_BUILD_TESTS)
       --theories
       --json
   )
+
+  add_test(
+    NAME cli_sweep_missing_theory_json
+    COMMAND $<TARGET_FILE:parcae-sweep>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --json
+  )
+  set_tests_properties(cli_sweep_missing_theory_json PROPERTIES WILL_FAIL TRUE)
 
   add_test(
     NAME cli_catalog_generators_json

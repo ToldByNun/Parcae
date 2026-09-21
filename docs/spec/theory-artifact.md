@@ -166,12 +166,28 @@ Sweep metadata **MUST NOT** run automatically at compile time. It configures
 |-------|------|
 | `theory` | MUST equal `name` |
 | `corpus` | Corpus id; **MUST NOT** be a solved-oracle corpus used as a silent default for Tier B/C discovery claims |
-| `param_grid` | JSON object describing grids |
+| `param_grid` | JSON object describing grids (see below) |
 | `record_metrics` | Array of metric names |
 | `compare_against` | **Required** when `tier` is `B` or `C` (e.g. research anchor reference) |
 
 Loaders **MUST** reject Tier B/C artifacts whose `sweep` object is present but
 omits `compare_against`.
+
+#### `param_grid` (v0)
+
+Object keyed by theory param names. Every declared theory param **MUST** appear;
+unknown keys **MUST** be rejected. Each value is one of:
+
+| Form | Meaning |
+|------|---------|
+| `"full"` | Inclusive range of the declared param `min..max` |
+| `[int, …]` | Explicit integer list (each in declared domain) |
+| `{"min": i, "max": j}` | Inclusive sub-range within declared domain |
+| `{"values": [int, …]}` | Same as an explicit list |
+
+`parcae-sweep` expands the cartesian product (optional `--limit` truncation).
+Apply/score of candidates is out of scope for the plan-only CLI until
+TheoryDispatch.
 
 ---
 
