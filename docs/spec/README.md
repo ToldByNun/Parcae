@@ -20,6 +20,7 @@ are binding for conforming implementations.
 | [tools.md](tools.md) | Deterministic library + CLI contracts |
 | [agent-tools.md](agent-tools.md) | Agent allow-list, JSON envelope, `parcae.agent_config.v0`, loop contract |
 | [hypothesis-workspace.md](hypothesis-workspace.md) | Workspace + HypothesisRecord + transcripts |
+| [search-loop.md](search-loop.md) | Search job / batch artifact / prior / cycle contract |
 | [parity.md](parity.md) | CPU↔CUDA parity contract |
 | [dsl.md](dsl.md) | Theory DSL language, `dsl_spec_version`, verify gates |
 | [dsl-ast-json.md](dsl-ast-json.md) | `parcae.dsl_ast_json.v0` CPython→C++ AST wire format |

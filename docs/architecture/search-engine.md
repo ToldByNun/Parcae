@@ -7,8 +7,7 @@ CMD agent tooling ([`agent-tooling.md`](agent-tooling.md), planned exit
 **Product:** `SearchScheduler` (C++20) + `parcae-search-cycle` CLI — workspace-driven
 GPU/CPU candidate cycles with hypothesis feedback  
 **Exit tag (planned):** `v0.7.0-search-engine`  
-**Normative schema (next):** [`docs/spec/search-loop.md`](../spec/search-loop.md)
-(to land with commit 2)
+**Normative schema:** [`docs/spec/search-loop.md`](../spec/search-loop.md)
 
 North star:
 
@@ -112,7 +111,11 @@ docs/spec/search-loop.md                # normative contracts (commit 2)
 
 ---
 
-## Data contracts (intent — normative detail in `search-loop.md`)
+## Data contracts
+
+Normative detail: [`docs/spec/search-loop.md`](../spec/search-loop.md)
+(`parcae.search_job.v0`, `parcae.batch_artifact.v0`, `parcae.search_prior.v0`,
+`parcae.search_cycle_result.v0`). Summary:
 
 ### `SearchJob`
 

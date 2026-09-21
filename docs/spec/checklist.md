@@ -25,6 +25,7 @@ with [`docs/research/`](../research/README.md) (including confidence demotions).
 - [x] [tools.md](tools.md) — library + CLI contracts; agent-facing five primitives
 - [x] [agent-tools.md](agent-tools.md) — allow-list, deny-list, tool_response envelope, agent loop
 - [x] [hypothesis-workspace.md](hypothesis-workspace.md) — workspace layout, HypothesisRecord, transcripts
+- [x] [search-loop.md](search-loop.md) — SearchJob, BatchArtifact, SearchPrior, cycle semantics
 - [x] [parity.md](parity.md) — CPU obligations for later CUDA bit-identity
 
 ### Theory DSL & artifacts

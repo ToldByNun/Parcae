@@ -4,7 +4,7 @@
 **Schema ids:** `parcae.workspace.v0`, `parcae.hypothesis.v0`, `parcae.transcript_step.v0`  
 **Root path:** `data/workspaces/<workspace_id>/`  
 **Related:** [`agent-tools.md`](agent-tools.md), [`fixtures.md`](fixtures.md),
-[`transforms.md`](transforms.md)
+[`transforms.md`](transforms.md), [`search-loop.md`](search-loop.md)
 
 Workspaces hold **mutable** agent/human research state. Fixtures under
 `data/fixtures/` remain **read-only**; hypothesis tools MUST NOT write there.
@@ -27,6 +27,10 @@ data/workspaces/
       <utc_stamp>_<seq>.jsonl
     inputs/                          # optional copies / pointers
       ciphertext.txt                 # optional
+    batches/                         # search-loop artifacts ([search-loop.md](search-loop.md))
+      <batch_id>/
+        manifest.json
+        candidates.jsonl
 ```
 
 Rules:
@@ -35,6 +39,7 @@ Rules:
 |------|-------------|
 | `workspace_id` | `[a-z_][a-z0-9_-]{0,63}` — MUST match directory name (leading `_` allowed for reserved trees such as `_example`) |
 | `hypothesis_id` | `[a-z_][a-z0-9_-]{0,63}` — MUST match filename stem |
+| `batch_id` | `[a-z_][a-z0-9_-]{0,63}` — MUST match `batches/<batch_id>/` directory name ([search-loop.md](search-loop.md)) |
 | Paths | All relative paths inside a workspace MUST resolve under that workspace root (no `..`, no absolute escapes) |
 | Encoding | UTF-8; LF preferred |
 | Fixtures | References to fixtures use fixture **ids** or paths under `data/fixtures/` for **read** only |
