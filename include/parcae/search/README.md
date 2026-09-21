@@ -17,10 +17,10 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `search_prior.hpp` | `SearchPrior` | Done (`parcae.search_prior.v0`) |
 | `batch_artifact.hpp` | `BatchArtifact` | Done (`parcae.batch_artifact.v0`) |
 | `workspace_cipher.hpp` | `WorkspaceCipher` | Done (`workspace.v0` → `Index29`) |
+| `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar fused top-k) |
 | `hypothesis_bridge.hpp` | `HypothesisBridge` | Planned |
-| `gpu_candidate_export.hpp` | `GpuCandidateExport` | Planned |
 | `search_scheduler.hpp` | `SearchScheduler` | Planned |
 
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,
-`[search][cipher]`, `[search][cipher][resolve]` — parse / digests / ciphertext
-resolve (fixture + workspace_file + path-escape).
+`[search][cipher]`, `[search][cipher][resolve]`, `[search][export]` — types +
+ciphertext resolve + Caesar candidate export.
