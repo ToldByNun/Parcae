@@ -27,7 +27,8 @@
 ///   - TheoryEnvelopeBridge (envelope_template ↔ TransformEnvelope / theory URI)
 ///   - DslBuildIr / DslCompile (ast_dump → artifact)
 ///   - Example: theories/examples/new_math_example.py
-/// Later commits: full_lifecycle example / TheoryDispatch.
+///   - Example: theories/examples/full_lifecycle_example.py (@ComposedTheory)
+/// Later commits: TheoryDispatch / CUDA smoke.
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
@@ -35,6 +36,7 @@
 #include "parcae/dsl/dsl_ast_json_version.hpp"
 #include "parcae/dsl/dsl_ast_limits.hpp"
 #include "parcae/dsl/dsl_build_ir.hpp"
+#include "parcae/dsl/dsl_catalog_builtins.hpp"
 #include "parcae/dsl/dsl_compile.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_emit_cpu.hpp"

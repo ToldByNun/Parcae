@@ -6,8 +6,10 @@
 #include "parcae/core/version.hpp"
 #include "parcae/dsl/dsl_ast_json_ingest.hpp"
 #include "parcae/dsl/dsl_build_ir.hpp"
+#include "parcae/dsl/dsl_catalog_builtins.hpp"
 #include "parcae/dsl/dsl_emit_cpu.hpp"
 #include "parcae/dsl/dsl_emit_cuda.hpp"
+#include "parcae/dsl/dsl_fuse.hpp"
 #include "parcae/dsl/dsl_semantic_gate.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
 #include "parcae/dsl/dsl_verifier.hpp"
@@ -264,6 +266,113 @@ public:
             // Registry gate: freshly written artifacts must load.
             StatusOr<TheoryArtifact> reloaded =
                 TheoryRegistry::load(theories_root, theory.name(), options.artifact_version());
+            if (!reloaded.ok()) {
+                return reloaded.status();
+            }
+            result.artifacts_.push_back(std::move(artifact.value()));
+        }
+
+        // Compose theories: fuse / bench / emit against catalog builtins + module theories.
+        std::vector<TheoryIr> catalog = DslCatalogBuiltins::all();
+        for (const TheoryIr& theory : unit.value().theories()) {
+            catalog.push_back(theory);
+        }
+        for (const ComposeIr& compose : unit.value().composes()) {
+            StatusOr<DslFuse::EmitBundle> bundle = DslFuse::emit_compose_auto(
+                compose,
+                catalog,
+                unit.value().composes(),
+                {},
+                /*stream_len=*/256,
+                /*reps=*/4);
+            if (!bundle.ok()) {
+                return bundle.status();
+            }
+
+            TheoryArtifact::Paths paths;
+            paths.set_cpu_reference(std::string("cpu_reference.hpp"));
+            const std::string class_stem = to_pascal_case(compose.name());
+            paths.set_cuda_header(std::string("emitted/") + class_stem + "Kernel.hpp");
+            if (bundle.value().status() == DslFuse::FusionStatus::Fused) {
+                paths.set_cuda_source(std::string("emitted/") + class_stem + "Kernel.cu");
+            }
+            paths.set_envelope_template(std::string("envelope.json"));
+
+            std::vector<TheoryArtifact::Param> params;
+            for (const ParamIr& p : compose.params()) {
+                params.emplace_back(
+                    p.name(),
+                    static_cast<std::int64_t>((p.min)()),
+                    static_cast<std::int64_t>((p.max)()));
+            }
+
+            TheoryArtifact::FusionStatus fusion =
+                bundle.value().status() == DslFuse::FusionStatus::Fused
+                    ? TheoryArtifact::FusionStatus::Fused
+                    : TheoryArtifact::FusionStatus::FallbackStaged;
+
+            StatusOr<TheoryArtifact> artifact = TheoryArtifact::make(
+                compose.name(),
+                options.artifact_version(),
+                compose.tier(),
+                TheoryIr::Family::Compose,
+                unit.value().source_sha256(),
+                TheoryArtifact::Verification{
+                    DslVerifier::Mode::Exhaustive, true, std::nullopt, completed},
+                fusion,
+                TheoryArtifact::InterruptMode::ElementwiseDefault,
+                std::move(params),
+                {},
+                compose.structural_claim(),
+                theory_py.generic_string(),
+                std::move(paths));
+            if (!artifact.ok()) {
+                return artifact.status();
+            }
+
+            Status stored = artifact.value().store(theories_root);
+            if (!stored.ok()) {
+                return stored;
+            }
+
+            const std::filesystem::path dir = artifact.value().artifact_dir(theories_root);
+            Status w = write_text(dir / "cpu_reference.hpp", bundle.value().selected_cpu_header());
+            if (!w.ok()) {
+                return w;
+            }
+            std::error_code ec;
+            std::filesystem::create_directories(dir / "emitted", ec);
+            if (ec) {
+                return Status::error("failed to create emitted/: " + ec.message());
+            }
+            w = write_text(
+                dir / "emitted" / (class_stem + "Kernel.hpp"),
+                bundle.value().selected_cuda_header());
+            if (!w.ok()) {
+                return w;
+            }
+            if (bundle.value().status() == DslFuse::FusionStatus::Fused) {
+                w = write_text(
+                    dir / "emitted" / (class_stem + "Kernel.cu"),
+                    bundle.value().fused_cuda_cu());
+                if (!w.ok()) {
+                    return w;
+                }
+            }
+
+            StatusOr<TheoryEnvelopeBridge::Envelope> envelope =
+                TheoryEnvelopeBridge::template_for(artifact.value());
+            if (!envelope.ok()) {
+                return envelope.status();
+            }
+            Status env_written =
+                TheoryEnvelopeBridge::write(dir / "envelope.json", envelope.value());
+            if (!env_written.ok()) {
+                return env_written;
+            }
+
+            StatusOr<TheoryArtifact> reloaded =
+                TheoryRegistry::load(theories_root, compose.name(), options.artifact_version());
             if (!reloaded.ok()) {
                 return reloaded.status();
             }

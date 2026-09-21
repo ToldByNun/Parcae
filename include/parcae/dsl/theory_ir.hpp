@@ -22,6 +22,7 @@ public:
         Elementwise = 0,
         KeyedStream,
         KeyedPermutation,
+        Compose,
     };
 
     enum class Tier : std::uint8_t {
@@ -49,6 +50,9 @@ public:
         if (text == "keyed_permutation") {
             return Family::KeyedPermutation;
         }
+        if (text == "compose") {
+            return Family::Compose;
+        }
         return Status::error("unknown theory family '" + std::string(text) + "'");
     }
 
@@ -73,6 +77,8 @@ public:
             return "keyed_stream";
         case Family::KeyedPermutation:
             return "keyed_permutation";
+        case Family::Compose:
+            return "compose";
         }
         return "unknown";
     }

@@ -3,6 +3,7 @@
 
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
+#include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
@@ -19,9 +20,9 @@
 #include <utility>
 #include <vector>
 
-/// Lower a gated `DslAstDocument` into PrimitiveIr / TheoryIr (docs/spec/dsl.md).
-/// Supports `@define_primitive` bodies and `@Theory` classes with
-/// `encrypt_step` / `decrypt_step` (and optional `keystream_at` inlining).
+/// Lower a gated `DslAstDocument` into PrimitiveIr / TheoryIr / ComposeIr
+/// (docs/spec/dsl.md). Supports `@define_primitive`, `@Theory`, and
+/// `@ComposedTheory` (`steps` + `step_params()`).
 class DslBuildIr {
 public:
     class Unit {
@@ -36,6 +37,10 @@ public:
             return theories_;
         }
 
+        [[nodiscard]] const std::vector<ComposeIr>& composes() const noexcept {
+            return composes_;
+        }
+
         [[nodiscard]] const std::string& source_path() const noexcept {
             return source_path_;
         }
@@ -48,6 +53,7 @@ public:
         friend class DslBuildIr;
         std::vector<PrimitiveIr> primitives_;
         std::vector<TheoryIr> theories_;
+        std::vector<ComposeIr> composes_;
         std::string source_path_;
         std::string source_sha256_;
     };
@@ -63,10 +69,10 @@ public:
         if (!st.ok()) {
             return st;
         }
-        if (b.unit.theories_.empty()) {
+        if (b.unit.theories_.empty() && b.unit.composes_.empty()) {
             return fail(
                 DslRuleId::E032_primitive_body,
-                "module must define at least one @Theory",
+                "module must define at least one @Theory or @ComposedTheory",
                 doc.source_path());
         }
         b.unit.source_path_ = doc.source_path();
@@ -186,12 +192,7 @@ private:
                 return composed.status();
             }
             if (composed.value()) {
-                return fail(
-                    DslRuleId::E032_primitive_body,
-                    "@ComposedTheory lowering not supported in this compile slice",
-                    source_path,
-                    cls.lineno(),
-                    cls.col_offset());
+                return maybe_composed(cls, *composed.value());
             }
             StatusOr<const DslAstNode*> deco = find_decorator_call(cls, "Theory");
             if (!deco.ok()) {
@@ -309,6 +310,295 @@ private:
             }
             unit.theories_.push_back(std::move(theory.value()));
             return Status::success();
+        }
+
+        [[nodiscard]] Status maybe_composed(const DslAstNode& cls, const DslAstNode& deco) {
+            StatusOr<std::string> name = keyword_string(deco, "name");
+            if (!name.ok()) {
+                return name.status();
+            }
+            StatusOr<std::string> tier_s = keyword_string(deco, "tier");
+            if (!tier_s.ok()) {
+                return tier_s.status();
+            }
+            StatusOr<TheoryIr::Tier> tier = TheoryIr::parse_tier(tier_s.value());
+            if (!tier.ok()) {
+                return tier.status();
+            }
+            StatusOr<std::vector<std::string>> steps = keyword_string_list(deco, "steps");
+            if (!steps.ok()) {
+                return steps.status();
+            }
+
+            TheoryDraft draft;
+            draft.name = name.value();
+            draft.tier = tier.value();
+            draft.family = TheoryIr::Family::Compose;
+            draft.lineno = cls.lineno();
+            draft.col = cls.col_offset();
+
+            const DslAstValue* body = cls.find_field("body");
+            if (!body || body->type() != DslAstValue::Type::Array) {
+                return fail(DslRuleId::E032_primitive_body, "ClassDef.body missing", source_path);
+            }
+
+            std::optional<const DslAstNode*> step_params_fn;
+            for (const DslAstValue& item : body->as_array()) {
+                if (item.type() != DslAstValue::Type::Node || !item.as_node()) {
+                    continue;
+                }
+                const DslAstNode& member = *item.as_node();
+                if (member.kind() == "AnnAssign") {
+                    Status st = parse_param(member, draft);
+                    if (!st.ok()) {
+                        return st;
+                    }
+                } else if (member.kind() == "FunctionDef") {
+                    const DslAstValue* mname_v = member.find_field("name");
+                    if (!mname_v || mname_v->type() != DslAstValue::Type::String) {
+                        return fail(
+                            DslRuleId::E032_primitive_body,
+                            "FunctionDef.name missing",
+                            source_path);
+                    }
+                    const std::string mname = mname_v->as_string();
+                    if (mname == "structural_claim") {
+                        Status st = parse_method(member, draft);
+                        if (!st.ok()) {
+                            return st;
+                        }
+                    } else if (mname == "step_params") {
+                        step_params_fn = &member;
+                    } else {
+                        return fail(
+                            DslRuleId::E032_primitive_body,
+                            "ComposedTheory '" + draft.name +
+                                "' only allows structural_claim and step_params methods "
+                                "(got '" +
+                                mname + "')",
+                            source_path,
+                            member.lineno(),
+                            member.col_offset());
+                    }
+                }
+            }
+
+            if (!step_params_fn.has_value()) {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "ComposedTheory '" + draft.name + "' requires step_params()",
+                    source_path,
+                    draft.lineno,
+                    draft.col);
+            }
+
+            StatusOr<std::vector<ComposeIr::StepParamBinding>> bindings =
+                parse_step_params(**step_params_fn, draft);
+            if (!bindings.ok()) {
+                return bindings.status();
+            }
+
+            StatusOr<ComposeIr> compose = ComposeIr::make(
+                draft.name,
+                draft.tier,
+                std::move(steps.value()),
+                draft.params,
+                std::move(bindings.value()),
+                draft.structural_claim,
+                source_path,
+                draft.lineno,
+                draft.col);
+            if (!compose.ok()) {
+                return compose.status();
+            }
+            unit.composes_.push_back(std::move(compose.value()));
+            return Status::success();
+        }
+
+        [[nodiscard]] StatusOr<std::vector<ComposeIr::StepParamBinding>> parse_step_params(
+            const DslAstNode& fn,
+            const TheoryDraft& draft) {
+            StatusOr<const DslAstNode*> ret = single_return_expr(fn);
+            if (!ret.ok()) {
+                return ret.status();
+            }
+            if (ret.value()->kind() != "Dict") {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "step_params must return a dict literal",
+                    source_path,
+                    fn.lineno(),
+                    fn.col_offset());
+            }
+            const DslAstNode& dict = *ret.value();
+            const DslAstValue* keys = dict.find_field("keys");
+            const DslAstValue* values = dict.find_field("values");
+            if (!keys || keys->type() != DslAstValue::Type::Array || !values ||
+                values->type() != DslAstValue::Type::Array ||
+                keys->as_array().size() != values->as_array().size()) {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "step_params dict keys/values malformed",
+                    source_path,
+                    fn.lineno(),
+                    fn.col_offset());
+            }
+
+            std::vector<ComposeIr::StepParamBinding> out;
+            for (std::size_t i = 0; i < keys->as_array().size(); ++i) {
+                const DslAstValue& kv = keys->as_array()[i];
+                const DslAstValue& vv = values->as_array()[i];
+                if (kv.type() != DslAstValue::Type::Node || !kv.as_node() ||
+                    kv.as_node()->kind() != "Constant") {
+                    return fail(
+                        DslRuleId::E032_primitive_body,
+                        "step_params keys must be string constants",
+                        source_path,
+                        fn.lineno(),
+                        fn.col_offset());
+                }
+                const DslAstValue* kcv = kv.as_node()->find_field("value");
+                if (!kcv || kcv->type() != DslAstValue::Type::String) {
+                    return fail(
+                        DslRuleId::E032_primitive_body,
+                        "step_params keys must be strings",
+                        source_path,
+                        fn.lineno(),
+                        fn.col_offset());
+                }
+                const std::string step_id = kcv->as_string();
+                if (vv.type() != DslAstValue::Type::Node || !vv.as_node() ||
+                    vv.as_node()->kind() != "Dict") {
+                    return fail(
+                        DslRuleId::E032_primitive_body,
+                        "step_params['" + step_id + "'] must be a dict literal",
+                        source_path,
+                        fn.lineno(),
+                        fn.col_offset());
+                }
+                StatusOr<std::vector<ComposeIr::StepParamBinding>> inner =
+                    parse_step_param_dict(*vv.as_node(), step_id, draft, fn);
+                if (!inner.ok()) {
+                    return inner.status();
+                }
+                for (ComposeIr::StepParamBinding& b : inner.value()) {
+                    out.push_back(std::move(b));
+                }
+            }
+            return out;
+        }
+
+        [[nodiscard]] StatusOr<std::vector<ComposeIr::StepParamBinding>> parse_step_param_dict(
+            const DslAstNode& dict,
+            const std::string& step_id,
+            const TheoryDraft& draft,
+            const DslAstNode& fn) {
+            const DslAstValue* keys = dict.find_field("keys");
+            const DslAstValue* values = dict.find_field("values");
+            if (!keys || keys->type() != DslAstValue::Type::Array || !values ||
+                values->type() != DslAstValue::Type::Array ||
+                keys->as_array().size() != values->as_array().size()) {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "step_params nested dict malformed",
+                    source_path,
+                    fn.lineno(),
+                    fn.col_offset());
+            }
+            std::vector<ComposeIr::StepParamBinding> out;
+            for (std::size_t i = 0; i < keys->as_array().size(); ++i) {
+                const DslAstValue& kv = keys->as_array()[i];
+                const DslAstValue& vv = values->as_array()[i];
+                if (kv.type() != DslAstValue::Type::Node || !kv.as_node() ||
+                    kv.as_node()->kind() != "Constant") {
+                    return fail(
+                        DslRuleId::E032_primitive_body,
+                        "step_params param names must be string constants",
+                        source_path,
+                        fn.lineno(),
+                        fn.col_offset());
+                }
+                const DslAstValue* kcv = kv.as_node()->find_field("value");
+                if (!kcv || kcv->type() != DslAstValue::Type::String) {
+                    return fail(
+                        DslRuleId::E032_primitive_body,
+                        "step_params param names must be strings",
+                        source_path,
+                        fn.lineno(),
+                        fn.col_offset());
+                }
+                const std::string param_name = kcv->as_string();
+                if (vv.type() != DslAstValue::Type::Node || !vv.as_node()) {
+                    return fail(
+                        DslRuleId::E032_primitive_body,
+                        "step_params value must be self.<param>",
+                        source_path,
+                        fn.lineno(),
+                        fn.col_offset());
+                }
+                StatusOr<std::string> value_ref = self_attr_name(*vv.as_node());
+                if (!value_ref.ok()) {
+                    return value_ref.status();
+                }
+                bool known_param = false;
+                for (const ParamIr& p : draft.params) {
+                    if (p.name() == value_ref.value()) {
+                        known_param = true;
+                        break;
+                    }
+                }
+                if (!known_param) {
+                    return fail(
+                        DslRuleId::E032_primitive_body,
+                        "step_params value self." + value_ref.value() +
+                            " is not a declared Param",
+                        source_path,
+                        fn.lineno(),
+                        fn.col_offset());
+                }
+                out.emplace_back(step_id, param_name, value_ref.value());
+            }
+            return out;
+        }
+
+        [[nodiscard]] StatusOr<std::string> self_attr_name(const DslAstNode& node) {
+            if (node.kind() != "Attribute") {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "step_params values must be self.<param> attributes",
+                    source_path,
+                    node.lineno(),
+                    node.col_offset());
+            }
+            const DslAstValue* value = node.find_field("value");
+            const DslAstValue* attr = node.find_field("attr");
+            if (!value || value->type() != DslAstValue::Type::Node || !value->as_node() ||
+                value->as_node()->kind() != "Name") {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "step_params values must be self.<param>",
+                    source_path,
+                    node.lineno(),
+                    node.col_offset());
+            }
+            const DslAstValue* idv = value->as_node()->find_field("id");
+            if (!idv || idv->type() != DslAstValue::Type::String || idv->as_string() != "self") {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "step_params values must reference self",
+                    source_path,
+                    node.lineno(),
+                    node.col_offset());
+            }
+            if (!attr || attr->type() != DslAstValue::Type::String) {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "step_params Attribute.attr missing",
+                    source_path,
+                    node.lineno(),
+                    node.col_offset());
+            }
+            return attr->as_string();
         }
 
         [[nodiscard]] Status parse_param(const DslAstNode& ann, TheoryDraft& draft) {
@@ -1022,6 +1312,54 @@ private:
             return Status::error(std::string("missing keyword '") + std::string(key) + "'");
         }
         return *opt.value();
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<std::string>> keyword_string_list(
+        const DslAstNode& call,
+        std::string_view key) {
+        const DslAstValue* kws = call.find_field("keywords");
+        if (!kws || kws->type() != DslAstValue::Type::Array) {
+            return Status::error(std::string("missing keyword '") + std::string(key) + "'");
+        }
+        for (const DslAstValue& item : kws->as_array()) {
+            if (item.type() != DslAstValue::Type::Node || !item.as_node()) {
+                continue;
+            }
+            const DslAstNode& kw = *item.as_node();
+            const DslAstValue* arg = kw.find_field("arg");
+            const DslAstValue* value = kw.find_field("value");
+            if (!arg || arg->type() != DslAstValue::Type::String || arg->as_string() != key) {
+                continue;
+            }
+            if (!value || value->type() != DslAstValue::Type::Node || !value->as_node() ||
+                value->as_node()->kind() != "List") {
+                return Status::error(
+                    std::string("keyword '") + std::string(key) + "' must be a list of strings");
+            }
+            const DslAstValue* elts = value->as_node()->find_field("elts");
+            if (!elts || elts->type() != DslAstValue::Type::Array) {
+                return Status::error(
+                    std::string("keyword '") + std::string(key) + "' list elts missing");
+            }
+            std::vector<std::string> out;
+            for (const DslAstValue& elt : elts->as_array()) {
+                if (elt.type() != DslAstValue::Type::Node || !elt.as_node() ||
+                    elt.as_node()->kind() != "Constant") {
+                    return Status::error(
+                        std::string("keyword '") + std::string(key) +
+                        "' list elements must be string constants");
+                }
+                const DslAstValue* cv = elt.as_node()->find_field("value");
+                if (!cv || cv->type() != DslAstValue::Type::String) {
+                    return Status::error(
+                        std::string("keyword '") + std::string(key) +
+                        "' list elements must be strings");
+                }
+                out.push_back(cv->as_string());
+            }
+            return out;
+        }
+        return Status::error(std::string("missing keyword '") + std::string(key) + "'");
     }
 
     [[nodiscard]] static StatusOr<std::optional<std::string>> optional_keyword_string(

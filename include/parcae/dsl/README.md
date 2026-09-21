@@ -77,10 +77,11 @@ Tests: `[dsl][validate]` TheoryValidate manifest / dsl_spec / path / envelope co
 Tests: `[dsl][sweep]` TheorySweep param_grid expansion + stale/corpus gates.
 Tests: `[dsl][compile]` DslCompile end-to-end on quadratic_polynomial_stream fixture.
 Tests: `[dsl][examples][i39]` `theories/examples/new_math_example.py` compile + validate.
+Tests: `[dsl][examples][i40]` `theories/examples/full_lifecycle_example.py` compose fuse + validate.
 
 ## Planned (later commits)
 
-`theories/examples/full_lifecycle_example.py`; TheoryDispatch; CUDA DSL smoke.
+TheoryDispatch; CUDA DSL smoke; CI compile examples.
 
 Headers are part of the header-only `parcae::core` INTERFACE include tree
 (`include/` via root `CMakeLists.txt`).

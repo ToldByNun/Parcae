@@ -233,7 +233,7 @@ Community `.py` / hostile JSON must not crash the compiler:
 
 - [ ] Specs: dsl, dsl-ast-json, theory-artifact (normative)
 - [x] `parcae-compile` on `theories/examples/new_math_example.py`
-- [ ] `parcae-compile` on `theories/examples/full_lifecycle_example.py`
+- [x] `parcae-compile` on `theories/examples/full_lifecycle_example.py`
 - [x] Exhaustive gate for arity-4 demo primitive (`poly2_mod29`)
 - [ ] Fail-loud stub tests
 - [x] Stale `dsl_spec_version` rejected by registry/validate
