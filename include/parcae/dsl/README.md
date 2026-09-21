@@ -83,9 +83,11 @@ Tests: `[dsl][examples][i40]` `theories/examples/full_lifecycle_example.py` comp
 Tests: `[dsl][dispatch][i41]` TheoryDispatch catalog + theory URI apply.
 Tests: `[cuda][dsl][smoke]` DslEmitCuda text + `DslSmokeCaesarKernel` (device when CUDA ON).
 
-## Planned (later commits)
+## Status
 
-CI compile-examples job; toolkit version bump.
+Toolkit **0.5.0** (`v0.5.0-theory-dsl`). CI gates:
+`[dsl][examples]`, `[dsl][registry][stale]`, plus `dsl-examples-cli` /
+`dsl-stubs-pytest` jobs in `.github/workflows/ci.yml`.
 
 Headers are part of the header-only `parcae::core` INTERFACE include tree
 (`include/` via root `CMakeLists.txt`).

@@ -1,6 +1,6 @@
 # Spec: Hypothesis & Workspace Schema v0
 
-**Status:** Normative (Phase 4)  
+**Status:** Normative (CMD agent / hypothesis workspace)
 **Schema ids:** `parcae.workspace.v0`, `parcae.hypothesis.v0`, `parcae.transcript_step.v0`  
 **Root path:** `data/workspaces/<workspace_id>/`  
 **Related:** [`agent-tools.md`](agent-tools.md), [`fixtures.md`](fixtures.md),

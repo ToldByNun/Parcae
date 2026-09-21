@@ -1,11 +1,12 @@
 #ifndef DSL_HPP
 #define DSL_HPP
 
-/// Umbrella include for the theory-DSL compiler headers (scaffold).
+/// Umbrella include for the theory-DSL compiler headers.
 /// Normative: docs/spec/dsl.md, docs/spec/dsl-ast-json.md, docs/spec/theory-artifact.md
 /// Architecture: docs/architecture/python-transpiler.md
+/// Toolkit: 0.5.0 (`v0.5.0-theory-dsl`) — exit checklist green.
 ///
-/// Implemented so far:
+/// Modules:
 ///   - DslSpecVersion / DslAstJsonVersion
 ///   - DslDiag / DslRuleId
 ///   - DslAst / DslAstLimits / DslAstJsonIngest
@@ -13,8 +14,7 @@
 ///   - Z29Expr
 ///   - ParamIr / PrimitiveIr / TheoryIr / ComposeIr
 ///   - DslIrApplicator
-///   - DslEmitCpu
-///   - DslEmitCuda
+///   - DslEmitCpu / DslEmitCuda
 ///   - DslVerifier (exhaustive ≤4 + seeded fuzz + CPU↔CUDA mirror)
 ///   - DslFuse (inline + fused/staged emit + CPU bench gate)
 ///   - DslOptimize (const-fold + z29_inv hoist)
@@ -26,10 +26,9 @@
 ///   - TheorySweep (expand sweep.param_grid plan)
 ///   - TheoryEnvelopeBridge (envelope_template ↔ TransformEnvelope / theory URI)
 ///   - TheoryApplyIr / TheoryDispatch (ApplyTransform hook for theory URIs)
-///   - DslBuildIr / DslCompile (ast_dump → artifact)
-///   - Example: theories/examples/new_math_example.py
-///   - Example: theories/examples/full_lifecycle_example.py (@ComposedTheory)
-/// Later commits: CI compile-examples / version bump.
+///   - DslBuildIr / DslCatalogBuiltins / DslCompile (ast_dump → artifact)
+///   - Examples: theories/examples/new_math_example.py,
+///     theories/examples/full_lifecycle_example.py (@ComposedTheory)
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"

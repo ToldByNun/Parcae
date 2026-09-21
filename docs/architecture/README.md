@@ -13,7 +13,7 @@ theory DSL compiles into that stack.
 | [cuda-throughput.md](cuda-throughput.md) | Fused χ² throughput ceilings (`parcae-throughput-tiers`) |
 | [cuda-score-reduction.md](cuda-score-reduction.md) | Score FP / histogram reduction associativity for CUDA twins |
 | [cuda-roadmap.md](cuda-roadmap.md) | **Frozen** CUDA commit roadmap (VS layout) |
-| [phase4-agent-tooling.md](phase4-agent-tooling.md) | **Frozen** Phase 4 CMD-agent plan (`parcae-agent`) |
+| [agent-tooling.md](agent-tooling.md) | **Frozen** CMD-agent plan (`parcae-agent`) |
 | [agent-handbook.md](agent-handbook.md) | CMD operator handbook for `parcae-agent` |
 | [agent-provider-smoke.md](agent-provider-smoke.md) | Optional live Ollama / OpenRouter smoke (CI skips) |
 | [python-transpiler.md](python-transpiler.md) | **Theory DSL compiler** — AST-JSON → IR → verify → CPU/CUDA emit → artifacts |
@@ -21,7 +21,7 @@ theory DSL compiles into that stack.
 
 **CUDA implementation directory:** [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio).
 
-**Agent (Phase 4):** Python LLM loop under [`agents/parcae_agent/`](../../agents/parcae_agent/) calling C++ CLIs only — see Phase 4 freeze.
+**Agent tooling:** Python LLM loop under [`agents/parcae_agent/`](../../agents/parcae_agent/) calling C++ CLIs only — see [`agent-tooling.md`](agent-tooling.md).
 Operator guide: [`agent-handbook.md`](agent-handbook.md).
 Config schema `parcae.agent_config.v0`: [`docs/spec/agent-tools.md`](../spec/agent-tools.md).
 

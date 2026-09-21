@@ -1,10 +1,10 @@
-# Phase 4 — CMD agent plan freeze
+# CMD agent plan freeze
 
-**Status:** Frozen start of Phase 4 (AI tooling)  
-**Upstream:** CUDA parity documented complete (`v0.3.0-cuda-parity`) — see
-[`cuda-handoff.md`](cuda-handoff.md), [`cuda-roadmap.md`](cuda-roadmap.md)  
+**Status:** Frozen start of AI / CMD agent tooling  
+**Upstream:** CUDA parity (`v0.3.0-cuda-parity`) + Theory DSL (`v0.5.0-theory-dsl`) —
+see [`cuda-handoff.md`](cuda-handoff.md), [`python-transpiler.md`](python-transpiler.md)  
 **Product:** `parcae-agent` — a **command-line** Liber Primus tool-use agent  
-**Exit tag (planned):** `v0.4.0-agent-tools`
+**Exit tag (planned):** `v0.6.0-agent-tools`
 
 North star:
 
@@ -37,14 +37,15 @@ flowchart TB
   Agent -->|"HypothesisRecord"| WS
 ```
 
-Phase 5 (search engine: GPU → candidates → agents → hypotheses → GPU) is
-**out of scope**. Phase 4 delivers the runnable agent + deterministic tool bridge.
+Closed-loop search (GPU → candidates → agents → hypotheses → GPU) is
+**out of scope**. This workstream delivers the runnable agent + deterministic
+tool bridge.
 
 ## Locked decisions
 
 | Topic | Decision |
 |-------|----------|
-| **C++ style (HARD)** | **No `namespace`s.** Top-level `class Name { public: … private: … };` per header (optional sibling `enum class` + `NameUtil`). New Phase-4 code MUST NOT add `namespace parcae::…`. Prefer static methods on a class over free functions. |
+| **C++ style (HARD)** | **No `namespace`s.** Top-level `class Name { public: … private: … };` per header (optional sibling `enum class` + `NameUtil`). New agent-facing code MUST NOT add `namespace parcae::…`. Prefer static methods on a class over free functions. |
 | Product | `parcae-agent` CLI — Liber Primus tool-use automation (system prompt, tool schemas, budgets) |
 | LLM transport | OpenAI-compatible `POST /v1/chat/completions` with tool/function calling |
 | Local models | Any OpenAI-compatible server (Ollama, LM Studio, llama.cpp, vLLM, …) via `base_url` + `model` |
@@ -56,26 +57,27 @@ Phase 5 (search engine: GPU → candidates → agents → hypotheses → GPU) is
 | JSON contract | `parcae.tool_response.v0` on all agent-facing CLIs (success **and** failure) |
 | Workspace | `data/workspaces/<id>/` for hypotheses + transcripts; `data/fixtures/` read-only |
 | Budgets | max steps, max tool calls, max wall time — hard stop |
-| Cursor Skill / MCP | **Not** required for Phase 4 exit (optional later) |
+| Cursor Skill / MCP | **Not** required for agent-tools exit (optional later) |
 | Commits / GitHub Actions | **User-owned only** — coding agent writes code + local tests; no `git commit` / no workflow edits |
-| Exit tag | `v0.4.0-agent-tools` |
+| Exit tag | `v0.6.0-agent-tools` |
 
 ## What already exists (do not rebuild)
 
 - Five primitives + id lists: [`include/parcae/tool/api.hpp`](../../include/parcae/tool/api.hpp)
 - CLIs under [`tools/`](../../tools/); generators + `TransformCandidate::to_json()`
 - Spec seed: [`docs/spec/tools.md`](../spec/tools.md) § Agent-facing stability
-- CUDA twins + fused search-run (Phase 3)
+- CUDA twins + fused search-run (`v0.3.0-cuda-parity`)
 
 ## Commit roadmap (granular)
 
-Numbering is **local to Phase 4** (not a continuation of CUDA commits 1–42).
+Numbering is **local to this agent-tooling roadmap** (not a continuation of CUDA
+commits 1–42).
 
 ### A — Spec & architecture freeze
 
 | Commit | Title |
 |--------|-------|
-| 1 | docs: Phase 4 CMD-agent plan freeze (**this**) |
+| 1 | docs: CMD-agent plan freeze (**this**) |
 | 2 | docs: normative agent tool surface v0 ([agent-tools.md](../spec/agent-tools.md)) |
 | 3 | docs: hypothesis and workspace schema v0 ([hypothesis-workspace.md](../spec/hypothesis-workspace.md)) |
 
@@ -137,9 +139,9 @@ Numbering is **local to Phase 4** (not a continuation of CUDA commits 1–42).
 
 | Commit | Title |
 |--------|-------|
-| 33 | docs: Phase 4 exit checklist |
+| 33 | docs: agent-tools exit checklist |
 | 34 | docs: update README goals / non-goals / CUDA status |
-| 35 | chore: version **0.4.0** + annotated tag `v0.4.0-agent-tools` |
+| 35 | chore: version **0.6.0** + annotated tag `v0.6.0-agent-tools` |
 
 ## Provider sketch (normative intent)
 
@@ -161,9 +163,9 @@ provider:
 
 Secrets via environment variables named in config — never committed.
 
-## Non-goals (Phase 4)
+## Non-goals (this workstream)
 
-- Closed-loop GPU search scheduler (Phase 5)
+- Closed-loop GPU search scheduler (later search-engine work)
 - Multi-agent debate / beam search over hypotheses
 - Shipping unsolved LP2 `0`–`55` transcript corpus
 - Cursor Skill / MCP as exit requirements
@@ -177,10 +179,10 @@ Secrets via environment variables named in config — never committed.
 - AgentPolicy blocks fixture mutation and path escape
 - `parcae-agent run` works against a **mock LLM** in CI
 - Documented live paths: local OpenAI-compatible **and** OpenRouter
-- Tag `v0.4.0-agent-tools`
+- Tag `v0.6.0-agent-tools`
 
 ## Related
 
 - Tool contracts: [`docs/spec/tools.md`](../spec/tools.md)
-- CUDA roadmap (prior phase): [`cuda-roadmap.md`](cuda-roadmap.md)
+- CUDA roadmap: [`cuda-roadmap.md`](cuda-roadmap.md)
 - Throughput reference (not an agent tool): [`cuda-throughput.md`](cuda-throughput.md)

@@ -8,7 +8,7 @@ LLM. Crypto stays in C++; this package only chooses allow-listed tools.
 
 Also:
 
-- Plan freeze: [`docs/architecture/phase4-agent-tooling.md`](../docs/architecture/phase4-agent-tooling.md)
+- Plan freeze: [`docs/architecture/agent-tooling.md`](../docs/architecture/agent-tooling.md)
 - Tool surface: [`docs/spec/agent-tools.md`](../docs/spec/agent-tools.md)
 - Live provider smoke: [`docs/architecture/agent-provider-smoke.md`](../docs/architecture/agent-provider-smoke.md)
 - Config examples: [`configs/`](configs/)

@@ -32,7 +32,7 @@ License: [MIT](LICENSE).
 |------|----------|
 | Research (alphabet, solved methods, hypotheses) | [docs/research/](docs/research/README.md) |
 | Normative specs (Z29, tokens, transforms, fixtures, tools, parity) | [docs/spec/](docs/spec/README.md) |
-| Architecture (CPU map, CUDA, theory DSL compiler, Phase 4) | [docs/architecture/](docs/architecture/README.md) |
+| Architecture (CPU map, CUDA, theory DSL compiler, CMD agent) | [docs/architecture/](docs/architecture/README.md) |
 | Theory DSL compiler (AST-JSON → IR → CPU/CUDA artifacts) | [docs/architecture/python-transpiler.md](docs/architecture/python-transpiler.md) |
 | CMD agent handbook (`parcae-agent`) | [docs/architecture/agent-handbook.md](docs/architecture/agent-handbook.md) |
 | CUDA sources (Visual Studio) | [Parcae/Parcae/cuda/](Parcae/Parcae/cuda/) |
@@ -44,14 +44,14 @@ License: [MIT](LICENSE).
 research + specs     →  docs/research, docs/spec          (done)
 CPU reference        →  include/, fixtures, scores, CLIs  (done)
 CUDA parity          →  Parcae/Parcae/cuda/ twins         (done — v0.3.0-cuda-parity)
-Theory DSL compiler  →  theories/ + include/parcae/dsl/   (done — authoring → artifacts)
-AI tooling           →  CMD agent + deterministic tools   (Phase 4 — planned)
+Theory DSL compiler  →  theories/ + include/parcae/dsl/   (done — v0.5.0-theory-dsl)
+AI tooling           →  CMD agent + deterministic tools   (planned — v0.6.0-agent-tools)
 search on LP2 0–55   →  candidates ↔ hypotheses → new discoveries
 open source polish   →  packaging, contribution docs
 ```
 
 Frozen CUDA commit list: [docs/architecture/cuda-roadmap.md](docs/architecture/cuda-roadmap.md).  
-Frozen Phase 4 commit list: [docs/architecture/phase4-agent-tooling.md](docs/architecture/phase4-agent-tooling.md).
+Frozen CMD-agent commit list: [docs/architecture/agent-tooling.md](docs/architecture/agent-tooling.md).
 
 ## Build
 
@@ -75,6 +75,9 @@ Options:
 **Visual Studio (CUDA day-to-day):** open [`Parcae/Parcae.slnx`](Parcae/Parcae.slnx), build **x64** with the CUDA Toolkit VS integration installed. Sources live under `Parcae/Parcae/cuda/`. Full local notes (CMake flags, Catch2 tags, skip behavior): [`docs/architecture/cuda-build.md`](docs/architecture/cuda-build.md).
 
 CI (`.github/workflows/ci.yml`) stays **CPU-default** — it does not enable `PARCAE_BUILD_CUDA`.
+DSL gates on every matrix build: `[dsl][examples]` (compile `theories/examples`) and
+`[dsl][registry][stale]` (reject the committed `0.9.0` fixture). Dedicated jobs:
+`dsl-examples-cli` (`scripts/check-dsl-examples.sh`) and `dsl-stubs-pytest`.
 
 On multi-config generators (Visual Studio CMake), binaries land in
 `build/tools/Release/`. On single-config (Ninja/Make), they are in

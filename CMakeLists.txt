@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(Parcae
-  VERSION 0.3.0
+  VERSION 0.5.0
   DESCRIPTION "C++20 Liber Primus / Cicada 3301 cryptanalysis toolkit"
   LANGUAGES CXX
 )

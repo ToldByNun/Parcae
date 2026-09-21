@@ -67,6 +67,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install Ninja (Linux)
         if: matrix.install_ninja
         run: sudo apt-get update && sudo apt-get install -y ninja-build
@@ -96,6 +101,12 @@ jobs:
 
       - name: Gate [cuda] host stubs
         run: ${{ matrix.test_bin }} "[cuda]" --reporter console
+
+      - name: Gate [dsl][examples] (compile theories/examples)
+        run: ${{ matrix.test_bin }} "[dsl][examples]" --reporter console
+
+      - name: Gate [dsl][registry][stale] (reject stale dsl_spec fixture)
+        run: ${{ matrix.test_bin }} "[dsl][registry][stale]" --reporter console
 
   sanitizers:
     name: ubuntu-asan-ubsan
@@ -153,6 +164,60 @@ jobs:
         run: |
           chmod +x scripts/check-parity-goldens.sh
           scripts/check-parity-goldens.sh build/tools/parcae-parity-gen data data/parity
+
+  dsl-stubs:
+    name: dsl-stubs-pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install stubs package
+        working-directory: python
+        run: pip install -e ".[dev]"
+
+      - name: Stub runtime contract
+        working-directory: python
+        run: pytest -m ci -q
+
+  dsl-examples:
+    name: dsl-examples-cli
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DPARCAE_BUILD_TESTS=OFF
+          -DPARCAE_BUILD_TOOLS=ON
+          -DPARCAE_BUILD_CUDA=OFF
+
+      - name: Build compile + validate
+        run: cmake --build build --target parcae-compile parcae-validate
+
+      - name: Compile examples + reject stale fixture
+        run: |
+          chmod +x scripts/check-dsl-examples.sh
+          scripts/check-dsl-examples.sh \
+            build/tools/parcae-compile \
+            build/tools/parcae-validate
 
   # Optional GPU smoke: enable via workflow_dispatch → run_cuda=true on a
   # self-hosted runner labeled with Toolkit + NVIDIA GPU. Stays off for PRs.

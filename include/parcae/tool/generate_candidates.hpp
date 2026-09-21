@@ -21,7 +21,7 @@
 
 #include <nlohmann/json.hpp>
 
-/// Tool-facing `generate_candidates` primitive (Phase 4).
+/// Tool-facing `generate_candidates` primitive.
 ///
 /// Dispatches `generator_id` via `GeneratorRegistry`. Prefer this over calling
 /// individual `*CandidateGenerator` classes from CLIs / agents.

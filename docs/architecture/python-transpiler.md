@@ -203,7 +203,8 @@ private:
 
 Anonymous namespaces **only** inside `.cu` files for `__global__` kernels
 (existing twin convention). Public API remains top-level classes.
-**No `phase*` names** in new paths or artifact filenames.
+Artifact and emit paths use stable theory/component names — never numbered-stage
+prefixes in new paths or artifact filenames.
 
 ---
 
@@ -282,9 +283,12 @@ Community `.py` / hostile JSON must not crash the compiler:
 - [x] `[cuda][dsl][smoke]` emit text + `DslSmokeCaesarKernel` golden twin
 - [x] Architecture hub links this guide ([README.md](README.md))
 - [x] Stub runtime raises `ParcaeDslStubError` (`python/tests/test_stubs_fail_loud.py`)
-- [x] No `phase*` names in new DSL paths/artifacts (`python-transpiler.md`, not phase*)
+- [x] CI compiles `theories/examples` + rejects stale fixture
+      (`.github/workflows/ci.yml` gates + `scripts/check-dsl-examples.sh`)
+- [x] Toolkit version **0.5.0** (`v0.5.0-theory-dsl`)
+- [x] Artifact paths use stable names (no numbered-stage prefixes in DSL paths)
 
-Remaining polish (separate commits): CI compile-examples job; toolkit version bump.
+**Exit:** compiler workstream complete at toolkit 0.5.0.
 
 ---
 

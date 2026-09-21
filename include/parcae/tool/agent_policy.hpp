@@ -14,7 +14,7 @@
 #include <utility>
 #include <vector>
 
-/// Path / backend / tool-name guards for agent-facing CLIs (Phase 4).
+/// Path / backend / tool-name guards for agent-facing CLIs.
 ///
 /// Denials map to `ToolErrorCode::Policy` (exit 2). Missing CUDA in the build
 /// remains `NotBuilt` via `BackendUtil::ensure_usable` — call that after

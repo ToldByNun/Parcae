@@ -26,7 +26,7 @@
 
 #include <nlohmann/json.hpp>
 
-/// Tool-facing `rank_candidates` primitive (Phase 4).
+/// Tool-facing `rank_candidates` primitive.
 ///
 /// Scores a candidate list and returns best-first top-k with **stable ties**
 /// (`BatchOrdering`: score → `candidate_id` → `source_index`).

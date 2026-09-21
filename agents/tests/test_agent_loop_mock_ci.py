@@ -1,6 +1,6 @@
 """CI-safe agent loop integration (mock LLM, no network, no real CLIs).
 
-Normative Phase 4 commit 30: `parcae-agent run` path must succeed offline with
+Normative agent-tooling commit 30: `parcae-agent run` path must succeed offline with
 a scripted model and a fake ToolBridge runner.
 """
 

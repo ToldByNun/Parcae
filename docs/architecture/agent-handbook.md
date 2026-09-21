@@ -1,11 +1,11 @@
 # Agent handbook (CMD) — `parcae-agent`
 
-**Audience:** operators running the Phase 4 Liber Primus tool-use agent from a
+**Audience:** operators running the Liber Primus tool-use agent from a
 shell  
 **Product:** `parcae-agent` (Python) → OpenAI-compatible LLM → Parcae C++ CLIs  
 **Normative contracts:** [`docs/spec/agent-tools.md`](../spec/agent-tools.md),
 [`docs/spec/hypothesis-workspace.md`](../spec/hypothesis-workspace.md)  
-**Plan freeze:** [`phase4-agent-tooling.md`](phase4-agent-tooling.md)
+**Plan freeze:** [`agent-tooling.md`](agent-tooling.md)
 
 This handbook is the **how-to**. Specs remain authoritative when they disagree
 with examples here.
@@ -26,8 +26,8 @@ reimplement \(\mathbb{Z}_{29}\) math or invent catalog ids.
 
 ## What it is not
 
-- Not a Cursor Skill / MCP host (optional later; not required for Phase 4 exit)
-- Not a GPU search scheduler (Phase 5)
+- Not a Cursor Skill / MCP host (optional later; not required for agent-tools exit)
+- Not a GPU search scheduler (closed-loop search is later work)
 - Not a free-form shell agent — deny-listed binaries and raw shell are blocked
 - Not allowed to write under `data/fixtures/`
 
@@ -257,5 +257,5 @@ Hosted CI must not set `PARCAE_AGENT_LIVE`. Details:
 | [`agent-tools.md`](../spec/agent-tools.md) | Envelope, allow/deny lists, config schema, loop contract |
 | [`hypothesis-workspace.md`](../spec/hypothesis-workspace.md) | HypothesisRecord + transcripts |
 | [`tools.md`](../spec/tools.md) | C++ library / CLI contracts |
-| [`phase4-agent-tooling.md`](phase4-agent-tooling.md) | Commit roadmap / exit tag |
+| [`agent-tooling.md`](agent-tooling.md) | Commit roadmap / exit tag |
 | [`agents/README.md`](../../agents/README.md) | Short package README |

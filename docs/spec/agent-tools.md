@@ -1,10 +1,10 @@
 # Spec: Agent Tool Surface v0
 
-**Status:** Normative (Phase 4)  
+**Status:** Normative (CMD agent)  
 **Schema id:** `parcae.tool_response.v0`  
 **Consumers:** `parcae-agent` (CMD) and any future caller that treats Parcae CLIs as tools  
 **Related:** [`tools.md`](tools.md) (library + CLI details),  
-[`phase4-agent-tooling.md`](../architecture/phase4-agent-tooling.md) (roadmap freeze)
+[`agent-tooling.md`](../architecture/agent-tooling.md) (roadmap freeze)
 
 This document is the **only** normative agent-facing contract. Library shapes in
 [`tools.md`](tools.md) remain authoritative for C++ APIs; when `--json` is used
@@ -48,7 +48,7 @@ functions. Each maps to one primary CLI binary (or subcommand family).
 
 Notes:
 
-- `catalog` / `generate` / `rank` / `parcae-hypothesis` are Phase 4 deliverables;
+- `catalog` / `generate` / `rank` / `parcae-hypothesis` are agent-tooling deliverables;
   until shipped, the allow-list is still binding for the agent design.
 - `decode` covers `apply_transform` + `to_latin` from [`tools.md`](tools.md);
   agents SHOULD prefer `decode` over inventing a second transform path.
@@ -292,14 +292,14 @@ Budgets are hard stops. Exhaustion without success criterion is a failed run.
 ## Non-goals
 
 - Embedding an LLM inside C++ tools
-- Closed-loop GPU search scheduling (Phase 5)
-- Requiring Cursor Skill / MCP for Phase 4 exit
+- Closed-loop GPU search scheduling (later search-engine work)
+- Requiring Cursor Skill / MCP for agent-tools exit
 - Defining HypothesisRecord field layout — see [`hypothesis-workspace.md`](hypothesis-workspace.md)
 - Authoring or modifying GitHub Actions / CI workflow files as part of this surface
 
 ## Conformance (preview)
 
-A Phase 4 implementation conforms when:
+An agent-tooling implementation conforms when:
 
 1. Allow-listed CLIs emit `parcae.tool_response.v0` for `--json` success and failure.
 2. Deny-listed binaries are absent from default agent tool schemas.

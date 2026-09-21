@@ -1,4 +1,4 @@
-"""Parcae CMD agent package (Phase 4)."""
+"""Parcae CMD agent package."""
 
 from __future__ import annotations
 
