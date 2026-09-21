@@ -5,6 +5,7 @@
 #include "parcae/core/status_or.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
 #include "parcae/dsl/theory_artifact.hpp"
+#include "parcae/dsl/theory_envelope_bridge.hpp"
 #include "parcae/dsl/theory_registry.hpp"
 #include "parcae/dsl/theory_uri.hpp"
 
@@ -19,7 +20,9 @@
 
 /// Validate compiled theory artifacts (docs/spec/theory-artifact.md).
 /// Checks: manifest load, `dsl_spec_version` compatibility (stale → fail),
-/// `verification.passed`, and that declared `paths.*` files exist on disk.
+/// `verification.passed`, declared `paths.*` files on disk, and when
+/// `paths.envelope_template` is set that the file parses as a theory/catalog
+/// envelope via TheoryEnvelopeBridge.
 /// Does not re-run exhaustive/fuzz verify (that is `parcae-compile`).
 class TheoryValidate {
 public:
@@ -295,6 +298,37 @@ private:
         check_file(artifact.paths().cuda_source(), "paths.cuda_source");
         check_file(artifact.paths().envelope_template(), "paths.envelope_template");
         check_file(artifact.paths().verify_report(), "paths.verify_report");
+
+        if (artifact.paths().envelope_template().has_value()) {
+            const std::filesystem::path env_path =
+                dir / *artifact.paths().envelope_template();
+            std::error_code ec;
+            if (std::filesystem::is_regular_file(env_path, ec) && !ec) {
+                StatusOr<TheoryEnvelopeBridge::Envelope> env =
+                    TheoryEnvelopeBridge::load(env_path);
+                if (!env.ok()) {
+                    report.add_check(
+                        "envelope_template.parse",
+                        false,
+                        env.status().message());
+                } else {
+                    Status against =
+                        TheoryEnvelopeBridge::check_against_artifact(env.value(), artifact);
+                    if (!against.ok()) {
+                        report.add_check(
+                            "envelope_template.content",
+                            false,
+                            against.message());
+                    } else {
+                        report.add_check(
+                            "envelope_template.content",
+                            true,
+                            env.value().is_theory() ? "theory URI envelope"
+                                                    : "catalog TransformEnvelope");
+                    }
+                }
+            }
+        }
 
         return report;
     }

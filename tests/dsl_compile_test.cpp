@@ -4,6 +4,7 @@
 #include <parcae/dsl/dsl_semantic_gate.hpp>
 #include <parcae/dsl/dsl_spec_version.hpp>
 #include <parcae/dsl/theory_artifact.hpp>
+#include <parcae/dsl/theory_envelope_bridge.hpp>
 #include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/theory_registry.hpp>
 
@@ -79,6 +80,8 @@ TEST_CASE("DslCompile end-to-end quadratic_polynomial_stream", "[dsl][compile]")
     REQUIRE(std::filesystem::is_regular_file(
         root / "quadratic_polynomial_stream" / "1" / "emitted" /
         "QuadraticPolynomialStreamKernel.cu"));
+    REQUIRE(std::filesystem::is_regular_file(
+        root / "quadratic_polynomial_stream" / "1" / "envelope.json"));
 
     StatusOr<TheoryArtifact> loaded =
         TheoryRegistry::load(root, "quadratic_polynomial_stream", 1);
@@ -86,7 +89,18 @@ TEST_CASE("DslCompile end-to-end quadratic_polynomial_stream", "[dsl][compile]")
     REQUIRE(loaded.value().paths().cuda_source().has_value());
     REQUIRE(*loaded.value().paths().cuda_source() ==
             "emitted/QuadraticPolynomialStreamKernel.cu");
+    REQUIRE(loaded.value().paths().envelope_template().has_value());
+    REQUIRE(*loaded.value().paths().envelope_template() == "envelope.json");
     REQUIRE_FALSE(TheoryRegistry::is_stale_spec(loaded.value()));
+
+    StatusOr<TheoryEnvelopeBridge::Envelope> env = TheoryEnvelopeBridge::load(
+        root / "quadratic_polynomial_stream" / "1" / "envelope.json");
+    REQUIRE(env.ok());
+    REQUIRE(env.value().is_theory());
+    REQUIRE(
+        env.value().transform_id() == "parcae://theories/quadratic_polynomial_stream@1");
+    REQUIRE(TheoryEnvelopeBridge::check_against_artifact(env.value(), loaded.value()).ok());
+    REQUIRE_FALSE(env.value().to_catalog_envelope().ok());
 
     std::filesystem::remove_all(root, ec);
 }

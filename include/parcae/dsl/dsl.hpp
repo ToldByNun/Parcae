@@ -22,10 +22,11 @@
 ///   - DslPeakSanity (ThroughputTiers peak / SLO gate)
 ///   - TheoryUri / TheoryArtifact (manifest writer embeds dsl_spec_version)
 ///   - TheoryRegistry (rejects stale dsl_spec_version)
-///   - TheoryValidate (manifest + dsl_spec + path files)
+///   - TheoryValidate (manifest + dsl_spec + path files + envelope content)
 ///   - TheorySweep (expand sweep.param_grid plan)
+///   - TheoryEnvelopeBridge (envelope_template ↔ TransformEnvelope / theory URI)
 ///   - DslBuildIr / DslCompile (ast_dump → artifact)
-/// Later commits: envelope bridge, examples.
+/// Later commits: examples / TheoryDispatch.
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
@@ -49,6 +50,7 @@
 #include "parcae/dsl/param_ir.hpp"
 #include "parcae/dsl/primitive_ir.hpp"
 #include "parcae/dsl/theory_artifact.hpp"
+#include "parcae/dsl/theory_envelope_bridge.hpp"
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/theory_registry.hpp"
 #include "parcae/dsl/theory_sweep.hpp"

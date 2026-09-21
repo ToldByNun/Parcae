@@ -12,6 +12,7 @@
 #include "parcae/dsl/dsl_spec_version.hpp"
 #include "parcae/dsl/dsl_verifier.hpp"
 #include "parcae/dsl/theory_artifact.hpp"
+#include "parcae/dsl/theory_envelope_bridge.hpp"
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/theory_registry.hpp"
 
@@ -182,6 +183,7 @@ public:
             const std::string class_stem = to_pascal_case(theory.name());
             paths.set_cuda_header(std::string("emitted/") + class_stem + "Kernel.hpp");
             paths.set_cuda_source(std::string("emitted/") + class_stem + "Kernel.cu");
+            paths.set_envelope_template(std::string("envelope.json"));
 
             std::vector<TheoryArtifact::Param> params;
             for (const ParamIr& p : theory.params()) {
@@ -246,6 +248,17 @@ public:
             w = write_text(dir / "emitted" / (class_stem + "Kernel.cu"), cuda_cu.value());
             if (!w.ok()) {
                 return w;
+            }
+
+            StatusOr<TheoryEnvelopeBridge::Envelope> envelope =
+                TheoryEnvelopeBridge::template_for(artifact.value());
+            if (!envelope.ok()) {
+                return envelope.status();
+            }
+            Status env_written =
+                TheoryEnvelopeBridge::write(dir / "envelope.json", envelope.value());
+            if (!env_written.ok()) {
+                return env_written;
             }
 
             // Registry gate: freshly written artifacts must load.

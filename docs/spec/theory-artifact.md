@@ -214,6 +214,25 @@ references `parcae://` theory ids. Tools that only understand catalog
 `transform_id` values **MUST** fail clearly if the envelope cannot be lowered to
 the frozen catalog — no silent no-op decode.
 
+### Extension: theory URI as `transform_id`
+
+```json
+{
+  "transform_id": "parcae://theories/quadratic_polynomial_stream@1",
+  "direction": "decrypt",
+  "params": { "c2": 0, "c1": 0, "c0": 0 }
+}
+```
+
+| Rule | Requirement |
+|------|-------------|
+| `transform_id` | Catalog id **or** `parcae://theories/<name>@<version>` |
+| `params` | For theory URIs: every declared artifact param MUST be present as an integer in its declared `[min,max]` |
+| Catalog lower | `TheoryEnvelopeBridge::to_catalog_envelope()` succeeds only for frozen catalog ids; theory URIs **MUST** error mentioning TheoryDispatch |
+| Compile | `parcae-compile` **SHOULD** emit `envelope.json` with the artifact URI and param mins as the default binding |
+
+Header: `include/parcae/dsl/theory_envelope_bridge.hpp` (`TheoryEnvelopeBridge`).
+
 ---
 
 ## Tool contracts (summary)

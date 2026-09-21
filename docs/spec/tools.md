@@ -200,6 +200,10 @@ parcae-compile <theory.py> [--json] [--data-dir <path>]
 
 Compiles a theory DSL `.py` source into a versioned artifact under
 `data/theories/` (see [dsl.md](dsl.md), [theory-artifact.md](theory-artifact.md)).
+Emits CPU/CUDA sources plus an `envelope.json` bridge
+(`paths.envelope_template`) whose `transform_id` is the theory URI
+(catalog-only tools must refuse lowering — see Envelope bridge in
+theory-artifact.md).
 
 `--status` reports toolchain / `dsl_spec_version` / AST-JSON protocol versions
 and `pipeline_ready`. Compiling a `.py` file spawns `python -m parcae.dsl.ast_dump`,
@@ -329,8 +333,10 @@ parcae-validate --theories [--json] [--data-dir <path>]
 **Theory mode** (`--theory` / `--theories`): validate compiled theory artifacts
 under `data/theories/` ([theory-artifact.md](theory-artifact.md)). Checks
 manifest integrity, `dsl_spec_version` compatibility (stale MAJOR → fail;
-message includes re-run `parcae-compile`), `verification.passed`, and that
-declared `paths.*` files exist. Does not re-run exhaustive/fuzz verify.
+message includes re-run `parcae-compile`), `verification.passed`, that
+declared `paths.*` files exist, and when `paths.envelope_template` is set that
+the envelope parses (catalog or theory URI) and matches the artifact.
+Does not re-run exhaustive/fuzz verify.
 `--theory` accepts `parcae://theories/<name>@<ver>`, `<name>@<ver>`, or an
 artifact directory / `manifest.json` path.
 
