@@ -21,5 +21,5 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `gpu_candidate_export.hpp` | `GpuCandidateExport` | Planned |
 | `search_scheduler.hpp` | `SearchScheduler` | Planned |
 
-Tests: `[search][job]`, `[search][prior]`, `[search][batch]` — parse / validate /
-store-load / digests.
+Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]` —
+parse / validate / store-load / digests / Job↔Prior↔BatchArtifact chain.
