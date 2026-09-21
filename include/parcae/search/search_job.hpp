@@ -5,6 +5,7 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/hypothesis/workspace_paths.hpp"
+#include "parcae/search/search_prior.hpp"
 #include "parcae/tool/tool_backend.hpp"
 #include "parcae/transform/transform_direction.hpp"
 
@@ -398,13 +399,9 @@ private:
     }
 
     [[nodiscard]] static Status validate_inline_prior(const nlohmann::json& prior) {
-        if (!prior.is_object()) {
-            return Status::error("SearchJob.prior must be an object or null");
-        }
-        if (!prior.contains("schema") || !prior.at("schema").is_string() ||
-            prior.at("schema").get<std::string>() != "parcae.search_prior.v0") {
-            return Status::error(
-                "SearchJob.prior.schema must be \"parcae.search_prior.v0\"");
+        StatusOr<SearchPrior> parsed = SearchPrior::from_json(prior);
+        if (!parsed.ok()) {
+            return parsed.status();
         }
         return Status::success();
     }
