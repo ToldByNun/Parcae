@@ -27,7 +27,9 @@ reimplement \(\mathbb{Z}_{29}\) math or invent catalog ids.
 ## What it is not
 
 - Not a Cursor Skill / MCP host (optional later; not required for agent-tools exit)
-- Not a GPU search scheduler (closed-loop search is later work)
+- Not a GPU search scheduler by itself — closed-loop cycles are
+  [`search-engine.md`](search-engine.md) / `search_cycle` (CLI lands with that
+  workstream)
 - Not a free-form shell agent — deny-listed binaries and raw shell are blocked
 - Not allowed to write under `data/fixtures/`
 
@@ -155,12 +157,13 @@ The model only sees tools from [`agent-tools.md`](../spec/agent-tools.md):
 
 `tokenize`, `decode`, `score`, `validate`, `catalog`, `generate`, `rank`,
 `hypothesis_init`, `hypothesis_propose`, `hypothesis_show`, `hypothesis_list`,
-`hypothesis_score`, `hypothesis_set_status`.
+`hypothesis_score`, `hypothesis_set_status`, and (target contract) `search_cycle`.
 
 **Operator tips for prompts:**
 
 1. Ask for `catalog` before naming `transform_id` / `score_id` / `generator_id`.
-2. Prefer `generate` + `rank` for candidate search; `decode` / `score` to check.
+2. Prefer `search_cycle` for large family grids once the CLI is wired; keep
+   `generate` + `rank` for tiny explicit sets; use `decode` / `score` to check.
 3. Persist work with `hypothesis_*` into the configured workspace (id is injected;
    do not pass `workspace` / `data_dir` in tool args).
 4. When done, the model should reply with a short summary and **no** further

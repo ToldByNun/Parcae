@@ -19,6 +19,7 @@ theory DSL compiles into that stack.
 | [python-transpiler.md](python-transpiler.md) | **Theory DSL compiler** — AST-JSON → IR → verify → CPU/CUDA emit → artifacts |
 | [dsl-stubs.md](dsl-stubs.md) | Stubs vs compiler — only `parcae-compile` verifies |
 | [search-engine.md](search-engine.md) | **Frozen** search engine plan — GPU ↔ candidates ↔ hypotheses loop |
+| [search-roadmap.md](search-roadmap.md) | **Frozen** search-engine commit list (1–52) |
 
 **CUDA implementation directory:** [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio).
 
@@ -26,9 +27,10 @@ theory DSL compiles into that stack.
 Operator guide: [`agent-handbook.md`](agent-handbook.md).
 Config schema `parcae.agent_config.v0`: [`docs/spec/agent-tools.md`](../spec/agent-tools.md).
 
-**Search engine:** closed loop owned by [`search-engine.md`](search-engine.md) (planned exit
-`v0.7.0-search-engine`). Agent-tooling delivers the tool bridge; the scheduler
-lands here.
+**Search engine:** closed loop owned by [`search-engine.md`](search-engine.md)
+(planned exit `v0.7.0-search-engine`). Commit list:
+[`search-roadmap.md`](search-roadmap.md). Agent-tooling delivers the tool bridge;
+the scheduler lands here.
 
 ---
 

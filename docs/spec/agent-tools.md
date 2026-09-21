@@ -4,7 +4,9 @@
 **Schema id:** `parcae.tool_response.v0`  
 **Consumers:** `parcae-agent` (CMD) and any future caller that treats Parcae CLIs as tools  
 **Related:** [`tools.md`](tools.md) (library + CLI details),  
-[`agent-tooling.md`](../architecture/agent-tooling.md) (roadmap freeze)
+[`agent-tooling.md`](../architecture/agent-tooling.md) (agent freeze),  
+[`search-engine.md`](../architecture/search-engine.md) / [`search-loop.md`](search-loop.md)
+(search cycle)
 
 This document is the **only** normative agent-facing contract. Library shapes in
 [`tools.md`](tools.md) remain authoritative for C++ APIs; when `--json` is used
@@ -45,11 +47,17 @@ functions. Each maps to one primary CLI binary (or subcommand family).
 | `hypothesis_list` | `parcae-hypothesis list` | List hypotheses in a workspace |
 | `hypothesis_score` | `parcae-hypothesis score` | Score a stored hypothesis against input |
 | `hypothesis_set_status` | `parcae-hypothesis set-status` | Update status (`draft` / `proposed` / …) |
+| `search_cycle` | `parcae-search-cycle` | Workspace search loop: job → batch artifact → hypotheses ([`search-loop.md`](search-loop.md)) |
 
 Notes:
 
 - `catalog` / `generate` / `rank` / `parcae-hypothesis` are agent-tooling deliverables;
-  until shipped, the allow-list is still binding for the agent design.
+  the allow-list is binding for the agent design.
+- `search_cycle` is the **search-engine** entry point. Prefer it for large family
+  grids; keep `generate` + `rank` for tiny explicit candidate sets.
+  CLI / `AgentPolicy` / Python allow-list wiring lands with search-roadmap
+  commits 27–32; until then schemas MAY omit it from runtime allow-lists while
+  this table remains the target contract.
 - `decode` covers `apply_transform` + `to_latin` from [`tools.md`](tools.md);
   agents SHOULD prefer `decode` over inventing a second transform path.
 - Listing score/transform ids is part of `catalog` (and MAY remain on
@@ -64,7 +72,8 @@ The agent MUST NOT expose these as tools by default:
 | `parcae-blind-crack` | Heavy / research CLI; not a stable agent primitive |
 | `parcae-throughput-tiers` | Benchmarking; non-deterministic timing |
 | `parcae-parity` / `parcae-parity-gen` | Dev / golden maintenance |
-| `parcae-search-run` | Dashboard + timing; optional later with `--omit-timing` only |
+| `parcae-search-run` | Metrics / fused sweep dashboard — **not** the workspace loop; use `search_cycle` instead |
+| `parcae-search-cycle` without allow-list entry | Until commits 27–32 land, binary MAY exist in-tree but MUST NOT be exposed unless on the allow-list |
 | Arbitrary shell (`cmd`, `bash`, `powershell`, `python -c`, …) | Escape hatch |
 | Writing under `data/fixtures/` | Locked corpus integrity |
 | Path traversal outside `data_dir` / workspace | Sandbox |
@@ -288,13 +297,15 @@ Budgets are hard stops. Exhaustion without success criterion is a failed run.
 | id registries | `catalog` |
 | *(new)* candidate generators | `generate` + `rank` |
 | *(new)* workspace records | `hypothesis_*` |
+| *(new)* workspace search cycles | `search_cycle` → [`search-loop.md`](search-loop.md) |
 
 ## Non-goals
 
 - Embedding an LLM inside C++ tools
-- Closed-loop GPU search scheduling (later search-engine work)
 - Requiring Cursor Skill / MCP for agent-tools exit
 - Defining HypothesisRecord field layout — see [`hypothesis-workspace.md`](hypothesis-workspace.md)
+- Defining search job / batch artifact schemas — see [`search-loop.md`](search-loop.md)
+  and [`search-engine.md`](../architecture/search-engine.md)
 - Authoring or modifying GitHub Actions / CI workflow files as part of this surface
 
 ## Conformance (preview)

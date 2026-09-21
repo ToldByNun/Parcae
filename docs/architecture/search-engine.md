@@ -217,16 +217,16 @@ the in-tree agent stack (generate / rank / hypothesis / `AgentLoop`).
 ## Commit roadmap (granular)
 
 Numbering is **local to this search-engine roadmap**. Detailed mirror:
-[`search-roadmap.md`](search-roadmap.md) (commit 3).
+[`search-roadmap.md`](search-roadmap.md).
 
 ### A — Spec & architecture freeze
 
 | # | Commit |
 |---|--------|
-| 1 | docs: search-engine plan freeze (**this**) |
-| 2 | docs: normative search-loop schema v0 (`search-loop.md`) |
-| 3 | docs: search-roadmap + README roadmap pointer |
-| 4 | docs: revise agent-tools allow/deny for `search_cycle` |
+| 1 | docs: search-engine plan freeze (**this**) — **done** |
+| 2 | docs: normative search-loop schema v0 (`search-loop.md`) — **done** |
+| 3 | docs: search-roadmap + README roadmap pointer — **done** |
+| 4 | docs: revise agent-tools allow/deny for `search_cycle` — **done** |
 
 ### B — Core C++ types
 
@@ -347,5 +347,6 @@ Numbering is **local to this search-engine roadmap**. Detailed mirror:
 | [`cuda-reference.md`](cuda-reference.md) | Fused / SoA CUDA map |
 | [`cuda-score-reduction.md`](cuda-score-reduction.md) | CPU↔CUDA score compare rules |
 | [`hypothesis-workspace.md`](../spec/hypothesis-workspace.md) | Workspace + HypothesisRecord |
-| [`agent-tools.md`](../spec/agent-tools.md) | Allow/deny lists (updated in commit 4) |
+| [`agent-tools.md`](../spec/agent-tools.md) | Allow/deny lists (`search_cycle` target contract) |
+| [`search-roadmap.md`](search-roadmap.md) | Granular commit list 1–52 |
 | [`tools.md`](../spec/tools.md) | CLI contracts |

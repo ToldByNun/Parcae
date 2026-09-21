@@ -317,6 +317,11 @@ With `--backend cuda`, also reports CPU↔CUDA score parity unless `--no-compare
 Exit **1** if fixture eval is not all-pass or CUDA parity fails;
 exit **2** if CUDA is requested but not built.
 
+Workspace closed-loop cycles (job → batch artifact → hypotheses) are **not**
+this tool — see `parcae-search-cycle` / [`search-loop.md`](search-loop.md) and
+[`search-engine.md`](../architecture/search-engine.md). Agents MUST use
+`search_cycle` (allow-list) rather than `search-run` (deny-list by default).
+
 ### `parcae-validate`
 
 ```text

@@ -152,6 +152,7 @@ See [Python in this repo](#python-in-this-repo) below.
 | Record a research hypothesis | `parcae-hypothesis` + [`docs/spec/hypothesis-workspace.md`](docs/spec/hypothesis-workspace.md) |
 | Author a new theory in Python syntax | [`theories/examples/`](theories/examples/) → `parcae-compile` |
 | Drive tools from an LLM | [`agents/`](agents/README.md) (`parcae-agent`) |
+| Closed-loop search (workspace cycles) | [`docs/architecture/search-engine.md`](docs/architecture/search-engine.md) |
 | GPU fused search / throughput | [`docs/architecture/cuda-build.md`](docs/architecture/cuda-build.md) |
 
 ---
@@ -302,7 +303,10 @@ Open-source polish    →  packaging, contribution docs       later
 ```
 
 Frozen CUDA commit list: [`docs/architecture/cuda-roadmap.md`](docs/architecture/cuda-roadmap.md).  
-CMD-agent plan: [`docs/architecture/agent-tooling.md`](docs/architecture/agent-tooling.md).
+CMD-agent plan: [`docs/architecture/agent-tooling.md`](docs/architecture/agent-tooling.md).  
+Search engine: [`docs/architecture/search-engine.md`](docs/architecture/search-engine.md) ·
+commit list [`docs/architecture/search-roadmap.md`](docs/architecture/search-roadmap.md) ·
+spec [`docs/spec/search-loop.md`](docs/spec/search-loop.md).
 
 ### Goals
 
