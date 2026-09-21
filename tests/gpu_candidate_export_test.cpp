@@ -1,5 +1,8 @@
 #include <parcae/batch/batch_ordering.hpp>
 #include <parcae/core/index29.hpp>
+#include <parcae/generate/affine_candidate_generator.hpp>
+#include <parcae/generate/atbash_candidate_generator.hpp>
+#include <parcae/generate/atbash_caesar_candidate_generator.hpp>
 #include <parcae/generate/caesar_candidate_generator.hpp>
 #include <parcae/score/expected_frequency_loader.hpp>
 #include <parcae/score/score_order.hpp>
@@ -7,7 +10,10 @@
 #include <parcae/score/score_request.hpp>
 #include <parcae/search/gpu_candidate_export.hpp>
 #include <parcae/tool/tool_backend.hpp>
+#include <parcae/transform/affine_transform.hpp>
+#include <parcae/transform/atbash_transform.hpp>
 #include <parcae/transform/caesar_transform.hpp>
+#include <parcae/transform/compose_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 
 #include <catch2/catch_test_macros.hpp>
@@ -134,6 +140,140 @@ TEST_CASE(
 #endif
 }
 
+TEST_CASE(
+    "GpuCandidateExport atbash_from_host_scores single lane",
+    "[search][export][atbash]") {
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+    const std::vector<Index29> cipher = synthetic_cipher();
+
+    StatusOr<std::vector<Index29>> plain =
+        AtbashTransform{}.apply(cipher, nlohmann::json::object(), TransformDirection::Decrypt);
+    REQUIRE(plain.ok());
+    ScoreRequest request;
+    request.expected_frequencies = &freqs.value();
+    StatusOr<double> score = ScoreRegistry::score(
+        "chi2_english_gp_v0", plain.value(), "v0", nlohmann::json::object(), request);
+    REQUIRE(score.ok());
+
+    const std::vector<double> scores{score.value()};
+    StatusOr<GpuCandidateExport::Result> exported =
+        GpuCandidateExport::atbash_from_host_scores(cipher, scores, 1);
+    REQUIRE(exported.ok());
+    REQUIRE(exported.value().size() == 1);
+    REQUIRE(
+        exported.value().rows()[0].candidate().candidate_id() ==
+        AtbashCandidateGenerator::make_candidate_id());
+    REQUIRE(exported.value().rows()[0].candidate().output_indices() == plain.value());
+}
+
+TEST_CASE(
+    "GpuCandidateExport atbash_caesar_from_host_scores top-k",
+    "[search][export][atbash_caesar]") {
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+    const std::vector<Index29> cipher = synthetic_cipher();
+
+    ScoreRequest request;
+    request.expected_frequencies = &freqs.value();
+    std::vector<double> scores(Index29::modulus, 0.0);
+    for (std::uint8_t shift = 0; shift < Index29::modulus; ++shift) {
+        StatusOr<std::vector<Index29>> out =
+            ComposeTransform::apply_atbash_then_caesar(cipher, shift, TransformDirection::Decrypt);
+        REQUIRE(out.ok());
+        StatusOr<double> score = ScoreRegistry::score(
+            "chi2_english_gp_v0", out.value(), "v0", nlohmann::json::object(), request);
+        REQUIRE(score.ok());
+        scores[shift] = score.value();
+    }
+
+    constexpr std::size_t k = 4;
+    StatusOr<GpuCandidateExport::Result> exported =
+        GpuCandidateExport::atbash_caesar_from_host_scores(cipher, scores, k);
+    REQUIRE(exported.ok());
+    REQUIRE(exported.value().size() == k);
+    for (std::size_t i = 1; i < exported.value().size(); ++i) {
+        REQUIRE(exported.value().rows()[i - 1].score() <= exported.value().rows()[i].score());
+    }
+    const auto& best = exported.value().rows()[0];
+    const std::uint8_t shift = static_cast<std::uint8_t>(best.source_index());
+    REQUIRE(
+        best.candidate().candidate_id() ==
+        AtbashCaesarCandidateGenerator::make_candidate_id(shift));
+    StatusOr<std::vector<Index29>> expected =
+        ComposeTransform::apply_atbash_then_caesar(cipher, shift, TransformDirection::Decrypt);
+    REQUIRE(expected.ok());
+    REQUIRE(best.candidate().output_indices() == expected.value());
+}
+
+TEST_CASE(
+    "GpuCandidateExport affine_from_host_scores top-k mapping a,b",
+    "[search][export][affine]") {
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+    const std::vector<Index29> cipher = synthetic_cipher();
+
+    // Sparse scoring: only fill a few lanes; rest stay high (worse for Asc χ²).
+    std::vector<double> scores(AffineCandidateGenerator::candidate_count, 1.0e9);
+    ScoreRequest request;
+    request.expected_frequencies = &freqs.value();
+    const std::pair<std::uint8_t, std::uint8_t> samples[] = {
+        {std::uint8_t{1}, std::uint8_t{0}},
+        {std::uint8_t{2}, std::uint8_t{5}},
+        {std::uint8_t{28}, std::uint8_t{28}},
+        {std::uint8_t{7}, std::uint8_t{3}},
+    };
+    for (const auto& [a, b] : samples) {
+        const std::size_t index =
+            static_cast<std::size_t>(a - 1) * Index29::modulus + static_cast<std::size_t>(b);
+        StatusOr<std::vector<Index29>> out = AffineTransform{}.apply(
+            cipher,
+            nlohmann::json{{"a", static_cast<int>(a)}, {"b", static_cast<int>(b)}},
+            TransformDirection::Decrypt);
+        REQUIRE(out.ok());
+        StatusOr<double> score = ScoreRegistry::score(
+            "chi2_english_gp_v0", out.value(), "v0", nlohmann::json::object(), request);
+        REQUIRE(score.ok());
+        scores[index] = score.value();
+    }
+
+    constexpr std::size_t k = 3;
+    StatusOr<GpuCandidateExport::Result> exported =
+        GpuCandidateExport::affine_from_host_scores(cipher, scores, k);
+    REQUIRE(exported.ok());
+    REQUIRE(exported.value().size() == k);
+
+    for (const GpuCandidateExport::Row& row : exported.value().rows()) {
+        const std::size_t index = row.source_index();
+        const std::uint8_t a = static_cast<std::uint8_t>(index / Index29::modulus + 1);
+        const std::uint8_t b = static_cast<std::uint8_t>(index % Index29::modulus);
+        REQUIRE(
+            row.candidate().candidate_id() ==
+            AffineCandidateGenerator::make_candidate_id(a, b));
+        REQUIRE(row.candidate().params().at("a").get<int>() == static_cast<int>(a));
+        REQUIRE(row.candidate().params().at("b").get<int>() == static_cast<int>(b));
+    }
+}
+
+TEST_CASE(
+    "GpuCandidateExport fused families without CUDA fail loud",
+    "[search][export]") {
+#if !defined(PARCAE_HAS_CUDA)
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+    const std::vector<Index29> cipher = synthetic_cipher();
+    REQUIRE_FALSE(GpuCandidateExport::atbash(cipher, freqs.value(), 1).ok());
+    REQUIRE_FALSE(GpuCandidateExport::atbash_caesar(cipher, freqs.value(), 3).ok());
+    REQUIRE_FALSE(GpuCandidateExport::affine(cipher, freqs.value(), 3).ok());
+#else
+    SUCCEED("CUDA build — device path tested separately");
+#endif
+}
+
 #if defined(PARCAE_HAS_CUDA)
 
 #include "parcae_cuda.hpp"
@@ -172,6 +312,84 @@ TEST_CASE(
         REQUIRE(
             gpu.value().rows()[i].candidate().output_indices() ==
             host.value().rows()[i].candidate().output_indices());
+    }
+}
+
+TEST_CASE(
+    "GpuCandidateExport fused atbash/atbash_caesar/affine match host scores",
+    "[search][export][cuda]") {
+    if (!ParcaeCuda::available()) {
+        SKIP("No CUDA device");
+    }
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+    const std::vector<Index29> cipher = synthetic_cipher();
+    ScoreRequest request;
+    request.expected_frequencies = &freqs.value();
+
+    {
+        StatusOr<std::vector<Index29>> plain = AtbashTransform{}.apply(
+            cipher, nlohmann::json::object(), TransformDirection::Decrypt);
+        REQUIRE(plain.ok());
+        StatusOr<double> score = ScoreRegistry::score(
+            "chi2_english_gp_v0", plain.value(), "v0", nlohmann::json::object(), request);
+        REQUIRE(score.ok());
+        StatusOr<GpuCandidateExport::Result> gpu =
+            GpuCandidateExport::atbash(cipher, freqs.value(), 1);
+        REQUIRE(gpu.ok());
+        StatusOr<GpuCandidateExport::Result> host =
+            GpuCandidateExport::atbash_from_host_scores(cipher, std::vector<double>{score.value()}, 1);
+        REQUIRE(host.ok());
+        REQUIRE(gpu.value().rows()[0].score() == host.value().rows()[0].score());
+        REQUIRE(
+            gpu.value().rows()[0].candidate().output_indices() ==
+            host.value().rows()[0].candidate().output_indices());
+    }
+
+    {
+        std::vector<double> scores(29, 0.0);
+        for (std::uint8_t shift = 0; shift < 29; ++shift) {
+            StatusOr<std::vector<Index29>> out = ComposeTransform::apply_atbash_then_caesar(
+                cipher, shift, TransformDirection::Decrypt);
+            REQUIRE(out.ok());
+            StatusOr<double> score = ScoreRegistry::score(
+                "chi2_english_gp_v0", out.value(), "v0", nlohmann::json::object(), request);
+            REQUIRE(score.ok());
+            scores[shift] = score.value();
+        }
+        constexpr std::size_t k = 5;
+        StatusOr<GpuCandidateExport::Result> gpu =
+            GpuCandidateExport::atbash_caesar(cipher, freqs.value(), k);
+        REQUIRE(gpu.ok());
+        StatusOr<GpuCandidateExport::Result> host =
+            GpuCandidateExport::atbash_caesar_from_host_scores(cipher, scores, k);
+        REQUIRE(host.ok());
+        for (std::size_t i = 0; i < k; ++i) {
+            REQUIRE(
+                gpu.value().rows()[i].candidate().candidate_id() ==
+                host.value().rows()[i].candidate().candidate_id());
+            REQUIRE(gpu.value().rows()[i].score() == host.value().rows()[i].score());
+        }
+    }
+
+    {
+        StatusOr<GpuCandidateExport::Result> gpu =
+            GpuCandidateExport::affine(cipher, freqs.value(), 4);
+        REQUIRE(gpu.ok());
+        REQUIRE(gpu.value().size() == 4);
+        // Recompute host scores only for returned lanes (full 812 CPU grid is slow in CI).
+        for (const GpuCandidateExport::Row& row : gpu.value().rows()) {
+            StatusOr<std::vector<Index29>> out = AffineTransform{}.apply(
+                cipher, row.candidate().params(), TransformDirection::Decrypt);
+            REQUIRE(out.ok());
+            StatusOr<double> score = ScoreRegistry::score(
+                "chi2_english_gp_v0", out.value(), "v0", nlohmann::json::object(), request);
+            REQUIRE(score.ok());
+            REQUIRE(row.score() == score.value());
+            REQUIRE(row.candidate().output_indices() == out.value());
+        }
     }
 }
 

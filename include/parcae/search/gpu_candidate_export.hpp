@@ -6,19 +6,26 @@
 #include "parcae/core/index29.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
+#include "parcae/generate/affine_candidate_generator.hpp"
+#include "parcae/generate/atbash_candidate_generator.hpp"
+#include "parcae/generate/atbash_caesar_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
 #include "parcae/generate/transform_candidate.hpp"
 #include "parcae/interrupt/policy.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
 #include "parcae/score/score_order.hpp"
 #include "parcae/tool/tool_backend.hpp"
+#include "parcae/transform/affine_transform.hpp"
+#include "parcae/transform/atbash_transform.hpp"
 #include "parcae/transform/caesar_transform.hpp"
+#include "parcae/transform/compose_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <span>
 #include <string>
 #include <utility>
@@ -30,6 +37,7 @@
 #include "caesar_chi2_batch.hpp"
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
+#include "family_chi2_batch.hpp"
 #include "parcae_cuda.hpp"
 
 #include <cuda_runtime_api.h>
@@ -37,8 +45,9 @@
 
 /// Fused GPU (or host-scored) export → top-k `TransformCandidate`s.
 ///
-/// Caesar v0: scores-only fused χ² (`CaesarChi2Batch`) → D2H scores → host
-/// `BatchOrdering` → apply transform **only** for retained lanes (search-loop.md).
+/// Scores-only fused χ² → D2H scores → host `BatchOrdering` → apply transform
+/// **only** for retained lanes (search-loop.md). Caesar uses `CaesarChi2Batch`;
+/// atbash / atbash_caesar / affine use `FamilyChi2Batch`.
 class GpuCandidateExport {
 public:
     static constexpr std::string_view score_id = "chi2_english_gp_v0";
@@ -65,7 +74,7 @@ public:
             return rank_;
         }
 
-        /// Lane index in the family grid (Caesar: shift 0..28).
+        /// Lane index in the family grid.
         [[nodiscard]] std::size_t source_index() const noexcept {
             return source_index_;
         }
@@ -122,46 +131,37 @@ public:
         parcae::tool::Backend backend_ = parcae::tool::Backend::Cuda;
     };
 
-    /// Materialize Caesar top-k from a host score vector indexed by shift.
-    /// `scores_by_shift.size()` MUST be 29. Used by the CUDA path after D2H and
-    /// by CPU tests that inject oracle scores (no device required).
+    // --- Caesar ----------------------------------------------------------------
+
     [[nodiscard]] static StatusOr<Result> caesar_from_host_scores(
         std::span<const Index29> cipher,
         std::span<const double> scores_by_shift,
         std::size_t k,
         TransformDirection direction = TransformDirection::Decrypt,
         parcae::tool::Backend backend = parcae::tool::Backend::Cpu) {
-        if (cipher.empty()) {
-            return Status::error("GpuCandidateExport: ciphertext must be non-empty");
-        }
-        if (k == 0) {
-            return Status::error("GpuCandidateExport: k must be >= 1");
+        Status common = require_cipher_k(cipher, k);
+        if (!common.ok()) {
+            return common;
         }
         if (scores_by_shift.size() != Index29::modulus) {
-            return Status::error("GpuCandidateExport: scores_by_shift must have length 29");
+            return Status::error("GpuCandidateExport: caesar scores must have length 29");
         }
-        if (direction != TransformDirection::Decrypt && direction != TransformDirection::Encrypt) {
-            return Status::error("GpuCandidateExport: invalid direction");
-        }
-
-        std::vector<BatchHit> hits;
-        hits.reserve(Index29::modulus);
-        for (std::size_t shift = 0; shift < Index29::modulus; ++shift) {
-            hits.emplace_back(
-                CaesarCandidateGenerator::make_candidate_id(static_cast<std::uint8_t>(shift)),
-                scores_by_shift[shift],
-                shift);
-        }
-        std::sort(hits.begin(), hits.end(), BatchOrdering::BestFirst{ScoreOrder::Asc});
-        if (hits.size() > k) {
-            hits.erase(hits.begin() + static_cast<std::ptrdiff_t>(k), hits.end());
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(
+            scores_by_shift,
+            k,
+            [](std::size_t shift) {
+                return CaesarCandidateGenerator::make_candidate_id(
+                    static_cast<std::uint8_t>(shift));
+            });
+        if (!hits.ok()) {
+            return hits.status();
         }
 
         const CaesarTransform transform;
         std::vector<Row> rows;
-        rows.reserve(hits.size());
-        for (std::size_t rank = 0; rank < hits.size(); ++rank) {
-            const BatchHit& hit = hits[rank];
+        rows.reserve(hits.value().size());
+        for (std::size_t rank = 0; rank < hits.value().size(); ++rank) {
+            const BatchHit& hit = hits.value()[rank];
             const std::uint8_t shift = static_cast<std::uint8_t>(hit.source_index());
             const nlohmann::json params = {{"shift", static_cast<int>(shift)}};
             StatusOr<std::vector<Index29>> plain =
@@ -180,8 +180,6 @@ public:
         return Result{std::move(rows), backend};
     }
 
-    /// Fused Caesar decrypt χ² on device → host top-k materialization.
-    /// Requires `PARCAE_HAS_CUDA` and a usable CUDA device at runtime.
     [[nodiscard]] static StatusOr<Result> caesar(
         std::span<const Index29> cipher,
         const ExpectedFrequencyTable& freqs,
@@ -199,85 +197,517 @@ public:
         return Status::error(
             "GpuCandidateExport::caesar requires CUDA (build with PARCAE_BUILD_CUDA=ON)");
 #else
-        if (!ParcaeCuda::available()) {
-            return Status::error("GpuCandidateExport::caesar: no CUDA device available");
+        StatusOr<std::vector<double>> scores = fused_caesar_scores(cipher, freqs);
+        if (!scores.ok()) {
+            return scores.status();
         }
+        return caesar_from_host_scores(
+            cipher, scores.value(), k, TransformDirection::Decrypt, parcae::tool::Backend::Cuda);
+#endif
+    }
+
+    // --- Atbash ----------------------------------------------------------------
+
+    [[nodiscard]] static StatusOr<Result> atbash_from_host_scores(
+        std::span<const Index29> cipher,
+        std::span<const double> scores,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt,
+        parcae::tool::Backend backend = parcae::tool::Backend::Cpu) {
+        Status common = require_cipher_k(cipher, k);
+        if (!common.ok()) {
+            return common;
+        }
+        if (scores.size() != AtbashCandidateGenerator::candidate_count) {
+            return Status::error("GpuCandidateExport: atbash scores must have length 1");
+        }
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(
+            scores, k, [](std::size_t) { return AtbashCandidateGenerator::make_candidate_id(); });
+        if (!hits.ok()) {
+            return hits.status();
+        }
+
+        const AtbashTransform transform;
+        const nlohmann::json params = nlohmann::json::object();
+        std::vector<Row> rows;
+        rows.reserve(hits.value().size());
+        for (std::size_t rank = 0; rank < hits.value().size(); ++rank) {
+            const BatchHit& hit = hits.value()[rank];
+            StatusOr<std::vector<Index29>> plain =
+                transform.apply(cipher, params, direction, InterruptPolicy::none());
+            if (!plain.ok()) {
+                return plain.status();
+            }
+            TransformCandidate candidate(
+                hit.candidate_id(),
+                TransformId::atbash(),
+                direction,
+                params,
+                std::move(plain.value()));
+            rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
+        }
+        return Result{std::move(rows), backend};
+    }
+
+    [[nodiscard]] static StatusOr<Result> atbash(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt) {
+        if (direction != TransformDirection::Decrypt) {
+            return Status::error(
+                "GpuCandidateExport::atbash fused path supports decrypt only");
+        }
+#if !defined(PARCAE_HAS_CUDA)
+        (void)cipher;
+        (void)freqs;
+        (void)k;
+        return Status::error(
+            "GpuCandidateExport::atbash requires CUDA (build with PARCAE_BUILD_CUDA=ON)");
+#else
+        StatusOr<std::vector<double>> scores = fused_atbash_scores(cipher, freqs);
+        if (!scores.ok()) {
+            return scores.status();
+        }
+        return atbash_from_host_scores(
+            cipher, scores.value(), k, TransformDirection::Decrypt, parcae::tool::Backend::Cuda);
+#endif
+    }
+
+    // --- Atbash ∘ Caesar -------------------------------------------------------
+
+    [[nodiscard]] static StatusOr<Result> atbash_caesar_from_host_scores(
+        std::span<const Index29> cipher,
+        std::span<const double> scores_by_shift,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt,
+        parcae::tool::Backend backend = parcae::tool::Backend::Cpu) {
+        Status common = require_cipher_k(cipher, k);
+        if (!common.ok()) {
+            return common;
+        }
+        if (scores_by_shift.size() != AtbashCaesarCandidateGenerator::candidate_count) {
+            return Status::error(
+                "GpuCandidateExport: atbash_caesar scores must have length 29");
+        }
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(
+            scores_by_shift,
+            k,
+            [](std::size_t shift) {
+                return AtbashCaesarCandidateGenerator::make_candidate_id(
+                    static_cast<std::uint8_t>(shift));
+            });
+        if (!hits.ok()) {
+            return hits.status();
+        }
+
+        std::vector<Row> rows;
+        rows.reserve(hits.value().size());
+        for (std::size_t rank = 0; rank < hits.value().size(); ++rank) {
+            const BatchHit& hit = hits.value()[rank];
+            const std::uint8_t shift = static_cast<std::uint8_t>(hit.source_index());
+            const nlohmann::json params = ComposeTransform::atbash_then_caesar_params(shift);
+            StatusOr<std::vector<Index29>> plain =
+                ComposeTransform::apply_atbash_then_caesar(cipher, shift, direction);
+            if (!plain.ok()) {
+                return plain.status();
+            }
+            TransformCandidate candidate(
+                hit.candidate_id(),
+                TransformId::compose(),
+                direction,
+                params,
+                std::move(plain.value()));
+            rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
+        }
+        return Result{std::move(rows), backend};
+    }
+
+    [[nodiscard]] static StatusOr<Result> atbash_caesar(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt) {
+        if (direction != TransformDirection::Decrypt) {
+            return Status::error(
+                "GpuCandidateExport::atbash_caesar fused path supports decrypt only");
+        }
+#if !defined(PARCAE_HAS_CUDA)
+        (void)cipher;
+        (void)freqs;
+        (void)k;
+        return Status::error(
+            "GpuCandidateExport::atbash_caesar requires CUDA "
+            "(build with PARCAE_BUILD_CUDA=ON)");
+#else
+        StatusOr<std::vector<double>> scores = fused_atbash_caesar_scores(cipher, freqs);
+        if (!scores.ok()) {
+            return scores.status();
+        }
+        return atbash_caesar_from_host_scores(
+            cipher, scores.value(), k, TransformDirection::Decrypt, parcae::tool::Backend::Cuda);
+#endif
+    }
+
+    // --- Affine ----------------------------------------------------------------
+
+    [[nodiscard]] static StatusOr<Result> affine_from_host_scores(
+        std::span<const Index29> cipher,
+        std::span<const double> scores,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt,
+        parcae::tool::Backend backend = parcae::tool::Backend::Cpu) {
+        Status common = require_cipher_k(cipher, k);
+        if (!common.ok()) {
+            return common;
+        }
+        if (scores.size() != AffineCandidateGenerator::candidate_count) {
+            return Status::error(
+                "GpuCandidateExport: affine scores must have length 812");
+        }
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(
+            scores,
+            k,
+            [](std::size_t index) {
+                const std::uint8_t a =
+                    static_cast<std::uint8_t>(index / Index29::modulus + 1);
+                const std::uint8_t b = static_cast<std::uint8_t>(index % Index29::modulus);
+                return AffineCandidateGenerator::make_candidate_id(a, b);
+            });
+        if (!hits.ok()) {
+            return hits.status();
+        }
+
+        const AffineTransform transform;
+        std::vector<Row> rows;
+        rows.reserve(hits.value().size());
+        for (std::size_t rank = 0; rank < hits.value().size(); ++rank) {
+            const BatchHit& hit = hits.value()[rank];
+            const std::size_t index = hit.source_index();
+            const std::uint8_t a = static_cast<std::uint8_t>(index / Index29::modulus + 1);
+            const std::uint8_t b = static_cast<std::uint8_t>(index % Index29::modulus);
+            const nlohmann::json params = {
+                {"a", static_cast<int>(a)},
+                {"b", static_cast<int>(b)},
+            };
+            StatusOr<std::vector<Index29>> plain =
+                transform.apply(cipher, params, direction, InterruptPolicy::none());
+            if (!plain.ok()) {
+                return plain.status();
+            }
+            TransformCandidate candidate(
+                hit.candidate_id(),
+                TransformId::affine(),
+                direction,
+                params,
+                std::move(plain.value()));
+            rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
+        }
+        return Result{std::move(rows), backend};
+    }
+
+    [[nodiscard]] static StatusOr<Result> affine(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt) {
+        if (direction != TransformDirection::Decrypt) {
+            return Status::error(
+                "GpuCandidateExport::affine fused path supports decrypt only");
+        }
+#if !defined(PARCAE_HAS_CUDA)
+        (void)cipher;
+        (void)freqs;
+        (void)k;
+        return Status::error(
+            "GpuCandidateExport::affine requires CUDA (build with PARCAE_BUILD_CUDA=ON)");
+#else
+        StatusOr<std::vector<double>> scores = fused_affine_scores(cipher, freqs);
+        if (!scores.ok()) {
+            return scores.status();
+        }
+        return affine_from_host_scores(
+            cipher, scores.value(), k, TransformDirection::Decrypt, parcae::tool::Backend::Cuda);
+#endif
+    }
+
+private:
+    GpuCandidateExport() = delete;
+
+    [[nodiscard]] static Status require_cipher_k(
+        std::span<const Index29> cipher,
+        std::size_t k) {
         if (cipher.empty()) {
             return Status::error("GpuCandidateExport: ciphertext must be non-empty");
         }
         if (k == 0) {
             return Status::error("GpuCandidateExport: k must be >= 1");
         }
-        if (freqs.probabilities().size() != Index29::modulus) {
-            return Status::error("GpuCandidateExport: expected frequency table must have 29 bins");
-        }
+        return Status::success();
+    }
 
+    [[nodiscard]] static StatusOr<std::vector<BatchHit>> select_top_k(
+        std::span<const double> scores,
+        std::size_t k,
+        const std::function<std::string(std::size_t)>& id_for_index) {
+        std::vector<BatchHit> hits;
+        hits.reserve(scores.size());
+        for (std::size_t i = 0; i < scores.size(); ++i) {
+            hits.emplace_back(id_for_index(i), scores[i], i);
+        }
+        std::sort(hits.begin(), hits.end(), BatchOrdering::BestFirst{ScoreOrder::Asc});
+        if (hits.size() > k) {
+            hits.erase(hits.begin() + static_cast<std::ptrdiff_t>(k), hits.end());
+        }
+        return hits;
+    }
+
+#if defined(PARCAE_HAS_CUDA)
+    [[nodiscard]] static Status require_cuda_freqs(const ExpectedFrequencyTable& freqs) {
+        if (!ParcaeCuda::available()) {
+            return Status::error("GpuCandidateExport: no CUDA device available");
+        }
+        if (freqs.probabilities().size() != Index29::modulus) {
+            return Status::error(
+                "GpuCandidateExport: expected frequency table must have 29 bins");
+        }
+        return Status::success();
+    }
+
+    [[nodiscard]] static std::vector<std::uint8_t> to_bytes(std::span<const Index29> cipher) {
+        std::vector<std::uint8_t> out(cipher.size());
+        for (std::size_t i = 0; i < cipher.size(); ++i) {
+            out[i] = cipher[i].value();
+        }
+        return out;
+    }
+
+    struct DeviceScratch {
+        DeviceBuffer<std::uint8_t> in;
+        DeviceBuffer<double> probs;
+        DeviceBuffer<std::uint32_t> counts;
+        DeviceBuffer<double> scores;
+        std::size_t C = 0;
+        std::size_t T = 0;
+    };
+
+    [[nodiscard]] static StatusOr<DeviceScratch> make_scratch(
+        std::span<const std::uint8_t> host_in,
+        const ExpectedFrequencyTable& freqs,
+        std::size_t C) {
+        DeviceScratch s;
+        s.C = C;
+        s.T = host_in.size();
+        StatusOr<DeviceBuffer<std::uint8_t>> in = DeviceBuffer<std::uint8_t>::from_host(host_in);
+        if (!in.ok()) {
+            return in.status();
+        }
+        s.in = std::move(in.value());
+        StatusOr<DeviceBuffer<double>> probs = DeviceBuffer<double>::from_host(
+            std::span<const double>(freqs.probabilities().data(), freqs.probabilities().size()));
+        if (!probs.ok()) {
+            return probs.status();
+        }
+        s.probs = std::move(probs.value());
+        StatusOr<DeviceBuffer<std::uint32_t>> counts =
+            DeviceBuffer<std::uint32_t>::allocate(C * Index29::modulus);
+        if (!counts.ok()) {
+            return counts.status();
+        }
+        s.counts = std::move(counts.value());
+        StatusOr<DeviceBuffer<double>> scores = DeviceBuffer<double>::allocate(C);
+        if (!scores.ok()) {
+            return scores.status();
+        }
+        s.scores = std::move(scores.value());
+        return s;
+    }
+
+    template <typename LaunchFn>
+    [[nodiscard]] static StatusOr<std::vector<double>> launch_sync_copy(
+        DeviceScratch& scratch,
+        LaunchFn&& launch,
+        const char* sync_label) {
+        Status launched = launch();
+        if (!launched.ok()) {
+            return launched;
+        }
+        Status synced = CudaError::to_status(cudaDeviceSynchronize(), sync_label);
+        if (!synced.ok()) {
+            return synced;
+        }
+        std::vector<double> scores(scratch.C, 0.0);
+        Status copied = scratch.scores.copy_to_host(scores);
+        if (!copied.ok()) {
+            return copied;
+        }
+        return scores;
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_caesar_scores(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs) {
+        Status ok = require_cuda_freqs(freqs);
+        if (!ok.ok()) {
+            return ok;
+        }
+        Status common = require_cipher_k(cipher, 1);
+        if (!common.ok()) {
+            return common;
+        }
         constexpr std::size_t C = Index29::modulus;
-        const std::size_t T = cipher.size();
-        std::vector<std::uint8_t> host_in(T);
-        for (std::size_t i = 0; i < T; ++i) {
-            host_in[i] = cipher[i].value();
+        const auto host_in = to_bytes(cipher);
+        StatusOr<DeviceScratch> scratch = make_scratch(host_in, freqs, C);
+        if (!scratch.ok()) {
+            return scratch.status();
         }
         std::vector<std::uint8_t> shifts(C);
         for (std::size_t c = 0; c < C; ++c) {
             shifts[c] = static_cast<std::uint8_t>(c);
-        }
-
-        StatusOr<DeviceBuffer<std::uint8_t>> device_in =
-            DeviceBuffer<std::uint8_t>::from_host(host_in);
-        if (!device_in.ok()) {
-            return device_in.status();
         }
         StatusOr<DeviceBuffer<std::uint8_t>> device_shifts =
             DeviceBuffer<std::uint8_t>::from_host(shifts);
         if (!device_shifts.ok()) {
             return device_shifts.status();
         }
-        StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
-            std::span<const double>(freqs.probabilities().data(), freqs.probabilities().size()));
-        if (!device_probs.ok()) {
-            return device_probs.status();
-        }
-        StatusOr<DeviceBuffer<std::uint32_t>> device_counts =
-            DeviceBuffer<std::uint32_t>::allocate(C * Index29::modulus);
-        if (!device_counts.ok()) {
-            return device_counts.status();
-        }
-        StatusOr<DeviceBuffer<double>> device_scores = DeviceBuffer<double>::allocate(C);
-        if (!device_scores.ok()) {
-            return device_scores.status();
-        }
-
-        Status launched = CaesarChi2Batch::launch_decrypt_async(
-            device_in.value().data(),
-            device_shifts.value().data(),
-            device_probs.value().data(),
-            device_counts.value().data(),
-            device_scores.value().data(),
-            C,
-            T);
-        if (!launched.ok()) {
-            return launched;
-        }
-        Status synced =
-            CudaError::to_status(cudaDeviceSynchronize(), "GpuCandidateExport::caesar sync");
-        if (!synced.ok()) {
-            return synced;
-        }
-
-        std::vector<double> scores(C, 0.0);
-        Status copied = device_scores.value().copy_to_host(scores);
-        if (!copied.ok()) {
-            return copied;
-        }
-
-        return caesar_from_host_scores(
-            cipher, scores, k, TransformDirection::Decrypt, parcae::tool::Backend::Cuda);
-#endif
+        return launch_sync_copy(
+            scratch.value(),
+            [&]() {
+                return CaesarChi2Batch::launch_decrypt_async(
+                    scratch.value().in.data(),
+                    device_shifts.value().data(),
+                    scratch.value().probs.data(),
+                    scratch.value().counts.data(),
+                    scratch.value().scores.data(),
+                    C,
+                    scratch.value().T);
+            },
+            "GpuCandidateExport::caesar sync");
     }
 
-private:
-    GpuCandidateExport() = delete;
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_atbash_scores(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs) {
+        Status ok = require_cuda_freqs(freqs);
+        if (!ok.ok()) {
+            return ok;
+        }
+        Status common = require_cipher_k(cipher, 1);
+        if (!common.ok()) {
+            return common;
+        }
+        constexpr std::size_t C = AtbashCandidateGenerator::candidate_count;
+        const auto host_in = to_bytes(cipher);
+        StatusOr<DeviceScratch> scratch = make_scratch(host_in, freqs, C);
+        if (!scratch.ok()) {
+            return scratch.status();
+        }
+        return launch_sync_copy(
+            scratch.value(),
+            [&]() {
+                return FamilyChi2Batch::launch_atbash_async(
+                    scratch.value().in.data(),
+                    scratch.value().probs.data(),
+                    scratch.value().counts.data(),
+                    scratch.value().scores.data(),
+                    C,
+                    scratch.value().T);
+            },
+            "GpuCandidateExport::atbash sync");
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_atbash_caesar_scores(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs) {
+        Status ok = require_cuda_freqs(freqs);
+        if (!ok.ok()) {
+            return ok;
+        }
+        Status common = require_cipher_k(cipher, 1);
+        if (!common.ok()) {
+            return common;
+        }
+        constexpr std::size_t C = AtbashCaesarCandidateGenerator::candidate_count;
+        const auto host_in = to_bytes(cipher);
+        StatusOr<DeviceScratch> scratch = make_scratch(host_in, freqs, C);
+        if (!scratch.ok()) {
+            return scratch.status();
+        }
+        std::vector<std::uint8_t> shifts(C);
+        for (std::size_t c = 0; c < C; ++c) {
+            shifts[c] = static_cast<std::uint8_t>(c);
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_shifts =
+            DeviceBuffer<std::uint8_t>::from_host(shifts);
+        if (!device_shifts.ok()) {
+            return device_shifts.status();
+        }
+        return launch_sync_copy(
+            scratch.value(),
+            [&]() {
+                return FamilyChi2Batch::launch_atbash_caesar_async(
+                    scratch.value().in.data(),
+                    device_shifts.value().data(),
+                    scratch.value().probs.data(),
+                    scratch.value().counts.data(),
+                    scratch.value().scores.data(),
+                    C,
+                    scratch.value().T);
+            },
+            "GpuCandidateExport::atbash_caesar sync");
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_affine_scores(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs) {
+        Status ok = require_cuda_freqs(freqs);
+        if (!ok.ok()) {
+            return ok;
+        }
+        Status common = require_cipher_k(cipher, 1);
+        if (!common.ok()) {
+            return common;
+        }
+        constexpr std::size_t C = AffineCandidateGenerator::candidate_count;
+        const auto host_in = to_bytes(cipher);
+        StatusOr<DeviceScratch> scratch = make_scratch(host_in, freqs, C);
+        if (!scratch.ok()) {
+            return scratch.status();
+        }
+        std::vector<std::uint8_t> a(C);
+        std::vector<std::uint8_t> b(C);
+        std::size_t c = 0;
+        for (std::uint8_t ai = 1; ai < Index29::modulus; ++ai) {
+            for (std::uint8_t bi = 0; bi < Index29::modulus; ++bi) {
+                a[c] = ai;
+                b[c] = bi;
+                ++c;
+            }
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_a = DeviceBuffer<std::uint8_t>::from_host(a);
+        if (!device_a.ok()) {
+            return device_a.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_b = DeviceBuffer<std::uint8_t>::from_host(b);
+        if (!device_b.ok()) {
+            return device_b.status();
+        }
+        return launch_sync_copy(
+            scratch.value(),
+            [&]() {
+                return FamilyChi2Batch::launch_affine_async(
+                    scratch.value().in.data(),
+                    device_a.value().data(),
+                    device_b.value().data(),
+                    scratch.value().probs.data(),
+                    scratch.value().counts.data(),
+                    scratch.value().scores.data(),
+                    C,
+                    scratch.value().T);
+            },
+            "GpuCandidateExport::affine sync");
+    }
+#endif
 };
 
 #endif // GPU_CANDIDATE_EXPORT_HPP

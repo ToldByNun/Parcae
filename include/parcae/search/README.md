@@ -17,7 +17,7 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `search_prior.hpp` | `SearchPrior` | Done (`parcae.search_prior.v0`) |
 | `batch_artifact.hpp` | `BatchArtifact` | Done (`parcae.batch_artifact.v0`) |
 | `workspace_cipher.hpp` | `WorkspaceCipher` | Done (`workspace.v0` → `Index29`) |
-| `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar fused top-k) |
+| `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar / atbash / atbash_caesar / affine) |
 | `hypothesis_bridge.hpp` | `HypothesisBridge` | Planned |
 | `search_scheduler.hpp` | `SearchScheduler` | Planned |
 
