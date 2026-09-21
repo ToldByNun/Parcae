@@ -113,7 +113,8 @@ namespace parcae::tool {
     }
     if (backend != Backend::Cpu) {
         return Status::error(
-            "TheoryDispatch theory URIs are CPU-only until CUDA DSL smoke (I42)");
+            "TheoryDispatch theory URIs are CPU-only in this slice "
+            "(CUDA path uses emitted twins / [cuda][dsl][smoke])");
     }
     return TheoryDispatch::apply(theories_root, envelope, input);
 }

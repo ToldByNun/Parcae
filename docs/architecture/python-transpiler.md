@@ -237,8 +237,9 @@ Community `.py` / hostile JSON must not crash the compiler:
 - [x] Exhaustive gate for arity-4 demo primitive (`poly2_mod29`)
 - [ ] Fail-loud stub tests
 - [x] Stale `dsl_spec_version` rejected by registry/validate
-- [ ] Emitted CUDA uses class + header-guard style
-- [ ] Fusion or `fallback_staged` recorded for compose example
+- [x] Emitted CUDA uses class + header-guard style
+- [x] Fusion or `fallback_staged` recorded for compose example
+- [x] `[cuda][dsl][smoke]` emit text + `DslSmokeCaesarKernel` golden twin
 - [ ] No `phase*` names in new paths/artifacts
 
 ---

@@ -81,10 +81,11 @@ Tests: `[dsl][compile]` DslCompile end-to-end on quadratic_polynomial_stream fix
 Tests: `[dsl][examples][i39]` `theories/examples/new_math_example.py` compile + validate.
 Tests: `[dsl][examples][i40]` `theories/examples/full_lifecycle_example.py` compose fuse + validate.
 Tests: `[dsl][dispatch][i41]` TheoryDispatch catalog + theory URI apply.
+Tests: `[cuda][dsl][smoke]` DslEmitCuda text + `DslSmokeCaesarKernel` (device when CUDA ON).
 
 ## Planned (later commits)
 
-CUDA DSL smoke; CI compile examples.
+CI compile examples; docs index; version bump.
 
 Headers are part of the header-only `parcae::core` INTERFACE include tree
 (`include/` via root `CMakeLists.txt`).

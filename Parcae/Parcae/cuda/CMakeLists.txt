@@ -12,6 +12,7 @@ set(PARCAE_CUDA_SOURCES
   atbash_caesar_batch_kernel.cu
   caesar_kernel.cu
   caesar_batch_kernel.cu
+  dsl_smoke_caesar_kernel.cu
   affine_kernel.cu
   affine_batch_kernel.cu
   vigenere_key_kernel.cu

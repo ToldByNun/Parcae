@@ -180,6 +180,7 @@
     <ClInclude Include="cuda\atbash_batch_kernel.hpp" />
     <ClInclude Include="cuda\atbash_caesar_batch_kernel.hpp" />
     <ClInclude Include="cuda\caesar_kernel.hpp" />
+    <ClInclude Include="cuda\dsl_smoke_caesar_kernel.hpp" />
     <ClInclude Include="cuda\caesar_batch_kernel.hpp" />
     <ClInclude Include="cuda\z29_device.hpp" />
     <ClInclude Include="cuda\affine_kernel.hpp" />
@@ -203,6 +204,7 @@
     <CudaCompile Include="cuda\atbash_batch_kernel.cu" />
     <CudaCompile Include="cuda\atbash_caesar_batch_kernel.cu" />
     <CudaCompile Include="cuda\caesar_kernel.cu" />
+    <CudaCompile Include="cuda\dsl_smoke_caesar_kernel.cu" />
     <CudaCompile Include="cuda\caesar_batch_kernel.cu" />
     <CudaCompile Include="cuda\affine_kernel.cu" />
     <CudaCompile Include="cuda\affine_batch_kernel.cu" />

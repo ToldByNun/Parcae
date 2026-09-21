@@ -66,6 +66,7 @@ Targets:
 | `[cuda][interrupt]` | Host interrupt view always run | same |
 | `[cuda][backend]` | Validation always; catalog run when CUDA ON | Full `CudaBackend` dispatch vs CPU |
 | `[cuda][smoke]` | Skip / SUCCEED marker | `IdentityCopy` H2D → kernel → D2H |
+| `[cuda][dsl][smoke]` | Emit-text + cuda_mirror always; device skip | `DslSmokeCaesarKernel` vs `DslIrApplicator` |
 | `[cuda][parity][atbash]` | Skip / SUCCEED marker | `AtbashKernel` vs CPU `AtbashTransform::kernel` |
 | `[cuda][parity][caesar]` | Skip / SUCCEED marker | `CaesarKernel` vs CPU `CaesarTransform::kernel` |
 | `[cuda][parity][identity]` | Skip / SUCCEED marker | `CudaBackend` identity vs CPU `IdentityTransform` |

@@ -68,6 +68,9 @@
     <ClInclude Include="cuda\caesar_kernel.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\dsl_smoke_caesar_kernel.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
     <ClInclude Include="cuda\caesar_batch_kernel.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
@@ -128,6 +131,9 @@
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\caesar_kernel.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\dsl_smoke_caesar_kernel.cu">
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\caesar_batch_kernel.cu">
