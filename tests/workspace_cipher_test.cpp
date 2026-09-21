@@ -77,7 +77,7 @@ TEST_CASE("WorkspaceCipher from_indices for inline override", "[search][cipher]"
 }
 
 TEST_CASE("WorkspaceCipher rejects inline_pending without indices", "[search][cipher]") {
-    const auto tmp = std::filesystem::temp_directory_path() / "parcae_workspace_cipher_b9_inline";
+    const auto tmp = std::filesystem::temp_directory_path() / "parcae_workspace_cipher_c9_inline";
     std::error_code ec;
     std::filesystem::remove_all(tmp, ec);
     std::filesystem::create_directories(tmp / "workspaces", ec);
@@ -92,7 +92,7 @@ TEST_CASE("WorkspaceCipher rejects inline_pending without indices", "[search][ci
 }
 
 TEST_CASE("WorkspaceCipher loads workspace_file under workspace root", "[search][cipher]") {
-    const auto tmp = std::filesystem::temp_directory_path() / "parcae_workspace_cipher_b9_file";
+    const auto tmp = std::filesystem::temp_directory_path() / "parcae_workspace_cipher_c9_file";
     std::error_code ec;
     std::filesystem::remove_all(tmp, ec);
     std::filesystem::create_directories(tmp / "workspaces", ec);
@@ -147,7 +147,7 @@ TEST_CASE("WorkspaceCipher loads workspace_file under workspace root", "[search]
 }
 
 TEST_CASE("WorkspaceCipher rejects path escape and bad fixture ids", "[search][cipher]") {
-    const auto tmp = std::filesystem::temp_directory_path() / "parcae_workspace_cipher_b9_escape";
+    const auto tmp = std::filesystem::temp_directory_path() / "parcae_workspace_cipher_c9_escape";
     std::error_code ec;
     std::filesystem::remove_all(tmp, ec);
     std::filesystem::create_directories(tmp / "workspaces", ec);

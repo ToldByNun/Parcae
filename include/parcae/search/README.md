@@ -22,4 +22,5 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `search_scheduler.hpp` | `SearchScheduler` | Planned |
 
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,
-`[search][cipher]` — parse / validate / store-load / digests / ciphertext resolve.
+`[search][cipher]`, `[search][cipher][resolve]` — parse / digests / ciphertext
+resolve (fixture + workspace_file + path-escape).
