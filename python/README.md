@@ -47,5 +47,6 @@ inside `parcae-compile`.
 ```text
 cd python
 pip install -e ".[dev]"
+pytest -m ci -q    # fail-loud stub contract (ParcaeDslStubError)
 pytest -q
 ```

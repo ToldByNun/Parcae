@@ -53,17 +53,19 @@ theory.py  ──import──►  parcae.dsl stubs     (IDE only; calls raise)
 # IDE / authoring (optional editable install)
 cd python && pip install -e ".[dev]"
 
+# Stub runtime contract (must raise ParcaeDslStubError)
+cd python && pytest -m ci -q
+
 # Syntax dump only (for debugging the wire format)
 python -m parcae.dsl.ast_dump path/to/theory.py
 
 # Authoritative compile + verify (C++ CLI)
-parcae-compile --status --json          # versions / stub readiness
-parcae-compile path/to/theory.py        # full pipeline when implemented
+parcae-compile --status --json
+parcae-compile path/to/theory.py
 ```
 
-Until the compile pipeline is fully wired, `parcae-compile <file.py>` reports
-`not_built`. That is intentional: missing verification is a hard failure, not a
-silent success via stubs.
+Stub unit tests live in [`python/tests/test_stubs_fail_loud.py`](../../python/tests/test_stubs_fail_loud.py).
+If a semantic call returns without raising, the stub package is broken.
 
 ## Spec anchors
 

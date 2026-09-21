@@ -281,10 +281,10 @@ Community `.py` / hostile JSON must not crash the compiler:
 - [x] Envelope bridge + `TheoryDispatch` / `apply_ir.json`
 - [x] `[cuda][dsl][smoke]` emit text + `DslSmokeCaesarKernel` golden twin
 - [x] Architecture hub links this guide ([README.md](README.md))
+- [x] Stub runtime raises `ParcaeDslStubError` (`python/tests/test_stubs_fail_loud.py`)
 - [x] No `phase*` names in new DSL paths/artifacts (`python-transpiler.md`, not phase*)
 
-Remaining polish (separate commits): CI compile-examples job; stub runtime unit
-test hardening; toolkit version bump.
+Remaining polish (separate commits): CI compile-examples job; toolkit version bump.
 
 ---
 
