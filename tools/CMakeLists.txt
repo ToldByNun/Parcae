@@ -76,6 +76,14 @@ if(PARCAE_BUILD_TESTS)
   set_tests_properties(cli_compile_missing_path_json PROPERTIES WILL_FAIL TRUE)
 
   add_test(
+    NAME cli_validate_theories_empty_json
+    COMMAND $<TARGET_FILE:parcae-validate>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --theories
+      --json
+  )
+
+  add_test(
     NAME cli_catalog_generators_json
     COMMAND $<TARGET_FILE:parcae-catalog>
       --generators

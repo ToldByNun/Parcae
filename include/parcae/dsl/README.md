@@ -51,6 +51,7 @@ private:
 | `theory_uri.hpp` | `TheoryUri` | Done (`parcae://theories/<name>@<ver>`) |
 | `theory_artifact.hpp` | `TheoryArtifact` | Done (writer embeds `dsl_spec_version`) |
 | `theory_registry.hpp` | `TheoryRegistry` | Done (rejects stale `dsl_spec_version`) |
+| `theory_validate.hpp` | `TheoryValidate` | Done (manifest + dsl_spec + path files) |
 | `dsl_build_ir.hpp` | `DslBuildIr` | Done (AST → PrimitiveIr / TheoryIr) |
 | `dsl_compile.hpp` | `DslCompile` | Done (ast_dump spawn → artifact) |
 | `dsl.hpp` | umbrella | Done |
@@ -69,6 +70,7 @@ Tests: `[dsl][peak]` DslPeakSanity vs ThroughputTiers ceilings / SLO.
 Tests: `[dsl][artifact]` TheoryArtifact writer stamps `dsl_spec_version` + store/load.
 Tests: `[dsl][registry]` TheoryRegistry load rejects stale MAJOR; list marks `stale_spec`.
 Tests: `[dsl][registry][stale]` committed `0.9.0` fixture + major-bump / recompile contract.
+Tests: `[dsl][validate]` TheoryValidate manifest / dsl_spec / path presence.
 Tests: `[dsl][compile]` DslCompile end-to-end on quadratic_polynomial_stream fixture.
 
 ## Planned (later commits)

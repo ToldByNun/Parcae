@@ -236,7 +236,7 @@ Community `.py` / hostile JSON must not crash the compiler:
       `full_lifecycle_example.py`
 - [ ] Exhaustive gate for arity-4 demo primitive (`poly2_mod29`)
 - [ ] Fail-loud stub tests
-- [ ] Stale `dsl_spec_version` rejected by registry/validate
+- [x] Stale `dsl_spec_version` rejected by registry/validate
 - [ ] Emitted CUDA uses class + header-guard style
 - [ ] Fusion or `fallback_staged` recorded for compose example
 - [ ] No `phase*` names in new paths/artifacts

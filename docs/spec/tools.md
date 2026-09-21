@@ -297,16 +297,27 @@ exit **2** if CUDA is requested but not built.
 ```text
 parcae-validate --id <fixture_id|path> [--require-locked] [--json] [--data-dir <path>]
 parcae-validate --all [--require-locked] [--json] [--data-dir <path>]
+parcae-validate --theory <uri|name@version|dir> [--json] [--data-dir <path>]
+parcae-validate --theories [--json] [--data-dir <path>]
 ```
 
-With `--all --require-locked`, only fixtures whose `verification.status` is
-`locked` are selected (draft/synth fixtures are skipped).
+**Fixture mode** (`--id` / `--all`): validate solved fixtures under
+`data/fixtures/solved/`. With `--all --require-locked`, only fixtures whose
+`verification.status` is `locked` are selected (draft/synth fixtures are skipped).
+
+**Theory mode** (`--theory` / `--theories`): validate compiled theory artifacts
+under `data/theories/` ([theory-artifact.md](theory-artifact.md)). Checks
+manifest integrity, `dsl_spec_version` compatibility (stale MAJOR → fail;
+message includes re-run `parcae-compile`), `verification.passed`, and that
+declared `paths.*` files exist. Does not re-run exhaustive/fuzz verify.
+`--theory` accepts `parcae://theories/<name>@<ver>`, `<name>@<ver>`, or an
+artifact directory / `manifest.json` path.
 
 Exit codes:
 
 | Code | Meaning |
 |------|---------|
-| 0 | all selected fixtures passed |
+| 0 | all selected fixtures / theories passed |
 | 1 | validation failure |
 | 2 | usage / I/O / schema error |
 
