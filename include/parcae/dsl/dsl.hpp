@@ -29,7 +29,7 @@
 ///   - DslBuildIr / DslCompile (ast_dump → artifact)
 ///   - Example: theories/examples/new_math_example.py
 ///   - Example: theories/examples/full_lifecycle_example.py (@ComposedTheory)
-/// Later commits: CI examples / docs index / version bump.
+/// Later commits: CI examples / version bump.
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"

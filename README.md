@@ -32,9 +32,11 @@ License: [MIT](LICENSE).
 |------|----------|
 | Research (alphabet, solved methods, hypotheses) | [docs/research/](docs/research/README.md) |
 | Normative specs (Z29, tokens, transforms, fixtures, tools, parity) | [docs/spec/](docs/spec/README.md) |
-| Architecture (CPU map, CUDA ABI / roadmap / throughput / Phase 4) | [docs/architecture/](docs/architecture/README.md) |
+| Architecture (CPU map, CUDA, theory DSL compiler, Phase 4) | [docs/architecture/](docs/architecture/README.md) |
+| Theory DSL compiler (AST-JSON → IR → CPU/CUDA artifacts) | [docs/architecture/python-transpiler.md](docs/architecture/python-transpiler.md) |
 | CMD agent handbook (`parcae-agent`) | [docs/architecture/agent-handbook.md](docs/architecture/agent-handbook.md) |
 | CUDA sources (Visual Studio) | [Parcae/Parcae/cuda/](Parcae/Parcae/cuda/) |
+| Example theories | [theories/examples/](theories/examples/) |
 
 ## Roadmap (high level)
 
@@ -42,6 +44,7 @@ License: [MIT](LICENSE).
 research + specs     →  docs/research, docs/spec          (done)
 CPU reference        →  include/, fixtures, scores, CLIs  (done)
 CUDA parity          →  Parcae/Parcae/cuda/ twins         (done — v0.3.0-cuda-parity)
+Theory DSL compiler  →  theories/ + include/parcae/dsl/   (done — authoring → artifacts)
 AI tooling           →  CMD agent + deterministic tools   (Phase 4 — planned)
 search on LP2 0–55   →  candidates ↔ hypotheses → new discoveries
 open source polish   →  packaging, contribution docs

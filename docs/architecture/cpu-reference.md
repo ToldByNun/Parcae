@@ -31,7 +31,7 @@ under a parallel `include/parcae/cuda/` tree.
 ```text
 include/parcae/
   core/          Index29, Z29, Status, SHA-256, Version
-  dsl/           Theory DSL compiler (+ DslVerifier: exhaustive/fuzz + CPU↔CUDA mirror)
+  dsl/           Theory DSL compiler — see python-transpiler.md
   gematria/      Profile load, RuneCodec, LatinCodec / labels
   corpus/        Tokenizer, TokenStream, Fixture + loader, masks
   interrupt/     InterruptPolicy (explicit skip indices)
@@ -46,7 +46,7 @@ include/parcae/
 
 tools/
   parcae-tokenize | parcae-decode | parcae-score | parcae-validate
-  parcae-catalog | parcae-compile | parcae-parity | parcae-parity-gen | parcae-search-run
+  parcae-catalog | parcae-compile | parcae-sweep | parcae-parity | parcae-parity-gen | parcae-search-run
 
 Parcae/Parcae/                 # Visual Studio app + CUDA twins
   main.cpp
@@ -63,7 +63,7 @@ data/
 | Module | Responsibility | CUDA twin? |
 |--------|----------------|------------|
 | `core` / `gematria` / `corpus` | Host setup, UTF-8, fixtures | No (CPU setup) |
-| `dsl` | Theory DSL compile (+ DslVerifier: exhaustive/fuzz + CPU↔CUDA mirror) | Emitted twins under `cuda/emitted/` |
+| `dsl` | Theory DSL compile (+ DslVerifier: exhaustive/fuzz + CPU↔CUDA mirror) | See [python-transpiler.md](python-transpiler.md); emitted twins under `cuda/emitted/` |
 | `interrupt` | Skip-set policy | Policy bytes mirrored on device |
 | `transform` + `math` | Index29 kernels / keystream | **Yes — primary** |
 | `score` | Pure scores on Index29 | **Yes — reductions** |

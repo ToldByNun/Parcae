@@ -85,7 +85,7 @@ Tests: `[cuda][dsl][smoke]` DslEmitCuda text + `DslSmokeCaesarKernel` (device wh
 
 ## Planned (later commits)
 
-CI compile examples; docs index; version bump.
+CI compile-examples job; stub runtime hardening; toolkit version bump.
 
 Headers are part of the header-only `parcae::core` INTERFACE include tree
 (`include/` via root `CMakeLists.txt`).

@@ -1,6 +1,7 @@
 # Architecture
 
-Guides for how the C++ toolkit is structured and how CUDA attaches.
+Guides for how the C++ toolkit is structured, how CUDA attaches, and how the
+theory DSL compiles into that stack.
 
 | Doc | Contents |
 |-----|----------|
@@ -15,7 +16,7 @@ Guides for how the C++ toolkit is structured and how CUDA attaches.
 | [phase4-agent-tooling.md](phase4-agent-tooling.md) | **Frozen** Phase 4 CMD-agent plan (`parcae-agent`) |
 | [agent-handbook.md](agent-handbook.md) | CMD operator handbook for `parcae-agent` |
 | [agent-provider-smoke.md](agent-provider-smoke.md) | Optional live Ollama / OpenRouter smoke (CI skips) |
-| [python-transpiler.md](python-transpiler.md) | Theory DSL → C++/CUDA compiler (AST-JSON frontend, IR, gates) |
+| [python-transpiler.md](python-transpiler.md) | **Theory DSL compiler** — AST-JSON → IR → verify → CPU/CUDA emit → artifacts |
 | [dsl-stubs.md](dsl-stubs.md) | Stubs vs compiler — only `parcae-compile` verifies |
 
 **CUDA implementation directory:** [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio).
@@ -24,6 +25,32 @@ Guides for how the C++ toolkit is structured and how CUDA attaches.
 Operator guide: [`agent-handbook.md`](agent-handbook.md).
 Config schema `parcae.agent_config.v0`: [`docs/spec/agent-tools.md`](../spec/agent-tools.md).
 
-**Theory DSL:** Normative specs [`dsl.md`](../spec/dsl.md), [`dsl-ast-json.md`](../spec/dsl-ast-json.md),
-[`theory-artifact.md`](../spec/theory-artifact.md); architecture in [`python-transpiler.md`](python-transpiler.md).
-IDE stubs (fail-loud, not the compiler): [`python/`](../../python/) — see [`dsl-stubs.md`](dsl-stubs.md).
+---
+
+## Theory DSL (start here)
+
+Architecture guide: **[`python-transpiler.md`](python-transpiler.md)**.
+
+| Piece | Location |
+|-------|----------|
+| Normative language | [`docs/spec/dsl.md`](../spec/dsl.md) |
+| AST wire format | [`docs/spec/dsl-ast-json.md`](../spec/dsl-ast-json.md) |
+| Artifacts / URIs | [`docs/spec/theory-artifact.md`](../spec/theory-artifact.md) |
+| IDE stubs (fail-loud) | [`python/parcae/dsl/`](../../python/parcae/dsl/) — [`dsl-stubs.md`](dsl-stubs.md) |
+| Example theories | [`theories/examples/`](../../theories/examples/) |
+| C++ compiler headers | [`include/parcae/dsl/`](../../include/parcae/dsl/) |
+| Compiled artifacts | [`data/theories/`](../../data/theories/) (`parcae://theories/<name>@<ver>`) |
+
+**Authoring → runtime (short path):**
+
+```text
+theories/examples/*.py
+    → parcae-compile          (ast_dump → IR → verify → emit)
+    → data/theories/…/        (manifest, apply_ir.json, envelope.json, CPU/CUDA text)
+    → TheoryDispatch          (catalog ApplyTransform | theory URI + apply_ir)
+```
+
+Related CLIs: `parcae-compile`, `parcae-validate --theory`, `parcae-sweep`,
+`parcae-catalog --theories` — contracts in [`docs/spec/tools.md`](../spec/tools.md).
+
+CUDA DSL emit smoke: Catch2 tag `[cuda][dsl][smoke]` — see [`cuda-build.md`](cuda-build.md).

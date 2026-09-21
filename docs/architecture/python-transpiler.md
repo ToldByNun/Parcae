@@ -1,10 +1,11 @@
 # Python theory DSL → C++/CUDA compiler
 
-**Status:** Architecture guide (implementation follows normative specs)  
+**Status:** Architecture guide (implementation matches normative specs unless noted)  
 **Normative language:** [`docs/spec/dsl.md`](../spec/dsl.md)  
 **AST wire format:** [`docs/spec/dsl-ast-json.md`](../spec/dsl-ast-json.md)  
 **Artifacts:** [`docs/spec/theory-artifact.md`](../spec/theory-artifact.md)  
-**CPU / CUDA context:** [`cpu-reference.md`](cpu-reference.md), [`cuda-reference.md`](cuda-reference.md), [`cuda-throughput.md`](cuda-throughput.md)
+**Index:** [`README.md`](README.md) (architecture hub)  
+**CPU / CUDA context:** [`cpu-reference.md`](cpu-reference.md), [`cuda-reference.md`](cuda-reference.md), [`cuda-throughput.md`](cuda-throughput.md), [`cuda-build.md`](cuda-build.md)
 
 This document describes how Parcae compiles theory sources written in a
 Python-looking DSL into the existing C++20 + CUDA toolkit — with **speed** on
@@ -20,10 +21,10 @@ exception under `agents/`).
 
 | Goal | How |
 |------|-----|
-| DX | Authors write `.py` theories (decorators, annotations) matching examples under `theories/examples/` |
+| DX | Authors write `.py` theories (decorators, annotations) under [`theories/examples/`](../../theories/examples/) |
 | Speed | Exhaustive/fuzz verify, optimize, fuse, emit run in **C++20** using `Z29` / twin patterns |
 | Correctness by construction | One IR → CPU applicator + CUDA twin; hard verify gates; no “compile with warnings” |
-| Project fit | Classes + header guards, `tools/parcae-*` CLIs, registries like `GeneratorRegistry`, emitted CUDA under `Parcae/Parcae/cuda/emitted/` |
+| Project fit | Classes + header guards, `tools/parcae-*` CLIs, registries; emitted CUDA under `Parcae/Parcae/cuda/emitted/` |
 | No fake verification | IDE stubs fail-loud; only `parcae-compile` produces ready artifacts |
 
 ---
@@ -35,6 +36,7 @@ exception under `agents/`).
 - Replacing Tier-A hand twins until DSL builtins explicitly supersede them
 - Closed-loop search/agent scheduling (separate workstream)
 - New C++ namespaces
+- Silent accept of artifacts with mismatched `dsl_spec_version` MAJOR
 
 ---
 
@@ -44,26 +46,30 @@ exception under `agents/`).
 theory.py
     │
     ▼  once per compile (not hotpath)
-parcae_dsl.ast_dump  /  python -m parcae_dsl.ast_dump
+python -m parcae.dsl.ast_dump
     │  ast.parse → parcae.dsl_ast_json.v0
     ▼
 parcae-compile (C++20)
     DslAstJsonIngest     (limits, UTF-8, strict schema)
     DslSemanticGate      (dsl.md whitelist)
-    DslBuildIr           (Z29Expr / PrimitiveIr / TheoryIr)
+    DslBuildIr           (Z29Expr / PrimitiveIr / TheoryIr / ComposeIr)
     DslVerifier          (exhaustive | fuzz; hard fail)
-    DslOptimize          (const-fold, inv hoist, LaunchPlan)
+    DslOptimize          (const-fold, inv hoist, LaunchPlan, peak sanity)
     DslFuse              (compose inline; fused ≥ staged else fallback)
     DslEmitCpu / DslEmitCuda
-    │
+    TheoryArtifact::store
+    │  + envelope.json + apply_ir.json
     ▼
 data/theories/<name>/<ver>/  +  parcae://theories/<name>@<ver>
+    │
+    ▼  runtime
+TheoryDispatch           (catalog → ApplyTransform; URI → apply_ir + DslIrApplicator)
 ```
 
 ```mermaid
 flowchart TB
   src["theory.py"]
-  stubs["parcae_dsl fail-loud stubs"]
+  stubs["parcae.dsl fail-loud stubs"]
   dump["CPython ast_dump"]
   json["dsl_ast_json.v0"]
   ingest["DslAstJsonIngest"]
@@ -74,6 +80,7 @@ flowchart TB
   cpu["CPU applicator / Transform text"]
   cuda["CUDA Kernel class text"]
   art["TheoryArtifact + TheoryRegistry"]
+  dispatch["TheoryDispatch"]
 
   stubs -.->|"import OK; calls raise"| src
   src --> dump --> json --> ingest --> gate --> ir --> verify
@@ -82,6 +89,7 @@ flowchart TB
   opt --> cuda
   cpu --> art
   cuda --> art
+  art --> dispatch
 ```
 
 ---
@@ -109,7 +117,7 @@ verify theories.
 | Target | Role |
 |--------|------|
 | CPU | `DslIrApplicator` (`apply_into` from IR) + optional emitted `class …Transform` sources |
-| CUDA | Emitted `class …Device` / `class …Kernel` using `Z29Device`, grids from existing twins (1D `C·T/256`, 2D hist, compose ping-pong) |
+| CUDA | Emitted `class …Kernel` using `Z29Device`, grids from existing twins (1D `C·T/256`); golden smoke twin `DslSmokeCaesarKernel` |
 
 ### Verify gates
 
@@ -122,49 +130,59 @@ compile.
 `ComposedTheory` chains: try fused kernel; if fused throughput &lt; staged
 (CPU `DslFuse::bench_cpu` / ThroughputTiers-style compose protocol), write
 `fusion.status = "fallback_staged"` and keep ping-pong compose. Verify still
-hard-fails independently.
+hard-fails independently. Runtime CPU apply uses fused IR in `apply_ir.json`
+even when emit selected staged.
 
 ### Spec vs artifact versions
 
 Artifacts embed `dsl_spec_version`. MAJOR mismatch with
 `DslSpecVersion::current` → registry/validate/sweep **reject** (recompile
-required). Details: [dsl.md](../spec/dsl.md), [theory-artifact.md](../spec/theory-artifact.md).
+required). Catalog lists stale entries with `stale_spec: true`. Details:
+[dsl.md](../spec/dsl.md), [theory-artifact.md](../spec/theory-artifact.md).
+
+### Envelope bridge + dispatch
+
+| File | Role |
+|------|------|
+| `envelope.json` | Catalog `TransformEnvelope` **or** `parcae://theories/…` URI extension |
+| `apply_ir.json` | `parcae.theory_apply_ir.v0` — encrypt/decrypt trees for CPU apply |
+| `TheoryDispatch` | Catalog → `ApplyTransform`; theory URI → load `apply_ir` + `DslIrApplicator` |
+
+Catalog-only tools **MUST** fail clearly on theory URIs (no silent no-op).
+See [theory-artifact.md](../spec/theory-artifact.md) § Envelope bridge.
 
 ---
 
-## Module map (planned)
+## Module map (implemented)
 
-Fits the layout in [cpu-reference.md](cpu-reference.md):
+Fits the layout in [cpu-reference.md](cpu-reference.md). Header index:
+[`include/parcae/dsl/README.md`](../../include/parcae/dsl/README.md).
 
 ```text
 include/parcae/dsl/
-  dsl_spec_version.hpp
-  dsl_diag.hpp
-  dsl_ast.hpp
-  dsl_ast_json_ingest.hpp
-  dsl_semantic_gate.hpp
-  z29_expr.hpp
-  primitive_ir.hpp
-  theory_ir.hpp
-  dsl_build_ir.hpp
-  dsl_verifier.hpp
-  dsl_optimize.hpp
-  dsl_fuse.hpp
-  dsl_emit_cpu.hpp
-  dsl_emit_cuda.hpp
-  theory_artifact.hpp
-  theory_registry.hpp
-  theory_uri.hpp
+  dsl_spec_version.hpp / dsl_ast_json_version.hpp
+  dsl_diag.hpp / dsl_rule_id.hpp
+  dsl_ast*.hpp / dsl_ast_json_ingest.hpp / dsl_semantic_gate.hpp
+  z29_expr.hpp / param_ir.hpp / primitive_ir.hpp / theory_ir.hpp / compose_ir.hpp
+  dsl_build_ir.hpp / dsl_ir_applicator.hpp
+  dsl_verifier.hpp / dsl_optimize.hpp / dsl_fuse.hpp
+  dsl_launch_plan.hpp / dsl_peak_sanity.hpp
+  dsl_emit_cpu.hpp / dsl_emit_cuda.hpp / dsl_catalog_builtins.hpp
+  theory_uri.hpp / theory_artifact.hpp / theory_registry.hpp
+  theory_validate.hpp / theory_sweep.hpp
+  theory_envelope_bridge.hpp / theory_apply_ir.hpp / theory_dispatch.hpp
+  dsl_compile.hpp / dsl.hpp
 
 tools/
-  parcae-compile
-  parcae-sweep
-  (+ validate/catalog theory extensions)
+  parcae-compile / parcae-validate / parcae-sweep / parcae-catalog
 
-Parcae/Parcae/cuda/emitted/     # generated twins; do not hand-edit
-python/                         # parcae.dsl stubs + ast_dump (not the compiler)
-theories/                       # .py sources
-data/theories/                  # compiled artifacts
+Parcae/Parcae/cuda/
+  emitted/                  # generated twins (gitignored except README)
+  dsl_smoke_caesar_kernel.* # golden [cuda][dsl][smoke] twin
+
+python/parcae/dsl/          # stubs + ast_dump (not the compiler)
+theories/examples/          # authoring sources (new_math, full_lifecycle)
+data/theories/              # compiled artifacts
 ```
 
 ### C++ style (HARD)
@@ -185,6 +203,22 @@ private:
 
 Anonymous namespaces **only** inside `.cu` files for `__global__` kernels
 (existing twin convention). Public API remains top-level classes.
+**No `phase*` names** in new paths or artifact filenames.
+
+---
+
+## Examples
+
+| Source | URI after `@1` compile | Notes |
+|--------|------------------------|-------|
+| [`theories/examples/new_math_example.py`](../../theories/examples/new_math_example.py) | `parcae://theories/quadratic_polynomial_stream@1` | Tier B keyed_stream; `poly2_mod29` |
+| [`theories/examples/full_lifecycle_example.py`](../../theories/examples/full_lifecycle_example.py) | `parcae://theories/koan1_style@1` | Tier A `@ComposedTheory` (atbash+caesar) |
+
+```text
+parcae-compile theories/examples/new_math_example.py
+parcae-validate --theory parcae://theories/quadratic_polynomial_stream@1
+parcae-catalog --theories --json
+```
 
 ---
 
@@ -192,13 +226,16 @@ Anonymous namespaces **only** inside `.cu` files for `__global__` kernels
 
 | Binary | Role |
 |--------|------|
-| `parcae-compile` | Spawn AST dump → C++ pipeline → artifact |
-| `parcae-validate` | Manifest integrity + spec version + optional re-verify |
-| `parcae-sweep` | Sweep from artifact metadata only |
+| `parcae-compile` | Spawn AST dump → C++ pipeline → artifact (`envelope.json`, `apply_ir.json`, CPU/CUDA text) |
+| `parcae-validate --theory` / `--theories` | Manifest + `dsl_spec_version` + path files + envelope/apply_ir content |
+| `parcae-sweep` | Expand `sweep.param_grid` plan-only (no apply/score) |
 | `parcae-catalog --theories` | List URIs; mark `stale_spec` |
 
 JSON UX aligns with `parcae.tool_response.v0` where tools are agent-facing
 ([tools.md](../spec/tools.md), [agent-tools.md](../spec/agent-tools.md)).
+
+Runtime apply helpers: `TheoryDispatch` and
+`parcae::tool::apply_to_indices(..., TheoryEnvelopeBridge::Envelope, theories_root)`.
 
 ---
 
@@ -212,6 +249,8 @@ Emitted kernels **reuse** patterns documented in [cuda-abi.md](cuda-abi.md) and
 - Compose staged path via `ComposeDriver` when fusion falls back
 - Hand-written `FamilyChi2Batch::launch_atbash_caesar_async` remains until a
   deliberate migration; new compose theories go through `DslFuse`
+- Smoke: Catch2 `[cuda][dsl][smoke]` — emit text always; device parity when
+  `PARCAE_BUILD_CUDA=ON` ([cuda-build.md](cuda-build.md))
 
 Host-materialized buffers (totient shifts, permutation tables) stay host-side —
 same rule as today’s totient twin.
@@ -231,20 +270,25 @@ Community `.py` / hostile JSON must not crash the compiler:
 
 ## Exit checklist (compiler workstream)
 
-- [ ] Specs: dsl, dsl-ast-json, theory-artifact (normative)
+- [x] Specs: dsl, dsl-ast-json, theory-artifact (normative)
 - [x] `parcae-compile` on `theories/examples/new_math_example.py`
 - [x] `parcae-compile` on `theories/examples/full_lifecycle_example.py`
 - [x] Exhaustive gate for arity-4 demo primitive (`poly2_mod29`)
-- [ ] Fail-loud stub tests
+- [x] Fail-loud stub package + operator guide ([dsl-stubs.md](dsl-stubs.md))
 - [x] Stale `dsl_spec_version` rejected by registry/validate
 - [x] Emitted CUDA uses class + header-guard style
 - [x] Fusion or `fallback_staged` recorded for compose example
+- [x] Envelope bridge + `TheoryDispatch` / `apply_ir.json`
 - [x] `[cuda][dsl][smoke]` emit text + `DslSmokeCaesarKernel` golden twin
-- [ ] No `phase*` names in new paths/artifacts
+- [x] Architecture hub links this guide ([README.md](README.md))
+- [x] No `phase*` names in new DSL paths/artifacts (`python-transpiler.md`, not phase*)
+
+Remaining polish (separate commits): CI compile-examples job; stub runtime unit
+test hardening; toolkit version bump.
 
 ---
 
 ## Document history
 
-Architecture companion to the DSL specs. Implementation commits land headers
-under `include/parcae/dsl/` and CLIs under `tools/` as described above.
+Architecture companion to the DSL specs. Headers live under
+`include/parcae/dsl/`; CLIs under `tools/`; examples under `theories/examples/`.
