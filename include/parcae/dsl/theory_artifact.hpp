@@ -136,6 +136,10 @@ public:
             return envelope_template_;
         }
 
+        [[nodiscard]] const std::optional<std::string>& apply_ir() const noexcept {
+            return apply_ir_;
+        }
+
         [[nodiscard]] const std::optional<std::string>& verify_report() const noexcept {
             return verify_report_;
         }
@@ -156,6 +160,10 @@ public:
             envelope_template_ = std::move(path);
         }
 
+        void set_apply_ir(std::optional<std::string> path) {
+            apply_ir_ = std::move(path);
+        }
+
         void set_verify_report(std::optional<std::string> path) {
             verify_report_ = std::move(path);
         }
@@ -166,6 +174,7 @@ public:
                 {"cuda_header", opt_path(cuda_header_)},
                 {"cuda_source", opt_path(cuda_source_)},
                 {"envelope_template", opt_path(envelope_template_)},
+                {"apply_ir", opt_path(apply_ir_)},
                 {"verify_report", opt_path(verify_report_)},
             };
         }
@@ -184,6 +193,10 @@ public:
                 return s;
             }
             s = check_rel(envelope_template_, "envelope_template");
+            if (!s.ok()) {
+                return s;
+            }
+            s = check_rel(apply_ir_, "apply_ir");
             if (!s.ok()) {
                 return s;
             }
@@ -208,6 +221,7 @@ public:
         std::optional<std::string> cuda_header_;
         std::optional<std::string> cuda_source_;
         std::optional<std::string> envelope_template_;
+        std::optional<std::string> apply_ir_;
         std::optional<std::string> verify_report_;
     };
 
@@ -839,6 +853,12 @@ private:
             return env.status();
         }
         paths.set_envelope_template(std::move(env.value()));
+
+        StatusOr<std::optional<std::string>> apply = read_opt("apply_ir");
+        if (!apply.ok()) {
+            return apply.status();
+        }
+        paths.set_apply_ir(std::move(apply.value()));
 
         StatusOr<std::optional<std::string>> rep = read_opt("verify_report");
         if (!rep.ok()) {

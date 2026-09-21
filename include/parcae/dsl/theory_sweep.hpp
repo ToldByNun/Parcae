@@ -20,8 +20,9 @@
 #include <nlohmann/json.hpp>
 
 /// Expand `TheoryArtifact.sweep` into a candidate param plan (docs/spec/theory-artifact.md).
-/// Does **not** apply transforms or invent solved-corpus defaults. Apply/score needs
-/// TheoryDispatch (later). Stale `dsl_spec_version` → hard reject via TheoryRegistry.
+/// Does **not** apply transforms or invent solved-corpus defaults. Apply/score
+/// uses TheoryDispatch + `apply_ir.json`. Stale `dsl_spec_version` → hard reject
+/// via TheoryRegistry.
 class TheorySweep {
 public:
     class Options {

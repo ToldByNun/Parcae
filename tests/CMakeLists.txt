@@ -31,6 +31,7 @@ add_executable(parcae_tests
   dsl_theory_validate_test.cpp
   dsl_theory_sweep_test.cpp
   dsl_theory_envelope_test.cpp
+  dsl_theory_dispatch_test.cpp
   dsl_spec_major_bump_test.cpp
   dsl_compile_test.cpp
   dsl_examples_new_math_test.cpp

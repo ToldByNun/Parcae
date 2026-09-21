@@ -201,9 +201,9 @@ parcae-compile <theory.py> [--json] [--data-dir <path>]
 Compiles a theory DSL `.py` source into a versioned artifact under
 `data/theories/` (see [dsl.md](dsl.md), [theory-artifact.md](theory-artifact.md)).
 Emits CPU/CUDA sources plus an `envelope.json` bridge
-(`paths.envelope_template`) whose `transform_id` is the theory URI
-(catalog-only tools must refuse lowering — see Envelope bridge in
-theory-artifact.md).
+(`paths.envelope_template`) whose `transform_id` is the theory URI, and
+`apply_ir.json` for `TheoryDispatch` (catalog-only tools must refuse lowering —
+see Envelope bridge in theory-artifact.md).
 
 `--status` reports toolchain / `dsl_spec_version` / AST-JSON protocol versions
 and `pipeline_ready`. Compiling a `.py` file spawns `python -m parcae.dsl.ast_dump`,

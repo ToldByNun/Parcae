@@ -125,6 +125,19 @@ public:
         TransformDirection direction,
         const InterruptPolicy& interrupt = InterruptPolicy::none(),
         std::string_view cipher_var = "x") {
+        StatusOr<Z29Expr::Env> env = bind_theory_params(theory, params);
+        if (!env.ok()) {
+            return env.status();
+        }
+        // Keyed-stream position: emit maps var `i` to the loop index; bind the same
+        // unless `i` is already a declared theory param.
+        bool i_is_param = false;
+        for (const ParamIr& p : theory.params()) {
+            if (p.name() == "i") {
+                i_is_param = true;
+                break;
+            }
+        }
         const Z29Expr::Ptr& step = (direction == TransformDirection::Encrypt)
                                        ? theory.encrypt_step()
                                        : theory.decrypt_step();
@@ -145,11 +158,34 @@ public:
                            "InterruptPolicy rejected (CPU↔CUDA parity)")
                 .to_status();
         }
-        StatusOr<Z29Expr::Env> env = bind_theory_params(theory, params);
-        if (!env.ok()) {
-            return env.status();
+        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        if (!sizes.ok()) {
+            return sizes;
         }
-        return apply_into(step, cipher_var, env.value(), input, output, interrupt);
+        Status range = parcae::transform_buf::validate_interrupt_range(
+            interrupt, input.size(), "DslIrApplicator");
+        if (!range.ok()) {
+            return range;
+        }
+
+        const auto skips = parcae::transform_buf::skip_span(interrupt);
+        Z29Expr::Env run = env.value();
+        for (std::size_t idx = 0; idx < input.size(); ++idx) {
+            if (parcae::transform_buf::should_skip(skips, idx)) {
+                output[idx] = input[idx];
+                continue;
+            }
+            run[std::string(cipher_var)] = input[idx];
+            if (!i_is_param) {
+                run["i"] = Index29{static_cast<std::uint8_t>(idx % Index29::modulus)};
+            }
+            StatusOr<Index29> out = step->eval(run);
+            if (!out.ok()) {
+                return out.status();
+            }
+            output[idx] = out.value();
+        }
+        return Status::success();
     }
 
     [[nodiscard]] static StatusOr<std::vector<Index29>> apply(

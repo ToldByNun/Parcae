@@ -25,10 +25,11 @@
 ///   - TheoryValidate (manifest + dsl_spec + path files + envelope content)
 ///   - TheorySweep (expand sweep.param_grid plan)
 ///   - TheoryEnvelopeBridge (envelope_template ↔ TransformEnvelope / theory URI)
+///   - TheoryApplyIr / TheoryDispatch (ApplyTransform hook for theory URIs)
 ///   - DslBuildIr / DslCompile (ast_dump → artifact)
 ///   - Example: theories/examples/new_math_example.py
 ///   - Example: theories/examples/full_lifecycle_example.py (@ComposedTheory)
-/// Later commits: TheoryDispatch / CUDA smoke.
+/// Later commits: CUDA DSL smoke.
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
@@ -52,7 +53,9 @@
 #include "parcae/dsl/dsl_verifier.hpp"
 #include "parcae/dsl/param_ir.hpp"
 #include "parcae/dsl/primitive_ir.hpp"
+#include "parcae/dsl/theory_apply_ir.hpp"
 #include "parcae/dsl/theory_artifact.hpp"
+#include "parcae/dsl/theory_dispatch.hpp"
 #include "parcae/dsl/theory_envelope_bridge.hpp"
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/theory_registry.hpp"

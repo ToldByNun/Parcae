@@ -4,8 +4,10 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
+#include "parcae/dsl/theory_apply_ir.hpp"
 #include "parcae/dsl/theory_artifact.hpp"
 #include "parcae/dsl/theory_envelope_bridge.hpp"
+#include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/theory_registry.hpp"
 #include "parcae/dsl/theory_uri.hpp"
 
@@ -297,6 +299,7 @@ private:
         check_file(artifact.paths().cuda_header(), "paths.cuda_header");
         check_file(artifact.paths().cuda_source(), "paths.cuda_source");
         check_file(artifact.paths().envelope_template(), "paths.envelope_template");
+        check_file(artifact.paths().apply_ir(), "paths.apply_ir");
         check_file(artifact.paths().verify_report(), "paths.verify_report");
 
         if (artifact.paths().envelope_template().has_value()) {
@@ -326,6 +329,27 @@ private:
                             env.value().is_theory() ? "theory URI envelope"
                                                     : "catalog TransformEnvelope");
                     }
+                }
+            }
+        }
+
+        if (artifact.paths().apply_ir().has_value()) {
+            const std::filesystem::path ir_path = dir / *artifact.paths().apply_ir();
+            std::error_code ec;
+            if (std::filesystem::is_regular_file(ir_path, ec) && !ec) {
+                StatusOr<TheoryIr> ir = TheoryApplyIr::load(ir_path);
+                if (!ir.ok()) {
+                    report.add_check("apply_ir.parse", false, ir.status().message());
+                } else if (ir.value().name() != artifact.name()) {
+                    report.add_check(
+                        "apply_ir.content",
+                        false,
+                        "apply_ir name does not match artifact name");
+                } else {
+                    report.add_check(
+                        "apply_ir.content",
+                        true,
+                        "TheoryApplyIr ok for " + ir.value().name());
                 }
             }
         }

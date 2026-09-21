@@ -22,6 +22,7 @@ data/theories/
       manifest.json            # parcae.theory_artifact.v0
       cpu_reference.*          # optional emitted CPU applicator / Transform text
       envelope.json            # optional TransformEnvelope bridge
+      apply_ir.json            # optional TheoryApplyIr for TheoryDispatch
       emitted/                 # optional CUDA/C++ twin sources
         *.hpp
         *.cu
@@ -103,6 +104,7 @@ File: `data/theories/<name>/<version>/manifest.json`
     "cuda_header": "emitted/QuadraticPolynomialStreamKernel.hpp",
     "cuda_source": "emitted/QuadraticPolynomialStreamKernel.cu",
     "envelope_template": "envelope.json",
+    "apply_ir": "apply_ir.json",
     "verify_report": "verify_report.json"
   },
   "sweep": null,
@@ -187,7 +189,7 @@ unknown keys **MUST** be rejected. Each value is one of:
 
 `parcae-sweep` expands the cartesian product (optional `--limit` truncation).
 Apply/score of candidates is out of scope for the plan-only CLI until
-TheoryDispatch.
+TheoryDispatch (`TheoryDispatch` / `apply_ir.json`).
 
 ---
 
@@ -230,8 +232,11 @@ the frozen catalog — no silent no-op decode.
 | `params` | For theory URIs: every declared artifact param MUST be present as an integer in its declared `[min,max]` |
 | Catalog lower | `TheoryEnvelopeBridge::to_catalog_envelope()` succeeds only for frozen catalog ids; theory URIs **MUST** error mentioning TheoryDispatch |
 | Compile | `parcae-compile` **SHOULD** emit `envelope.json` with the artifact URI and param mins as the default binding |
+| Apply IR | `parcae-compile` **SHOULD** emit `apply_ir.json` (`parcae.theory_apply_ir.v0`) for `TheoryDispatch` |
+| Runtime | `TheoryDispatch` applies catalog envelopes via `ApplyTransform` and theory URIs via `apply_ir.json` + `DslIrApplicator` |
 
-Header: `include/parcae/dsl/theory_envelope_bridge.hpp` (`TheoryEnvelopeBridge`).
+Header: `include/parcae/dsl/theory_envelope_bridge.hpp` (`TheoryEnvelopeBridge`),
+`theory_apply_ir.hpp`, `theory_dispatch.hpp`.
 
 ---
 

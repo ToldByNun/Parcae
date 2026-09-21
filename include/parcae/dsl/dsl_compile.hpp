@@ -13,6 +13,7 @@
 #include "parcae/dsl/dsl_semantic_gate.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
 #include "parcae/dsl/dsl_verifier.hpp"
+#include "parcae/dsl/theory_apply_ir.hpp"
 #include "parcae/dsl/theory_artifact.hpp"
 #include "parcae/dsl/theory_envelope_bridge.hpp"
 #include "parcae/dsl/theory_ir.hpp"
@@ -186,6 +187,7 @@ public:
             paths.set_cuda_header(std::string("emitted/") + class_stem + "Kernel.hpp");
             paths.set_cuda_source(std::string("emitted/") + class_stem + "Kernel.cu");
             paths.set_envelope_template(std::string("envelope.json"));
+            paths.set_apply_ir(std::string("apply_ir.json"));
 
             std::vector<TheoryArtifact::Param> params;
             for (const ParamIr& p : theory.params()) {
@@ -262,6 +264,10 @@ public:
             if (!env_written.ok()) {
                 return env_written;
             }
+            Status ir_written = TheoryApplyIr::write(dir / "apply_ir.json", theory);
+            if (!ir_written.ok()) {
+                return ir_written;
+            }
 
             // Registry gate: freshly written artifacts must load.
             StatusOr<TheoryArtifact> reloaded =
@@ -297,6 +303,7 @@ public:
                 paths.set_cuda_source(std::string("emitted/") + class_stem + "Kernel.cu");
             }
             paths.set_envelope_template(std::string("envelope.json"));
+            paths.set_apply_ir(std::string("apply_ir.json"));
 
             std::vector<TheoryArtifact::Param> params;
             for (const ParamIr& p : compose.params()) {
@@ -369,6 +376,12 @@ public:
                 TheoryEnvelopeBridge::write(dir / "envelope.json", envelope.value());
             if (!env_written.ok()) {
                 return env_written;
+            }
+            // Runtime apply uses fused IR even when emit selected staged (CPU IR path).
+            Status ir_written = TheoryApplyIr::write(
+                dir / "apply_ir.json", bundle.value().fused().theory());
+            if (!ir_written.ok()) {
+                return ir_written;
             }
 
             StatusOr<TheoryArtifact> reloaded =

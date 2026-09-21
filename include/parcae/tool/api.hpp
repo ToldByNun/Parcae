@@ -17,6 +17,8 @@
 #include "parcae/tool/transform_envelope.hpp"
 #include "parcae/transform/apply_transform.hpp"
 #include "parcae/transform/transform_id.hpp"
+#include "parcae/dsl/theory_dispatch.hpp"
+#include "parcae/dsl/theory_envelope_bridge.hpp"
 #include "parcae/validate/fixture_validator.hpp"
 #include "parcae/validate/validation_report.hpp"
 
@@ -26,6 +28,7 @@
 #endif
 
 #include <cstddef>
+#include <filesystem>
 #include <optional>
 #include <span>
 #include <string>
@@ -87,6 +90,32 @@ namespace parcae::tool {
     return Status::error(
         "CUDA backend requested but Parcae was built without CUDA (PARCAE_BUILD_CUDA)");
 #endif
+}
+
+/// Theory-aware apply: catalog ids → ApplyTransform; `parcae://theories/…` →
+/// TheoryDispatch under `theories_root` (typically `data/theories`).
+/// CUDA for theory URIs is not supported in this slice (CPU IR path only).
+[[nodiscard]] inline StatusOr<std::vector<Index29>> apply_to_indices(
+    std::span<const Index29> input,
+    const TheoryEnvelopeBridge::Envelope& envelope,
+    const std::filesystem::path& theories_root,
+    Backend backend = Backend::Cpu) {
+    Status usable = BackendUtil::ensure_usable(backend);
+    if (!usable.ok()) {
+        return usable;
+    }
+    if (envelope.is_catalog()) {
+        StatusOr<TransformEnvelope> catalog = envelope.to_catalog_envelope();
+        if (!catalog.ok()) {
+            return catalog.status();
+        }
+        return apply_to_indices(input, catalog.value(), backend);
+    }
+    if (backend != Backend::Cpu) {
+        return Status::error(
+            "TheoryDispatch theory URIs are CPU-only until CUDA DSL smoke (I42)");
+    }
+    return TheoryDispatch::apply(theories_root, envelope, input);
 }
 
 /// Apply envelope to consumable runes of a token stream (indices only).
