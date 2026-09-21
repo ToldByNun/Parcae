@@ -1,5 +1,10 @@
 include(Catch)
 
+find_program(PARCAE_PYTHON_EXECUTABLE NAMES python python3 py)
+if(NOT PARCAE_PYTHON_EXECUTABLE)
+  set(PARCAE_PYTHON_EXECUTABLE "python")
+endif()
+
 add_executable(parcae_tests
   smoke.cpp
   z29_test.cpp
@@ -24,6 +29,7 @@ add_executable(parcae_tests
   dsl_theory_artifact_test.cpp
   dsl_theory_registry_test.cpp
   dsl_spec_major_bump_test.cpp
+  dsl_compile_test.cpp
   token_stream_test.cpp
   gematria_profile_test.cpp
   corpus_test.cpp
@@ -83,6 +89,8 @@ target_link_libraries(parcae_tests PRIVATE
 target_compile_definitions(parcae_tests PRIVATE
   PARCAE_TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/data"
   PARCAE_DSL_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/dsl"
+  PARCAE_PYTHON_DIR="${CMAKE_SOURCE_DIR}/python"
+  PARCAE_PYTHON_EXE="${PARCAE_PYTHON_EXECUTABLE}"
   PARCAE_GOLDENS_TOOL_JSON_DIR="${CMAKE_SOURCE_DIR}/tests/goldens/tool-json"
 )
 
@@ -119,5 +127,10 @@ if(TARGET parcae-tokenize)
 endif()
 
 parcae_set_project_warnings(parcae_tests)
+
+# MSVC: allow parallel CL.EXE writers to the same .pdb (Debug).
+if(MSVC)
+  target_compile_options(parcae_tests PRIVATE /FS)
+endif()
 
 catch_discover_tests(parcae_tests)

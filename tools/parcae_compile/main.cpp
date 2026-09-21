@@ -3,6 +3,7 @@
 
 #include "parcae/core/version.hpp"
 #include "parcae/dsl/dsl_ast_json_version.hpp"
+#include "parcae/dsl/dsl_compile.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
 
 #include <filesystem>
@@ -18,6 +19,14 @@
 #define PARCAE_DEFAULT_DATA_DIR ""
 #endif
 
+#ifndef PARCAE_PYTHON_DIR
+#define PARCAE_PYTHON_DIR ""
+#endif
+
+#ifndef PARCAE_PYTHON_EXE
+#define PARCAE_PYTHON_EXE "python"
+#endif
+
 namespace {
 
 constexpr std::string_view kTool = "compile";
@@ -28,15 +37,13 @@ void print_help() {
         << "       parcae-compile <theory.py> [--json] [--data-dir <path>]\n"
         << "\n"
         << "Compile a theory DSL source into a versioned artifact under data/theories/.\n"
+        << "Pipeline: ast_dump → ingest → gate → IR → verify → emit → TheoryArtifact.\n"
         << "Normative: docs/spec/dsl.md, docs/spec/theory-artifact.md\n"
         << "\n"
-        << "  --status       Report toolchain / DSL versions (stub-safe; no compile)\n"
+        << "  --status       Report toolchain / DSL versions (no compile)\n"
         << "  --json         JSON envelope on stdout (parcae.tool_response.v0)\n"
         << "  --data-dir     Parcae data/ root (theories land under <data>/theories/)\n"
-        << "  -h, --help     Show this help\n"
-        << "\n"
-        << "Stub note: full AST→IR→verify→emit is not wired yet. Compiling a .py file\n"
-        << "returns error code not_built until later commits land the pipeline.\n";
+        << "  -h, --help     Show this help\n";
 }
 
 [[nodiscard]] int fail(
@@ -52,10 +59,19 @@ void print_help() {
     return plain_exit;
 }
 
+[[nodiscard]] DslCompile::Options make_compile_options() {
+    DslCompile::Options opt;
+    (void)opt.set_python_exe(PARCAE_PYTHON_EXE);
+    (void)opt.set_python_path(PARCAE_PYTHON_DIR);
+    return opt;
+}
+
 [[nodiscard]] nlohmann::json status_result(const std::filesystem::path& data_root) {
+    const DslCompile::Options opt = make_compile_options();
+    const bool ready = DslCompile::pipeline_ready(opt);
     return nlohmann::json{
-        {"stub", true},
-        {"pipeline_ready", false},
+        {"stub", false},
+        {"pipeline_ready", ready},
         {"toolkit_version", PARCAE_VERSION_STRING},
         {"dsl_spec_version", std::string(DslSpecVersion::current_string)},
         {"dsl_ast_json_version", std::string(DslAstJsonVersion::current_string)},
@@ -63,8 +79,11 @@ void print_help() {
         {"theory_artifact_schema", "parcae.theory_artifact.v0"},
         {"data_dir", data_root.string()},
         {"theories_dir", (data_root / "theories").string()},
+        {"python_exe", opt.python_exe()},
+        {"python_path", opt.python_path()},
         {"message",
-         "parcae-compile stub: use --status for versions; compile pipeline lands in later commits"},
+         ready ? "parcae-compile pipeline ready (ast_dump → IR → verify → artifact)"
+               : "parcae-compile: ast_dump frontend missing; check PARCAE_PYTHON_DIR"},
     };
 }
 
@@ -105,7 +124,6 @@ int main(int argc, char** argv) {
     const std::string data_dir = optional_option(args, "--data-dir");
     const std::vector<std::string> positionals = positional_args(args);
 
-    // Reject unknown long options that look like flags (not values).
     for (std::size_t i = 0; i < args.size(); ++i) {
         const std::string& a = args[i];
         if (a == "--json" || a == "--status" || a == "-h" || a == "--help" || a == "--data-dir") {
@@ -141,11 +159,12 @@ int main(int argc, char** argv) {
         if (json_mode) {
             return ToolCliJson::ok(kTool, std::nullopt, std::move(result));
         }
-        std::cout << "parcae-compile stub\n"
+        std::cout << "parcae-compile\n"
                   << "  toolkit_version:      " << PARCAE_VERSION_STRING << '\n'
                   << "  dsl_spec_version:     " << DslSpecVersion::current_string << '\n'
                   << "  dsl_ast_json_version: " << DslAstJsonVersion::current_string << '\n'
-                  << "  pipeline_ready:       false\n"
+                  << "  pipeline_ready:       "
+                  << (result.at("pipeline_ready").get<bool>() ? "true" : "false") << '\n'
                   << "  data_dir:             " << data_root.string() << '\n'
                   << "  theories_dir:         " << (data_root / "theories").string() << '\n';
         return kExitOk;
@@ -181,17 +200,54 @@ int main(int argc, char** argv) {
             nlohmann::json{{"path", theory_path.string()}});
     }
 
-    // Stub: pipeline not implemented yet.
-    return fail(
-        json_mode,
-        ToolErrorCode::NotBuilt,
-        "parcae-compile pipeline not built yet (AST dump → IR → verify → emit). "
-        "Use --status for DSL versions; see docs/architecture/python-transpiler.md",
-        ToolErrorCodeUtil::exit_status(ToolErrorCode::NotBuilt),
-        nlohmann::json{
-            {"path", theory_path.string()},
-            {"stub", true},
-            {"pipeline_ready", false},
-            {"dsl_spec_version", std::string(DslSpecVersion::current_string)},
-        });
+    const DslCompile::Options opt = make_compile_options();
+    if (!DslCompile::pipeline_ready(opt)) {
+        return fail(
+            json_mode,
+            ToolErrorCode::NotBuilt,
+            "parcae-compile: ast_dump frontend not found (PYTHONPATH / PARCAE_PYTHON_DIR)",
+            ToolErrorCodeUtil::exit_status(ToolErrorCode::NotBuilt),
+            nlohmann::json{
+                {"path", theory_path.string()},
+                {"python_path", opt.python_path()},
+                {"pipeline_ready", false},
+            });
+    }
+
+    StatusOr<DslCompile::Result> compiled =
+        DslCompile::compile_file(theory_path, data_root / "theories", opt);
+    if (!compiled.ok()) {
+        return fail(
+            json_mode,
+            ToolErrorCode::Validation,
+            compiled.status().message(),
+            ToolErrorCodeUtil::exit_status(ToolErrorCode::Validation),
+            nlohmann::json{
+                {"path", theory_path.string()},
+                {"dsl_spec_version", std::string(DslSpecVersion::current_string)},
+            });
+    }
+
+    nlohmann::json uris = nlohmann::json::array();
+    for (const TheoryArtifact& a : compiled.value().artifacts()) {
+        uris.push_back(a.uri().to_string());
+    }
+    nlohmann::json result{
+        {"uris", std::move(uris)},
+        {"count", compiled.value().artifacts().size()},
+        {"source_sha256", compiled.value().source_sha256()},
+        {"dsl_spec_version", std::string(DslSpecVersion::current_string)},
+        {"theories_dir", (data_root / "theories").string()},
+        {"path", theory_path.string()},
+    };
+
+    if (json_mode) {
+        return ToolCliJson::ok(kTool, std::nullopt, std::move(result));
+    }
+    std::cout << "compiled " << compiled.value().artifacts().size() << " theor"
+              << (compiled.value().artifacts().size() == 1 ? "y" : "ies") << '\n';
+    for (const TheoryArtifact& a : compiled.value().artifacts()) {
+        std::cout << "  " << a.uri().to_string() << '\n';
+    }
+    return kExitOk;
 }

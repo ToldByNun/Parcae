@@ -194,11 +194,11 @@ Compiles a theory DSL `.py` source into a versioned artifact under
 `data/theories/` (see [dsl.md](dsl.md), [theory-artifact.md](theory-artifact.md)).
 
 `--status` reports toolchain / `dsl_spec_version` / AST-JSON protocol versions
-without compiling. Until the compile pipeline is fully wired, `parcae-compile <theory.py>` **MUST**
-fail with `error.code = not_built` (hard exit). `--json` uses
-`parcae.tool_response.v0` with `tool: "compile"`.
+and `pipeline_ready`. Compiling a `.py` file spawns `python -m parcae.dsl.ast_dump`,
+runs ingest → semantic gate → `DslBuildIr` → verify → emit → `TheoryArtifact::store`.
+`--json` uses `parcae.tool_response.v0` with `tool: "compile"`.
 
-IDE `parcae.dsl` stubs and `ast_dump` are **not** substitutes for this tool —
+IDE `parcae.dsl` stubs and `ast_dump` alone are **not** substitutes for this tool —
 see [dsl-stubs.md](../architecture/dsl-stubs.md).
 
 ### `parcae-generate`

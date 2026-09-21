@@ -22,8 +22,8 @@ Runtime compile products under this tree are **gitignored** (see repo
 Committed golden/example artifacts (if any) must be allow-listed explicitly in
 `.gitignore` — do not rely on silent exceptions.
 
-## Stub
+## Compile
 
-`TheoryArtifact::store` writes `manifest.json` under this tree. Until
-`parcae-compile` is wired end-to-end, `parcae-compile --status` reports
-`theories_dir` pointing here but does not run the full pipeline.
+`parcae-compile <theory.py>` runs ast_dump → ingest → gate → IR → verify → emit and
+writes `manifest.json` under this tree. `--status` reports `pipeline_ready`.
+

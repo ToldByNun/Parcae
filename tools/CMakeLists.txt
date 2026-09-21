@@ -20,12 +20,21 @@ function(parcae_add_cli name)
   parcae_set_project_warnings(${name})
 endfunction()
 
+find_program(PARCAE_PYTHON_EXECUTABLE NAMES python python3 py)
+if(NOT PARCAE_PYTHON_EXECUTABLE)
+  set(PARCAE_PYTHON_EXECUTABLE "python")
+endif()
+
 parcae_add_cli(parcae-tokenize parcae_tokenize/main.cpp)
 parcae_add_cli(parcae-decode parcae_decode/main.cpp)
 parcae_add_cli(parcae-score parcae_score/main.cpp)
 parcae_add_cli(parcae-validate parcae_validate/main.cpp)
 parcae_add_cli(parcae-catalog parcae_catalog/main.cpp)
 parcae_add_cli(parcae-compile parcae_compile/main.cpp)
+target_compile_definitions(parcae-compile PRIVATE
+  PARCAE_PYTHON_DIR="${CMAKE_SOURCE_DIR}/python"
+  PARCAE_PYTHON_EXE="${PARCAE_PYTHON_EXECUTABLE}"
+)
 parcae_add_cli(parcae-generate parcae_generate/main.cpp)
 parcae_add_cli(parcae-rank parcae_rank/main.cpp)
 parcae_add_cli(parcae-hypothesis parcae_hypothesis/main.cpp)
@@ -48,6 +57,14 @@ if(PARCAE_BUILD_TESTS)
       --data-dir "${CMAKE_SOURCE_DIR}/data"
       --status
       --json
+  )
+
+  add_test(
+    NAME cli_compile_quadratic_polynomial_stream
+    COMMAND $<TARGET_FILE:parcae-compile>
+      --data-dir "${CMAKE_BINARY_DIR}/dsl_compile_testdata"
+      --json
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/dsl/sources/quadratic_polynomial_stream.py"
   )
 
   add_test(

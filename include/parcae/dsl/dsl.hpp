@@ -22,13 +22,16 @@
 ///   - DslPeakSanity (ThroughputTiers peak / SLO gate)
 ///   - TheoryUri / TheoryArtifact (manifest writer embeds dsl_spec_version)
 ///   - TheoryRegistry (rejects stale dsl_spec_version)
-/// Later commits fill DslBuildIr.
+///   - DslBuildIr / DslCompile (ast_dump → artifact)
+/// Later commits: envelope bridge, examples.
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
 #include "parcae/dsl/dsl_ast_json_ingest.hpp"
 #include "parcae/dsl/dsl_ast_json_version.hpp"
 #include "parcae/dsl/dsl_ast_limits.hpp"
+#include "parcae/dsl/dsl_build_ir.hpp"
+#include "parcae/dsl/dsl_compile.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_emit_cpu.hpp"
 #include "parcae/dsl/dsl_emit_cuda.hpp"
