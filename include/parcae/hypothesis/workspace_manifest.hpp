@@ -33,6 +33,10 @@ public:
         return default_score_version_;
     }
 
+    [[nodiscard]] const nlohmann::json& input() const noexcept {
+        return input_;
+    }
+
     [[nodiscard]] nlohmann::json to_json() const {
         return nlohmann::json{
             {"schema", std::string(schema_id)},

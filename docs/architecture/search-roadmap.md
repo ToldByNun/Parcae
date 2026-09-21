@@ -30,7 +30,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | Band | Commits | Status |
 |------|---------|--------|
 | A — Spec & architecture freeze | 1–4 | **done** |
-| B–C — Core types + workspace cipher | 5–10 | **5–8 done**; next **9** |
+| B–C — Core types + workspace cipher | 5–10 | **5–9 done**; next **10** |
 | D–F — Export, rank CUDA, hypothesis bridge | 11–22 | pending |
 | G–H — Scheduler + CLI | 23–30 | pending |
 | I — Agent wiring | 31–35 | pending |
