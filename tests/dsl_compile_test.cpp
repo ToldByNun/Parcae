@@ -3,6 +3,8 @@
 #include <parcae/dsl/dsl_compile.hpp>
 #include <parcae/dsl/dsl_semantic_gate.hpp>
 #include <parcae/dsl/dsl_spec_version.hpp>
+#include <parcae/dsl/theory_artifact.hpp>
+#include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/theory_registry.hpp>
 
 #include <catch2/catch_test_macros.hpp>
@@ -58,6 +60,13 @@ TEST_CASE("DslCompile end-to-end quadratic_polynomial_stream", "[dsl][compile]")
         "parcae://theories/quadratic_polynomial_stream@1");
     REQUIRE(result.value().artifacts().front().dsl_spec_version() ==
             DslSpecVersion::current_string);
+    REQUIRE(result.value().artifacts().front().tier() == TheoryIr::Tier::B);
+    REQUIRE(result.value().artifacts().front().structural_claim().has_value());
+    REQUIRE(result.value().artifacts().front().structural_claim()->find("Spekulativ") !=
+            std::string::npos);
+    // Verify passed must not be confused with Tier A.
+    REQUIRE(result.value().artifacts().front().verification().passed());
+    REQUIRE(result.value().artifacts().front().tier() != TheoryIr::Tier::A);
 
     const std::filesystem::path manifest =
         root / "quadratic_polynomial_stream" / "1" / "manifest.json";

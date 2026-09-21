@@ -69,6 +69,29 @@ TEST_CASE("DslEmitCpu emit_primitive_header poly2", "[dsl][emit]") {
     REQUIRE(header.value().find("Z29::add") != std::string::npos);
 }
 
+TEST_CASE("DslEmitCpu none_by_design rejects non-empty interrupt in source", "[dsl][emit]") {
+    const StatusOr<ParamIr> c0 = ParamIr::make("c0", 0, 28);
+    REQUIRE(c0.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "stream_no_irq",
+        TheoryIr::Family::KeyedStream,
+        TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign,
+        {c0.value()},
+        x,
+        x,
+        std::string("Spekulativ. emit interrupt gate."));
+    REQUIRE(theory.ok());
+
+    const StatusOr<std::string> header = DslEmitCpu::emit_theory_header(theory.value());
+    REQUIRE(header.ok());
+    REQUIRE(header.value().find("interrupt_mode = \"none_by_design\"") != std::string::npos);
+    REQUIRE(
+        header.value().find("none_by_design rejects non-empty InterruptPolicy") !=
+        std::string::npos);
+}
+
 TEST_CASE("DslEmitCpu rejects theory without steps", "[dsl][emit]") {
     const StatusOr<TheoryIr> theory = TheoryIr::make(
         "no_steps",

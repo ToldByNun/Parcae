@@ -59,11 +59,13 @@ private:
     }
 
     [[nodiscard]] static bool is_binop_kind(std::string_view kind) {
-        return kind == "Add" || kind == "Sub" || kind == "Mult";
+        return kind == "Add" || kind == "Sub" || kind == "Mult" || kind == "Div" ||
+               kind == "FloorDiv" || kind == "Mod" || kind == "Pow" || kind == "LShift" ||
+               kind == "RShift" || kind == "BitOr" || kind == "BitXor" || kind == "BitAnd";
     }
 
     [[nodiscard]] static bool is_unaryop_kind(std::string_view kind) {
-        return kind == "UAdd" || kind == "USub" || kind == "Not";
+        return kind == "UAdd" || kind == "USub" || kind == "Not" || kind == "Invert";
     }
 
     [[nodiscard]] static bool is_boolop_kind(std::string_view kind) {
@@ -71,8 +73,9 @@ private:
     }
 
     [[nodiscard]] static bool is_cmpop_kind(std::string_view kind) {
+        // Pure Index29 comparisons only (no Is/In — those are identity/container).
         return kind == "Eq" || kind == "NotEq" || kind == "Lt" || kind == "LtE" || kind == "Gt" ||
-               kind == "GtE" || kind == "In" || kind == "NotIn";
+               kind == "GtE";
     }
 
     [[nodiscard]] static bool is_ctx_kind(std::string_view kind) {

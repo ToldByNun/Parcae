@@ -494,6 +494,33 @@ private:
                 if (op == "Mult") {
                     return Z29Expr::mul(std::move(l.value()), std::move(r.value()));
                 }
+                if (op == "Div") {
+                    return Z29Expr::div(std::move(l.value()), std::move(r.value()));
+                }
+                if (op == "FloorDiv") {
+                    return Z29Expr::floor_div(std::move(l.value()), std::move(r.value()));
+                }
+                if (op == "Mod") {
+                    return Z29Expr::mod(std::move(l.value()), std::move(r.value()));
+                }
+                if (op == "Pow") {
+                    return Z29Expr::pow(std::move(l.value()), std::move(r.value()));
+                }
+                if (op == "LShift") {
+                    return Z29Expr::lshift(std::move(l.value()), std::move(r.value()));
+                }
+                if (op == "RShift") {
+                    return Z29Expr::rshift(std::move(l.value()), std::move(r.value()));
+                }
+                if (op == "BitOr") {
+                    return Z29Expr::bit_or(std::move(l.value()), std::move(r.value()));
+                }
+                if (op == "BitXor") {
+                    return Z29Expr::bit_xor(std::move(l.value()), std::move(r.value()));
+                }
+                if (op == "BitAnd") {
+                    return Z29Expr::bit_and(std::move(l.value()), std::move(r.value()));
+                }
                 return fail(
                     DslRuleId::E032_primitive_body,
                     "unsupported BinOp '" + op + "'",
@@ -518,12 +545,24 @@ private:
                 if (opv->as_string() == "UAdd") {
                     return arg;
                 }
+                if (opv->as_string() == "Invert") {
+                    return Z29Expr::bit_not(std::move(arg.value()));
+                }
+                if (opv->as_string() == "Not") {
+                    return Z29Expr::bool_not(std::move(arg.value()));
+                }
                 return fail(
                     DslRuleId::E032_primitive_body,
                     "unsupported UnaryOp '" + opv->as_string() + "'",
                     source_path,
                     node.lineno(),
                     node.col_offset());
+            }
+            if (node.kind() == "Compare") {
+                return lower_compare(node, locals, theory);
+            }
+            if (node.kind() == "BoolOp") {
+                return lower_boolop(node, locals, theory);
             }
             if (node.kind() == "Call") {
                 return lower_call(node, locals, theory);
@@ -534,6 +573,111 @@ private:
                 source_path,
                 node.lineno(),
                 node.col_offset());
+        }
+
+        [[nodiscard]] StatusOr<Z29Expr::Ptr> lower_compare(
+            const DslAstNode& node,
+            std::unordered_map<std::string, Z29Expr::Ptr>& locals,
+            const TheoryDraft* theory) {
+            const DslAstValue* left_v = node.find_field("left");
+            const DslAstValue* ops_v = node.find_field("ops");
+            const DslAstValue* comps_v = node.find_field("comparators");
+            if (!left_v || left_v->type() != DslAstValue::Type::Node || !left_v->as_node() ||
+                !ops_v || ops_v->type() != DslAstValue::Type::Array || !comps_v ||
+                comps_v->type() != DslAstValue::Type::Array ||
+                ops_v->as_array().size() != comps_v->as_array().size() ||
+                ops_v->as_array().empty()) {
+                return fail(DslRuleId::E032_primitive_body, "malformed Compare", source_path);
+            }
+            StatusOr<Z29Expr::Ptr> prev = lower_expr(*left_v->as_node(), locals, theory);
+            if (!prev.ok()) {
+                return prev.status();
+            }
+            Z29Expr::Ptr chain;
+            for (std::size_t i = 0; i < ops_v->as_array().size(); ++i) {
+                const DslAstValue& op_item = ops_v->as_array()[i];
+                const DslAstValue& comp_item = comps_v->as_array()[i];
+                std::string op;
+                if (op_item.type() == DslAstValue::Type::String) {
+                    op = op_item.as_string();
+                } else if (op_item.type() == DslAstValue::Type::Node && op_item.as_node()) {
+                    op = op_item.as_node()->kind();
+                } else {
+                    return fail(DslRuleId::E032_primitive_body, "Compare op must be string", source_path);
+                }
+                if (comp_item.type() != DslAstValue::Type::Node || !comp_item.as_node()) {
+                    return fail(
+                        DslRuleId::E032_primitive_body, "Compare comparator must be expr", source_path);
+                }
+                StatusOr<Z29Expr::Ptr> rhs = lower_expr(*comp_item.as_node(), locals, theory);
+                if (!rhs.ok()) {
+                    return rhs.status();
+                }
+                Z29Expr::Ptr cmp;
+                if (op == "Eq") {
+                    cmp = Z29Expr::eq(prev.value(), rhs.value());
+                } else if (op == "NotEq") {
+                    cmp = Z29Expr::ne(prev.value(), rhs.value());
+                } else if (op == "Lt") {
+                    cmp = Z29Expr::lt(prev.value(), rhs.value());
+                } else if (op == "LtE") {
+                    cmp = Z29Expr::le(prev.value(), rhs.value());
+                } else if (op == "Gt") {
+                    cmp = Z29Expr::gt(prev.value(), rhs.value());
+                } else if (op == "GtE") {
+                    cmp = Z29Expr::ge(prev.value(), rhs.value());
+                } else {
+                    return fail(
+                        DslRuleId::E032_primitive_body,
+                        "unsupported Compare op '" + op + "'",
+                        source_path,
+                        node.lineno(),
+                        node.col_offset());
+                }
+                chain = chain ? Z29Expr::bool_and(std::move(chain), std::move(cmp)) : std::move(cmp);
+                prev = std::move(rhs);
+            }
+            return chain;
+        }
+
+        [[nodiscard]] StatusOr<Z29Expr::Ptr> lower_boolop(
+            const DslAstNode& node,
+            std::unordered_map<std::string, Z29Expr::Ptr>& locals,
+            const TheoryDraft* theory) {
+            const DslAstValue* opv = node.find_field("op");
+            const DslAstValue* values = node.find_field("values");
+            if (!opv || opv->type() != DslAstValue::Type::String || !values ||
+                values->type() != DslAstValue::Type::Array || values->as_array().empty()) {
+                return fail(DslRuleId::E032_primitive_body, "malformed BoolOp", source_path);
+            }
+            const std::string& op = opv->as_string();
+            const bool is_and = op == "And";
+            if (!is_and && op != "Or") {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "unsupported BoolOp '" + op + "'",
+                    source_path,
+                    node.lineno(),
+                    node.col_offset());
+            }
+            Z29Expr::Ptr acc;
+            for (const DslAstValue& v : values->as_array()) {
+                if (v.type() != DslAstValue::Type::Node || !v.as_node()) {
+                    return fail(DslRuleId::E032_primitive_body, "BoolOp value must be expr", source_path);
+                }
+                StatusOr<Z29Expr::Ptr> e = lower_expr(*v.as_node(), locals, theory);
+                if (!e.ok()) {
+                    return e.status();
+                }
+                if (!acc) {
+                    acc = std::move(e.value());
+                } else if (is_and) {
+                    acc = Z29Expr::bool_and(std::move(acc), std::move(e.value()));
+                } else {
+                    acc = Z29Expr::bool_or(std::move(acc), std::move(e.value()));
+                }
+            }
+            return acc;
         }
 
         [[nodiscard]] StatusOr<Z29Expr::Ptr> lower_attribute(
@@ -615,11 +759,71 @@ private:
                 if (id == "z29_mul" && args.size() == 2) {
                     return Z29Expr::mul(std::move(args[0]), std::move(args[1]));
                 }
+                if (id == "z29_div" && args.size() == 2) {
+                    return Z29Expr::div(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_floordiv" && args.size() == 2) {
+                    return Z29Expr::floor_div(std::move(args[0]), std::move(args[1]));
+                }
                 if (id == "z29_inv" && args.size() == 1) {
                     return Z29Expr::inv(std::move(args[0]));
                 }
                 if (id == "z29_mod" && args.size() == 2) {
                     return Z29Expr::mod(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_pow" && args.size() == 2) {
+                    return Z29Expr::pow(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_bit_and" && args.size() == 2) {
+                    return Z29Expr::bit_and(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_bit_or" && args.size() == 2) {
+                    return Z29Expr::bit_or(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_bit_xor" && args.size() == 2) {
+                    return Z29Expr::bit_xor(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_bit_not" && args.size() == 1) {
+                    return Z29Expr::bit_not(std::move(args[0]));
+                }
+                if (id == "z29_lshift" && args.size() == 2) {
+                    return Z29Expr::lshift(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_rshift" && args.size() == 2) {
+                    return Z29Expr::rshift(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_eq" && args.size() == 2) {
+                    return Z29Expr::eq(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_ne" && args.size() == 2) {
+                    return Z29Expr::ne(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_lt" && args.size() == 2) {
+                    return Z29Expr::lt(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_le" && args.size() == 2) {
+                    return Z29Expr::le(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_gt" && args.size() == 2) {
+                    return Z29Expr::gt(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_ge" && args.size() == 2) {
+                    return Z29Expr::ge(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_bool_and" && args.size() == 2) {
+                    return Z29Expr::bool_and(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_bool_or" && args.size() == 2) {
+                    return Z29Expr::bool_or(std::move(args[0]), std::move(args[1]));
+                }
+                if (id == "z29_bool_not" && args.size() == 1) {
+                    return Z29Expr::bool_not(std::move(args[0]));
+                }
+                if (id == "z29_neg" && args.size() == 1) {
+                    return Z29Expr::neg(std::move(args[0]));
+                }
+                if (id == "z29_atbash" && args.size() == 1) {
+                    return Z29Expr::atbash(std::move(args[0]));
                 }
                 auto pit = primitives_by_name.find(id);
                 if (pit != primitives_by_name.end()) {
@@ -718,44 +922,6 @@ private:
                 }
                 return node;
             }
-            case Z29Expr::Kind::Add:
-            case Z29Expr::Kind::Sub:
-            case Z29Expr::Kind::Mul:
-            case Z29Expr::Kind::Mod: {
-                StatusOr<Z29Expr::Ptr> l = subst_rec(node->left(), env);
-                if (!l.ok()) {
-                    return l.status();
-                }
-                StatusOr<Z29Expr::Ptr> r = subst_rec(node->right(), env);
-                if (!r.ok()) {
-                    return r.status();
-                }
-                if (node->kind() == Z29Expr::Kind::Add) {
-                    return Z29Expr::add(std::move(l.value()), std::move(r.value()));
-                }
-                if (node->kind() == Z29Expr::Kind::Sub) {
-                    return Z29Expr::sub(std::move(l.value()), std::move(r.value()));
-                }
-                if (node->kind() == Z29Expr::Kind::Mul) {
-                    return Z29Expr::mul(std::move(l.value()), std::move(r.value()));
-                }
-                return Z29Expr::mod(std::move(l.value()), std::move(r.value()));
-            }
-            case Z29Expr::Kind::Neg:
-            case Z29Expr::Kind::Inv:
-            case Z29Expr::Kind::Atbash: {
-                StatusOr<Z29Expr::Ptr> a = subst_rec(node->arg(), env);
-                if (!a.ok()) {
-                    return a.status();
-                }
-                if (node->kind() == Z29Expr::Kind::Neg) {
-                    return Z29Expr::neg(std::move(a.value()));
-                }
-                if (node->kind() == Z29Expr::Kind::Inv) {
-                    return Z29Expr::inv(std::move(a.value()));
-                }
-                return Z29Expr::atbash(std::move(a.value()));
-            }
             case Z29Expr::Kind::Call: {
                 std::vector<Z29Expr::Ptr> nargs;
                 for (const Z29Expr::Ptr& a : node->args()) {
@@ -767,6 +933,26 @@ private:
                 }
                 return Z29Expr::call(node->name(), std::move(nargs));
             }
+            default:
+                break;
+            }
+            if (Z29Expr::is_binary(node->kind())) {
+                StatusOr<Z29Expr::Ptr> l = subst_rec(node->left(), env);
+                if (!l.ok()) {
+                    return l.status();
+                }
+                StatusOr<Z29Expr::Ptr> r = subst_rec(node->right(), env);
+                if (!r.ok()) {
+                    return r.status();
+                }
+                return Z29Expr::make_binary(node->kind(), std::move(l.value()), std::move(r.value()));
+            }
+            if (Z29Expr::is_unary(node->kind())) {
+                StatusOr<Z29Expr::Ptr> a = subst_rec(node->arg(), env);
+                if (!a.ok()) {
+                    return a.status();
+                }
+                return Z29Expr::make_unary_kind(node->kind(), std::move(a.value()));
             }
             return Status::error("unknown Z29Expr kind in substitute");
         }

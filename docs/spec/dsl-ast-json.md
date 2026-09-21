@@ -192,8 +192,12 @@ Implementations MUST accept either:
 
 Conforming frontends **SHOULD** use compact strings for ops/ctx to shrink JSON.
 
-Allowed binary ops: `Add`, `Sub`, `Mult`  
-Allowed unary ops: `UAdd`, `USub`, `Not` (gate restricts where `Not` is legal)  
+Allowed binary ops: `Add`, `Sub`, `Mult`, `Div`, `FloorDiv`, `Mod`, `Pow`,
+`LShift`, `RShift`, `BitOr`, `BitXor`, `BitAnd`  
+Allowed unary ops: `UAdd`, `USub`, `Not`, `Invert`  
+Allowed compare ops: `Eq`, `NotEq`, `Lt`, `LtE`, `Gt`, `GtE`  
+Allowed bool ops: `And`, `Or`  
+(`MatMult`, `Is`, `IsNot`, `In`, `NotIn` **MUST** be rejected.)  
 Allowed bool ops: `And`, `Or`  
 Allowed compare ops: `Eq`, `NotEq`, `Lt`, `LtE`, `Gt`, `GtE`, `In`, `NotIn`  
 Allowed ctx: `Load`, `Store`

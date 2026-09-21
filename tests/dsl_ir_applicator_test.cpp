@@ -131,7 +131,38 @@ TEST_CASE("DslIrApplicator rejects missing theory step", "[dsl][applicator]") {
     REQUIRE(st.message().find("encrypt_step") != std::string::npos);
 }
 
-TEST_CASE("DslIrApplicator rejects param domain", "[dsl][applicator]") {
+TEST_CASE("DslIrApplicator rejects interrupt under none_by_design", "[dsl][applicator]") {
+    const StatusOr<ParamIr> c0 = ParamIr::make("c0", 0, 28);
+    REQUIRE(c0.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "no_irq",
+        TheoryIr::Family::KeyedStream,
+        TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign,
+        {c0.value()},
+        x,
+        x,
+        std::string("Spekulativ. interrupt parity fixture."));
+    REQUIRE(theory.ok());
+
+    const std::vector<Index29> plain{Index29{1}, Index29{2}, Index29{3}};
+    const nlohmann::json params{{"c0", 0}};
+    const StatusOr<InterruptPolicy> irq = InterruptPolicy::from_skip_indices({1});
+    REQUIRE(irq.ok());
+
+    REQUIRE(DslIrApplicator::apply(
+                theory.value(), plain, params, TransformDirection::Encrypt, InterruptPolicy::none())
+                .ok());
+
+    const StatusOr<std::vector<Index29>> rejected = DslIrApplicator::apply(
+        theory.value(), plain, params, TransformDirection::Encrypt, irq.value());
+    REQUIRE_FALSE(rejected.ok());
+    REQUIRE(rejected.status().message().find("none_by_design") != std::string::npos);
+    REQUIRE(rejected.status().message().find("E030") != std::string::npos);
+}
+
+TEST_CASE("DslIrApplicator rejects param outside declared domain", "[dsl][applicator]") {
     const StatusOr<ParamIr> a = ParamIr::make("a", 1, 28);
     REQUIRE(a.ok());
     const Z29Expr::Ptr x = Z29Expr::var("x");

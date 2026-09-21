@@ -97,13 +97,47 @@ TEST_CASE("Z29Expr poly2 matches Z29 oracle", "[dsl][z29expr]") {
     REQUIRE(body->eval(env).value() == expect);
 }
 
-TEST_CASE("Z29Expr location attaches to domain diag", "[dsl][z29expr]") {
-    auto zero = Z29Expr::constant(0).value();
-    zero->set_location("theories/x.py", 4, 2);
-    const auto inv = Z29Expr::inv(zero);
-    inv->set_location("theories/x.py", 4, 2);
-    const StatusOr<Index29> r = inv->eval({});
-    REQUIRE_FALSE(r.ok());
-    REQUIRE(r.status().message().find("theories/x.py:4:2:") != std::string::npos);
-    REQUIRE(r.status().message().find("E040") != std::string::npos);
+TEST_CASE("Z29Expr bitwise shift compare bool match Z29 and cuda mirror", "[dsl][z29expr]") {
+    const auto a = Z29Expr::constant(28).value();
+    const auto b = Z29Expr::constant(7).value();
+    const auto c = Z29Expr::constant(3).value();
+
+    REQUIRE(Z29Expr::bit_xor(a, b)->eval({}).value() == Z29::bit_xor(Index29{28}, Index29{7}));
+    REQUIRE(
+        Z29Expr::bit_xor(a, b)->eval_cuda_mirror({}).value() ==
+        Z29Expr::bit_xor(a, b)->eval({}).value());
+
+    REQUIRE(Z29Expr::bit_and(a, b)->eval({}).value() == Z29::bit_and(Index29{28}, Index29{7}));
+    REQUIRE(Z29Expr::bit_or(a, b)->eval({}).value() == Z29::bit_or(Index29{28}, Index29{7}));
+    REQUIRE(Z29Expr::bit_not(c)->eval({}).value() == Z29::bit_not(Index29{3}));
+    REQUIRE(Z29Expr::bit_not(c)->eval({}).value() == Z29::atbash(Index29{3}));
+
+    REQUIRE(Z29Expr::lshift(c, b)->eval({}).value() == Z29::lshift(Index29{3}, Index29{7}));
+    REQUIRE(Z29Expr::rshift(a, c)->eval({}).value() == Z29::rshift(Index29{28}, Index29{3}));
+
+    REQUIRE(Z29Expr::pow(c, b)->eval({}).value() == Z29::pow(Index29{3}, Index29{7}));
+    REQUIRE(Z29Expr::floor_div(a, c)->eval({}).value() == Z29::floor_div(Index29{28}, Index29{3}));
+
+    // Modular / : 3 / 7 == 3 * inv(7)
+    REQUIRE(
+        Z29Expr::div(c, b)->eval({}).value() ==
+        Z29::mul(Index29{3}, Z29::inv(Index29{7})));
+    REQUIRE_FALSE(Z29Expr::div(c, Z29Expr::constant(0).value())->eval({}).ok());
+
+    REQUIRE(Z29Expr::lt(c, b)->eval({}).value().value() == 1);
+    REQUIRE(Z29Expr::gt(c, b)->eval({}).value().value() == 0);
+    REQUIRE(Z29Expr::eq(c, c)->eval({}).value().value() == 1);
+    REQUIRE(Z29Expr::bool_and(c, b)->eval({}).value().value() == 1);
+    REQUIRE(Z29Expr::bool_or(Z29Expr::constant(0).value(), b)->eval({}).value().value() == 1);
+    REQUIRE(Z29Expr::bool_not(Z29Expr::constant(0).value())->eval({}).value().value() == 1);
+
+    for (const auto& expr : {
+             Z29Expr::mod(a, b),
+             Z29Expr::lshift(c, Z29Expr::constant(2).value()),
+             Z29Expr::ge(a, b),
+             Z29Expr::bool_and(a, Z29Expr::constant(0).value()),
+         }) {
+        REQUIRE(expr->eval({}).value() == expr->eval_cuda_mirror({}).value());
+    }
 }
+

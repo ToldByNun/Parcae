@@ -45,6 +45,91 @@ public:
         return inv_table[a];
     }
 
+    [[nodiscard]] PARCAE_HD static std::uint8_t pow(std::uint8_t base, std::uint8_t exp) noexcept {
+        std::uint8_t result = 1;
+        std::uint8_t b = base;
+        std::uint8_t e = exp;
+        while (e != 0) {
+            if ((e & 1u) != 0) {
+                result = static_cast<std::uint8_t>((result * b) % modulus);
+            }
+            b = static_cast<std::uint8_t>((b * b) % modulus);
+            e = static_cast<std::uint8_t>(e >> 1);
+        }
+        return result;
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t floor_div(std::uint8_t x, std::uint8_t y) noexcept {
+        return static_cast<std::uint8_t>(x / y);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t bit_and(std::uint8_t x, std::uint8_t y) noexcept {
+        return static_cast<std::uint8_t>((x & y) % modulus);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t bit_or(std::uint8_t x, std::uint8_t y) noexcept {
+        return static_cast<std::uint8_t>((x | y) % modulus);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t bit_xor(std::uint8_t x, std::uint8_t y) noexcept {
+        return static_cast<std::uint8_t>((x ^ y) % modulus);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t bit_not(std::uint8_t x) noexcept {
+        return sub(static_cast<std::uint8_t>(28), x);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t lshift(std::uint8_t x, std::uint8_t y) noexcept {
+        if (y >= 64u) {
+            return 0;
+        }
+        return static_cast<std::uint8_t>(
+            (static_cast<unsigned long long>(x) << y) % modulus);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t rshift(std::uint8_t x, std::uint8_t y) noexcept {
+        if (y >= 8u) {
+            return 0;
+        }
+        return static_cast<std::uint8_t>(x >> y);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t eq(std::uint8_t x, std::uint8_t y) noexcept {
+        return x == y ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t ne(std::uint8_t x, std::uint8_t y) noexcept {
+        return x != y ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t lt(std::uint8_t x, std::uint8_t y) noexcept {
+        return x < y ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t le(std::uint8_t x, std::uint8_t y) noexcept {
+        return x <= y ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t gt(std::uint8_t x, std::uint8_t y) noexcept {
+        return x > y ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t ge(std::uint8_t x, std::uint8_t y) noexcept {
+        return x >= y ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t bool_and(std::uint8_t x, std::uint8_t y) noexcept {
+        return (x != 0 && y != 0) ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t bool_or(std::uint8_t x, std::uint8_t y) noexcept {
+        return (x != 0 || y != 0) ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
+    }
+
+    [[nodiscard]] PARCAE_HD static std::uint8_t bool_not(std::uint8_t x) noexcept {
+        return x == 0 ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
+    }
+
 private:
     Z29Device() = delete;
 };

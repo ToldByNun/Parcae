@@ -136,6 +136,15 @@ public:
                                                                      : "decrypt_step"))
                 .to_status();
         }
+        if (theory.interrupt_mode() == TheoryIr::InterruptMode::NoneByDesign &&
+            !interrupt.empty()) {
+            return DslDiag::make(
+                       DslRuleId::E030_interrupt_policy,
+                       "theory '" + theory.name() +
+                           "' declares interrupts=none_by_design; non-empty "
+                           "InterruptPolicy rejected (CPU↔CUDA parity)")
+                .to_status();
+        }
         StatusOr<Z29Expr::Env> env = bind_theory_params(theory, params);
         if (!env.ok()) {
             return env.status();

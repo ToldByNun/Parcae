@@ -183,16 +183,6 @@ public:
             return false;
         case Kind::Var:
             return expr.name() == var_name;
-        case Kind::Add:
-        case Kind::Sub:
-        case Kind::Mul:
-        case Kind::Mod:
-            return depends_on_var(*expr.left(), var_name) ||
-                   depends_on_var(*expr.right(), var_name);
-        case Kind::Neg:
-        case Kind::Inv:
-        case Kind::Atbash:
-            return depends_on_var(*expr.arg(), var_name);
         case Kind::Call:
             for (const Z29Expr::Ptr& a : expr.args()) {
                 if (a && depends_on_var(*a, var_name)) {
@@ -200,6 +190,15 @@ public:
                 }
             }
             return false;
+        default:
+            break;
+        }
+        if (Z29Expr::is_binary(expr.kind())) {
+            return depends_on_var(*expr.left(), var_name) ||
+                   depends_on_var(*expr.right(), var_name);
+        }
+        if (Z29Expr::is_unary(expr.kind())) {
+            return depends_on_var(*expr.arg(), var_name);
         }
         return false;
     }
@@ -216,10 +215,113 @@ private:
             return Z29Expr::constant(expr.const_value()).value();
         case Kind::Var:
             return Z29Expr::var(expr.name());
-        case Kind::Add:
-        case Kind::Sub:
-        case Kind::Mul:
-        case Kind::Mod: {
+        case Kind::Call: {
+            const std::string& n = expr.name();
+            const auto& args = expr.args();
+            auto as_bin = [&](Z29Expr::Kind k) -> StatusOr<Z29Expr::Ptr> {
+                if (args.size() != 2) {
+                    return DslDiag::make(DslRuleId::E032_primitive_body, "const_fold call arity")
+                        .to_status();
+                }
+                return const_fold_rec(*Z29Expr::make_binary(k, args[0], args[1]), folds);
+            };
+            auto as_unary = [&](Z29Expr::Kind k) -> StatusOr<Z29Expr::Ptr> {
+                if (args.size() != 1) {
+                    return DslDiag::make(DslRuleId::E032_primitive_body, "const_fold call arity")
+                        .to_status();
+                }
+                return const_fold_rec(*Z29Expr::make_unary_kind(k, args[0]), folds);
+            };
+            if (n == "z29_add") {
+                return as_bin(Kind::Add);
+            }
+            if (n == "z29_sub") {
+                return as_bin(Kind::Sub);
+            }
+            if (n == "z29_mul") {
+                return as_bin(Kind::Mul);
+            }
+            if (n == "z29_div") {
+                return as_bin(Kind::Div);
+            }
+            if (n == "z29_floordiv") {
+                return as_bin(Kind::FloorDiv);
+            }
+            if (n == "z29_mod") {
+                return as_bin(Kind::Mod);
+            }
+            if (n == "z29_pow") {
+                return as_bin(Kind::Pow);
+            }
+            if (n == "z29_bit_and") {
+                return as_bin(Kind::BitAnd);
+            }
+            if (n == "z29_bit_or") {
+                return as_bin(Kind::BitOr);
+            }
+            if (n == "z29_bit_xor") {
+                return as_bin(Kind::BitXor);
+            }
+            if (n == "z29_lshift") {
+                return as_bin(Kind::LShift);
+            }
+            if (n == "z29_rshift") {
+                return as_bin(Kind::RShift);
+            }
+            if (n == "z29_eq") {
+                return as_bin(Kind::Eq);
+            }
+            if (n == "z29_ne") {
+                return as_bin(Kind::Ne);
+            }
+            if (n == "z29_lt") {
+                return as_bin(Kind::Lt);
+            }
+            if (n == "z29_le") {
+                return as_bin(Kind::Le);
+            }
+            if (n == "z29_gt") {
+                return as_bin(Kind::Gt);
+            }
+            if (n == "z29_ge") {
+                return as_bin(Kind::Ge);
+            }
+            if (n == "z29_bool_and") {
+                return as_bin(Kind::BoolAnd);
+            }
+            if (n == "z29_bool_or") {
+                return as_bin(Kind::BoolOr);
+            }
+            if (n == "z29_inv") {
+                return as_unary(Kind::Inv);
+            }
+            if (n == "z29_neg") {
+                return as_unary(Kind::Neg);
+            }
+            if (n == "z29_atbash") {
+                return as_unary(Kind::Atbash);
+            }
+            if (n == "z29_bit_not") {
+                return as_unary(Kind::BitNot);
+            }
+            if (n == "z29_bool_not") {
+                return as_unary(Kind::BoolNot);
+            }
+            std::vector<Z29Expr::Ptr> mapped;
+            mapped.reserve(args.size());
+            for (const Z29Expr::Ptr& a : args) {
+                StatusOr<Z29Expr::Ptr> fa = const_fold_rec(*a, folds);
+                if (!fa.ok()) {
+                    return fa.status();
+                }
+                mapped.push_back(fa.value());
+            }
+            return Z29Expr::call(n, std::move(mapped));
+        }
+        default:
+            break;
+        }
+        if (Z29Expr::is_binary(expr.kind())) {
             StatusOr<Z29Expr::Ptr> l = const_fold_rec(*expr.left(), folds);
             if (!l.ok()) {
                 return l.status();
@@ -228,31 +330,15 @@ private:
             if (!r.ok()) {
                 return r.status();
             }
+            auto rebuilt = Z29Expr::make_binary(expr.kind(), l.value(), r.value());
             if (l.value()->kind() == Kind::Const && r.value()->kind() == Kind::Const) {
-                const Index29 lv{l.value()->const_value()};
-                const Index29 rv{r.value()->const_value()};
-                if (expr.kind() == Kind::Mod) {
-                    if (rv.value() == 0) {
-                        return DslDiag::make(
-                                   DslRuleId::E040_param_domain, "const_fold: z29_mod divisor is 0")
-                            .to_status();
-                    }
-                    ++folds;
-                    return Z29Expr::constant(static_cast<std::uint8_t>(lv.value() % rv.value()))
-                        .value();
-                }
-                Index29 out{0};
-                if (expr.kind() == Kind::Add) {
-                    out = Z29::add(lv, rv);
-                } else if (expr.kind() == Kind::Sub) {
-                    out = Z29::sub(lv, rv);
-                } else {
-                    out = Z29::mul(lv, rv);
+                StatusOr<Index29> ev = rebuilt->eval({});
+                if (!ev.ok()) {
+                    return ev.status();
                 }
                 ++folds;
-                return Z29Expr::constant(out.value()).value();
+                return Z29Expr::constant(ev.value().value()).value();
             }
-            // Algebraic identities with one const.
             if (expr.kind() == Kind::Add) {
                 if (r.value()->kind() == Kind::Const && r.value()->const_value() == 0) {
                     ++folds;
@@ -262,14 +348,12 @@ private:
                     ++folds;
                     return r.value();
                 }
-                return Z29Expr::add(l.value(), r.value());
             }
             if (expr.kind() == Kind::Sub) {
                 if (r.value()->kind() == Kind::Const && r.value()->const_value() == 0) {
                     ++folds;
                     return l.value();
                 }
-                return Z29Expr::sub(l.value(), r.value());
             }
             if (expr.kind() == Kind::Mul) {
                 if (l.value()->kind() == Kind::Const && l.value()->const_value() == 0) {
@@ -288,87 +372,24 @@ private:
                     ++folds;
                     return l.value();
                 }
-                return Z29Expr::mul(l.value(), r.value());
             }
-            return Z29Expr::mod(l.value(), r.value());
+            return rebuilt;
         }
-        case Kind::Neg: {
+        if (Z29Expr::is_unary(expr.kind())) {
             StatusOr<Z29Expr::Ptr> a = const_fold_rec(*expr.arg(), folds);
             if (!a.ok()) {
                 return a.status();
             }
+            auto rebuilt = Z29Expr::make_unary_kind(expr.kind(), a.value());
             if (a.value()->kind() == Kind::Const) {
-                ++folds;
-                return Z29Expr::constant(Z29::neg(Index29{a.value()->const_value()}).value())
-                    .value();
-            }
-            return Z29Expr::neg(a.value());
-        }
-        case Kind::Inv: {
-            StatusOr<Z29Expr::Ptr> a = const_fold_rec(*expr.arg(), folds);
-            if (!a.ok()) {
-                return a.status();
-            }
-            if (a.value()->kind() == Kind::Const) {
-                if (a.value()->const_value() == 0) {
-                    return DslDiag::make(
-                               DslRuleId::E040_param_domain, "const_fold: z29_inv(0) is undefined")
-                        .to_status();
+                StatusOr<Index29> ev = rebuilt->eval({});
+                if (!ev.ok()) {
+                    return ev.status();
                 }
                 ++folds;
-                return Z29Expr::constant(Z29::inv(Index29{a.value()->const_value()}).value())
-                    .value();
+                return Z29Expr::constant(ev.value().value()).value();
             }
-            return Z29Expr::inv(a.value());
-        }
-        case Kind::Atbash: {
-            StatusOr<Z29Expr::Ptr> a = const_fold_rec(*expr.arg(), folds);
-            if (!a.ok()) {
-                return a.status();
-            }
-            if (a.value()->kind() == Kind::Const) {
-                ++folds;
-                return Z29Expr::constant(Z29::atbash(Index29{a.value()->const_value()}).value())
-                    .value();
-            }
-            return Z29Expr::atbash(a.value());
-        }
-        case Kind::Call: {
-            // Lower builtins to Kind nodes then fold.
-            const std::string& n = expr.name();
-            const auto& args = expr.args();
-            if (n == "z29_add" && args.size() == 2) {
-                return const_fold_rec(*Z29Expr::add(args[0], args[1]), folds);
-            }
-            if (n == "z29_sub" && args.size() == 2) {
-                return const_fold_rec(*Z29Expr::sub(args[0], args[1]), folds);
-            }
-            if (n == "z29_mul" && args.size() == 2) {
-                return const_fold_rec(*Z29Expr::mul(args[0], args[1]), folds);
-            }
-            if (n == "z29_mod" && args.size() == 2) {
-                return const_fold_rec(*Z29Expr::mod(args[0], args[1]), folds);
-            }
-            if (n == "z29_inv" && args.size() == 1) {
-                return const_fold_rec(*Z29Expr::inv(args[0]), folds);
-            }
-            if (n == "z29_neg" && args.size() == 1) {
-                return const_fold_rec(*Z29Expr::neg(args[0]), folds);
-            }
-            if (n == "z29_atbash" && args.size() == 1) {
-                return const_fold_rec(*Z29Expr::atbash(args[0]), folds);
-            }
-            std::vector<Z29Expr::Ptr> mapped;
-            mapped.reserve(args.size());
-            for (const Z29Expr::Ptr& a : args) {
-                StatusOr<Z29Expr::Ptr> fa = const_fold_rec(*a, folds);
-                if (!fa.ok()) {
-                    return fa.status();
-                }
-                mapped.push_back(fa.value());
-            }
-            return Z29Expr::call(n, std::move(mapped));
-        }
+            return rebuilt;
         }
         return DslDiag::make(DslRuleId::E032_primitive_body, "const_fold: unknown kind")
             .to_status();
@@ -389,7 +410,6 @@ private:
             if (depends_on_var(*a.value(), cipher_var)) {
                 return Z29Expr::inv(a.value());
             }
-            // Already a constant ⇒ const_fold should have removed inv; keep safe.
             if (a.value()->kind() == Kind::Const) {
                 if (a.value()->const_value() == 0) {
                     return DslDiag::make(
@@ -410,66 +430,8 @@ private:
             return Z29Expr::constant(expr.const_value()).value();
         case Kind::Var:
             return Z29Expr::var(expr.name());
-        case Kind::Add: {
-            StatusOr<Z29Expr::Ptr> l = hoist_inv_rec(*expr.left(), cipher_var, hoists, hoist_count);
-            if (!l.ok()) {
-                return l.status();
-            }
-            StatusOr<Z29Expr::Ptr> r = hoist_inv_rec(*expr.right(), cipher_var, hoists, hoist_count);
-            if (!r.ok()) {
-                return r.status();
-            }
-            return Z29Expr::add(l.value(), r.value());
-        }
-        case Kind::Sub: {
-            StatusOr<Z29Expr::Ptr> l = hoist_inv_rec(*expr.left(), cipher_var, hoists, hoist_count);
-            if (!l.ok()) {
-                return l.status();
-            }
-            StatusOr<Z29Expr::Ptr> r = hoist_inv_rec(*expr.right(), cipher_var, hoists, hoist_count);
-            if (!r.ok()) {
-                return r.status();
-            }
-            return Z29Expr::sub(l.value(), r.value());
-        }
-        case Kind::Mul: {
-            StatusOr<Z29Expr::Ptr> l = hoist_inv_rec(*expr.left(), cipher_var, hoists, hoist_count);
-            if (!l.ok()) {
-                return l.status();
-            }
-            StatusOr<Z29Expr::Ptr> r = hoist_inv_rec(*expr.right(), cipher_var, hoists, hoist_count);
-            if (!r.ok()) {
-                return r.status();
-            }
-            return Z29Expr::mul(l.value(), r.value());
-        }
-        case Kind::Mod: {
-            StatusOr<Z29Expr::Ptr> l = hoist_inv_rec(*expr.left(), cipher_var, hoists, hoist_count);
-            if (!l.ok()) {
-                return l.status();
-            }
-            StatusOr<Z29Expr::Ptr> r = hoist_inv_rec(*expr.right(), cipher_var, hoists, hoist_count);
-            if (!r.ok()) {
-                return r.status();
-            }
-            return Z29Expr::mod(l.value(), r.value());
-        }
-        case Kind::Neg: {
-            StatusOr<Z29Expr::Ptr> a = hoist_inv_rec(*expr.arg(), cipher_var, hoists, hoist_count);
-            if (!a.ok()) {
-                return a.status();
-            }
-            return Z29Expr::neg(a.value());
-        }
         case Kind::Inv:
             return maybe_hoist_inv(expr.arg());
-        case Kind::Atbash: {
-            StatusOr<Z29Expr::Ptr> a = hoist_inv_rec(*expr.arg(), cipher_var, hoists, hoist_count);
-            if (!a.ok()) {
-                return a.status();
-            }
-            return Z29Expr::atbash(a.value());
-        }
         case Kind::Call: {
             if (expr.name() == "z29_inv" && expr.args().size() == 1) {
                 return maybe_hoist_inv(expr.args()[0]);
@@ -485,10 +447,31 @@ private:
             }
             return Z29Expr::call(expr.name(), std::move(mapped));
         }
+        default:
+            break;
+        }
+        if (Z29Expr::is_binary(expr.kind())) {
+            StatusOr<Z29Expr::Ptr> l = hoist_inv_rec(*expr.left(), cipher_var, hoists, hoist_count);
+            if (!l.ok()) {
+                return l.status();
+            }
+            StatusOr<Z29Expr::Ptr> r = hoist_inv_rec(*expr.right(), cipher_var, hoists, hoist_count);
+            if (!r.ok()) {
+                return r.status();
+            }
+            return Z29Expr::make_binary(expr.kind(), l.value(), r.value());
+        }
+        if (Z29Expr::is_unary(expr.kind())) {
+            StatusOr<Z29Expr::Ptr> a = hoist_inv_rec(*expr.arg(), cipher_var, hoists, hoist_count);
+            if (!a.ok()) {
+                return a.status();
+            }
+            return Z29Expr::make_unary_kind(expr.kind(), a.value());
         }
         return DslDiag::make(DslRuleId::E032_primitive_body, "hoist_inv: unknown kind")
             .to_status();
     }
+
 };
 
 #endif // DSL_OPTIMIZE_HPP

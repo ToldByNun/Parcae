@@ -175,7 +175,7 @@ TEST_CASE("DslSemanticGate rejects relative ImportFrom", "[dsl][gate]") {
     REQUIRE(st.message().find("relative") != std::string::npos);
 }
 
-TEST_CASE("DslSemanticGate rejects Div operator string", "[dsl][gate]") {
+TEST_CASE("DslSemanticGate accepts Div Mod Pow BitXor LShift", "[dsl][gate]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"Expr","lineno":1,"col_offset":0,
@@ -188,10 +188,40 @@ TEST_CASE("DslSemanticGate rejects Div operator string", "[dsl][gate]") {
       }],
       "type_ignores":[]
     })");
+    REQUIRE(DslSemanticGate::check(doc).ok());
+
+    const DslAstDocument mod = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"Expr","lineno":1,"col_offset":0,
+        "value":{
+          "kind":"BinOp","lineno":1,"col_offset":0,
+          "left":{"kind":"Name","id":"x","ctx":"Load","lineno":1,"col_offset":0},
+          "op":"BitXor",
+          "right":{"kind":"Constant","value":3,"lineno":1,"col_offset":4}
+        }
+      }],
+      "type_ignores":[]
+    })");
+    REQUIRE(DslSemanticGate::check(mod).ok());
+}
+
+TEST_CASE("DslSemanticGate rejects MatMult operator string", "[dsl][gate]") {
+    const DslAstDocument doc = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"Expr","lineno":1,"col_offset":0,
+        "value":{
+          "kind":"BinOp","lineno":1,"col_offset":0,
+          "left":{"kind":"Constant","value":1,"lineno":1,"col_offset":0},
+          "op":"MatMult",
+          "right":{"kind":"Constant","value":2,"lineno":1,"col_offset":4}
+        }
+      }],
+      "type_ignores":[]
+    })");
     const Status st = DslSemanticGate::check(doc);
     REQUIRE_FALSE(st.ok());
     REQUIRE(st.message().find("E031") != std::string::npos);
-    REQUIRE(st.message().find("Div") != std::string::npos);
+    REQUIRE(st.message().find("MatMult") != std::string::npos);
 }
 
 TEST_CASE("DslSemanticGate rejects Starred with E031", "[dsl][gate]") {

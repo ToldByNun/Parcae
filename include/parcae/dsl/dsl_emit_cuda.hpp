@@ -60,10 +60,18 @@ public:
         out << "/// Emitted CUDA twin for theory `" << theory.name() << "`.\n";
         out << "/// Uses Z29Device in the .cu; grid is 1D ceil(n/"
             << DslLaunchPlan::threads_per_block << ") (DslLaunchPlan / twin convention).\n";
-        out << "/// Elementwise v0: interrupts unused on device (same as CaesarKernel).\n";
+        if (theory.interrupt_mode() == TheoryIr::InterruptMode::NoneByDesign) {
+            out << "/// interrupts=none_by_design: device ignores skips; host apply MUST reject "
+                   "non-empty InterruptPolicy.\n";
+        } else {
+            out << "/// Elementwise v0: interrupts unused on device (same as CaesarKernel); "
+                   "host may still skip.\n";
+        }
         out << "class " << class_name << " {\n";
         out << "public:\n";
-        out << "    static constexpr std::string_view theory_id = \"" << theory.name() << "\";\n\n";
+        out << "    static constexpr std::string_view theory_id = \"" << theory.name() << "\";\n";
+        out << "    static constexpr std::string_view interrupt_mode = \""
+            << TheoryIr::interrupt_mode_str(theory.interrupt_mode()) << "\";\n\n";
 
         out << "    [[nodiscard]] static Status launch_device(\n";
         out << "        const std::uint8_t* device_in,\n";
@@ -403,10 +411,106 @@ private:
             }
             return expr.name();
         }
-        case Kind::Add:
-        case Kind::Sub:
-        case Kind::Mul:
-        case Kind::Mod: {
+        case Kind::Call: {
+            const std::string& n = expr.name();
+            const auto& args = expr.args();
+            auto as_bin = [&](Z29Expr::Kind k) -> StatusOr<std::string> {
+                if (args.size() != 2 || !args[0] || !args[1]) {
+                    return fail(DslRuleId::E032_primitive_body, "call arity for CUDA emit");
+                }
+                return emit_expr_rec(
+                    *Z29Expr::make_binary(k, args[0], args[1]), cipher_var, cipher_cpp);
+            };
+            auto as_unary = [&](Z29Expr::Kind k) -> StatusOr<std::string> {
+                if (args.size() != 1 || !args[0]) {
+                    return fail(DslRuleId::E032_primitive_body, "call arity for CUDA emit");
+                }
+                return emit_expr_rec(
+                    *Z29Expr::make_unary_kind(k, args[0]), cipher_var, cipher_cpp);
+            };
+            if (n == "z29_add") {
+                return as_bin(Kind::Add);
+            }
+            if (n == "z29_sub") {
+                return as_bin(Kind::Sub);
+            }
+            if (n == "z29_mul") {
+                return as_bin(Kind::Mul);
+            }
+            if (n == "z29_div") {
+                return as_bin(Kind::Div);
+            }
+            if (n == "z29_floordiv") {
+                return as_bin(Kind::FloorDiv);
+            }
+            if (n == "z29_mod") {
+                return as_bin(Kind::Mod);
+            }
+            if (n == "z29_pow") {
+                return as_bin(Kind::Pow);
+            }
+            if (n == "z29_bit_and") {
+                return as_bin(Kind::BitAnd);
+            }
+            if (n == "z29_bit_or") {
+                return as_bin(Kind::BitOr);
+            }
+            if (n == "z29_bit_xor") {
+                return as_bin(Kind::BitXor);
+            }
+            if (n == "z29_lshift") {
+                return as_bin(Kind::LShift);
+            }
+            if (n == "z29_rshift") {
+                return as_bin(Kind::RShift);
+            }
+            if (n == "z29_eq") {
+                return as_bin(Kind::Eq);
+            }
+            if (n == "z29_ne") {
+                return as_bin(Kind::Ne);
+            }
+            if (n == "z29_lt") {
+                return as_bin(Kind::Lt);
+            }
+            if (n == "z29_le") {
+                return as_bin(Kind::Le);
+            }
+            if (n == "z29_gt") {
+                return as_bin(Kind::Gt);
+            }
+            if (n == "z29_ge") {
+                return as_bin(Kind::Ge);
+            }
+            if (n == "z29_bool_and") {
+                return as_bin(Kind::BoolAnd);
+            }
+            if (n == "z29_bool_or") {
+                return as_bin(Kind::BoolOr);
+            }
+            if (n == "z29_inv") {
+                return as_unary(Kind::Inv);
+            }
+            if (n == "z29_neg") {
+                return as_unary(Kind::Neg);
+            }
+            if (n == "z29_atbash") {
+                return as_unary(Kind::Atbash);
+            }
+            if (n == "z29_bit_not") {
+                return as_unary(Kind::BitNot);
+            }
+            if (n == "z29_bool_not") {
+                return as_unary(Kind::BoolNot);
+            }
+            return fail(
+                DslRuleId::E032_primitive_body,
+                "cannot CUDA-emit unknown primitive call '" + n + "'");
+        }
+        default:
+            break;
+        }
+        if (Z29Expr::is_binary(expr.kind())) {
             if (!expr.left() || !expr.right()) {
                 return fail(DslRuleId::E032_primitive_body, "binary expr missing operands");
             }
@@ -418,21 +522,54 @@ private:
             if (!r.ok()) {
                 return r.status();
             }
-            if (expr.kind() == Kind::Mod) {
+            switch (expr.kind()) {
+            case Kind::Add:
+                return std::string("Z29Device::add(") + l.value() + ", " + r.value() + ")";
+            case Kind::Sub:
+                return std::string("Z29Device::sub(") + l.value() + ", " + r.value() + ")";
+            case Kind::Mul:
+                return std::string("Z29Device::mul(") + l.value() + ", " + r.value() + ")";
+            case Kind::Div:
+                return std::string("Z29Device::mul(") + l.value() + ", Z29Device::inv(" +
+                       r.value() + "))";
+            case Kind::FloorDiv:
+                return std::string("Z29Device::floor_div(") + l.value() + ", " + r.value() + ")";
+            case Kind::Mod:
                 return std::string("static_cast<std::uint8_t>((") + l.value() + " % " +
                        r.value() + "))";
+            case Kind::Pow:
+                return std::string("Z29Device::pow(") + l.value() + ", " + r.value() + ")";
+            case Kind::BitAnd:
+                return std::string("Z29Device::bit_and(") + l.value() + ", " + r.value() + ")";
+            case Kind::BitOr:
+                return std::string("Z29Device::bit_or(") + l.value() + ", " + r.value() + ")";
+            case Kind::BitXor:
+                return std::string("Z29Device::bit_xor(") + l.value() + ", " + r.value() + ")";
+            case Kind::LShift:
+                return std::string("Z29Device::lshift(") + l.value() + ", " + r.value() + ")";
+            case Kind::RShift:
+                return std::string("Z29Device::rshift(") + l.value() + ", " + r.value() + ")";
+            case Kind::Eq:
+                return std::string("Z29Device::eq(") + l.value() + ", " + r.value() + ")";
+            case Kind::Ne:
+                return std::string("Z29Device::ne(") + l.value() + ", " + r.value() + ")";
+            case Kind::Lt:
+                return std::string("Z29Device::lt(") + l.value() + ", " + r.value() + ")";
+            case Kind::Le:
+                return std::string("Z29Device::le(") + l.value() + ", " + r.value() + ")";
+            case Kind::Gt:
+                return std::string("Z29Device::gt(") + l.value() + ", " + r.value() + ")";
+            case Kind::Ge:
+                return std::string("Z29Device::ge(") + l.value() + ", " + r.value() + ")";
+            case Kind::BoolAnd:
+                return std::string("Z29Device::bool_and(") + l.value() + ", " + r.value() + ")";
+            case Kind::BoolOr:
+                return std::string("Z29Device::bool_or(") + l.value() + ", " + r.value() + ")";
+            default:
+                break;
             }
-            const char* op = "add";
-            if (expr.kind() == Kind::Sub) {
-                op = "sub";
-            } else if (expr.kind() == Kind::Mul) {
-                op = "mul";
-            }
-            return std::string("Z29Device::") + op + "(" + l.value() + ", " + r.value() + ")";
         }
-        case Kind::Neg:
-        case Kind::Inv:
-        case Kind::Atbash: {
+        if (Z29Expr::is_unary(expr.kind())) {
             if (!expr.arg()) {
                 return fail(DslRuleId::E032_primitive_body, "unary expr missing operand");
             }
@@ -440,95 +577,24 @@ private:
             if (!a.ok()) {
                 return a.status();
             }
-            const char* op = "neg";
-            if (expr.kind() == Kind::Inv) {
-                op = "inv";
-            } else if (expr.kind() == Kind::Atbash) {
-                // Z29Device has no atbash — match CPU `28 - x`.
+            switch (expr.kind()) {
+            case Kind::Neg:
+                return std::string("Z29Device::neg(") + a.value() + ")";
+            case Kind::Inv:
+                return std::string("Z29Device::inv(") + a.value() + ")";
+            case Kind::Atbash:
+            case Kind::BitNot:
                 return std::string("Z29Device::sub(static_cast<std::uint8_t>(28), ") + a.value() +
                        ")";
+            case Kind::BoolNot:
+                return std::string("Z29Device::bool_not(") + a.value() + ")";
+            default:
+                break;
             }
-            return std::string("Z29Device::") + op + "(" + a.value() + ")";
-        }
-        case Kind::Call: {
-            const std::string& n = expr.name();
-            const auto& args = expr.args();
-            auto bin = [&](const char* zop) -> StatusOr<std::string> {
-                if (args.size() != 2 || !args[0] || !args[1]) {
-                    return fail(
-                        DslRuleId::E032_primitive_body,
-                        "call '" + n + "' expects 2 args for CUDA emit");
-                }
-                StatusOr<std::string> l = emit_expr_rec(*args[0], cipher_var, cipher_cpp);
-                if (!l.ok()) {
-                    return l.status();
-                }
-                StatusOr<std::string> r = emit_expr_rec(*args[1], cipher_var, cipher_cpp);
-                if (!r.ok()) {
-                    return r.status();
-                }
-                return std::string("Z29Device::") + zop + "(" + l.value() + ", " + r.value() + ")";
-            };
-            auto unary = [&](const char* zop) -> StatusOr<std::string> {
-                if (args.size() != 1 || !args[0]) {
-                    return fail(
-                        DslRuleId::E032_primitive_body,
-                        "call '" + n + "' expects 1 arg for CUDA emit");
-                }
-                StatusOr<std::string> a = emit_expr_rec(*args[0], cipher_var, cipher_cpp);
-                if (!a.ok()) {
-                    return a.status();
-                }
-                return std::string("Z29Device::") + zop + "(" + a.value() + ")";
-            };
-            if (n == "z29_add") {
-                return bin("add");
-            }
-            if (n == "z29_sub") {
-                return bin("sub");
-            }
-            if (n == "z29_mul") {
-                return bin("mul");
-            }
-            if (n == "z29_inv") {
-                return unary("inv");
-            }
-            if (n == "z29_neg") {
-                return unary("neg");
-            }
-            if (n == "z29_atbash") {
-                if (args.size() != 1 || !args[0]) {
-                    return fail(DslRuleId::E032_primitive_body, "z29_atbash expects 1 arg");
-                }
-                StatusOr<std::string> a = emit_expr_rec(*args[0], cipher_var, cipher_cpp);
-                if (!a.ok()) {
-                    return a.status();
-                }
-                return std::string("Z29Device::sub(static_cast<std::uint8_t>(28), ") + a.value() +
-                       ")";
-            }
-            if (n == "z29_mod") {
-                if (args.size() != 2 || !args[0] || !args[1]) {
-                    return fail(DslRuleId::E032_primitive_body, "z29_mod expects 2 args");
-                }
-                StatusOr<std::string> l = emit_expr_rec(*args[0], cipher_var, cipher_cpp);
-                if (!l.ok()) {
-                    return l.status();
-                }
-                StatusOr<std::string> r = emit_expr_rec(*args[1], cipher_var, cipher_cpp);
-                if (!r.ok()) {
-                    return r.status();
-                }
-                return std::string("static_cast<std::uint8_t>((") + l.value() + " % " +
-                       r.value() + "))";
-            }
-            return fail(
-                DslRuleId::E032_primitive_body,
-                "cannot emit unknown primitive call '" + n + "' to CUDA");
-        }
         }
         return fail(DslRuleId::E032_primitive_body, "unknown Z29Expr kind in CUDA emit");
     }
+
 };
 
 #endif // DSL_EMIT_CUDA_HPP

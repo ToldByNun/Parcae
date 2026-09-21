@@ -245,17 +245,17 @@ TEST_CASE("forbidden Import and bad import module keep stable rule ids", "[dsl][
 }
 
 TEST_CASE("forbidden illegal ops/ctx → E031", "[dsl][gate][forbidden]") {
-    SECTION("Pow") {
+    SECTION("MatMult") {
         const DslAstDocument doc = ingest_or_fail(module_with_expr_value(R"({
           "kind":"BinOp","lineno":7,"col_offset":0,
           "left":{"kind":"Constant","value":2,"lineno":7,"col_offset":0},
-          "op":"Pow",
+          "op":"MatMult",
           "right":{"kind":"Constant","value":3,"lineno":7,"col_offset":4}
         })"));
         const Status st = DslSemanticGate::check(doc);
         REQUIRE_FALSE(st.ok());
         REQUIRE(st.message().find("E031") != std::string::npos);
-        REQUIRE(st.message().find("Pow") != std::string::npos);
+        REQUIRE(st.message().find("MatMult") != std::string::npos);
     }
     SECTION("Del ctx") {
         const DslAstDocument doc = ingest_or_fail(module_with_expr_value(R"({

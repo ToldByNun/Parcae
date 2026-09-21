@@ -132,24 +132,45 @@ def poly2_mod29(i: Z29Expr, c2: Z29Expr, c1: Z29Expr, c0: Z29Expr) -> Z29Expr:
 | Allowed | Forbidden (compile error + lineno) |
 |---------|-------------------------------------|
 | `return` of a `Z29Expr` | `for` / `while` / `async` / `with` / `try` |
-| `+`, `-`, `*` on `Z29Expr` | List/dict/set comprehensions, `lambda`, `yield` |
+| Full operator set on `Z29Expr` (see table below) | List/dict/set comprehensions, `lambda`, `yield` |
 | Calls to `z29_*` and other registered primitives | `eval` / `exec` / `open` / arbitrary attributes |
 | Local bindings to expressions only | Hidden state, RNG, I/O |
 
 ### Core math ops (`parcae.dsl.math`)
 
-Semantics **MUST** match [z29.md](z29.md):
+Semantics **MUST** match [z29.md](z29.md). All results are `Index29` in `0..28`.
+Bitwise / shift ops run on integer representatives then reduce `mod 29`.
+Comparisons and bool-ish ops yield `0` or `1`. `/` is **modular** division
+(`mul(x, inv(y))`), not IEEE float. `//` is integer floor-division of
+representatives. `**` is modular exponentiation (`0**0` → `1`). `~x` is
+`(-x-1) mod 29` (equals Atbash `28-x`).
 
-| DSL | Meaning |
-|-----|---------|
+| DSL / Python | Meaning |
+|--------------|---------|
 | `z29_add` / `+` | `(x + y) mod 29` |
 | `z29_sub` / `-` | `(x - y) mod 29` |
 | `z29_mul` / `*` | `(x * y) mod 29` |
-| `z29_inv` | Inverse on `1..28`; `inv(0)` **MUST** fail verification / domain gate |
-| `z29_mod` | Explicit mod helper where needed; inputs already in-domain for Index29 |
+| `z29_div` / `/` | modular `mul(x, inv(y))`; `y=0` → E040 |
+| `z29_floordiv` / `//` | integer `x // y`; `y=0` → E040 |
+| `z29_mod` / `%` | remainder of representatives; `y=0` → E040 |
+| `z29_pow` / `**` | `x^y mod 29` |
+| `z29_inv` | Inverse on `1..28`; `inv(0)` → E040 |
+| `z29_neg` / unary `-` | additive inverse |
+| `z29_bit_and` / `&` | `(x & y) mod 29` |
+| `z29_bit_or` / `\|` | `(x \| y) mod 29` |
+| `z29_bit_xor` / `^` | `(x ^ y) mod 29` |
+| `z29_bit_not` / `~` | `(-x-1) mod 29` |
+| `z29_lshift` / `<<` | `(x << y) mod 29` |
+| `z29_rshift` / `>>` | `x >> y` (already in-domain) |
+| `z29_eq`…`z29_ge` / `== != < <= > >=` | `0` or `1` |
+| `z29_bool_and` / `and` | nonzero ∧ nonzero → `1` else `0` |
+| `z29_bool_or` / `or` | nonzero ∨ nonzero → `1` else `0` |
+| `z29_bool_not` / `not` | zero → `1` else `0` |
+| `z29_atbash` | `28 - x` |
 
 `Z29Expr` operator overloads **MUST** build IR in the compiler path, not execute
-arithmetic in the stub package (stubs fail-loud).
+arithmetic in the stub package (stubs fail-loud). `MatMult` (`@`) and
+identity/container compares (`is` / `in`) **MUST** be rejected.
 
 ---
 
@@ -213,10 +234,18 @@ overrides where specified by referenced theories).
 | `B` | **Required**, non-empty |
 | `C` | **Required**, non-empty |
 
-Mis-tiering (e.g. claiming `A` without meeting Tier-A research bar) is a
-research/process concern; the compiler **MUST** still enforce the structural
-claim presence rules above. Silent downgrade or warning-only acceptance
-**MUST NOT** occur for missing required claims.
+`tier` is an **author declaration** (research/process stance toward LP2), **not**
+a verify outcome. `parcae-compile` **MUST** persist the declared `tier` into the
+artifact and **MUST NOT** promote/demote it because exhaustive/fuzz verify
+passed. Totality / determinism / CPU↔CUDA mirror live under
+`verification.{mode,passed,…}` — a separate manifest object. Catalog/tools
+**MUST NOT** treat `verification.passed` as evidence that a theory is Tier A.
+
+Mis-tiering (e.g. claiming `A` without meeting Tier-A research bar in
+[hypotheses.md](../research/hypotheses.md)) is a research/process concern; the
+compiler **MUST** still enforce the structural claim presence rules above.
+Silent downgrade or warning-only acceptance **MUST NOT** occur for missing
+required claims.
 
 ### Interrupt obligations
 
@@ -226,6 +255,12 @@ claim presence rules above. Silent downgrade or warning-only acceptance
 | `@Theory(interrupts="none_by_design")` | Explicit opt-out; no policy method required |
 | `keyed_stream` / other interrupt-relevant families without the opt-out | **MUST** define `interrupt_policy(plaintext_rune: int) -> bool` |
 | Raising `NotImplementedError` inside `interrupt_policy` | **MUST** fail compile (forces an explicit design choice) |
+
+When `interrupts="none_by_design"`, runtime CPU apply (`DslIrApplicator` /
+emitted Transform) **MUST** hard-reject a non-empty `InterruptPolicy` (Status
+error). Emitted CUDA twins for that mode **MUST NOT** apply skip indices
+either — empty policy only. This keeps CPU↔CUDA parity when agents pass a
+default interrupt object.
 
 DSL `interrupt_policy` is a value predicate for generated kernels. Bridge export
 to fixture `explicit_skip_indices_v0` ([interrupts.md](interrupts.md)) **MAY**

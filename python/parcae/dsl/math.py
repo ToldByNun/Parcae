@@ -35,7 +35,88 @@ class Z29Expr:
     def __rmul__(self, _other: Any) -> Z29Expr:
         raise_stub()
 
+    def __truediv__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __rtruediv__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __floordiv__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __rfloordiv__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __mod__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __rmod__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __pow__(self, _other: Any, _mod: Any = None) -> Z29Expr:
+        raise_stub()
+
+    def __rpow__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __and__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __rand__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __or__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __ror__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __xor__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __rxor__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __lshift__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __rlshift__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __rshift__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __rrshift__(self, _other: Any) -> Z29Expr:
+        raise_stub()
+
+    def __invert__(self) -> Z29Expr:
+        raise_stub()
+
     def __neg__(self) -> Z29Expr:
+        raise_stub()
+
+    def __pos__(self) -> Z29Expr:
+        raise_stub()
+
+    def __eq__(self, _other: Any) -> bool:  # type: ignore[override]
+        raise_stub()
+
+    def __ne__(self, _other: Any) -> bool:  # type: ignore[override]
+        raise_stub()
+
+    def __lt__(self, _other: Any) -> bool:
+        raise_stub()
+
+    def __le__(self, _other: Any) -> bool:
+        raise_stub()
+
+    def __gt__(self, _other: Any) -> bool:
+        raise_stub()
+
+    def __ge__(self, _other: Any) -> bool:
+        raise_stub()
+
+    def __bool__(self) -> bool:
         raise_stub()
 
 
@@ -51,6 +132,14 @@ def z29_mul(_x: Any, _y: Any) -> Z29Expr:
     raise_stub()
 
 
+def z29_div(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_floordiv(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
 def z29_inv(_a: Any) -> Z29Expr:
     raise_stub()
 
@@ -59,11 +148,103 @@ def z29_mod(_x: Any, _y: Any) -> Z29Expr:
     raise_stub()
 
 
+def z29_pow(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_bit_and(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_bit_or(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_bit_xor(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_bit_not(_x: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_lshift(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_rshift(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_eq(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_ne(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_lt(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_le(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_gt(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_ge(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_bool_and(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_bool_or(_x: Any, _y: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_bool_not(_x: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_neg(_x: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_atbash(_x: Any) -> Z29Expr:
+    raise_stub()
+
+
 __all__ = [
     "Z29Expr",
     "z29_add",
     "z29_sub",
     "z29_mul",
+    "z29_div",
+    "z29_floordiv",
     "z29_inv",
     "z29_mod",
+    "z29_pow",
+    "z29_bit_and",
+    "z29_bit_or",
+    "z29_bit_xor",
+    "z29_bit_not",
+    "z29_lshift",
+    "z29_rshift",
+    "z29_eq",
+    "z29_ne",
+    "z29_lt",
+    "z29_le",
+    "z29_gt",
+    "z29_ge",
+    "z29_bool_and",
+    "z29_bool_or",
+    "z29_bool_not",
+    "z29_neg",
+    "z29_atbash",
 ]
