@@ -26,7 +26,8 @@
 ///   - TheorySweep (expand sweep.param_grid plan)
 ///   - TheoryEnvelopeBridge (envelope_template ↔ TransformEnvelope / theory URI)
 ///   - DslBuildIr / DslCompile (ast_dump → artifact)
-/// Later commits: examples / TheoryDispatch.
+///   - Example: theories/examples/new_math_example.py
+/// Later commits: full_lifecycle example / TheoryDispatch.
 
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"

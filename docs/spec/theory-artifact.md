@@ -82,7 +82,7 @@ File: `data/theories/<name>/<version>/manifest.json`
   "source_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "tier": "B",
   "family": "keyed_stream",
-  "structural_claim": "Spekulativ. …",
+  "structural_claim": "Speculative. …",
   "params": [
     { "name": "c2", "min": 0, "max": 28 },
     { "name": "c1", "min": 0, "max": 28 },

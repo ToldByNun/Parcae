@@ -43,7 +43,7 @@ constexpr const char* kSha =
          TheoryArtifact::Param{"c1", 0, 28},
          TheoryArtifact::Param{"c0", 0, 28}},
         {"poly2_mod29"},
-        std::string("Spekulativ. Test claim."),
+        std::string("Speculative. Test claim."),
         std::nullopt,
         std::move(paths));
 }

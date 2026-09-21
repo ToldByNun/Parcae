@@ -143,7 +143,7 @@ TEST_CASE("DslIrApplicator rejects interrupt under none_by_design", "[dsl][appli
         {c0.value()},
         x,
         x,
-        std::string("Spekulativ. interrupt parity fixture."));
+        std::string("Speculative. interrupt parity fixture."));
     REQUIRE(theory.ok());
 
     const std::vector<Index29> plain{Index29{1}, Index29{2}, Index29{3}};

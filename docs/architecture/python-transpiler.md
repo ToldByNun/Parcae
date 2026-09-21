@@ -232,9 +232,9 @@ Community `.py` / hostile JSON must not crash the compiler:
 ## Exit checklist (compiler workstream)
 
 - [ ] Specs: dsl, dsl-ast-json, theory-artifact (normative)
-- [ ] `parcae-compile` on `theories/examples/new_math_example.py` and
-      `full_lifecycle_example.py`
-- [ ] Exhaustive gate for arity-4 demo primitive (`poly2_mod29`)
+- [x] `parcae-compile` on `theories/examples/new_math_example.py`
+- [ ] `parcae-compile` on `theories/examples/full_lifecycle_example.py`
+- [x] Exhaustive gate for arity-4 demo primitive (`poly2_mod29`)
 - [ ] Fail-loud stub tests
 - [x] Stale `dsl_spec_version` rejected by registry/validate
 - [ ] Emitted CUDA uses class + header-guard style

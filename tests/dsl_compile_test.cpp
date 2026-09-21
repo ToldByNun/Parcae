@@ -63,7 +63,7 @@ TEST_CASE("DslCompile end-to-end quadratic_polynomial_stream", "[dsl][compile]")
             DslSpecVersion::current_string);
     REQUIRE(result.value().artifacts().front().tier() == TheoryIr::Tier::B);
     REQUIRE(result.value().artifacts().front().structural_claim().has_value());
-    REQUIRE(result.value().artifacts().front().structural_claim()->find("Spekulativ") !=
+    REQUIRE(result.value().artifacts().front().structural_claim()->find("Speculative") !=
             std::string::npos);
     // Verify passed must not be confused with Tier A.
     REQUIRE(result.value().artifacts().front().verification().passed());

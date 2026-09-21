@@ -124,7 +124,7 @@ TEST_CASE("TheorySweep rejects null sweep and solved corpus for tier B", "[dsl][
         "b_theory",
         TheoryIr::Tier::B,
         std::move(bad),
-        std::string("Spekulativ. sweep corpus gate."));
+        std::string("Speculative. sweep corpus gate."));
     REQUIRE(b.ok());
     StatusOr<TheorySweep::Plan> plan = TheorySweep::plan(b.value());
     REQUIRE_FALSE(plan.ok());

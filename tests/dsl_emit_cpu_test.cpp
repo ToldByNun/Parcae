@@ -81,7 +81,7 @@ TEST_CASE("DslEmitCpu none_by_design rejects non-empty interrupt in source", "[d
         {c0.value()},
         x,
         x,
-        std::string("Spekulativ. emit interrupt gate."));
+        std::string("Speculative. emit interrupt gate."));
     REQUIRE(theory.ok());
 
     const StatusOr<std::string> header = DslEmitCpu::emit_theory_header(theory.value());

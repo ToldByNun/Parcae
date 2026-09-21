@@ -123,7 +123,7 @@ TEST_CASE("TheoryArtifact tier B requires structural_claim", "[dsl][artifact]") 
         TheoryArtifact::InterruptMode::PolicyMethod,
         {},
         {},
-        std::string("Spekulativ. research anchor only."));
+        std::string("Speculative. research anchor only."));
     REQUIRE(ok.ok());
     REQUIRE(ok.value().structural_claim().has_value());
 }

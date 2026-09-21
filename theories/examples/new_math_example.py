@@ -1,3 +1,17 @@
+"""Canonical Tier-B new-math theory example (docs/spec/dsl.md).
+
+Demonstrates:
+  - @define_primitive with arity-4 poly2_mod29 (exhaustive-verify sized)
+  - @Theory keyed_stream with interrupts="none_by_design"
+  - required structural_claim() for Tier B (research stance != verify outcome)
+
+Compile (not IDE stubs):
+
+    parcae-compile theories/examples/new_math_example.py
+
+URI after compile: parcae://theories/quadratic_polynomial_stream@1
+"""
+
 from parcae.dsl.math import Z29Expr
 from parcae.dsl.primitives import define_primitive
 from parcae.dsl.theory import Theory, Param

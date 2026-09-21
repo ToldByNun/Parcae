@@ -53,6 +53,7 @@ private:
 | `theory_registry.hpp` | `TheoryRegistry` | Done (rejects stale; catalog marks `stale_spec`) |
 | `theory_validate.hpp` | `TheoryValidate` | Done (manifest + dsl_spec + path files) |
 | `theory_sweep.hpp` | `TheorySweep` | Done (expand `sweep.param_grid` plan) |
+| `theory_envelope_bridge.hpp` | `TheoryEnvelopeBridge` | Done (catalog / theory-URI envelope) |
 | `dsl_build_ir.hpp` | `DslBuildIr` | Done (AST → PrimitiveIr / TheoryIr) |
 | `dsl_compile.hpp` | `DslCompile` | Done (ast_dump spawn → artifact) |
 | `dsl.hpp` | umbrella | Done |
@@ -72,13 +73,14 @@ Tests: `[dsl][artifact]` TheoryArtifact writer stamps `dsl_spec_version` + store
 Tests: `[dsl][registry]` TheoryRegistry load rejects stale MAJOR; list marks `stale_spec`
 (+ `CatalogEntry::to_json` for `parcae-catalog --theories`).
 Tests: `[dsl][registry][stale]` committed `0.9.0` fixture + major-bump / recompile contract.
-Tests: `[dsl][validate]` TheoryValidate manifest / dsl_spec / path presence.
+Tests: `[dsl][validate]` TheoryValidate manifest / dsl_spec / path / envelope content.
 Tests: `[dsl][sweep]` TheorySweep param_grid expansion + stale/corpus gates.
 Tests: `[dsl][compile]` DslCompile end-to-end on quadratic_polynomial_stream fixture.
+Tests: `[dsl][examples][i39]` `theories/examples/new_math_example.py` compile + validate.
 
 ## Planned (later commits)
 
-Envelope bridge; example theories under `theories/examples/`.
+`theories/examples/full_lifecycle_example.py`; TheoryDispatch; CUDA DSL smoke.
 
 Headers are part of the header-only `parcae::core` INTERFACE include tree
 (`include/` via root `CMakeLists.txt`).
