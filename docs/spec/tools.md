@@ -175,13 +175,21 @@ UTF-8 Liber Primus text; `--indices` parses `0..28` integers. JSON shape:
 
 ```text
 parcae-catalog [--all] [--transforms] [--scores] [--generators] [--backends]
-               [--json] [--data-dir <path>]
+               [--theories] [--json] [--data-dir <path>]
 ```
 
-Lists agent-facing registries. With no section flags, all sections are included.
-`--json` emits `parcae.tool_response.v0` with `backend: null` and a `result`
-object containing the selected sections (`transforms`, `scores`/`score_ids`,
-`generators`/`generator_ids`, `backends`).
+Lists agent-facing registries. With no section flags, all sections are included
+(including `--theories`). `--json` emits `parcae.tool_response.v0` with
+`backend: null` and a `result` object containing the selected sections
+(`transforms`, `scores`/`score_ids`, `generators`/`generator_ids`, `backends`,
+and when requested `theories` / `theory_uris` / `theories_dir`).
+
+`--theories` lists compiled artifacts under `<data-dir>/theories/` via
+`TheoryRegistry::list`. Each entry includes `uri`, `dsl_spec_version`,
+`stale_spec` (MAJOR mismatch), `ready` (load-compatible with current toolchain),
+and optional `detail`. Stale theories are **listed** (not omitted) so agents can
+see recompile needs — they are marked `stale_spec: true` / `ready: false`, never
+presented as ready-to-run.
 
 ### `parcae-compile`
 

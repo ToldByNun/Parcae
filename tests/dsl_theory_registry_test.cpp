@@ -160,6 +160,25 @@ TEST_CASE("TheoryRegistry list marks stale_spec", "[dsl][registry]") {
     REQUIRE(saw_ready);
     REQUIRE(saw_stale);
 
+    for (const TheoryRegistry::CatalogEntry& e : listed.value()) {
+        const nlohmann::json j = e.to_json();
+        REQUIRE(j.at("uri").is_string());
+        REQUIRE(j.at("dsl_spec_version").is_string());
+        REQUIRE(j.at("stale_spec").is_boolean());
+        REQUIRE(j.at("ready").is_boolean());
+        REQUIRE(j.contains("detail"));
+        if (e.uri().name() == "old_theory") {
+            REQUIRE(j.at("stale_spec").get<bool>());
+            REQUIRE_FALSE(j.at("ready").get<bool>());
+            REQUIRE(j.at("detail").is_string());
+        }
+        if (e.uri().name() == "ready_theory") {
+            REQUIRE_FALSE(j.at("stale_spec").get<bool>());
+            REQUIRE(j.at("ready").get<bool>());
+            REQUIRE(j.at("detail").is_null());
+        }
+    }
+
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
 }

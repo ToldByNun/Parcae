@@ -1,6 +1,7 @@
 #include "cli_io.hpp"
 #include "tool_cli_json.hpp"
 
+#include "parcae/dsl/theory_registry.hpp"
 #include "parcae/generate/generator_registry.hpp"
 #include "parcae/score/score_registry.hpp"
 #include "parcae/tool/api.hpp"
@@ -25,18 +26,20 @@ constexpr std::string_view kTool = "catalog";
 void print_help() {
     std::cerr
         << "Usage: parcae-catalog [--all] [--transforms] [--scores] [--generators]\n"
-        << "                      [--backends] [--json] [--data-dir <path>]\n"
+        << "                      [--backends] [--theories] [--json] [--data-dir <path>]\n"
         << "\n"
-        << "List agent-facing registries (transforms, scores, generators, backends).\n"
-        << "With no section flags, --all is implied.\n"
+        << "List agent-facing registries (transforms, scores, generators, backends,\n"
+        << "compiled theories). With no section flags, --all is implied.\n"
         << "\n"
         << "  --all          All sections (default when none selected)\n"
         << "  --transforms   Transform ids\n"
         << "  --scores       Score catalog (id, version, order, arity)\n"
         << "  --generators   Generator catalog (gen_*)\n"
         << "  --backends     cpu / cuda (cuda only if this build linked CUDA)\n"
+        << "  --theories     Compiled theory URIs under data/theories/\n"
+        << "                 (marks stale_spec; ready=false when incompatible)\n"
         << "  --json         JSON envelope on stdout (parcae.tool_response.v0)\n"
-        << "  --data-dir     Accepted for CLI uniformity (unused)\n"
+        << "  --data-dir     Parcae data/ root (required for meaningful --theories)\n"
         << "  -h, --help     Show this help\n";
 }
 
@@ -65,11 +68,35 @@ void print_help() {
     return backends;
 }
 
+[[nodiscard]] StatusOr<std::vector<TheoryRegistry::CatalogEntry>> load_theories(
+    const std::filesystem::path& theories_root) {
+    return TheoryRegistry::list(theories_root);
+}
+
+void print_theories_human(const std::vector<TheoryRegistry::CatalogEntry>& entries) {
+    std::cout << "theories:\n";
+    if (entries.empty()) {
+        std::cout << "  (none)\n";
+        return;
+    }
+    for (const TheoryRegistry::CatalogEntry& e : entries) {
+        std::cout << "  " << e.uri().to_string() << '\t' << "dsl_spec=" << e.dsl_spec_version()
+                  << '\t' << (e.stale_spec() ? "stale_spec" : "current_major") << '\t'
+                  << (e.ready() ? "ready" : "not_ready");
+        if (!e.detail().empty()) {
+            std::cout << '\t' << e.detail();
+        }
+        std::cout << '\n';
+    }
+}
+
 void print_human(
     bool want_transforms,
     bool want_scores,
     bool want_generators,
-    bool want_backends) {
+    bool want_backends,
+    bool want_theories,
+    const std::vector<TheoryRegistry::CatalogEntry>* theories) {
     if (want_transforms) {
         std::cout << "transforms:\n";
         for (const std::string& id : parcae::tool::list_transform_ids()) {
@@ -99,6 +126,9 @@ void print_human(
                   << (parcae::tool::BackendUtil::cuda_built() ? "available" : "not_built")
                   << '\n';
     }
+    if (want_theories && theories != nullptr) {
+        print_theories_human(*theories);
+    }
 }
 
 }  // namespace
@@ -118,9 +148,11 @@ int main(int argc, char** argv) {
     const bool flag_scores = has_flag(args, "--scores");
     const bool flag_generators = has_flag(args, "--generators");
     const bool flag_backends = has_flag(args, "--backends");
+    const bool flag_theories = has_flag(args, "--theories");
+    const std::string data_dir = optional_option(args, "--data-dir");
 
-    const bool any_section =
-        flag_transforms || flag_scores || flag_generators || flag_backends;
+    const bool any_section = flag_transforms || flag_scores || flag_generators || flag_backends ||
+                             flag_theories;
     if (flag_all && any_section) {
         return fail(
             json_mode,
@@ -134,12 +166,14 @@ int main(int argc, char** argv) {
     const bool want_scores = want_all || flag_scores;
     const bool want_generators = want_all || flag_generators;
     const bool want_backends = want_all || flag_backends;
+    const bool want_theories = want_all || flag_theories;
 
     // Reject unknown options (other than known flags / --data-dir value).
     for (std::size_t i = 0; i < args.size(); ++i) {
         const std::string& arg = args[i];
         if (arg == "--json" || arg == "--all" || arg == "--transforms" || arg == "--scores" ||
-            arg == "--generators" || arg == "--backends" || arg == "-h" || arg == "--help") {
+            arg == "--generators" || arg == "--backends" || arg == "--theories" || arg == "-h" ||
+            arg == "--help") {
             continue;
         }
         if (arg == "--data-dir") {
@@ -154,8 +188,29 @@ int main(int argc, char** argv) {
         return fail(json_mode, ToolErrorCode::Usage, "Unexpected argument: " + arg, kExitUsage);
     }
 
+    StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
+    if (!ctx.ok()) {
+        return fail(json_mode, ToolErrorCode::Io, ctx.status().message(), kExitUsage);
+    }
+
+    std::vector<TheoryRegistry::CatalogEntry> theories;
+    if (want_theories) {
+        StatusOr<std::vector<TheoryRegistry::CatalogEntry>> listed =
+            load_theories(ctx.value().data_root() / "theories");
+        if (!listed.ok()) {
+            return fail(json_mode, ToolErrorCode::Io, listed.status().message(), kExitUsage);
+        }
+        theories = std::move(listed.value());
+    }
+
     if (!json_mode) {
-        print_human(want_transforms, want_scores, want_generators, want_backends);
+        print_human(
+            want_transforms,
+            want_scores,
+            want_generators,
+            want_backends,
+            want_theories,
+            want_theories ? &theories : nullptr);
         return kExitOk;
     }
 
@@ -181,6 +236,17 @@ int main(int argc, char** argv) {
     }
     if (want_backends) {
         result["backends"] = backends_json();
+    }
+    if (want_theories) {
+        nlohmann::json arr = nlohmann::json::array();
+        nlohmann::json uris = nlohmann::json::array();
+        for (const TheoryRegistry::CatalogEntry& e : theories) {
+            arr.push_back(e.to_json());
+            uris.push_back(e.uri().to_string());
+        }
+        result["theories"] = std::move(arr);
+        result["theory_uris"] = std::move(uris);
+        result["theories_dir"] = (ctx.value().data_root() / "theories").string();
     }
 
     return ToolCliJson::ok(kTool, std::nullopt, std::move(result));

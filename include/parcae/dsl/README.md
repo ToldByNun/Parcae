@@ -50,7 +50,7 @@ private:
 | `dsl_peak_sanity.hpp` | `DslPeakSanity` | Done (ThroughputTiers peak / SLO) |
 | `theory_uri.hpp` | `TheoryUri` | Done (`parcae://theories/<name>@<ver>`) |
 | `theory_artifact.hpp` | `TheoryArtifact` | Done (writer embeds `dsl_spec_version`) |
-| `theory_registry.hpp` | `TheoryRegistry` | Done (rejects stale `dsl_spec_version`) |
+| `theory_registry.hpp` | `TheoryRegistry` | Done (rejects stale; catalog marks `stale_spec`) |
 | `theory_validate.hpp` | `TheoryValidate` | Done (manifest + dsl_spec + path files) |
 | `theory_sweep.hpp` | `TheorySweep` | Done (expand `sweep.param_grid` plan) |
 | `dsl_build_ir.hpp` | `DslBuildIr` | Done (AST → PrimitiveIr / TheoryIr) |
@@ -69,7 +69,8 @@ Tests: `[dsl][optimize]` DslOptimize const-fold + inv hoist.
 Tests: `[dsl][launch]` DslLaunchPlan vs HistFast / 1D twin formula.
 Tests: `[dsl][peak]` DslPeakSanity vs ThroughputTiers ceilings / SLO.
 Tests: `[dsl][artifact]` TheoryArtifact writer stamps `dsl_spec_version` + store/load.
-Tests: `[dsl][registry]` TheoryRegistry load rejects stale MAJOR; list marks `stale_spec`.
+Tests: `[dsl][registry]` TheoryRegistry load rejects stale MAJOR; list marks `stale_spec`
+(+ `CatalogEntry::to_json` for `parcae-catalog --theories`).
 Tests: `[dsl][registry][stale]` committed `0.9.0` fixture + major-bump / recompile contract.
 Tests: `[dsl][validate]` TheoryValidate manifest / dsl_spec / path presence.
 Tests: `[dsl][sweep]` TheorySweep param_grid expansion + stale/corpus gates.

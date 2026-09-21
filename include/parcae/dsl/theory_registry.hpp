@@ -56,6 +56,21 @@ public:
             return detail_;
         }
 
+        [[nodiscard]] nlohmann::json to_json() const {
+            nlohmann::json out{
+                {"uri", uri_.to_string()},
+                {"dsl_spec_version", dsl_spec_version_},
+                {"stale_spec", stale_spec_},
+                {"ready", ready_},
+            };
+            if (detail_.empty()) {
+                out["detail"] = nullptr;
+            } else {
+                out["detail"] = detail_;
+            }
+            return out;
+        }
+
     private:
         TheoryUri uri_;
         std::string dsl_spec_version_;

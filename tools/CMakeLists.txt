@@ -53,6 +53,14 @@ if(PARCAE_BUILD_TESTS)
   )
 
   add_test(
+    NAME cli_catalog_theories_json
+    COMMAND $<TARGET_FILE:parcae-catalog>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --theories
+      --json
+  )
+
+  add_test(
     NAME cli_compile_status_json
     COMMAND $<TARGET_FILE:parcae-compile>
       --data-dir "${CMAKE_SOURCE_DIR}/data"
