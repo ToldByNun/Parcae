@@ -1,0 +1,38 @@
+{
+  "schema": "parcae.theory_artifact.v0",
+  "uri": "parcae://theories/stale_major_demo@1",
+  "name": "stale_major_demo",
+  "version": 1,
+  "dsl_spec_version": "0.9.0",
+  "compiler_version": "0.2.0",
+  "source_path": "theories/examples/stale_major_demo.py",
+  "source_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "tier": "A",
+  "family": "keyed_stream",
+  "params": [
+    { "name": "c2", "min": 0, "max": 28 },
+    { "name": "c1", "min": 0, "max": 28 },
+    { "name": "c0", "min": 0, "max": 28 }
+  ],
+  "primitives": ["poly2_mod29"],
+  "verification": {
+    "mode": "exhaustive",
+    "passed": true,
+    "seed": null,
+    "completed_utc": "2026-01-01T00:00:00Z"
+  },
+  "fusion": {
+    "status": "n/a"
+  },
+  "paths": {
+    "cpu_reference": null,
+    "cuda_header": null,
+    "cuda_source": null,
+    "envelope_template": null,
+    "verify_report": null
+  },
+  "sweep": null,
+  "interrupts": {
+    "mode": "none_by_design"
+  }
+}

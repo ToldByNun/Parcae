@@ -23,6 +23,7 @@ add_executable(parcae_tests
   dsl_peak_sanity_test.cpp
   dsl_theory_artifact_test.cpp
   dsl_theory_registry_test.cpp
+  dsl_spec_major_bump_test.cpp
   token_stream_test.cpp
   gematria_profile_test.cpp
   corpus_test.cpp
@@ -81,6 +82,7 @@ target_link_libraries(parcae_tests PRIVATE
 
 target_compile_definitions(parcae_tests PRIVATE
   PARCAE_TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/data"
+  PARCAE_DSL_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/dsl"
   PARCAE_GOLDENS_TOOL_JSON_DIR="${CMAKE_SOURCE_DIR}/tests/goldens/tool-json"
 )
 

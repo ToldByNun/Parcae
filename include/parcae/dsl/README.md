@@ -66,6 +66,7 @@ Tests: `[dsl][launch]` DslLaunchPlan vs HistFast / 1D twin formula.
 Tests: `[dsl][peak]` DslPeakSanity vs ThroughputTiers ceilings / SLO.
 Tests: `[dsl][artifact]` TheoryArtifact writer stamps `dsl_spec_version` + store/load.
 Tests: `[dsl][registry]` TheoryRegistry load rejects stale MAJOR; list marks `stale_spec`.
+Tests: `[dsl][registry][stale]` committed `0.9.0` fixture + major-bump / recompile contract.
 
 ## Planned (later commits)
 
