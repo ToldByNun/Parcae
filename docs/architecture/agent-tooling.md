@@ -38,8 +38,9 @@ flowchart TB
 ```
 
 Closed-loop search (GPU → candidates → agents → hypotheses → GPU) is
-**out of scope**. This workstream delivers the runnable agent + deterministic
-tool bridge.
+**owned by the search-engine workstream** — see [`search-engine.md`](search-engine.md)
+(planned exit `v0.7.0-search-engine`). This agent-tooling workstream delivers the
+runnable agent + deterministic tool bridge only.
 
 ## Locked decisions
 
@@ -165,7 +166,7 @@ Secrets via environment variables named in config — never committed.
 
 ## Non-goals (this workstream)
 
-- Closed-loop GPU search scheduler (later search-engine work)
+- Closed-loop GPU search scheduler — see [`search-engine.md`](search-engine.md)
 - Multi-agent debate / beam search over hypotheses
 - Shipping unsolved LP2 `0`–`55` transcript corpus
 - Cursor Skill / MCP as exit requirements

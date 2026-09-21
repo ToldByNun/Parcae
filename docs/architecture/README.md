@@ -18,12 +18,17 @@ theory DSL compiles into that stack.
 | [agent-provider-smoke.md](agent-provider-smoke.md) | Optional live Ollama / OpenRouter smoke (CI skips) |
 | [python-transpiler.md](python-transpiler.md) | **Theory DSL compiler** — AST-JSON → IR → verify → CPU/CUDA emit → artifacts |
 | [dsl-stubs.md](dsl-stubs.md) | Stubs vs compiler — only `parcae-compile` verifies |
+| [search-engine.md](search-engine.md) | **Frozen** search engine plan — GPU ↔ candidates ↔ hypotheses loop |
 
 **CUDA implementation directory:** [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio).
 
 **Agent tooling:** Python LLM loop under [`agents/parcae_agent/`](../../agents/parcae_agent/) calling C++ CLIs only — see [`agent-tooling.md`](agent-tooling.md).
 Operator guide: [`agent-handbook.md`](agent-handbook.md).
 Config schema `parcae.agent_config.v0`: [`docs/spec/agent-tools.md`](../spec/agent-tools.md).
+
+**Search engine:** closed loop owned by [`search-engine.md`](search-engine.md) (planned exit
+`v0.7.0-search-engine`). Agent-tooling delivers the tool bridge; the scheduler
+lands here.
 
 ---
 
