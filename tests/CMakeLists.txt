@@ -54,6 +54,7 @@ add_executable(parcae_tests
   hypothesis_sandbox_test.cpp
   search_job_test.cpp
   search_prior_test.cpp
+  batch_artifact_test.cpp
   parity_test.cpp
   transform_property_test.cpp
   cuda_property_test.cpp

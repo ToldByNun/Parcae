@@ -74,6 +74,31 @@ public:
         return dir.value() / (hid.value() + ".json");
     }
 
+    [[nodiscard]] static StatusOr<std::filesystem::path> batches_dir(
+        const std::filesystem::path& data_root,
+        std::string_view workspace_id) {
+        StatusOr<std::filesystem::path> root = workspace_root(data_root, workspace_id);
+        if (!root.ok()) {
+            return root.status();
+        }
+        return root.value() / "batches";
+    }
+
+    [[nodiscard]] static StatusOr<std::filesystem::path> batch_dir(
+        const std::filesystem::path& data_root,
+        std::string_view workspace_id,
+        std::string_view batch_id) {
+        StatusOr<std::string> bid = validate_id(batch_id);
+        if (!bid.ok()) {
+            return bid.status();
+        }
+        StatusOr<std::filesystem::path> dir = batches_dir(data_root, workspace_id);
+        if (!dir.ok()) {
+            return dir.status();
+        }
+        return dir.value() / bid.value();
+    }
+
     /// Reject absolute paths and any `..` segment; require result under `root`.
     [[nodiscard]] static StatusOr<std::filesystem::path> resolve_under(
         const std::filesystem::path& root,
