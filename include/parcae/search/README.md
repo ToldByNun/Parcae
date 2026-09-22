@@ -23,4 +23,5 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `search_scheduler.hpp` | `SearchScheduler` | Planned |
 
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,
-`[search][cipher]`, `[search][cipher][resolve]`, `[search][export]` — GPU fused export + CPU generate/rank export + prior filters.
+`[search][cipher]`, `[search][cipher][resolve]`, `[search][export]`, `[search][export][parity]` — GPU/CPU export + a-warning
+CPU↔CUDA top-k parity (CUDA device skip when unavailable).
