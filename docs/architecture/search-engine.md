@@ -76,7 +76,7 @@ This workstream **owns** the closed loop that agent-tooling explicitly deferred
 |-------|-------------|
 | Fused GPU χ² | [`FamilyChi2Batch`](../../Parcae/Parcae/cuda/family_chi2_batch.hpp), [`SearchRun`](../../include/parcae/run/search_run.hpp) / `SearchRunCuda` — **metrics/sweeps**, not candidate export |
 | Staged batch + score | `CandidateBatchBuffers`, `CudaBatchScore`, `*_batch_kernel.*` |
-| CPU generate / rank | [`GenerateCandidates`](../../include/parcae/tool/generate_candidates.hpp), [`RankCandidates`](../../include/parcae/tool/rank_candidates.hpp) — CPU only today |
+| CPU generate / rank | [`GenerateCandidates`](../../include/parcae/tool/generate_candidates.hpp), [`RankCandidates`](../../include/parcae/tool/rank_candidates.hpp) — CPU default; optional `backend=cuda` via `CudaScore` |
 | Agent loop | [`agents/parcae_agent/`](../../agents/parcae_agent/) — deny-list includes `parcae-search-run` |
 | Hypotheses | [`HypothesisRecord`](../../include/parcae/hypothesis/hypothesis_record.hpp), `parcae-hypothesis` |
 | Theory DSL | `include/parcae/dsl/`, `TheoryDispatch` — single-stream apply, **not** a batch scheduler |
@@ -166,7 +166,7 @@ steps — **not** agent candidates. New `GpuCandidateExport`:
 - CPU oracle: same job via `GenerateCandidates` + `RankCandidates` must match
   top-k **ids** (and scores under [`cuda-score-reduction.md`](cuda-score-reduction.md)).
 
-Optional later: `RankCandidates` CUDA backend for large **already-materialized**
+Optional: `RankCandidates` CUDA backend (`backend=cuda`) for large **already-materialized**
 lists — CPU remains source of truth for small-N agent generate/rank.
 
 ---

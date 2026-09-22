@@ -252,8 +252,10 @@ score → `candidate_id` → `source_index`). `--candidates` accepts a generate
 `--json` envelope, a `{"candidates":[…]}` object, or a bare candidate array.
 `--json` emits `result` from `RankCandidates::result_to_json` (hits with
 `rank`, `candidate_id`, `score`, `source_index`, `envelope`, optional `latin`
-preview). Pairwise scores may pass `reference` via `--params-json`. χ² loads
-expected frequencies from `--data-dir` automatically.
+preview, plus `backend`). Pairwise scores may pass `reference` via
+`--params-json`. χ² loads expected frequencies from `--data-dir` automatically.
+`RankCandidates::run(..., backend=cuda)` scores via `CudaScore` when linked;
+CPU `BatchRunner` remains the default / small-N oracle.
 
 **Round-trip (agent path):** `parcae-generate … --json` → `parcae-rank
 --candidates - --score-id chi2_english_gp_v0 --k N --json` recovers Atbash on
@@ -365,7 +367,8 @@ Library compute primitives agents SHOULD build on:
 4. `score`
 5. `validate_fixture`
 6. `GenerateCandidates` (`from_indices` / `from_stream` / `from_source`) — `gen_*` dispatch
-7. `RankCandidates` (`run` / `result_to_json`) — top-k with stable ties
+7. `RankCandidates` (`run` / `result_to_json`) — top-k with stable ties;
+   optional `backend=cuda` via `CudaScore`
 
 Plus read-only listing of `transform_id` / `score_id` / `generator_id` registries
 (`parcae-catalog`, `GenerateCandidates::list_generator_ids`).

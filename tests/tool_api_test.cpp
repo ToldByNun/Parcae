@@ -1,12 +1,20 @@
 #include <parcae/gematria/rune_codec.hpp>
+#include <parcae/batch/batch_execution.hpp>
 #include <parcae/tool/api.hpp>
 #include <parcae/tool/context.hpp>
 #include <parcae/tool/generate_candidates.hpp>
 #include <parcae/tool/rank_candidates.hpp>
+#include <parcae/tool/tool_backend.hpp>
 #include <parcae/tool/transform_envelope.hpp>
+#include <parcae/transform/caesar_transform.hpp>
+#include <parcae/transform/transform_direction.hpp>
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+
+#if defined(PARCAE_HAS_CUDA)
+#include "cuda_score.hpp"
+#endif
 
 #include <algorithm>
 #include <cstdint>
@@ -289,6 +297,7 @@ TEST_CASE("RankCandidates top-k stable ties and JSON", "[tool][rank]") {
         RankCandidates::result_to_json(ranked.value(), candidates.value(), &ctx);
     REQUIRE(payload.ok());
     REQUIRE(payload.value().at("order").get<std::string>() == "desc");
+    REQUIRE(payload.value().at("backend").get<std::string>() == "cpu");
     REQUIRE(payload.value().at("hits").size() == 3);
     REQUIRE(payload.value().at("hits").at(0).at("rank").get<std::size_t>() == 0);
     REQUIRE(payload.value().at("hits").at(0).at("envelope").is_object());
@@ -303,6 +312,82 @@ TEST_CASE("RankCandidates top-k stable ties and JSON", "[tool][rank]") {
         RankCandidates::run(candidates.value(), "chi2_english_gp_v0", 2, &ctx);
     REQUIRE(chi2.ok());
     REQUIRE(chi2.value().top().size() == 2);
+}
+
+TEST_CASE("RankCandidates CUDA backend path", "[tool][rank][cuda]") {
+    const auto ctx = test_ctx();
+
+    const std::vector<Index29> plain = {I(0), I(1), I(2), I(3)};
+    StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
+        plain,
+        nlohmann::json{{"shift", 7}},
+        TransformDirection::Encrypt);
+    REQUIRE(cipher.ok());
+
+    StatusOr<std::vector<TransformCandidate>> candidates =
+        GenerateCandidates::from_indices("gen_caesar", cipher.value());
+    REQUIRE(candidates.ok());
+
+    ScoreRequest request;
+    request.reference = std::span<const Index29>(plain);
+
+#if !defined(PARCAE_HAS_CUDA)
+    StatusOr<BatchResult> no_cuda = RankCandidates::run(
+        candidates.value(),
+        "exact_match",
+        /*k=*/3,
+        &ctx,
+        request,
+        nlohmann::json::object(),
+        "v0",
+        BatchExecution::Serial,
+        parcae::tool::Backend::Cuda);
+    REQUIRE_FALSE(no_cuda.ok());
+    REQUIRE(no_cuda.status().message().find("CUDA") != std::string::npos);
+#else
+    if (!CudaScore::available()) {
+        SKIP("No CUDA device");
+    }
+
+    StatusOr<BatchResult> cpu = RankCandidates::run(
+        candidates.value(),
+        "exact_match",
+        /*k=*/3,
+        &ctx,
+        request,
+        nlohmann::json::object(),
+        "v0",
+        BatchExecution::Serial,
+        parcae::tool::Backend::Cpu);
+    REQUIRE(cpu.ok());
+
+    StatusOr<BatchResult> cuda = RankCandidates::run(
+        candidates.value(),
+        "exact_match",
+        /*k=*/3,
+        &ctx,
+        request,
+        nlohmann::json::object(),
+        "v0",
+        BatchExecution::Serial,
+        parcae::tool::Backend::Cuda);
+    REQUIRE(cuda.ok());
+    REQUIRE(cuda.value().top().size() == cpu.value().top().size());
+    for (std::size_t i = 0; i < cpu.value().top().size(); ++i) {
+        REQUIRE(cuda.value().top()[i].candidate_id() == cpu.value().top()[i].candidate_id());
+        REQUIRE(cuda.value().top()[i].score() == cpu.value().top()[i].score());
+        REQUIRE(cuda.value().top()[i].source_index() == cpu.value().top()[i].source_index());
+    }
+
+    StatusOr<nlohmann::json> payload = RankCandidates::result_to_json(
+        cuda.value(),
+        candidates.value(),
+        &ctx,
+        64,
+        parcae::tool::Backend::Cuda);
+    REQUIRE(payload.ok());
+    REQUIRE(payload.value().at("backend").get<std::string>() == "cuda");
+#endif
 }
 
 TEST_CASE(
