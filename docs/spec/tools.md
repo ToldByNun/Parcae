@@ -371,7 +371,8 @@ Library compute primitives agents SHOULD build on:
 5. `validate_fixture`
 6. `GenerateCandidates` (`from_indices` / `from_stream` / `from_source`) — `gen_*` dispatch
 7. `RankCandidates` (`run` / `result_to_json`) — top-k with stable ties;
-   optional `backend=cuda` via `CudaScore`
+   optional `backend=cuda` via `CudaScore`. Ordering contract:
+   `[tool][rank][order]` (CPU always; CUDA device compare when linked)
 
 Plus read-only listing of `transform_id` / `score_id` / `generator_id` registries
 (`parcae-catalog`, `GenerateCandidates::list_generator_ids`).
