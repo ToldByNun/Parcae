@@ -21,12 +21,12 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (generate + rank + prior) |
 | `hypothesis_bridge.hpp` | `HypothesisBridge` | Done (ingest + idempotent ids / provenance) |
 | `search_scheduler.hpp` | `SearchScheduler` | Done (`run_once` / `run_loop` + prior feedback) |
-| CLI `parcae-search-cycle` | tool `search_cycle` | Scaffold (`--status` / `--json`) |
+| CLI `parcae-search-cycle` | tool `search_cycle` | Done (`--status` / `--workspace` / `--backend` / `--iterations`) |
 
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,
 `[search][cipher]`, `[search][cipher][resolve]`, `[search][export]`,
 `[search][export][parity]`, `[search][bridge]`, `[search][bridge][score]`,
 `[search][scheduler]`, `[search][scheduler][loop]`, `[search][scheduler][prior]`,
-`[search][scheduler][loop][determinism]` — types + export + ingest + scheduler +
-next-job seeds/exclusions + two-iteration deterministic CPU loop.
+`[search][scheduler][loop][determinism]`, `[tool][search_cycle]` — types + export +
+ingest + scheduler + CLI cycle run.
 CLI smoke: `ctest -R cli_search_cycle_status_json`.

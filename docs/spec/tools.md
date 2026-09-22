@@ -331,17 +331,24 @@ this tool — see `parcae-search-cycle` / [`search-loop.md`](search-loop.md) and
 
 ```text
 parcae-search-cycle --status [--json] [--data-dir <path>]
+parcae-search-cycle --workspace <id> --job <file>
+                    [--backend cpu|cuda] [--allow-cuda] [--iterations <n>]
+                    [--json] [--data-dir <path>]
+parcae-search-cycle --workspace <id> --family <id> [--k <n>] [--seed <u32>]
+                    [--score-id <id>] [--backend cpu|cuda] [--allow-cuda]
+                    [--iterations <n>] [--json] [--data-dir <path>]
 ```
 
 Workspace closed-loop search via `SearchScheduler` ([search-loop.md](search-loop.md)):
 job → `BatchArtifact` → `HypothesisBridge`. `--status` reports toolkit version,
-schema ids (`parcae.search_job.v0`, `parcae.search_cycle_result.v0`, …), CUDA
-build flag, and scaffold readiness (`scheduler_ready` / `run_ready`). `--json`
-uses `parcae.tool_response.v0` with `tool: "search_cycle"`.
+schema ids, CUDA build flag, and readiness (`scheduler_ready` / `run_ready`).
+`--json` uses `parcae.tool_response.v0` with `tool: "search_cycle"`.
 
-Cycle run flags (`--workspace`, `--job`, `--backend`, `--iterations`,
-`--omit-timing`) land in follow-up commits. Until then, invoking without
-`--status` exits with usage.
+Cycle runs require `--workspace` plus either `--job` (`parcae.search_job.v0`) or
+`--family` (builds a job using workspace `default_score_id`). `--backend cuda`
+requires `--allow-cuda` (AgentPolicy). `--iterations` defaults to `1`.
+`--omit-timing` / `--with-agent` land in follow-up commits (timing already omitted
+by default in the scheduler loop options).
 
 ### `parcae-validate`
 
