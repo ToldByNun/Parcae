@@ -399,6 +399,17 @@ int main(int argc, char** argv) {
     }
     backend_label = std::string(parcae::tool::BackendUtil::to_string(backend.value()));
 
+    // Gate writes before touching the workspace (fixtures / path escape → policy).
+    Status write_gate = policy.allow_workspace_write(workspace, "batches");
+    if (!write_gate.ok()) {
+        return fail(
+            json_mode,
+            backend_label,
+            AgentPolicy::error_code_for(write_gate),
+            write_gate.message(),
+            kExitUsage);
+    }
+
     StatusOr<std::size_t> iterations = parse_size(args, "--iterations", 1);
     if (!iterations.ok()) {
         return fail(

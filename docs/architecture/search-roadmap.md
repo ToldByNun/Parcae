@@ -109,14 +109,14 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | 27 | feat(cli): `parcae-search-cycle` scaffold `--json` `--status` |
 | 28 | feat(cli): `--workspace` `--iterations` `--backend` |
 | 29 | feat(cli): `--omit-timing` + replayable digests |
-| 30 | test(cli): JSON golden + AgentPolicy allow path |
+| 30 | test(cli): JSON golden + AgentPolicy allow path | **done** |
 
 ## I — Agent wiring
 
 | # | Commit |
 |---|--------|
 | 31 | feat(agent): allowlist + schemas for `search_cycle` |
-| 32 | feat(agent): C++ `AgentPolicy` default allow sync |
+| 32 | feat(agent): C++ `AgentPolicy` default allow sync | **done** (with H30) |
 | 33 | feat(agent): prompts — `search_cycle` vs generate/rank |
 | 34 | test(agent): mock LLM `search_cycle` CI-safe |
 | 35 | docs: search-handbook operator guide |

@@ -38,15 +38,20 @@ TEST_CASE("AgentPolicy allow-list and deny-list", "[tool][policy]") {
 
     REQUIRE(policy.allow_tool("tokenize").ok());
     REQUIRE(policy.allow_tool("hypothesis_score").ok());
+    REQUIRE(policy.allow_tool("search_cycle").ok());
     REQUIRE_FALSE(policy.allow_tool("blind_crack").ok());
     REQUIRE_FALSE(policy.allow_tool("shell").ok());
+    REQUIRE_FALSE(policy.allow_tool("search_run").ok());
 
     REQUIRE(AgentPolicy::is_default_allowed_tool("rank"));
+    REQUIRE(AgentPolicy::is_default_allowed_tool("search_cycle"));
     REQUIRE(AgentPolicy::is_default_denied_binary("parcae-blind-crack"));
     REQUIRE(AgentPolicy::is_default_denied_binary("search-run"));
     REQUIRE(policy.allow_binary("parcae-tokenize").ok());
+    REQUIRE(policy.allow_binary("parcae-search-cycle").ok());
     REQUIRE_FALSE(policy.allow_binary("parcae-parity").ok());
     REQUIRE_FALSE(policy.allow_binary("throughput-tiers").ok());
+    REQUIRE_FALSE(policy.allow_binary("parcae-search-run").ok());
 }
 
 TEST_CASE("AgentPolicy CUDA requires allow_cuda opt-in", "[tool][policy][backend]") {

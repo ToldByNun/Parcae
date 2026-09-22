@@ -21,9 +21,9 @@
 
 #if !defined(PARCAE_CLI_TOKENIZE) || !defined(PARCAE_CLI_DECODE) ||             \
     !defined(PARCAE_CLI_SCORE) || !defined(PARCAE_CLI_VALIDATE) ||             \
-    !defined(PARCAE_CLI_SEARCH_RUN) || !defined(PARCAE_CLI_GENERATE) ||       \
-    !defined(PARCAE_CLI_RANK) || !defined(PARCAE_CLI_HYPOTHESIS) ||           \
-    !defined(PARCAE_TEST_DATA_DIR)
+    !defined(PARCAE_CLI_SEARCH_RUN) || !defined(PARCAE_CLI_SEARCH_CYCLE) ||   \
+    !defined(PARCAE_CLI_GENERATE) || !defined(PARCAE_CLI_RANK) ||             \
+    !defined(PARCAE_CLI_HYPOTHESIS) || !defined(PARCAE_TEST_DATA_DIR)
 #error "CLI golden tests require PARCAE_CLI_* and PARCAE_TEST_DATA_DIR"
 #endif
 
@@ -108,6 +108,28 @@ void expect_cli_matches_golden(
     StatusOr<nlohmann::json> actual = ToolResponse::parse(stdout_text);
     REQUIRE(actual.ok());
     const nlohmann::json expected = load_golden(golden_name);
+    REQUIRE(actual.value() == expected);
+}
+
+/// Status JSON embeds absolute `data_dir` and build-dependent `cuda_built`.
+void expect_search_cycle_status_matches_golden(const std::vector<std::string>& args) {
+    const auto [exit_code, stdout_text] = run_cli(PARCAE_CLI_SEARCH_CYCLE, args);
+    REQUIRE(exit_code == 0);
+
+    StatusOr<nlohmann::json> actual = ToolResponse::parse(stdout_text);
+    REQUIRE(actual.ok());
+    nlohmann::json expected = load_golden("search_cycle_status.json");
+
+    REQUIRE(actual.value().at("ok").get<bool>());
+    REQUIRE(actual.value().at("tool").get<std::string>() == "search_cycle");
+    REQUIRE(actual.value().at("schema").get<std::string>() == "parcae.tool_response.v0");
+
+    nlohmann::json& actual_result = actual.value().at("result");
+    nlohmann::json& expected_result = expected.at("result");
+    actual_result.erase("data_dir");
+    expected_result.erase("data_dir");
+    actual_result.erase("cuda_built");
+    expected_result.erase("cuda_built");
     REQUIRE(actual.value() == expected);
 }
 
@@ -217,6 +239,18 @@ TEST_CASE("CLI JSON golden: search-run omit-timing", "[tool][golden][cli]") {
              "--omit-timing"}),
         "search_run_omit_timing.json",
         0);
+}
+
+TEST_CASE("CLI JSON golden: search-cycle usage failure", "[tool][golden][cli][search_cycle]") {
+    expect_cli_matches_golden(
+        PARCAE_CLI_SEARCH_CYCLE,
+        with_data_dir({"--json"}),
+        "search_cycle_usage.json",
+        2);
+}
+
+TEST_CASE("CLI JSON golden: search-cycle status", "[tool][golden][cli][search_cycle]") {
+    expect_search_cycle_status_matches_golden(with_data_dir({"--status", "--json"}));
 }
 
 TEST_CASE(

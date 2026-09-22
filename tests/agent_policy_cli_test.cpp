@@ -19,8 +19,9 @@
 #if defined(PARCAE_HAS_CLI_GOLDENS)
 #include "parcae_cli_paths.h"
 #if !defined(PARCAE_CLI_HYPOTHESIS) || !defined(PARCAE_CLI_SCORE) || \
-    !defined(PARCAE_CLI_RANK)
-#error "PARCAE_CLI_HYPOTHESIS, PARCAE_CLI_SCORE, and PARCAE_CLI_RANK required"
+    !defined(PARCAE_CLI_RANK) || !defined(PARCAE_CLI_SEARCH_CYCLE)
+#error \
+    "PARCAE_CLI_HYPOTHESIS, PARCAE_CLI_SCORE, PARCAE_CLI_RANK, and PARCAE_CLI_SEARCH_CYCLE required"
 #endif
 #endif
 
@@ -184,5 +185,50 @@ TEST_CASE(
          "cuda",
          "--json"},
         "rank");
+}
+
+TEST_CASE(
+    "CLI search-cycle with --data-dir inside fixtures yields policy envelope exit 2",
+    "[tool][policy][cli][fixtures][search_cycle]") {
+    const auto fixture_dir = data_root() / "fixtures" / "solved" / "a-warning";
+    const auto cipher_before = fixture_dir / "ciphertext.txt";
+    REQUIRE(std::filesystem::exists(cipher_before));
+    const auto size_before = std::filesystem::file_size(cipher_before);
+
+    expect_policy_denial(
+        PARCAE_CLI_SEARCH_CYCLE,
+        {"--data-dir",
+         fixture_dir.string(),
+         "--workspace",
+         "evil-ws",
+         "--family",
+         "atbash",
+         "--k",
+         "1",
+         "--json"},
+        "search_cycle");
+
+    REQUIRE(std::filesystem::exists(cipher_before));
+    REQUIRE(std::filesystem::file_size(cipher_before) == size_before);
+    REQUIRE_FALSE(std::filesystem::exists(fixture_dir / "workspaces"));
+}
+
+TEST_CASE(
+    "CLI search-cycle --backend cuda without --allow-cuda yields policy envelope exit 2",
+    "[tool][policy][cli][search_cycle]") {
+    expect_policy_denial(
+        PARCAE_CLI_SEARCH_CYCLE,
+        {"--data-dir",
+         std::string(PARCAE_TEST_DATA_DIR),
+         "--workspace",
+         "_example",
+         "--family",
+         "caesar",
+         "--k",
+         "1",
+         "--backend",
+         "cuda",
+         "--json"},
+        "search_cycle");
 }
 #endif

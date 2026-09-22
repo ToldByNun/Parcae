@@ -52,6 +52,7 @@ public:
             "hypothesis_list",
             "hypothesis_score",
             "hypothesis_set_status",
+            "search_cycle",
         };
         return kAllow;
     }
