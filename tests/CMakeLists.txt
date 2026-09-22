@@ -64,6 +64,7 @@ add_executable(parcae_tests
   gpu_candidate_export_test.cpp
   cpu_candidate_export_test.cpp
   cpu_gpu_export_parity_test.cpp
+  search_scheduler_test.cpp
   parity_test.cpp
   transform_property_test.cpp
   cuda_property_test.cpp
