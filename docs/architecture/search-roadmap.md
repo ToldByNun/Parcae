@@ -118,7 +118,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | 31 | feat(agent): allowlist + schemas for `search_cycle` | **done** |
 | 32 | feat(agent): C++ `AgentPolicy` default allow sync | **done** (with H30) |
 | 33 | feat(agent): prompts — `search_cycle` vs generate/rank | **done** |
-| 34 | test(agent): mock LLM `search_cycle` CI-safe |
+| 34 | test(agent): mock LLM `search_cycle` CI-safe | **done** |
 | 35 | docs: search-handbook operator guide |
 
 ## J — Extended families

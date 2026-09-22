@@ -65,10 +65,36 @@ def _runner_from_tool_name():
 
     def runner(argv: list[str], timeout: float | None) -> SubprocessResult:
         joined = " ".join(argv)
-        if "parcae-catalog" in joined or "parcae-catalog.exe" in joined:
+        if "parcae-search-cycle" in joined:
+            tool = "search_cycle"
+            if "--status" in argv:
+                result = {
+                    "stub": False,
+                    "scheduler_ready": True,
+                    "run_ready": True,
+                    "message": "ready",
+                }
+            else:
+                result = {
+                    "schema": "parcae.search_cycle_result.v0",
+                    "workspace_id": "ci-mock-ws",
+                    "iterations": 1,
+                    "stop_reason": "completed_iterations",
+                    "hypotheses_written": 2,
+                    "omit_timing": True,
+                    "batches": [
+                        {
+                            "batch_id": "b-ci-mock",
+                            "candidate_count": 2,
+                        }
+                    ],
+                }
+        elif "parcae-catalog" in joined or "parcae-catalog.exe" in joined:
             tool = "catalog"
             result = {"transforms": ["atbash", "caesar"]}
-        elif "set-status" in argv or "parcae-hypothesis" in joined and "set-status" in joined:
+        elif "set-status" in argv or (
+            "parcae-hypothesis" in joined and "set-status" in joined
+        ):
             tool = "hypothesis_set_status"
             result = {"id": "h-ci", "status": "promoted"}
         elif "parcae-validate" in joined:
@@ -224,3 +250,118 @@ def test_ci_llm_client_never_calls_http_when_scripted(tmp_path: Path) -> None:
     ).run("ping")
     assert result.stop_reason == AgentStopReason.Completed
     assert result.final_text == "pong"
+
+
+def test_ci_mock_loop_search_cycle_then_summary(tmp_path: Path) -> None:
+    """Mock LLM calls search_cycle; fake runner only — no network, no real CLI."""
+    cfg = _config(tmp_path)
+    captured: list[list[str]] = []
+
+    def runner(argv: list[str], timeout: float | None) -> SubprocessResult:
+        captured.append(list(argv))
+        return _runner_from_tool_name()(argv, timeout)
+
+    llm = ScriptedLlm(
+        [
+            assistant(
+                tool_calls=(
+                    tool_call(
+                        "search_cycle",
+                        json.dumps(
+                            {
+                                "family": "atbash",
+                                "k": 2,
+                                "seed": 1,
+                                "iterations": 1,
+                                "backend": "cpu",
+                            }
+                        ),
+                        call_id="sc1",
+                    ),
+                )
+            ),
+            assistant(
+                "Ran one atbash search_cycle; wrote hypotheses into the workspace."
+            ),
+        ]
+    )
+    bridge = ToolBridge(cfg, runner=runner)
+    result = AgentLoop(cfg, llm, bridge).run(  # type: ignore[arg-type]
+        "Sweep atbash on the workspace with search_cycle."
+    )
+
+    assert result.stop_reason == AgentStopReason.Completed
+    assert result.exit_code == 0
+    assert result.ok
+    assert result.tool_calls == 1
+    assert llm.calls == 2
+    assert "search_cycle" in (result.messages[0].content or "")
+    assert llm.last_tools is not None
+    tool_names = {t["function"]["name"] for t in llm.last_tools}
+    assert "search_cycle" in tool_names
+    assert "search_run" not in tool_names
+
+    assert len(captured) == 1
+    argv = captured[0]
+    joined = " ".join(argv)
+    assert "parcae-search-cycle" in joined
+    assert "--json" in argv
+    assert "--omit-timing" in argv
+    assert "--workspace" in argv
+    assert argv[argv.index("--workspace") + 1] == "ci-mock-ws"
+    assert argv[argv.index("--family") + 1] == "atbash"
+    assert argv[argv.index("--k") + 1] == "2"
+    assert "--status" not in argv
+    assert "shell" not in joined.lower()
+
+    # Tool result fed back to the model carries the canned cycle envelope.
+    tool_msgs = [m for m in result.messages if m.role == "tool"]
+    assert len(tool_msgs) == 1
+    payload = json.loads(tool_msgs[0].content or "{}")
+    assert payload["ok"] is True
+    assert payload["tool"] == "search_cycle"
+    assert payload["result"]["schema"] == "parcae.search_cycle_result.v0"
+    assert payload["result"]["hypotheses_written"] == 2
+
+
+def test_ci_mock_loop_search_cycle_status_only(tmp_path: Path) -> None:
+    """status=true readiness path builds --status argv without workspace."""
+    cfg = _config(tmp_path)
+    captured: list[list[str]] = []
+
+    def runner(argv: list[str], timeout: float | None) -> SubprocessResult:
+        captured.append(list(argv))
+        return _runner_from_tool_name()(argv, timeout)
+
+    llm = ScriptedLlm(
+        [
+            assistant(
+                tool_calls=(
+                    tool_call(
+                        "search_cycle",
+                        '{"status":true}',
+                        call_id="st1",
+                    ),
+                )
+            ),
+            assistant("Toolkit reports search_cycle ready."),
+        ]
+    )
+    result = AgentLoop(
+        cfg,
+        llm,  # type: ignore[arg-type]
+        ToolBridge(cfg, runner=runner),
+    ).run("Check search_cycle readiness.")
+
+    assert result.stop_reason == AgentStopReason.Completed
+    assert result.tool_calls == 1
+    assert len(captured) == 1
+    argv = captured[0]
+    assert "--status" in argv
+    assert "--workspace" not in argv
+    assert "--omit-timing" not in argv
+    payload = json.loads(
+        next(m.content for m in result.messages if m.role == "tool") or "{}"
+    )
+    assert payload["tool"] == "search_cycle"
+    assert payload["result"]["run_ready"] is True
