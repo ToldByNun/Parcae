@@ -59,6 +59,7 @@ add_executable(parcae_tests
   workspace_cipher_test.cpp
   workspace_cipher_resolve_test.cpp
   gpu_candidate_export_test.cpp
+  cpu_candidate_export_test.cpp
   parity_test.cpp
   transform_property_test.cpp
   cuda_property_test.cpp

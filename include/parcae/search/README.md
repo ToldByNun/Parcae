@@ -18,9 +18,9 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `batch_artifact.hpp` | `BatchArtifact` | Done (`parcae.batch_artifact.v0`) |
 | `workspace_cipher.hpp` | `WorkspaceCipher` | Done (`workspace.v0` → `Index29`) |
 | `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere) |
+| `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (generate + rank + prior) |
 | `hypothesis_bridge.hpp` | `HypothesisBridge` | Planned |
 | `search_scheduler.hpp` | `SearchScheduler` | Planned |
 
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,
-`[search][cipher]`, `[search][cipher][resolve]`, `[search][export]` — types +
-ciphertext resolve + Caesar candidate export.
+`[search][cipher]`, `[search][cipher][resolve]`, `[search][export]` — GPU fused export + CPU generate/rank export + prior filters.
