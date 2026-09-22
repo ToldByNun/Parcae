@@ -11,6 +11,7 @@
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
 #include "parcae/generate/transform_candidate.hpp"
+#include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
 #include "parcae/interrupt/policy.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
 #include "parcae/score/score_order.hpp"
@@ -21,6 +22,7 @@
 #include "parcae/transform/compose_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
+#include "parcae/transform/vigenere_key_transform.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -47,11 +49,15 @@
 ///
 /// Scores-only fused χ² → D2H scores → host `BatchOrdering` → apply transform
 /// **only** for retained lanes (search-loop.md). Caesar uses `CaesarChi2Batch`;
-/// atbash / atbash_caesar / affine use `FamilyChi2Batch`.
+/// atbash / atbash_caesar / affine / vigenere use `FamilyChi2Batch`.
+/// Vigenère is **explicit keys or a bounded synthetic grid only** — never an
+/// unbounded dictionary search.
 class GpuCandidateExport {
 public:
     static constexpr std::string_view score_id = "chi2_english_gp_v0";
     static constexpr std::string_view score_version = "v0";
+    /// Default max key length for `vigenere_bounded` (matches SearchRun CUDA sweep).
+    static constexpr std::size_t default_vigenere_max_key_length = 20;
 
     /// One best-first row after export (envelope + plaintext indices + score).
     class Row {
@@ -431,8 +437,176 @@ public:
 #endif
     }
 
+    // --- Vigenère (explicit keys / bounded grid) -------------------------------
+
+    /// Synthetic bounded grid: for L in `1..max_key_length`, key = `[1,2,…,L] mod 29`.
+    /// Same construction as `SearchRunCuda::run_vigenere` — not a dictionary.
+    [[nodiscard]] static StatusOr<std::vector<std::vector<Index29>>> default_bounded_key_grid(
+        std::size_t max_key_length = default_vigenere_max_key_length) {
+        if (max_key_length == 0) {
+            return Status::error("GpuCandidateExport: max_key_length must be >= 1");
+        }
+#if defined(PARCAE_HAS_CUDA)
+        if (max_key_length > FamilyChi2Batch::kMaxCandidates) {
+            return Status::error(
+                "GpuCandidateExport: max_key_length exceeds FamilyChi2Batch::kMaxCandidates");
+        }
+#else
+        if (max_key_length > 16384) {
+            return Status::error("GpuCandidateExport: max_key_length exceeds 16384");
+        }
+#endif
+        std::vector<std::vector<Index29>> keys;
+        keys.reserve(max_key_length);
+        for (std::size_t L = 1; L <= max_key_length; ++L) {
+            std::vector<Index29> key;
+            key.reserve(L);
+            for (std::size_t j = 0; j < L; ++j) {
+                key.push_back(Index29{static_cast<std::uint8_t>((j + 1) % Index29::modulus)});
+            }
+            keys.push_back(std::move(key));
+        }
+        return keys;
+    }
+
+    [[nodiscard]] static StatusOr<Result> vigenere_from_host_scores(
+        std::span<const Index29> cipher,
+        const std::vector<std::vector<Index29>>& keys,
+        std::span<const double> scores,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt,
+        parcae::tool::Backend backend = parcae::tool::Backend::Cpu) {
+        Status common = require_cipher_k(cipher, k);
+        if (!common.ok()) {
+            return common;
+        }
+        Status keys_ok = require_vigenere_keys(keys);
+        if (!keys_ok.ok()) {
+            return keys_ok;
+        }
+        if (scores.size() != keys.size()) {
+            return Status::error(
+                "GpuCandidateExport: vigenere scores length must equal keys length");
+        }
+
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(
+            scores,
+            k,
+            [&](std::size_t index) {
+                return VigenereExplicitKeyCandidateGenerator::make_candidate_id(
+                    keys[index], index);
+            });
+        if (!hits.ok()) {
+            return hits.status();
+        }
+
+        const VigenereKeyTransform transform;
+        std::vector<Row> rows;
+        rows.reserve(hits.value().size());
+        for (std::size_t rank = 0; rank < hits.value().size(); ++rank) {
+            const BatchHit& hit = hits.value()[rank];
+            const std::size_t index = hit.source_index();
+            nlohmann::json params{{"key_indices", nlohmann::json::array()}};
+            for (const Index29 idx : keys[index]) {
+                params["key_indices"].push_back(static_cast<int>(idx.value()));
+            }
+            StatusOr<std::vector<Index29>> plain =
+                transform.apply(cipher, params, direction, InterruptPolicy::none());
+            if (!plain.ok()) {
+                return plain.status();
+            }
+            TransformCandidate candidate(
+                hit.candidate_id(),
+                TransformId::vigenere_key(),
+                direction,
+                std::move(params),
+                std::move(plain.value()));
+            rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
+        }
+        return Result{std::move(rows), backend};
+    }
+
+    /// Fused Vigenère decrypt χ² over an **explicit** caller-supplied key list.
+    [[nodiscard]] static StatusOr<Result> vigenere(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        const std::vector<std::vector<Index29>>& keys,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt) {
+        if (direction != TransformDirection::Decrypt) {
+            return Status::error(
+                "GpuCandidateExport::vigenere fused path supports decrypt only");
+        }
+#if !defined(PARCAE_HAS_CUDA)
+        (void)cipher;
+        (void)freqs;
+        (void)keys;
+        (void)k;
+        return Status::error(
+            "GpuCandidateExport::vigenere requires CUDA (build with PARCAE_BUILD_CUDA=ON)");
+#else
+        StatusOr<std::vector<double>> scores = fused_vigenere_scores(cipher, freqs, keys);
+        if (!scores.ok()) {
+            return scores.status();
+        }
+        return vigenere_from_host_scores(
+            cipher,
+            keys,
+            scores.value(),
+            k,
+            TransformDirection::Decrypt,
+            parcae::tool::Backend::Cuda);
+#endif
+    }
+
+    /// Bounded synthetic key grid (`default_bounded_key_grid`) then fused export.
+    [[nodiscard]] static StatusOr<Result> vigenere_bounded(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        std::size_t k,
+        std::size_t max_key_length = default_vigenere_max_key_length,
+        TransformDirection direction = TransformDirection::Decrypt) {
+        StatusOr<std::vector<std::vector<Index29>>> keys =
+            default_bounded_key_grid(max_key_length);
+        if (!keys.ok()) {
+            return keys.status();
+        }
+        return vigenere(cipher, freqs, keys.value(), k, direction);
+    }
+
 private:
     GpuCandidateExport() = delete;
+
+    [[nodiscard]] static Status require_vigenere_keys(
+        const std::vector<std::vector<Index29>>& keys) {
+        if (keys.empty()) {
+            return Status::error(
+                "GpuCandidateExport: vigenere requires a non-empty explicit key list");
+        }
+#if defined(PARCAE_HAS_CUDA)
+        if (keys.size() > FamilyChi2Batch::kMaxCandidates) {
+            return Status::error(
+                "GpuCandidateExport: vigenere key count exceeds FamilyChi2Batch::kMaxCandidates");
+        }
+#else
+        if (keys.size() > 16384) {
+            return Status::error("GpuCandidateExport: vigenere key count exceeds 16384");
+        }
+#endif
+        for (std::size_t i = 0; i < keys.size(); ++i) {
+            if (keys[i].empty()) {
+                return Status::error(
+                    "GpuCandidateExport: vigenere key_indices must be non-empty");
+            }
+            for (const Index29 idx : keys[i]) {
+                if (idx.value() >= Index29::modulus) {
+                    return Status::error(
+                        "GpuCandidateExport: vigenere key_indices entry out of range");
+                }
+            }
+        }
+        return Status::success();
+    }
 
     [[nodiscard]] static Status require_cipher_k(
         std::span<const Index29> cipher,
@@ -706,6 +880,81 @@ private:
                     scratch.value().T);
             },
             "GpuCandidateExport::affine sync");
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_vigenere_scores(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        const std::vector<std::vector<Index29>>& keys) {
+        Status ok = require_cuda_freqs(freqs);
+        if (!ok.ok()) {
+            return ok;
+        }
+        Status common = require_cipher_k(cipher, 1);
+        if (!common.ok()) {
+            return common;
+        }
+        Status keys_ok = require_vigenere_keys(keys);
+        if (!keys_ok.ok()) {
+            return keys_ok;
+        }
+
+        const std::size_t C = keys.size();
+        const auto host_in = to_bytes(cipher);
+        StatusOr<DeviceScratch> scratch = make_scratch(host_in, freqs, C);
+        if (!scratch.ok()) {
+            return scratch.status();
+        }
+
+        std::size_t arena = 0;
+        for (const auto& key : keys) {
+            arena += key.size();
+        }
+        std::vector<std::uint8_t> key_bytes;
+        key_bytes.reserve(arena);
+        std::vector<std::uint32_t> key_begin(C);
+        std::vector<std::uint32_t> key_len(C);
+        std::uint32_t cursor = 0;
+        for (std::size_t i = 0; i < C; ++i) {
+            key_begin[i] = cursor;
+            key_len[i] = static_cast<std::uint32_t>(keys[i].size());
+            for (const Index29 idx : keys[i]) {
+                key_bytes.push_back(idx.value());
+            }
+            cursor += key_len[i];
+        }
+
+        StatusOr<DeviceBuffer<std::uint8_t>> device_keys =
+            DeviceBuffer<std::uint8_t>::from_host(key_bytes);
+        if (!device_keys.ok()) {
+            return device_keys.status();
+        }
+        StatusOr<DeviceBuffer<std::uint32_t>> device_begin =
+            DeviceBuffer<std::uint32_t>::from_host(key_begin);
+        if (!device_begin.ok()) {
+            return device_begin.status();
+        }
+        StatusOr<DeviceBuffer<std::uint32_t>> device_len =
+            DeviceBuffer<std::uint32_t>::from_host(key_len);
+        if (!device_len.ok()) {
+            return device_len.status();
+        }
+
+        return launch_sync_copy(
+            scratch.value(),
+            [&]() {
+                return FamilyChi2Batch::launch_vigenere_async(
+                    scratch.value().in.data(),
+                    device_keys.value().data(),
+                    device_begin.value().data(),
+                    device_len.value().data(),
+                    scratch.value().probs.data(),
+                    scratch.value().counts.data(),
+                    scratch.value().scores.data(),
+                    C,
+                    scratch.value().T);
+            },
+            "GpuCandidateExport::vigenere sync");
     }
 #endif
 };

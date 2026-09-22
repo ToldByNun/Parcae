@@ -4,6 +4,7 @@
 #include <parcae/generate/atbash_candidate_generator.hpp>
 #include <parcae/generate/atbash_caesar_candidate_generator.hpp>
 #include <parcae/generate/caesar_candidate_generator.hpp>
+#include <parcae/generate/vigenere_explicit_key_candidate_generator.hpp>
 #include <parcae/score/expected_frequency_loader.hpp>
 #include <parcae/score/score_order.hpp>
 #include <parcae/score/score_registry.hpp>
@@ -15,6 +16,7 @@
 #include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/compose_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
+#include <parcae/transform/vigenere_key_transform.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -259,6 +261,86 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "GpuCandidateExport vigenere_from_host_scores explicit keys",
+    "[search][export][vigenere]") {
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+    const std::vector<Index29> cipher = synthetic_cipher();
+
+    const std::vector<std::vector<Index29>> keys = {
+        {Index29{1}, Index29{2}, Index29{3}},
+        {Index29{5}},
+        {Index29{7}, Index29{8}},
+        {Index29{10}, Index29{11}, Index29{12}, Index29{13}},
+    };
+
+    ScoreRequest request;
+    request.expected_frequencies = &freqs.value();
+    std::vector<double> scores;
+    scores.reserve(keys.size());
+    const VigenereKeyTransform transform;
+    for (const auto& key : keys) {
+        nlohmann::json params{{"key_indices", nlohmann::json::array()}};
+        for (const Index29 idx : key) {
+            params["key_indices"].push_back(static_cast<int>(idx.value()));
+        }
+        StatusOr<std::vector<Index29>> plain =
+            transform.apply(cipher, params, TransformDirection::Decrypt);
+        REQUIRE(plain.ok());
+        StatusOr<double> score = ScoreRegistry::score(
+            "chi2_english_gp_v0", plain.value(), "v0", nlohmann::json::object(), request);
+        REQUIRE(score.ok());
+        scores.push_back(score.value());
+    }
+
+    constexpr std::size_t k = 2;
+    StatusOr<GpuCandidateExport::Result> exported =
+        GpuCandidateExport::vigenere_from_host_scores(cipher, keys, scores, k);
+    REQUIRE(exported.ok());
+    REQUIRE(exported.value().size() == k);
+    for (std::size_t i = 1; i < exported.value().size(); ++i) {
+        REQUIRE(exported.value().rows()[i - 1].score() <= exported.value().rows()[i].score());
+    }
+
+    const auto& best = exported.value().rows()[0];
+    const std::size_t idx = best.source_index();
+    REQUIRE(
+        best.candidate().candidate_id() ==
+        VigenereExplicitKeyCandidateGenerator::make_candidate_id(keys[idx], idx));
+    REQUIRE(best.candidate().params().at("key_indices").size() == keys[idx].size());
+}
+
+TEST_CASE(
+    "GpuCandidateExport default_bounded_key_grid is L=1..N synthetic",
+    "[search][export][vigenere]") {
+    StatusOr<std::vector<std::vector<Index29>>> keys =
+        GpuCandidateExport::default_bounded_key_grid(5);
+    REQUIRE(keys.ok());
+    REQUIRE(keys.value().size() == 5);
+    REQUIRE(keys.value()[0].size() == 1);
+    REQUIRE(keys.value()[0][0].value() == 1);
+    REQUIRE(keys.value()[4].size() == 5);
+    REQUIRE(keys.value()[4][0].value() == 1);
+    REQUIRE(keys.value()[4][4].value() == 5);
+    REQUIRE_FALSE(GpuCandidateExport::default_bounded_key_grid(0).ok());
+}
+
+TEST_CASE(
+    "GpuCandidateExport vigenere rejects empty keys",
+    "[search][export][vigenere]") {
+    const std::vector<Index29> cipher = {Index29{1}, Index29{2}};
+    std::vector<std::vector<Index29>> keys;
+    std::vector<double> scores;
+    REQUIRE_FALSE(
+        GpuCandidateExport::vigenere_from_host_scores(cipher, keys, scores, 1).ok());
+    keys.push_back({});
+    scores.push_back(1.0);
+    REQUIRE_FALSE(
+        GpuCandidateExport::vigenere_from_host_scores(cipher, keys, scores, 1).ok());
+}
+
+TEST_CASE(
     "GpuCandidateExport fused families without CUDA fail loud",
     "[search][export]") {
 #if !defined(PARCAE_HAS_CUDA)
@@ -269,6 +351,9 @@ TEST_CASE(
     REQUIRE_FALSE(GpuCandidateExport::atbash(cipher, freqs.value(), 1).ok());
     REQUIRE_FALSE(GpuCandidateExport::atbash_caesar(cipher, freqs.value(), 3).ok());
     REQUIRE_FALSE(GpuCandidateExport::affine(cipher, freqs.value(), 3).ok());
+    const std::vector<std::vector<Index29>> keys = {{Index29{1}, Index29{2}}};
+    REQUIRE_FALSE(GpuCandidateExport::vigenere(cipher, freqs.value(), keys, 1).ok());
+    REQUIRE_FALSE(GpuCandidateExport::vigenere_bounded(cipher, freqs.value(), 2, 4).ok());
 #else
     SUCCEED("CUDA build — device path tested separately");
 #endif
@@ -390,6 +475,69 @@ TEST_CASE(
             REQUIRE(row.score() == score.value());
             REQUIRE(row.candidate().output_indices() == out.value());
         }
+    }
+}
+
+TEST_CASE(
+    "GpuCandidateExport fused vigenere explicit + bounded match host",
+    "[search][export][vigenere][cuda]") {
+    if (!ParcaeCuda::available()) {
+        SKIP("No CUDA device");
+    }
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+    const std::vector<Index29> cipher = synthetic_cipher();
+    ScoreRequest request;
+    request.expected_frequencies = &freqs.value();
+
+    const std::vector<std::vector<Index29>> keys = {
+        {Index29{1}, Index29{2}, Index29{3}},
+        {Index29{4}, Index29{5}},
+        {Index29{9}},
+    };
+    std::vector<double> scores;
+    const VigenereKeyTransform transform;
+    for (const auto& key : keys) {
+        nlohmann::json params{{"key_indices", nlohmann::json::array()}};
+        for (const Index29 idx : key) {
+            params["key_indices"].push_back(static_cast<int>(idx.value()));
+        }
+        StatusOr<std::vector<Index29>> plain =
+            transform.apply(cipher, params, TransformDirection::Decrypt);
+        REQUIRE(plain.ok());
+        StatusOr<double> score = ScoreRegistry::score(
+            "chi2_english_gp_v0", plain.value(), "v0", nlohmann::json::object(), request);
+        REQUIRE(score.ok());
+        scores.push_back(score.value());
+    }
+
+    StatusOr<GpuCandidateExport::Result> gpu =
+        GpuCandidateExport::vigenere(cipher, freqs.value(), keys, 2);
+    REQUIRE(gpu.ok());
+    StatusOr<GpuCandidateExport::Result> host =
+        GpuCandidateExport::vigenere_from_host_scores(cipher, keys, scores, 2);
+    REQUIRE(host.ok());
+    for (std::size_t i = 0; i < 2; ++i) {
+        REQUIRE(
+            gpu.value().rows()[i].candidate().candidate_id() ==
+            host.value().rows()[i].candidate().candidate_id());
+        REQUIRE(gpu.value().rows()[i].score() == host.value().rows()[i].score());
+    }
+
+    StatusOr<GpuCandidateExport::Result> bounded =
+        GpuCandidateExport::vigenere_bounded(cipher, freqs.value(), 3, 6);
+    REQUIRE(bounded.ok());
+    REQUIRE(bounded.value().size() == 3);
+    for (const GpuCandidateExport::Row& row : bounded.value().rows()) {
+        StatusOr<std::vector<Index29>> out = VigenereKeyTransform{}.apply(
+            cipher, row.candidate().params(), TransformDirection::Decrypt);
+        REQUIRE(out.ok());
+        StatusOr<double> score = ScoreRegistry::score(
+            "chi2_english_gp_v0", out.value(), "v0", nlohmann::json::object(), request);
+        REQUIRE(score.ok());
+        REQUIRE(row.score() == score.value());
     }
 }
 
