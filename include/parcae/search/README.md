@@ -20,10 +20,10 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere) |
 | `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (generate + rank + prior) |
 | `hypothesis_bridge.hpp` | `HypothesisBridge` | Done (ingest + idempotent ids / provenance) |
-| `search_scheduler.hpp` | `SearchScheduler` | Done (`run_once` / `run_loop` → `parcae.search_cycle_result.v0`) |
+| `search_scheduler.hpp` | `SearchScheduler` | Done (`run_once` / `run_loop` + prior feedback) |
 
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,
 `[search][cipher]`, `[search][cipher][resolve]`, `[search][export]`,
 `[search][export][parity]`, `[search][bridge]`, `[search][bridge][score]`,
-`[search][scheduler]`, `[search][scheduler][loop]` — types + export + ingest +
-one-cycle / multi-iteration scheduler.
+`[search][scheduler]`, `[search][scheduler][loop]`, `[search][scheduler][prior]` —
+types + export + ingest + scheduler + next-job seeds/exclusions.

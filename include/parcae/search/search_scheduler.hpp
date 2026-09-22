@@ -55,6 +55,8 @@ public:
         std::optional<std::string> batch_id;
         /// When true, omit optional `report.json` (agent-safe).
         bool omit_timing = true;
+        /// Workspace prior build flags (ignored when `SearchJob.prior` is inline).
+        SearchPrior::BuildOptions prior_build{};
     };
 
     /// Budgets and stop policy for `run_loop` (`search-loop.md`).
@@ -82,6 +84,8 @@ public:
         /// Optional validate success probe (only consulted when `stop_on_validate`).
         /// When null and `stop_on_validate` is true, `run_loop` errors.
         const bool* validate_ok = nullptr;
+        /// Forwarded to each `run_once` prior rebuild from the workspace.
+        SearchPrior::BuildOptions prior_build{};
     };
 
     /// One batch summary line inside the cycle result.
@@ -178,7 +182,9 @@ public:
         bool omit_timing_ = true;
     };
 
-    /// Run one cycle: cipher → prior → export → `BatchArtifact` → `HypothesisBridge`.
+    /// Run one cycle: cipher → prior (workspace or inline job) → export → batch → bridge.
+    /// Each call rebuilds `SearchPrior` so promoted seeds / rejected exclusions from the
+    /// workspace feed the next job (`search-loop.md` / search-engine cycle step 6).
     [[nodiscard]] static StatusOr<CycleResult> run_once(
         const std::filesystem::path& data_root,
         const parcae::tool::Context& ctx,
@@ -201,8 +207,7 @@ public:
             return cipher.status();
         }
 
-        StatusOr<SearchPrior> prior = SearchPrior::from_workspace(
-            data_root, job.workspace_id(), options.created_utc);
+        StatusOr<SearchPrior> prior = resolve_prior(data_root, job, options);
         if (!prior.ok()) {
             return prior.status();
         }
@@ -363,6 +368,7 @@ public:
             Options once;
             once.created_utc = std::move(utc.value());
             once.omit_timing = options.omit_timing;
+            once.prior_build = options.prior_build;
             if (!options.batch_ids.empty()) {
                 once.batch_id = options.batch_ids[i];
             }
@@ -531,6 +537,18 @@ private:
             }
         }
         return false;
+    }
+
+    /// Inline `SearchJob.prior` wins; otherwise rebuild from workspace hypotheses.
+    [[nodiscard]] static StatusOr<SearchPrior> resolve_prior(
+        const std::filesystem::path& data_root,
+        const SearchJob& job,
+        const Options& options) {
+        if (job.prior().has_value() && !job.prior()->is_null()) {
+            return SearchPrior::from_json(*job.prior());
+        }
+        return SearchPrior::from_workspace(
+            data_root, job.workspace_id(), options.created_utc, options.prior_build);
     }
 
     [[nodiscard]] static StatusOr<CpuCandidateExport::Result> export_candidates(

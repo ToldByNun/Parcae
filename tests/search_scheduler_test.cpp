@@ -5,9 +5,11 @@
 #include <parcae/search/batch_artifact.hpp>
 #include <parcae/search/hypothesis_bridge.hpp>
 #include <parcae/search/search_job.hpp>
+#include <parcae/search/search_prior.hpp>
 #include <parcae/search/search_scheduler.hpp>
 #include <parcae/tool/context.hpp>
 #include <parcae/tool/tool_backend.hpp>
+#include <parcae/transform/transform_direction.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -467,4 +469,221 @@ TEST_CASE(
         SearchScheduler::advance_utc_seconds("2026-09-22T23:59:59Z", 1);
     REQUIRE(day.ok());
     REQUIRE(day.value() == "2026-09-23T00:00:00Z");
+}
+
+TEST_CASE(
+    "SearchScheduler next cycle excludes rejected params from prior",
+    "[search][scheduler][prior]") {
+    const auto root = make_sandbox("parcae_search_scheduler_g25_excl");
+    const parcae::tool::Context ctx{root};
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("g25-excl-ws", "2026-09-22T17:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    StatusOr<SearchJob> job = SearchJob::make(
+        "g25-excl-ws",
+        "caesar",
+        "chi2_english_gp_v0",
+        /*k=*/5,
+        /*seed=*/1,
+        parcae::tool::Backend::Cpu,
+        /*max_candidates=*/64);
+    REQUIRE(job.ok());
+
+    SearchScheduler::Options first;
+    first.created_utc = "2026-09-22T17:00:01Z";
+    first.batch_id = "b-g25-excl-0001";
+    StatusOr<SearchScheduler::CycleResult> cycle1 =
+        SearchScheduler::run_once(root, ctx, job.value(), first);
+    if (!cycle1.ok()) {
+        FAIL(cycle1.status().message());
+    }
+    REQUIRE(cycle1.value().batches().size() == 1);
+
+    StatusOr<BatchArtifact> batch1 = BatchArtifact::load(root, "g25-excl-ws", "b-g25-excl-0001");
+    REQUIRE(batch1.ok());
+    REQUIRE_FALSE(batch1.value().candidates().empty());
+    const nlohmann::json& top = batch1.value().candidates()[0];
+    const std::string candidate_id = top.at("candidate_id").get<std::string>();
+    const int rejected_shift = top.at("envelope").at("params").at("shift").get<int>();
+
+    const std::string hid =
+        HypothesisBridge::hypothesis_id_for("g25-excl-ws", "b-g25-excl-0001", candidate_id);
+    StatusOr<HypothesisRecord> hyp = HypothesisRecord::load(root, "g25-excl-ws", hid);
+    REQUIRE(hyp.ok());
+    REQUIRE(hyp.value().set_status(HypothesisStatus::Rejected).ok());
+    REQUIRE(hyp.value().store(root).ok());
+
+    StatusOr<SearchPrior> prior =
+        SearchPrior::from_workspace(root, "g25-excl-ws", "2026-09-22T17:00:02Z");
+    REQUIRE(prior.ok());
+    REQUIRE(prior.value().exclusions().size() == 1);
+    REQUIRE(prior.value().excludes_params(nlohmann::json{{"shift", rejected_shift}}));
+
+    SearchScheduler::Options second;
+    second.created_utc = "2026-09-22T17:00:02Z";
+    second.batch_id = "b-g25-excl-0002";
+    StatusOr<SearchScheduler::CycleResult> cycle2 =
+        SearchScheduler::run_once(root, ctx, job.value(), second);
+    if (!cycle2.ok()) {
+        FAIL(cycle2.status().message());
+    }
+
+    StatusOr<BatchArtifact> batch2 = BatchArtifact::load(root, "g25-excl-ws", "b-g25-excl-0002");
+    REQUIRE(batch2.ok());
+    REQUIRE(batch2.value().prior_digest_sha256() != batch1.value().prior_digest_sha256());
+    for (const nlohmann::json& row : batch2.value().candidates()) {
+        REQUIRE(row.at("envelope").at("params").at("shift").get<int>() != rejected_shift);
+        REQUIRE(row.at("candidate_id").get<std::string>() != candidate_id);
+    }
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE(
+    "SearchScheduler next cycle forces promoted seed into export",
+    "[search][scheduler][prior]") {
+    const auto root = make_sandbox("parcae_search_scheduler_g25_seed");
+    const parcae::tool::Context ctx{root};
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("g25-seed-ws", "2026-09-22T17:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    const nlohmann::json shift7 = {
+        {"transform_id", "caesar"},
+        {"direction", "decrypt"},
+        {"params", {{"shift", 7}}},
+    };
+
+    // Exclude grid lane shift=7, then promote the same params as a seed so the
+    // next job must materialize `prior-seed:…` (search-loop.md seed rule).
+    StatusOr<HypothesisRecord> rejected = HypothesisRecord::make_draft(
+        "g25-seed-ws",
+        "h-g25-reject-shift7",
+        "2026-09-22T16:59:00Z",
+        "reject shift 7",
+        shift7);
+    REQUIRE(rejected.ok());
+    REQUIRE(rejected.value().set_status(HypothesisStatus::Proposed).ok());
+    REQUIRE(rejected.value().set_status(HypothesisStatus::Rejected).ok());
+    REQUIRE(rejected.value().store(root).ok());
+
+    StatusOr<HypothesisRecord> promoted = HypothesisRecord::make_draft(
+        "g25-seed-ws",
+        "h-g25-promote-shift7",
+        "2026-09-22T16:59:01Z",
+        "promote shift 7",
+        shift7);
+    REQUIRE(promoted.ok());
+    REQUIRE(promoted.value().set_status(HypothesisStatus::Proposed).ok());
+    REQUIRE(promoted.value().set_status(HypothesisStatus::Promoted).ok());
+    REQUIRE(promoted.value().store(root).ok());
+
+    StatusOr<SearchJob> job = SearchJob::make(
+        "g25-seed-ws",
+        "caesar",
+        "chi2_english_gp_v0",
+        /*k=*/29,
+        /*seed=*/1,
+        parcae::tool::Backend::Cpu,
+        /*max_candidates=*/64);
+    REQUIRE(job.ok());
+
+    SearchScheduler::Options opts;
+    opts.created_utc = "2026-09-22T17:00:01Z";
+    opts.batch_id = "b-g25-seed-0001";
+    StatusOr<SearchScheduler::CycleResult> cycle =
+        SearchScheduler::run_once(root, ctx, job.value(), opts);
+    if (!cycle.ok()) {
+        FAIL(cycle.status().message());
+    }
+
+    StatusOr<BatchArtifact> batch = BatchArtifact::load(root, "g25-seed-ws", "b-g25-seed-0001");
+    REQUIRE(batch.ok());
+
+    bool saw_seed = false;
+    for (const nlohmann::json& row : batch.value().candidates()) {
+        const std::string cid = row.at("candidate_id").get<std::string>();
+        if (cid.rfind("prior-seed:", 0) == 0) {
+            saw_seed = true;
+            REQUIRE(cid == "prior-seed:h-g25-promote-shift7");
+            REQUIRE(row.at("envelope").at("params").at("shift").get<int>() == 7);
+        }
+        REQUIRE(cid != "caesar:shift=7");
+    }
+    REQUIRE(saw_seed);
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE(
+    "SearchScheduler prefers inline SearchJob.prior over workspace rebuild",
+    "[search][scheduler][prior]") {
+    const auto root = make_sandbox("parcae_search_scheduler_g25_inline");
+    const parcae::tool::Context ctx{root};
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("g25-inline-ws", "2026-09-22T17:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    // Workspace has a rejected shift=3, but inline prior is empty → shift 3 may appear.
+    const nlohmann::json shift3 = {
+        {"transform_id", "caesar"},
+        {"direction", "decrypt"},
+        {"params", {{"shift", 3}}},
+    };
+    StatusOr<HypothesisRecord> rejected = HypothesisRecord::make_draft(
+        "g25-inline-ws",
+        "h-g25-inline-reject",
+        "2026-09-22T16:59:00Z",
+        "reject",
+        shift3);
+    REQUIRE(rejected.ok());
+    REQUIRE(rejected.value().set_status(HypothesisStatus::Proposed).ok());
+    REQUIRE(rejected.value().set_status(HypothesisStatus::Rejected).ok());
+    REQUIRE(rejected.value().store(root).ok());
+
+    StatusOr<SearchPrior> empty_prior =
+        SearchPrior::make("g25-inline-ws", {}, {}, "2026-09-22T17:00:01Z");
+    REQUIRE(empty_prior.ok());
+
+    StatusOr<SearchJob> job = SearchJob::make(
+        "g25-inline-ws",
+        "caesar",
+        "chi2_english_gp_v0",
+        /*k=*/29,
+        /*seed=*/1,
+        parcae::tool::Backend::Cpu,
+        /*max_candidates=*/64,
+        TransformDirection::Decrypt,
+        nlohmann::json::object(),
+        empty_prior.value().to_json());
+    REQUIRE(job.ok());
+
+    SearchScheduler::Options opts;
+    opts.created_utc = "2026-09-22T17:00:01Z";
+    opts.batch_id = "b-g25-inline-0001";
+    StatusOr<SearchScheduler::CycleResult> cycle =
+        SearchScheduler::run_once(root, ctx, job.value(), opts);
+    if (!cycle.ok()) {
+        FAIL(cycle.status().message());
+    }
+
+    StatusOr<BatchArtifact> batch = BatchArtifact::load(root, "g25-inline-ws", "b-g25-inline-0001");
+    REQUIRE(batch.ok());
+    REQUIRE(batch.value().candidate_count() == 29);
+    bool saw_shift3 = false;
+    for (const nlohmann::json& row : batch.value().candidates()) {
+        if (row.at("envelope").at("params").at("shift").get<int>() == 3) {
+            saw_shift3 = true;
+        }
+    }
+    REQUIRE(saw_shift3);
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
 }
