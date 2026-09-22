@@ -25,5 +25,6 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,
 `[search][cipher]`, `[search][cipher][resolve]`, `[search][export]`,
 `[search][export][parity]`, `[search][bridge]`, `[search][bridge][score]`,
-`[search][scheduler]`, `[search][scheduler][loop]`, `[search][scheduler][prior]` —
-types + export + ingest + scheduler + next-job seeds/exclusions.
+`[search][scheduler]`, `[search][scheduler][loop]`, `[search][scheduler][prior]`,
+`[search][scheduler][loop][determinism]` — types + export + ingest + scheduler +
+next-job seeds/exclusions + two-iteration deterministic CPU loop.

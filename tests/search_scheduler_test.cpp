@@ -1,3 +1,4 @@
+#include <parcae/core/sha256.hpp>
 #include <parcae/hypothesis/hypothesis_record.hpp>
 #include <parcae/hypothesis/hypothesis_status.hpp>
 #include <parcae/hypothesis/workspace_manifest.hpp>
@@ -14,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -93,6 +95,34 @@ namespace {
         {"default_score_version", "v0"},
     };
     return WorkspaceManifest::from_json(root);
+}
+
+[[nodiscard]] std::vector<std::string> candidate_ids(const BatchArtifact& batch) {
+    std::vector<std::string> ids;
+    ids.reserve(batch.candidates().size());
+    for (const nlohmann::json& row : batch.candidates()) {
+        ids.push_back(row.at("candidate_id").get<std::string>());
+    }
+    return ids;
+}
+
+[[nodiscard]] std::vector<double> candidate_scores(const BatchArtifact& batch) {
+    std::vector<double> scores;
+    scores.reserve(batch.candidates().size());
+    for (const nlohmann::json& row : batch.candidates()) {
+        scores.push_back(row.at("score").at("value").get<double>());
+    }
+    return scores;
+}
+
+[[nodiscard]] std::string fixture_ciphertext_sha256(const std::filesystem::path& data_root) {
+    const auto path =
+        data_root / "fixtures" / "solved" / "a-warning" / "ciphertext.txt";
+    std::ifstream in(path, std::ios::binary);
+    REQUIRE(in);
+    const std::string bytes(
+        (std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    return Sha256::hex_digest(bytes);
 }
 
 }  // namespace
@@ -686,4 +716,168 @@ TEST_CASE(
 
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE(
+    "SearchScheduler two-iteration CPU loop is deterministic (stable prior)",
+    "[search][scheduler][loop][determinism]") {
+    // Conformance: two iterations with fixed seed are byte-stable for digests and
+    // candidate_id order when priors do not unexpectedly change mid-run
+    // (proposed-only hypotheses leave SearchPrior empty).
+    auto run_twice = [](std::string_view sandbox_name) {
+        const auto root = make_sandbox(sandbox_name);
+        const std::string fixture_sha_before = fixture_ciphertext_sha256(root);
+        const parcae::tool::Context ctx{root};
+
+        StatusOr<WorkspaceManifest> ws =
+            make_fixture_workspace("g26-ws", "2026-09-22T18:00:00Z");
+        REQUIRE(ws.ok());
+        REQUIRE(ws.value().store(root).ok());
+
+        StatusOr<SearchJob> job = SearchJob::make(
+            "g26-ws",
+            "caesar",
+            "chi2_english_gp_v0",
+            /*k=*/5,
+            /*seed=*/1,
+            parcae::tool::Backend::Cpu,
+            /*max_candidates=*/64);
+        REQUIRE(job.ok());
+        const std::string job_digest = job.value().job_digest_sha256();
+
+        SearchScheduler::LoopOptions loop;
+        // Same created_utc → identical empty prior digests; distinct batch_ids for
+        // artifact paths (search-loop.md: priors do not unexpectedly change).
+        loop.created_utcs = {"2026-09-22T18:00:01Z", "2026-09-22T18:00:01Z"};
+        loop.max_iterations = 2;
+        loop.omit_timing = true;
+        loop.batch_ids = {"b-g26-caesar-0001", "b-g26-caesar-0002"};
+
+        StatusOr<SearchScheduler::CycleResult> result =
+            SearchScheduler::run_loop(root, ctx, job.value(), loop);
+        if (!result.ok()) {
+            FAIL(result.status().message());
+        }
+        REQUIRE(result.value().iterations() == 2);
+        REQUIRE(result.value().stop_reason() == SearchScheduler::stop_completed_iterations);
+        REQUIRE(result.value().batches().size() == 2);
+        REQUIRE(result.value().hypotheses_written() == 10);
+
+        StatusOr<BatchArtifact> b1 = BatchArtifact::load(root, "g26-ws", "b-g26-caesar-0001");
+        StatusOr<BatchArtifact> b2 = BatchArtifact::load(root, "g26-ws", "b-g26-caesar-0002");
+        REQUIRE(b1.ok());
+        REQUIRE(b2.ok());
+
+        // Proposed ingest does not seed/exclude → prior digest stable across iterations.
+        REQUIRE(b1.value().prior_digest_sha256() == b2.value().prior_digest_sha256());
+        REQUIRE(b1.value().job_digest_sha256() == job_digest);
+        REQUIRE(b2.value().job_digest_sha256() == job_digest);
+        REQUIRE(candidate_ids(b1.value()) == candidate_ids(b2.value()));
+        REQUIRE(candidate_scores(b1.value()) == candidate_scores(b2.value()));
+
+        // Scheduler/bridge MUST NOT mutate fixture ciphertext (search-loop.md).
+        REQUIRE(fixture_ciphertext_sha256(root) == fixture_sha_before);
+
+        nlohmann::json snapshot{
+            {"cycle", result.value().to_json()},
+            {"job_digest", job_digest},
+            {"prior_digest", b1.value().prior_digest_sha256()},
+            {"ids1", candidate_ids(b1.value())},
+            {"ids2", candidate_ids(b2.value())},
+            {"scores1", candidate_scores(b1.value())},
+            {"scores2", candidate_scores(b2.value())},
+            {"manifest1", b1.value().manifest_to_json()},
+            {"manifest2", b2.value().manifest_to_json()},
+        };
+
+        std::error_code ec;
+        std::filesystem::remove_all(root, ec);
+        return snapshot;
+    };
+
+    const nlohmann::json a = run_twice("parcae_search_scheduler_g26_a");
+    const nlohmann::json b = run_twice("parcae_search_scheduler_g26_b");
+    REQUIRE(a == b);
+}
+
+TEST_CASE(
+    "SearchScheduler two-iteration CPU loop with reject feedback is deterministic",
+    "[search][scheduler][loop][determinism]") {
+    // Exit-criteria path: job → artifact → hypotheses → prior → second iteration.
+    auto run_feedback = [](std::string_view sandbox_name) {
+        const auto root = make_sandbox(sandbox_name);
+        const parcae::tool::Context ctx{root};
+
+        StatusOr<WorkspaceManifest> ws =
+            make_fixture_workspace("g26-fb-ws", "2026-09-22T18:00:00Z");
+        REQUIRE(ws.ok());
+        REQUIRE(ws.value().store(root).ok());
+
+        StatusOr<SearchJob> job = SearchJob::make(
+            "g26-fb-ws",
+            "caesar",
+            "chi2_english_gp_v0",
+            /*k=*/5,
+            /*seed=*/1,
+            parcae::tool::Backend::Cpu,
+            /*max_candidates=*/64);
+        REQUIRE(job.ok());
+
+        SearchScheduler::Options first;
+        first.created_utc = "2026-09-22T18:00:01Z";
+        first.batch_id = "b-g26-fb-0001";
+        StatusOr<SearchScheduler::CycleResult> cycle1 =
+            SearchScheduler::run_once(root, ctx, job.value(), first);
+        if (!cycle1.ok()) {
+            FAIL(cycle1.status().message());
+        }
+
+        StatusOr<BatchArtifact> b1 = BatchArtifact::load(root, "g26-fb-ws", "b-g26-fb-0001");
+        REQUIRE(b1.ok());
+        const std::string top_id = b1.value().candidates()[0].at("candidate_id").get<std::string>();
+        const int rejected_shift =
+            b1.value().candidates()[0].at("envelope").at("params").at("shift").get<int>();
+        const std::string hid =
+            HypothesisBridge::hypothesis_id_for("g26-fb-ws", "b-g26-fb-0001", top_id);
+        StatusOr<HypothesisRecord> hyp = HypothesisRecord::load(root, "g26-fb-ws", hid);
+        REQUIRE(hyp.ok());
+        REQUIRE(hyp.value().set_status(HypothesisStatus::Rejected).ok());
+        REQUIRE(hyp.value().store(root).ok());
+
+        SearchScheduler::Options second;
+        second.created_utc = "2026-09-22T18:00:02Z";
+        second.batch_id = "b-g26-fb-0002";
+        StatusOr<SearchScheduler::CycleResult> cycle2 =
+            SearchScheduler::run_once(root, ctx, job.value(), second);
+        if (!cycle2.ok()) {
+            FAIL(cycle2.status().message());
+        }
+
+        StatusOr<BatchArtifact> b2 = BatchArtifact::load(root, "g26-fb-ws", "b-g26-fb-0002");
+        REQUIRE(b2.ok());
+        REQUIRE(b2.value().prior_digest_sha256() != b1.value().prior_digest_sha256());
+        for (const nlohmann::json& row : b2.value().candidates()) {
+            REQUIRE(row.at("envelope").at("params").at("shift").get<int>() != rejected_shift);
+        }
+
+        nlohmann::json snapshot{
+            {"job_digest", job.value().job_digest_sha256()},
+            {"prior1", b1.value().prior_digest_sha256()},
+            {"prior2", b2.value().prior_digest_sha256()},
+            {"ids1", candidate_ids(b1.value())},
+            {"ids2", candidate_ids(b2.value())},
+            {"scores1", candidate_scores(b1.value())},
+            {"scores2", candidate_scores(b2.value())},
+            {"rejected_shift", rejected_shift},
+        };
+
+        std::error_code ec;
+        std::filesystem::remove_all(root, ec);
+        return snapshot;
+    };
+
+    const nlohmann::json a = run_feedback("parcae_search_scheduler_g26_fb_a");
+    const nlohmann::json b = run_feedback("parcae_search_scheduler_g26_fb_b");
+    REQUIRE(a == b);
+    REQUIRE(a.at("ids1") != a.at("ids2"));
 }
