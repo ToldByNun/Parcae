@@ -315,6 +315,18 @@ For each candidate, the hypothesis id MUST be a deterministic function of
 `(workspace_id, batch_id, candidate_id)`. Re-ingesting the same batch MUST
 update or no-op without duplicating files.
 
+**v0 algorithm** (`HypothesisBridge::hypothesis_id_for`):
+
+1. Preimage (UTF-8): `workspace_id + "\n" + batch_id + "\n" + candidate_id`
+   (`HypothesisBridge::id_preimage`).
+2. Digest: lowercase hex SHA-256 of the preimage.
+3. Id: `"h"` + first 32 hex characters (always matches
+   `WorkspacePaths::validate_id`).
+
+Changing any of the three fields MUST produce a different id. The same triple
+MUST always resolve to the same path under
+`workspaces/<workspace_id>/hypotheses/<id>.json`.
+
 ### Initial status
 
 - Auto-ingest MUST create `draft` or `proposed` (SHOULD use `proposed` when
@@ -328,9 +340,10 @@ In addition to [`hypothesis-workspace.md`](hypothesis-workspace.md) `source`:
 
 | Field | Rule |
 |-------|------|
-| `batch_id` | MUST be set when created from a batch |
+| `batch_id` | MUST be set when created from a batch; MUST match `BatchArtifact.batch_id` |
 | `candidate_id` | MUST match the artifact line |
 | `generator_id` / `family` | SHOULD record expansion provenance |
+| `rank` | SHOULD be the best-first rank from the artifact line |
 | `agent_run_id` | MAY be null for pure scheduler ingest |
 
 Until the hypothesis-workspace field table is synced in the bridge implementation

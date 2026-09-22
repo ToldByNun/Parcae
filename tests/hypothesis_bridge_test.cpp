@@ -117,6 +117,8 @@ TEST_CASE(
     REQUIRE(h0.value().source().at("batch_id").get<std::string>() == "b-caesar-0001");
     REQUIRE(h0.value().source().at("generator_id").get<std::string>() == "gen_caesar");
     REQUIRE(h0.value().source().at("family").get<std::string>() == "caesar");
+    REQUIRE(h0.value().source().at("rank").get<std::size_t>() == 0);
+    REQUIRE(HypothesisBridge::require_batch_provenance(h0.value().source()).ok());
     REQUIRE(h0.value().scores().empty());
     REQUIRE_FALSE(h0.value().digests().at("method_sha256").is_null());
 
@@ -218,4 +220,112 @@ TEST_CASE(
     REQUIRE(again.value().status() != HypothesisStatus::Promoted);
 
     std::filesystem::remove_all(tmp, ec);
+}
+
+TEST_CASE(
+    "HypothesisBridge id is pure over workspace/batch/candidate triple",
+    "[search][bridge][idempotent]") {
+    const std::string a = HypothesisBridge::hypothesis_id_for("ws-a", "b-1", "caesar:shift=3");
+    const std::string a_again =
+        HypothesisBridge::hypothesis_id_for("ws-a", "b-1", "caesar:shift=3");
+    REQUIRE(a == a_again);
+    REQUIRE(a.size() == 1 + HypothesisBridge::id_digest_hex_len);
+    REQUIRE(WorkspacePaths::validate_id(a).ok());
+
+    const std::string pre = HypothesisBridge::id_preimage("ws-a", "b-1", "caesar:shift=3");
+    REQUIRE(pre == "ws-a\nb-1\ncaesar:shift=3");
+    REQUIRE(
+        a == std::string("h") + Sha256::hex_digest(pre).substr(
+                                    0, HypothesisBridge::id_digest_hex_len));
+
+    // Any field change flips the id.
+    REQUIRE(
+        HypothesisBridge::hypothesis_id_for("ws-b", "b-1", "caesar:shift=3") != a);
+    REQUIRE(
+        HypothesisBridge::hypothesis_id_for("ws-a", "b-2", "caesar:shift=3") != a);
+    REQUIRE(
+        HypothesisBridge::hypothesis_id_for("ws-a", "b-1", "caesar:shift=4") != a);
+}
+
+TEST_CASE(
+    "HypothesisBridge different batches stay separate files for same candidate_id",
+    "[search][bridge][idempotent]") {
+    const auto tmp =
+        std::filesystem::temp_directory_path() / "parcae_hypothesis_bridge_f20_batches";
+    std::error_code ec;
+    std::filesystem::remove_all(tmp, ec);
+    std::filesystem::create_directories(tmp / "workspaces", ec);
+
+    auto line = [&](std::size_t rank) {
+        return BatchArtifact::candidate_wire(
+            caesar_candidate(3),
+            "chi2_english_gp_v0",
+            "v0",
+            1.0,
+            parcae::tool::Backend::Cpu,
+            rank);
+    };
+
+    StatusOr<BatchArtifact> b1 =
+        make_test_batch("bridge-ws-f20", "b-run-0001", {line(0)});
+    StatusOr<BatchArtifact> b2 =
+        make_test_batch("bridge-ws-f20", "b-run-0002", {line(0)});
+    REQUIRE(b1.ok());
+    REQUIRE(b2.ok());
+    REQUIRE(HypothesisBridge::ingest(tmp, b1.value()).ok());
+    REQUIRE(HypothesisBridge::ingest(tmp, b2.value()).ok());
+
+    StatusOr<HypothesisRecord> from_b1 = HypothesisBridge::load_for_candidate(
+        tmp, "bridge-ws-f20", "b-run-0001", "caesar:shift=3");
+    StatusOr<HypothesisRecord> from_b2 = HypothesisBridge::load_for_candidate(
+        tmp, "bridge-ws-f20", "b-run-0002", "caesar:shift=3");
+    REQUIRE(from_b1.ok());
+    REQUIRE(from_b2.ok());
+    REQUIRE(from_b1.value().id() != from_b2.value().id());
+    REQUIRE(from_b1.value().source().at("batch_id").get<std::string>() == "b-run-0001");
+    REQUIRE(from_b2.value().source().at("batch_id").get<std::string>() == "b-run-0002");
+
+    StatusOr<std::vector<std::string>> listed =
+        HypothesisRecord::list_ids(tmp, "bridge-ws-f20");
+    REQUIRE(listed.ok());
+    REQUIRE(listed.value().size() == 2);
+
+    // Same batch re-ingest: still exactly two files.
+    REQUIRE(HypothesisBridge::ingest(tmp, b1.value()).ok());
+    listed = HypothesisRecord::list_ids(tmp, "bridge-ws-f20");
+    REQUIRE(listed.ok());
+    REQUIRE(listed.value().size() == 2);
+
+    std::filesystem::remove_all(tmp, ec);
+}
+
+TEST_CASE(
+    "HypothesisBridge make_batch_source + require_batch_provenance",
+    "[search][bridge][idempotent]") {
+    const nlohmann::json ok = HypothesisBridge::make_batch_source(
+        "b-ok-0001", "caesar:shift=3", "caesar", "gen_caesar", 2);
+    REQUIRE(HypothesisBridge::require_batch_provenance(ok).ok());
+    REQUIRE(ok.at("batch_id").get<std::string>() == "b-ok-0001");
+    REQUIRE(ok.at("rank").get<std::size_t>() == 2);
+    REQUIRE(ok.at("agent_run_id").is_null());
+
+    const nlohmann::json with_agent = HypothesisBridge::make_batch_source(
+        "b-ok-0001",
+        "caesar:shift=3",
+        "caesar",
+        "gen_caesar",
+        0,
+        std::string("a1b2c3d4"));
+    REQUIRE(with_agent.at("agent_run_id").get<std::string>() == "a1b2c3d4");
+
+    REQUIRE_FALSE(HypothesisBridge::require_batch_provenance(nlohmann::json::object()).ok());
+    REQUIRE_FALSE(HypothesisBridge::require_batch_provenance(
+                      nlohmann::json{{"batch_id", "b-ok"}, {"candidate_id", ""}})
+                      .ok());
+    REQUIRE_FALSE(HypothesisBridge::require_batch_provenance(
+                      nlohmann::json{
+                          {"batch_id", "BadBatch"},
+                          {"candidate_id", "x"},
+                      })
+                      .ok());
 }

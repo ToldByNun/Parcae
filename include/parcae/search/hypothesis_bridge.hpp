@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -31,8 +32,17 @@
 ///
 /// Creates `proposed` records when the candidate envelope is complete. Does
 /// **not** auto-set `promoted` and MUST NOT write under `data/fixtures/`.
+///
+/// Idempotent ids: `hypothesis_id_for(workspace_id, batch_id, candidate_id)` is
+/// a pure function — re-ingesting the same triple updates or no-ops the same
+/// file and never duplicates.
 class HypothesisBridge {
 public:
+    /// Hex chars taken from SHA-256 for the id suffix (`h` + N hex ≤ 64).
+    static constexpr std::size_t id_digest_hex_len = 32;
+    /// UTF-8 field separator in the id preimage (not allowed in validated ids).
+    static constexpr char id_preimage_sep = '\n';
+
     /// Options for `ingest`.
     class Options {
     public:
@@ -69,17 +79,88 @@ public:
         std::vector<std::string> skipped_ids_;
     };
 
+    /// Canonical preimage for `hypothesis_id_for` (documented in search-loop.md):
+    /// `workspace_id + "\\n" + batch_id + "\\n" + candidate_id`.
+    [[nodiscard]] static std::string id_preimage(
+        std::string_view workspace_id,
+        std::string_view batch_id,
+        std::string_view candidate_id) {
+        std::string material;
+        material.reserve(
+            workspace_id.size() + batch_id.size() + candidate_id.size() + 2);
+        material.append(workspace_id);
+        material.push_back(id_preimage_sep);
+        material.append(batch_id);
+        material.push_back(id_preimage_sep);
+        material.append(candidate_id);
+        return material;
+    }
+
     /// Deterministic id from `(workspace_id, batch_id, candidate_id)`.
-    /// Format: `h` + first 32 lowercase hex of SHA-256 (fits WorkspacePaths id rules).
+    /// Format: `h` + first `id_digest_hex_len` lowercase hex of SHA-256(preimage).
     [[nodiscard]] static std::string hypothesis_id_for(
         std::string_view workspace_id,
         std::string_view batch_id,
         std::string_view candidate_id) {
-        const std::string material =
-            std::string(workspace_id) + '\n' + std::string(batch_id) + '\n' +
-            std::string(candidate_id);
-        const std::string digest = Sha256::hex_digest(material);
-        return std::string("h") + digest.substr(0, 32);
+        const std::string digest = Sha256::hex_digest(
+            id_preimage(workspace_id, batch_id, candidate_id));
+        return std::string("h") + digest.substr(0, id_digest_hex_len);
+    }
+
+    /// Load the hypothesis that would be written for this provenance triple.
+    [[nodiscard]] static StatusOr<HypothesisRecord> load_for_candidate(
+        const std::filesystem::path& data_root,
+        std::string_view workspace_id,
+        std::string_view batch_id,
+        std::string_view candidate_id) {
+        return HypothesisRecord::load(
+            data_root,
+            workspace_id,
+            hypothesis_id_for(workspace_id, batch_id, candidate_id));
+    }
+
+    /// Canonical `source` object for batch ingest (search-loop.md extended fields).
+    [[nodiscard]] static nlohmann::json make_batch_source(
+        std::string_view batch_id,
+        std::string_view candidate_id,
+        std::string_view family,
+        std::string_view generator_id,
+        std::size_t rank,
+        std::optional<std::string> agent_run_id = std::nullopt) {
+        nlohmann::json source{
+            {"batch_id", std::string(batch_id)},
+            {"candidate_id", std::string(candidate_id)},
+            {"family", std::string(family)},
+            {"generator_id", std::string(generator_id)},
+            {"rank", rank},
+            {"agent_run_id", nullptr},
+        };
+        if (agent_run_id.has_value()) {
+            source["agent_run_id"] = std::move(*agent_run_id);
+        }
+        return source;
+    }
+
+    /// Require `batch_id` + `candidate_id` on a hypothesis `source` object.
+    [[nodiscard]] static Status require_batch_provenance(const nlohmann::json& source) {
+        if (!source.is_object()) {
+            return Status::error("HypothesisBridge: source must be an object");
+        }
+        if (!source.contains("batch_id") || !source.at("batch_id").is_string() ||
+            source.at("batch_id").get<std::string>().empty()) {
+            return Status::error("HypothesisBridge: source.batch_id is required");
+        }
+        if (!source.contains("candidate_id") || !source.at("candidate_id").is_string() ||
+            source.at("candidate_id").get<std::string>().empty()) {
+            return Status::error("HypothesisBridge: source.candidate_id is required");
+        }
+        StatusOr<std::string> batch_ok =
+            WorkspacePaths::validate_id(source.at("batch_id").get<std::string>());
+        if (!batch_ok.ok()) {
+            return Status::error(
+                "HypothesisBridge: source.batch_id invalid: " + batch_ok.status().message());
+        }
+        return Status::success();
     }
 
     [[nodiscard]] static StatusOr<std::string_view> generator_id_for_family(
@@ -191,6 +272,17 @@ private:
             }
         }
 
+        nlohmann::json source = make_batch_source(
+            artifact.batch_id(),
+            candidate_id,
+            artifact.family(),
+            generator_id,
+            rank);
+        Status provenance = require_batch_provenance(source);
+        if (!provenance.ok()) {
+            return provenance;
+        }
+
         StatusOr<HypothesisRecord> record = HypothesisRecord::make_draft(
             artifact.workspace_id(),
             hypothesis_id,
@@ -207,14 +299,7 @@ private:
             return proposed;
         }
 
-        nlohmann::json source{
-            {"generator_id", std::string(generator_id)},
-            {"candidate_id", candidate_id},
-            {"family", artifact.family()},
-            {"batch_id", artifact.batch_id()},
-            {"agent_run_id", nullptr},
-        };
-        record.value().set_source(std::move(source));
+        record.value().set_source(source);
         record.value().set_rationale(
             "Auto-ingested from batch " + artifact.batch_id() + " by HypothesisBridge");
         record.value().recompute_method_digest();
@@ -240,7 +325,8 @@ private:
                     if (!method_ok.ok()) {
                         return method_ok;
                     }
-                    previous.value().set_source(record.value().source());
+                    // Refresh provenance (batch_id / candidate_id) even when status is kept.
+                    previous.value().set_source(std::move(source));
                     previous.value().set_title(record.value().title());
                     previous.value().set_rationale(record.value().rationale());
                     previous.value().set_updated_utc(artifact.created_utc());

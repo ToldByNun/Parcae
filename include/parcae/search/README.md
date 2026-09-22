@@ -19,7 +19,7 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `workspace_cipher.hpp` | `WorkspaceCipher` | Done (`workspace.v0` → `Index29`) |
 | `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere) |
 | `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (generate + rank + prior) |
-| `hypothesis_bridge.hpp` | `HypothesisBridge` | Done (batch top-k → proposed) |
+| `hypothesis_bridge.hpp` | `HypothesisBridge` | Done (ingest + idempotent ids / provenance) |
 | `search_scheduler.hpp` | `SearchScheduler` | Planned |
 
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,
