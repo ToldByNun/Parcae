@@ -217,3 +217,254 @@ TEST_CASE(
     std::filesystem::remove_all(root, ec);
 #endif
 }
+
+TEST_CASE(
+    "SearchScheduler::run_loop hits completed_iterations across two batches",
+    "[search][scheduler][loop]") {
+    const auto root = make_sandbox("parcae_search_scheduler_g24_loop");
+    const parcae::tool::Context ctx{root};
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("g24-ws", "2026-09-22T16:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    StatusOr<SearchJob> job = SearchJob::make(
+        "g24-ws",
+        "caesar",
+        "chi2_english_gp_v0",
+        /*k=*/2,
+        /*seed=*/1,
+        parcae::tool::Backend::Cpu,
+        /*max_candidates=*/64);
+    REQUIRE(job.ok());
+
+    SearchScheduler::LoopOptions loop;
+    loop.created_utc = "2026-09-22T16:00:00Z";
+    loop.max_iterations = 2;
+    loop.omit_timing = true;
+    loop.batch_ids = {"b-g24-caesar-0001", "b-g24-caesar-0002"};
+
+    StatusOr<SearchScheduler::CycleResult> result =
+        SearchScheduler::run_loop(root, ctx, job.value(), loop);
+    if (!result.ok()) {
+        FAIL(result.status().message());
+    }
+    REQUIRE(result.value().iterations() == 2);
+    REQUIRE(result.value().stop_reason() == SearchScheduler::stop_completed_iterations);
+    REQUIRE(result.value().batches().size() == 2);
+    REQUIRE(result.value().batches()[0].batch_id() == "b-g24-caesar-0001");
+    REQUIRE(result.value().batches()[1].batch_id() == "b-g24-caesar-0002");
+    REQUIRE(result.value().hypotheses_written() == 4);
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE(
+    "SearchScheduler::run_loop stops on wall_budget before any cycle",
+    "[search][scheduler][loop]") {
+    const auto root = make_sandbox("parcae_search_scheduler_g24_wall");
+    const parcae::tool::Context ctx{root};
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("g24-wall-ws", "2026-09-22T16:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    StatusOr<SearchJob> job = SearchJob::make(
+        "g24-wall-ws",
+        "atbash",
+        "chi2_english_gp_v0",
+        1,
+        1,
+        parcae::tool::Backend::Cpu,
+        8);
+    REQUIRE(job.ok());
+
+    SearchScheduler::LoopOptions loop;
+    loop.created_utc = "2026-09-22T16:00:00Z";
+    loop.max_iterations = 3;
+    loop.max_wall_seconds = 0.0;
+
+    StatusOr<SearchScheduler::CycleResult> result =
+        SearchScheduler::run_loop(root, ctx, job.value(), loop);
+    REQUIRE(result.ok());
+    REQUIRE(result.value().iterations() == 0);
+    REQUIRE(result.value().stop_reason() == SearchScheduler::stop_wall_budget);
+    REQUIRE(result.value().batches().empty());
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE(
+    "SearchScheduler::run_loop stops on success_promoted",
+    "[search][scheduler][loop]") {
+    const auto root = make_sandbox("parcae_search_scheduler_g24_promoted");
+    const parcae::tool::Context ctx{root};
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("g24-prom-ws", "2026-09-22T16:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    // Seed a promoted hypothesis so the first cycle can trip stop_on_promoted.
+    const nlohmann::json method = {
+        {"transform_id", "atbash"},
+        {"direction", "decrypt"},
+        {"params", nlohmann::json::object()},
+    };
+    StatusOr<HypothesisRecord> seed = HypothesisRecord::make_draft(
+        "g24-prom-ws",
+        "h-g24-promoted-seed",
+        "2026-09-22T15:59:00Z",
+        "seed",
+        method);
+    REQUIRE(seed.ok());
+    REQUIRE(seed.value().set_status(HypothesisStatus::Proposed).ok());
+    REQUIRE(seed.value().set_status(HypothesisStatus::Promoted).ok());
+    REQUIRE(seed.value().store(root).ok());
+
+    StatusOr<SearchJob> job = SearchJob::make(
+        "g24-prom-ws",
+        "caesar",
+        "chi2_english_gp_v0",
+        1,
+        1,
+        parcae::tool::Backend::Cpu,
+        64);
+    REQUIRE(job.ok());
+
+    SearchScheduler::LoopOptions loop;
+    loop.created_utc = "2026-09-22T16:00:00Z";
+    loop.max_iterations = 5;
+    loop.stop_on_promoted = true;
+    loop.batch_ids = {
+        "b-g24-prom-0001",
+        "b-g24-prom-0002",
+        "b-g24-prom-0003",
+        "b-g24-prom-0004",
+        "b-g24-prom-0005",
+    };
+
+    StatusOr<SearchScheduler::CycleResult> result =
+        SearchScheduler::run_loop(root, ctx, job.value(), loop);
+    if (!result.ok()) {
+        FAIL(result.status().message());
+    }
+    REQUIRE(result.value().iterations() == 1);
+    REQUIRE(result.value().stop_reason() == SearchScheduler::stop_success_promoted);
+    REQUIRE(result.value().batches().size() == 1);
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE(
+    "SearchScheduler::run_loop stops on success_validate",
+    "[search][scheduler][loop]") {
+    const auto root = make_sandbox("parcae_search_scheduler_g24_validate");
+    const parcae::tool::Context ctx{root};
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("g24-val-ws", "2026-09-22T16:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    StatusOr<SearchJob> job = SearchJob::make(
+        "g24-val-ws",
+        "atbash",
+        "chi2_english_gp_v0",
+        1,
+        1,
+        parcae::tool::Backend::Cpu,
+        8);
+    REQUIRE(job.ok());
+
+    const bool validate_ok = true;
+    SearchScheduler::LoopOptions loop;
+    loop.created_utc = "2026-09-22T16:00:00Z";
+    loop.max_iterations = 4;
+    loop.stop_on_validate = true;
+    loop.validate_ok = &validate_ok;
+    loop.batch_ids = {
+        "b-g24-val-0001",
+        "b-g24-val-0002",
+        "b-g24-val-0003",
+        "b-g24-val-0004",
+    };
+
+    StatusOr<SearchScheduler::CycleResult> result =
+        SearchScheduler::run_loop(root, ctx, job.value(), loop);
+    REQUIRE(result.ok());
+    REQUIRE(result.value().iterations() == 1);
+    REQUIRE(result.value().stop_reason() == SearchScheduler::stop_success_validate);
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE(
+    "SearchScheduler::run_loop stops on no_new_candidates after prior exclusion",
+    "[search][scheduler][loop]") {
+    const auto root = make_sandbox("parcae_search_scheduler_g24_empty");
+    const parcae::tool::Context ctx{root};
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("g24-empty-ws", "2026-09-22T16:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    // Rejected atbash (empty params) → prior excludes the only atbash lane.
+    const nlohmann::json method = {
+        {"transform_id", "atbash"},
+        {"direction", "decrypt"},
+        {"params", nlohmann::json::object()},
+    };
+    StatusOr<HypothesisRecord> rejected = HypothesisRecord::make_draft(
+        "g24-empty-ws",
+        "h-g24-reject-atbash",
+        "2026-09-22T15:59:00Z",
+        "reject",
+        method);
+    REQUIRE(rejected.ok());
+    REQUIRE(rejected.value().set_status(HypothesisStatus::Proposed).ok());
+    REQUIRE(rejected.value().set_status(HypothesisStatus::Rejected).ok());
+    REQUIRE(rejected.value().store(root).ok());
+
+    StatusOr<SearchJob> job = SearchJob::make(
+        "g24-empty-ws",
+        "atbash",
+        "chi2_english_gp_v0",
+        1,
+        1,
+        parcae::tool::Backend::Cpu,
+        8);
+    REQUIRE(job.ok());
+
+    SearchScheduler::LoopOptions loop;
+    loop.created_utc = "2026-09-22T16:00:00Z";
+    loop.max_iterations = 3;
+
+    StatusOr<SearchScheduler::CycleResult> result =
+        SearchScheduler::run_loop(root, ctx, job.value(), loop);
+    if (!result.ok()) {
+        FAIL(result.status().message());
+    }
+    REQUIRE(result.value().iterations() == 1);
+    REQUIRE(result.value().stop_reason() == SearchScheduler::stop_no_new_candidates);
+    REQUIRE(result.value().batches().empty());
+    REQUIRE(result.value().hypotheses_written() == 0);
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE(
+    "SearchScheduler::advance_utc_seconds is deterministic",
+    "[search][scheduler][loop]") {
+    StatusOr<std::string> next =
+        SearchScheduler::advance_utc_seconds("2026-09-22T16:00:00Z", 1);
+    REQUIRE(next.ok());
+    REQUIRE(next.value() == "2026-09-22T16:00:01Z");
+    StatusOr<std::string> day =
+        SearchScheduler::advance_utc_seconds("2026-09-22T23:59:59Z", 1);
+    REQUIRE(day.ok());
+    REQUIRE(day.value() == "2026-09-23T00:00:00Z");
+}

@@ -4,6 +4,8 @@
 #include "parcae/core/sha256.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
+#include "parcae/hypothesis/hypothesis_record.hpp"
+#include "parcae/hypothesis/hypothesis_status.hpp"
 #include "parcae/hypothesis/workspace_paths.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
 #include "parcae/search/batch_artifact.hpp"
@@ -17,8 +19,10 @@
 #include "parcae/tool/tool_backend.hpp"
 #include "parcae/transform/transform_direction.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <optional>
 #include <span>
@@ -29,11 +33,18 @@
 
 #include <nlohmann/json.hpp>
 
-/// One closed-loop search cycle (or later: multi-iteration loop).
+/// One closed-loop search cycle or multi-iteration loop.
 /// Normative: `docs/spec/search-loop.md` (`SearchScheduler` / `parcae.search_cycle_result.v0`).
 class SearchScheduler {
 public:
     static constexpr std::string_view result_schema_id = "parcae.search_cycle_result.v0";
+
+    static constexpr std::string_view stop_completed_iterations = "completed_iterations";
+    static constexpr std::string_view stop_wall_budget = "wall_budget";
+    static constexpr std::string_view stop_no_new_candidates = "no_new_candidates";
+    static constexpr std::string_view stop_success_promoted = "success_promoted";
+    static constexpr std::string_view stop_success_validate = "success_validate";
+    static constexpr std::string_view stop_error = "error";
 
     /// Options for `run_once` (deterministic when `created_utc` / `batch_id` are fixed).
     class Options {
@@ -44,6 +55,33 @@ public:
         std::optional<std::string> batch_id;
         /// When true, omit optional `report.json` (agent-safe).
         bool omit_timing = true;
+    };
+
+    /// Budgets and stop policy for `run_loop` (`search-loop.md`).
+    class LoopOptions {
+    public:
+        /// RFC 3339 UTC for iteration 0 (required). Later iterations add
+        /// `created_utc_step_seconds` when `created_utcs` is empty.
+        std::string created_utc;
+        /// Optional per-iteration UTC overrides (index 0..max_iterations-1).
+        std::vector<std::string> created_utcs;
+        /// Seconds added to `created_utc` per iteration when `created_utcs` is empty.
+        std::int64_t created_utc_step_seconds = 1;
+        /// Optional per-iteration batch ids (same indexing). Empty → auto digest ids.
+        std::vector<std::string> batch_ids;
+        /// Maximum `run_once` invocations (≥ 1).
+        std::size_t max_iterations = 1;
+        /// Wall-time budget in seconds. `nullopt` = unlimited. `0` stops before any cycle.
+        std::optional<double> max_wall_seconds;
+        /// When true, omit optional `report.json` on each cycle.
+        bool omit_timing = true;
+        /// Stop after an iteration if any hypothesis is `promoted`.
+        bool stop_on_promoted = false;
+        /// Reserved: stop when a validate hook reports success (requires `validate_ok`).
+        bool stop_on_validate = false;
+        /// Optional validate success probe (only consulted when `stop_on_validate`).
+        /// When null and `stop_on_validate` is true, `run_loop` errors.
+        const bool* validate_ok = nullptr;
     };
 
     /// One batch summary line inside the cycle result.
@@ -181,7 +219,7 @@ public:
         result.omit_timing_ = options.omit_timing;
 
         if (exported.value().size() == 0) {
-            result.stop_reason_ = "no_new_candidates";
+            result.stop_reason_ = std::string(stop_no_new_candidates);
             result.hypotheses_written_ = 0;
             return result;
         }
@@ -256,7 +294,126 @@ public:
             artifact.value().candidate_count(),
             job_digest);
         result.hypotheses_written_ = ingested.value().written_count();
-        result.stop_reason_ = "completed_iterations";
+        result.stop_reason_ = std::string(stop_completed_iterations);
+        return result;
+    }
+
+    /// Repeat `run_once` until budget / stop reason (`search-loop.md` § `run_loop`).
+    [[nodiscard]] static StatusOr<CycleResult> run_loop(
+        const std::filesystem::path& data_root,
+        const parcae::tool::Context& ctx,
+        const SearchJob& job,
+        const LoopOptions& options) {
+        if (options.created_utc.empty() && options.created_utcs.empty()) {
+            return Status::error("SearchScheduler::run_loop requires created_utc");
+        }
+        if (options.max_iterations == 0) {
+            return Status::error("SearchScheduler::run_loop: max_iterations must be >= 1");
+        }
+        if (options.max_wall_seconds.has_value() && *options.max_wall_seconds < 0.0) {
+            return Status::error("SearchScheduler::run_loop: max_wall_seconds must be >= 0");
+        }
+        if (options.stop_on_validate && options.validate_ok == nullptr) {
+            return Status::error(
+                "SearchScheduler::run_loop: stop_on_validate requires validate_ok pointer");
+        }
+        if (!options.batch_ids.empty() && options.batch_ids.size() < options.max_iterations) {
+            return Status::error(
+                "SearchScheduler::run_loop: batch_ids must cover max_iterations when set");
+        }
+        if (!options.created_utcs.empty() &&
+            options.created_utcs.size() < options.max_iterations) {
+            return Status::error(
+                "SearchScheduler::run_loop: created_utcs must cover max_iterations when set");
+        }
+
+        CycleResult result;
+        result.workspace_id_ = job.workspace_id();
+        result.omit_timing_ = options.omit_timing;
+        result.iterations_ = 0;
+        result.hypotheses_written_ = 0;
+
+        const auto wall0 = std::chrono::steady_clock::now();
+        auto wall_exceeded = [&]() -> bool {
+            if (!options.max_wall_seconds.has_value()) {
+                return false;
+            }
+            const double elapsed = std::chrono::duration<double>(
+                                       std::chrono::steady_clock::now() - wall0)
+                                       .count();
+            return elapsed >= *options.max_wall_seconds;
+        };
+
+        if (wall_exceeded()) {
+            result.stop_reason_ = std::string(stop_wall_budget);
+            return result;
+        }
+
+        for (std::size_t i = 0; i < options.max_iterations; ++i) {
+            if (i > 0 && wall_exceeded()) {
+                result.stop_reason_ = std::string(stop_wall_budget);
+                return result;
+            }
+
+            StatusOr<std::string> utc = utc_for_iteration(options, i);
+            if (!utc.ok()) {
+                return utc.status();
+            }
+
+            Options once;
+            once.created_utc = std::move(utc.value());
+            once.omit_timing = options.omit_timing;
+            if (!options.batch_ids.empty()) {
+                once.batch_id = options.batch_ids[i];
+            }
+
+            StatusOr<CycleResult> cycle = run_once(data_root, ctx, job, once);
+            if (!cycle.ok()) {
+                // Prior filter emptied the expansion → soft stop (search-loop.md).
+                if (is_no_candidates_status(cycle.status())) {
+                    result.iterations_ = i + 1;
+                    result.stop_reason_ = std::string(stop_no_new_candidates);
+                    return result;
+                }
+                return cycle.status();
+            }
+
+            result.iterations_ = i + 1;
+            result.hypotheses_written_ += cycle.value().hypotheses_written();
+            for (const BatchSummary& b : cycle.value().batches()) {
+                result.batches_.push_back(b);
+            }
+
+            if (cycle.value().stop_reason() == stop_no_new_candidates) {
+                result.stop_reason_ = std::string(stop_no_new_candidates);
+                return result;
+            }
+
+            if (options.stop_on_promoted) {
+                StatusOr<bool> promoted = workspace_has_status(
+                    data_root, job.workspace_id(), HypothesisStatus::Promoted);
+                if (!promoted.ok()) {
+                    return promoted.status();
+                }
+                if (promoted.value()) {
+                    result.stop_reason_ = std::string(stop_success_promoted);
+                    return result;
+                }
+            }
+
+            if (options.stop_on_validate && options.validate_ok != nullptr &&
+                *options.validate_ok) {
+                result.stop_reason_ = std::string(stop_success_validate);
+                return result;
+            }
+
+            if (wall_exceeded()) {
+                result.stop_reason_ = std::string(stop_wall_budget);
+                return result;
+            }
+        }
+
+        result.stop_reason_ = std::string(stop_completed_iterations);
         return result;
     }
 
@@ -274,8 +431,107 @@ public:
         return std::string("b") + Sha256::hex_digest(material).substr(0, 32);
     }
 
+    /// Advance an RFC 3339 UTC timestamp of the form `YYYY-MM-DDTHH:MM:SSZ` by `seconds`.
+    [[nodiscard]] static StatusOr<std::string> advance_utc_seconds(
+        std::string_view utc,
+        std::int64_t seconds) {
+        if (utc.size() != 20 || utc[10] != 'T' || utc[19] != 'Z') {
+            return Status::error(
+                "SearchScheduler::advance_utc_seconds expects YYYY-MM-DDTHH:MM:SSZ");
+        }
+        const int year = parse_digits(utc.substr(0, 4));
+        const int month = parse_digits(utc.substr(5, 2));
+        const int day = parse_digits(utc.substr(8, 2));
+        const int hour = parse_digits(utc.substr(11, 2));
+        const int minute = parse_digits(utc.substr(14, 2));
+        const int second = parse_digits(utc.substr(17, 2));
+        if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 ||
+            second > 60) {
+            return Status::error("SearchScheduler::advance_utc_seconds: invalid timestamp fields");
+        }
+
+        const std::chrono::year_month_day ymd{
+            std::chrono::year{year},
+            std::chrono::month{static_cast<unsigned>(month)},
+            std::chrono::day{static_cast<unsigned>(day)}};
+        if (!ymd.ok()) {
+            return Status::error("SearchScheduler::advance_utc_seconds: invalid calendar day");
+        }
+
+        const std::chrono::sys_seconds tp =
+            std::chrono::sys_days{ymd} + std::chrono::hours{hour} +
+            std::chrono::minutes{minute} + std::chrono::seconds{second} +
+            std::chrono::seconds{seconds};
+
+        const std::chrono::sys_days day_floor = std::chrono::floor<std::chrono::days>(tp);
+        const std::chrono::year_month_day out_ymd{day_floor};
+        const auto tod = std::chrono::hh_mm_ss{tp - day_floor};
+
+        char buf[32];
+        std::snprintf(
+            buf,
+            sizeof(buf),
+            "%04d-%02u-%02uT%02d:%02d:%02dZ",
+            static_cast<int>(out_ymd.year()),
+            static_cast<unsigned>(out_ymd.month()),
+            static_cast<unsigned>(out_ymd.day()),
+            static_cast<int>(tod.hours().count()),
+            static_cast<int>(tod.minutes().count()),
+            static_cast<int>(tod.seconds().count()));
+        return std::string(buf);
+    }
+
 private:
     SearchScheduler() = delete;
+
+    [[nodiscard]] static int parse_digits(std::string_view digits) {
+        int v = 0;
+        for (char ch : digits) {
+            v = v * 10 + (ch - '0');
+        }
+        return v;
+    }
+
+    [[nodiscard]] static StatusOr<std::string> utc_for_iteration(
+        const LoopOptions& options,
+        std::size_t iteration) {
+        if (!options.created_utcs.empty()) {
+            return options.created_utcs[iteration];
+        }
+        if (iteration == 0) {
+            return options.created_utc;
+        }
+        const std::int64_t delta =
+            options.created_utc_step_seconds * static_cast<std::int64_t>(iteration);
+        return advance_utc_seconds(options.created_utc, delta);
+    }
+
+    [[nodiscard]] static bool is_no_candidates_status(const Status& status) {
+        const std::string& msg = status.message();
+        return msg.find("no candidates after prior") != std::string::npos;
+    }
+
+    [[nodiscard]] static StatusOr<bool> workspace_has_status(
+        const std::filesystem::path& data_root,
+        std::string_view workspace_id,
+        HypothesisStatus want) {
+        StatusOr<std::vector<std::string>> ids =
+            HypothesisRecord::list_ids(data_root, workspace_id);
+        if (!ids.ok()) {
+            return ids.status();
+        }
+        for (const std::string& hid : ids.value()) {
+            StatusOr<HypothesisRecord> record =
+                HypothesisRecord::load(data_root, workspace_id, hid);
+            if (!record.ok()) {
+                return record.status();
+            }
+            if (record.value().status() == want) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     [[nodiscard]] static StatusOr<CpuCandidateExport::Result> export_candidates(
         std::span<const Index29> cipher,
