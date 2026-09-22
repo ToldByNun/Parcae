@@ -41,11 +41,13 @@ void print_help() {
         << "Usage: parcae-search-cycle --status [--json] [--data-dir <path>]\n"
         << "       parcae-search-cycle --workspace <id> --job <file>\n"
         << "                           [--backend cpu|cuda] [--allow-cuda]\n"
-        << "                           [--iterations <n>] [--json] [--data-dir <path>]\n"
+        << "                           [--iterations <n>] [--created-utc <rfc3339>]\n"
+        << "                           [--json] [--omit-timing] [--data-dir <path>]\n"
         << "       parcae-search-cycle --workspace <id> --family <id> [--k <n>]\n"
         << "                           [--seed <u32>] [--score-id <id>]\n"
         << "                           [--backend cpu|cuda] [--allow-cuda]\n"
-        << "                           [--iterations <n>] [--json] [--data-dir <path>]\n"
+        << "                           [--iterations <n>] [--created-utc <rfc3339>]\n"
+        << "                           [--json] [--omit-timing] [--data-dir <path>]\n"
         << "\n"
         << "Workspace closed-loop search: job → BatchArtifact → hypotheses\n"
         << "(SearchScheduler). Normative: docs/spec/search-loop.md\n"
@@ -61,11 +63,14 @@ void print_help() {
         << "  --backend        cpu|cuda (default cpu; cuda needs --allow-cuda)\n"
         << "  --allow-cuda     AgentPolicy opt-in for --backend cuda\n"
         << "  --iterations     run_loop count (default 1, >= 1)\n"
+        << "  --created-utc    Fixed RFC3339 UTC (YYYY-MM-DDTHH:MM:SSZ) for replayable\n"
+        << "                   batch/prior digests; default = wall clock\n"
         << "  --json           JSON envelope on stdout (parcae.tool_response.v0)\n"
+        << "  --omit-timing    Agent-safe: no timing fields / no report.json (requires --json)\n"
         << "  --data-dir       Parcae data/ root\n"
         << "  -h, --help       Show this help\n"
         << "\n"
-        << "Planned: --omit-timing --with-agent\n";
+        << "Planned: --with-agent\n";
 }
 
 [[nodiscard]] int fail(
@@ -261,13 +266,28 @@ void print_help() {
     return a == "--json" || a == "--status" || a == "-h" || a == "--help" || a == "--data-dir" ||
            a == "--workspace" || a == "--job" || a == "--family" || a == "--k" || a == "--seed" ||
            a == "--score-id" || a == "--max-candidates" || a == "--backend" || a == "--allow-cuda" ||
-           a == "--iterations";
+           a == "--iterations" || a == "--omit-timing" || a == "--created-utc";
 }
 
 [[nodiscard]] bool flag_takes_value(std::string_view a) {
     return a == "--data-dir" || a == "--workspace" || a == "--job" || a == "--family" ||
            a == "--k" || a == "--seed" || a == "--score-id" || a == "--max-candidates" ||
-           a == "--backend" || a == "--iterations";
+           a == "--backend" || a == "--iterations" || a == "--created-utc";
+}
+
+[[nodiscard]] StatusOr<std::string> resolve_created_utc(const std::vector<std::string>& args) {
+    using namespace parcae::cli;
+    const std::string text = optional_option(args, "--created-utc");
+    if (text.empty()) {
+        return utc_now_rfc3339();
+    }
+    // Validate YYYY-MM-DDTHH:MM:SSZ via scheduler helper (advance by 0).
+    StatusOr<std::string> ok = SearchScheduler::advance_utc_seconds(text, 0);
+    if (!ok.ok()) {
+        return Status::error(
+            "--created-utc must be RFC3339 UTC of the form YYYY-MM-DDTHH:MM:SSZ");
+    }
+    return ok.value();
 }
 
 }  // namespace
@@ -283,8 +303,15 @@ int main(int argc, char** argv) {
 
     const bool json_mode = has_flag(args, "--json");
     const bool want_status = has_flag(args, "--status");
+    const bool omit_timing_flag = has_flag(args, "--omit-timing");
     const std::string data_dir = optional_option(args, "--data-dir");
     std::optional<std::string> backend_label;
+
+    if (omit_timing_flag && !json_mode) {
+        std::cerr << "--omit-timing requires --json\n";
+        print_help();
+        return kExitUsage;
+    }
 
     for (std::size_t i = 0; i < args.size(); ++i) {
         const std::string& a = args[i];
@@ -394,10 +421,20 @@ int main(int argc, char** argv) {
         return fail(json_mode, backend_label, ToolErrorCode::Io, ws_ok.message(), kExitFail);
     }
 
+    StatusOr<std::string> created_utc = resolve_created_utc(args);
+    if (!created_utc.ok()) {
+        return fail(
+            json_mode, backend_label, ToolErrorCode::Usage, created_utc.status().message(),
+            kExitUsage);
+    }
+
+    // Agent / --json defaults to omit_timing; human runs may write a digest-only report.
+    const bool omit_timing = json_mode || omit_timing_flag;
+
     SearchScheduler::LoopOptions loop;
-    loop.created_utc = utc_now_rfc3339();
+    loop.created_utc = std::move(created_utc.value());
     loop.max_iterations = iterations.value();
-    loop.omit_timing = true;
+    loop.omit_timing = omit_timing;
 
     StatusOr<SearchScheduler::CycleResult> cycle =
         SearchScheduler::run_loop(data_root, ctx.value(), job.value(), loop);

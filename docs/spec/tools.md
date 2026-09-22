@@ -347,8 +347,10 @@ schema ids, CUDA build flag, and readiness (`scheduler_ready` / `run_ready`).
 Cycle runs require `--workspace` plus either `--job` (`parcae.search_job.v0`) or
 `--family` (builds a job using workspace `default_score_id`). `--backend cuda`
 requires `--allow-cuda` (AgentPolicy). `--iterations` defaults to `1`.
-`--omit-timing` / `--with-agent` land in follow-up commits (timing already omitted
-by default in the scheduler loop options).
+`--omit-timing` requires `--json` and forces agent-safe output (no timing fields;
+no `report.json`). `--json` alone also omits timing by default. `--created-utc`
+fixes batch/prior timestamps for replayable digests and auto `batch_id`s.
+`--with-agent` lands in a follow-up commit.
 
 ### `parcae-validate`
 

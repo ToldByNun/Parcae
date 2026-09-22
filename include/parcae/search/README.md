@@ -21,7 +21,7 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (generate + rank + prior) |
 | `hypothesis_bridge.hpp` | `HypothesisBridge` | Done (ingest + idempotent ids / provenance) |
 | `search_scheduler.hpp` | `SearchScheduler` | Done (`run_once` / `run_loop` + prior feedback) |
-| CLI `parcae-search-cycle` | tool `search_cycle` | Done (`--status` / `--workspace` / `--backend` / `--iterations`) |
+| CLI `parcae-search-cycle` | tool `search_cycle` | Done (`--status` / run / `--omit-timing` / `--created-utc`) |
 
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,
 `[search][cipher]`, `[search][cipher][resolve]`, `[search][export]`,

@@ -219,4 +219,92 @@ TEST_CASE(
     std::filesystem::remove_all(root, ec);
 }
 
+TEST_CASE(
+    "parcae-search-cycle --omit-timing requires --json",
+    "[tool][search_cycle][omit-timing]") {
+    const auto [code, out] = run_cli(
+        PARCAE_CLI_SEARCH_CYCLE,
+        {"--workspace",
+         "_example",
+         "--family",
+         "atbash",
+         "--omit-timing",
+         "--data-dir",
+         std::string(PARCAE_TEST_DATA_DIR)});
+    REQUIRE(code != 0);
+    (void)out;
+}
+
+TEST_CASE(
+    "parcae-search-cycle --omit-timing --created-utc yields replayable digests",
+    "[tool][search_cycle][omit-timing][determinism]") {
+    auto run_once = [](std::string_view sandbox, std::string_view workspace_id) {
+        const auto root = make_sandbox(sandbox);
+        StatusOr<WorkspaceManifest> ws =
+            make_fixture_workspace(workspace_id, "2026-09-22T20:00:00Z");
+        REQUIRE(ws.ok());
+        REQUIRE(ws.value().store(root).ok());
+
+        const auto [code, out] = run_cli(
+            PARCAE_CLI_SEARCH_CYCLE,
+            {"--workspace",
+             std::string(workspace_id),
+             "--family",
+             "caesar",
+             "--k",
+             "3",
+             "--seed",
+             "1",
+             "--iterations",
+             "1",
+             "--backend",
+             "cpu",
+             "--created-utc",
+             "2026-09-22T20:00:01Z",
+             "--json",
+             "--omit-timing",
+             "--data-dir",
+             root.string()});
+        REQUIRE(code == 0);
+        const nlohmann::json envelope = nlohmann::json::parse(out);
+        REQUIRE(envelope.at("ok").get<bool>());
+        const nlohmann::json& result = envelope.at("result");
+        REQUIRE(result.at("omit_timing").get<bool>());
+        REQUIRE_FALSE(result.contains("tok_per_sec"));
+        REQUIRE_FALSE(result.contains("wall_ms"));
+
+        const std::string batch_id = result.at("batches")[0].at("batch_id").get<std::string>();
+        StatusOr<BatchArtifact> batch =
+            BatchArtifact::load(root, workspace_id, batch_id);
+        REQUIRE(batch.ok());
+        REQUIRE_FALSE(batch.value().report_relpath().has_value());
+        REQUIRE_FALSE(batch.value().report().has_value());
+
+        nlohmann::json snapshot{
+            {"result", result},
+            {"job_digest", batch.value().job_digest_sha256()},
+            {"prior_digest", batch.value().prior_digest_sha256()},
+            {"batch_id", batch_id},
+            {"candidate_ids", nlohmann::json::array()},
+        };
+        for (const nlohmann::json& row : batch.value().candidates()) {
+            snapshot["candidate_ids"].push_back(row.at("candidate_id"));
+        }
+
+        std::error_code ec;
+        std::filesystem::remove_all(root, ec);
+        return snapshot;
+    };
+
+    const nlohmann::json a = run_once("parcae_search_cycle_h29_a", "h29-ws");
+    const nlohmann::json b = run_once("parcae_search_cycle_h29_b", "h29-ws");
+    // Same workspace_id + created-utc + seed ⇒ identical digests and batch_id across sandboxes.
+    REQUIRE(a.at("job_digest") == b.at("job_digest"));
+    REQUIRE(a.at("prior_digest") == b.at("prior_digest"));
+    REQUIRE(a.at("batch_id") == b.at("batch_id"));
+    REQUIRE(a.at("candidate_ids") == b.at("candidate_ids"));
+    REQUIRE(a.at("result").at("stop_reason") == b.at("result").at("stop_reason"));
+    REQUIRE(a.at("result").at("hypotheses_written") == b.at("result").at("hypotheses_written"));
+}
+
 #endif  // PARCAE_HAS_CLI_GOLDENS
