@@ -28,8 +28,8 @@ reimplement \(\mathbb{Z}_{29}\) math or invent catalog ids.
 
 - Not a Cursor Skill / MCP host (optional later; not required for agent-tools exit)
 - Not a GPU search scheduler by itself — closed-loop cycles are
-  [`search-engine.md`](search-engine.md) / `search_cycle` (CLI lands with that
-  workstream)
+  [`search-engine.md`](search-engine.md) / tool `search_cycle`
+  (`parcae-search-cycle`)
 - Not a free-form shell agent — deny-listed binaries and raw shell are blocked
 - Not allowed to write under `data/fixtures/`
 
@@ -37,7 +37,7 @@ reimplement \(\mathbb{Z}_{29}\) math or invent catalog ids.
 
 1. **Parcae C++ tools** built (`parcae-tokenize`, `parcae-decode`, `parcae-score`,
    `parcae-validate`, `parcae-catalog`, `parcae-generate`, `parcae-rank`,
-   `parcae-hypothesis`), e.g.:
+   `parcae-hypothesis`, `parcae-search-cycle`), e.g.:
 
    ```bash
    cmake -S . -B build -DPARCAE_BUILD_TOOLS=ON -DPARCAE_BUILD_TESTS=ON

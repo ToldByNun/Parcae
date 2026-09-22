@@ -96,6 +96,21 @@ def test_system_prompt_mentions_catalog_and_no_shell() -> None:
     assert "Z_29" in LIBER_PRIMUS_SYSTEM_PROMPT or "Z_29" in text
 
 
+def test_system_prompt_prefers_search_cycle_over_generate_rank() -> None:
+    text = liber_primus_system_prompt(workspace="ws-b", allow_cuda=True).lower()
+    assert "prefer `search_cycle`" in text or "prefer search_cycle" in text
+    assert "large family" in text
+    assert "generate" in text and "rank" in text
+    assert "tiny explicit" in text
+    assert "search-run" in text
+    assert "blind-crack" in text
+    assert "allow_cuda: true" in text
+    # search_cycle guidance appears before the generate+rank fallback clause.
+    cycle_at = text.index("search_cycle")
+    tiny_at = text.index("tiny explicit")
+    assert cycle_at < tiny_at
+
+
 def test_loop_completes_without_tools() -> None:
     llm = ScriptedLlm([_assistant("Nothing to do.")])
     cfg = _config()

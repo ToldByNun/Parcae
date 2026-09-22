@@ -295,7 +295,7 @@ Numbering is **local to this search-engine roadmap**. Detailed mirror:
 |---|--------|
 | 31 | feat(agent): allowlist + schemas for `search_cycle` — **done** |
 | 32 | feat(agent): C++ `AgentPolicy` default allow sync — **done** (with H30) |
-| 33 | feat(agent): prompts — `search_cycle` vs generate/rank |
+| 33 | feat(agent): prompts — `search_cycle` vs generate/rank — **done** |
 | 34 | test(agent): mock LLM `search_cycle` CI-safe |
 | 35 | docs: search-handbook operator guide |
 
