@@ -222,6 +222,17 @@ if(PARCAE_BUILD_TESTS)
         --allow-cuda
         --input "${CMAKE_SOURCE_DIR}/data/fixtures/cli/score-indices.txt"
     )
+    add_test(
+      NAME cli_rank_caesar_ic_cuda
+      COMMAND $<TARGET_FILE:parcae-rank>
+        --data-dir "${CMAKE_SOURCE_DIR}/data"
+        --candidates "${CMAKE_SOURCE_DIR}/data/fixtures/cli/rank-candidates.json"
+        --score-id ic_mod29
+        --k 3
+        --backend cuda
+        --allow-cuda
+        --json
+    )
   endif()
 
   add_test(
@@ -235,6 +246,18 @@ if(PARCAE_BUILD_TESTS)
       --json
   )
   set_tests_properties(cli_score_cuda_requires_allow_cuda PROPERTIES WILL_FAIL TRUE)
+
+  add_test(
+    NAME cli_rank_cuda_requires_allow_cuda
+    COMMAND $<TARGET_FILE:parcae-rank>
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+      --candidates "${CMAKE_SOURCE_DIR}/data/fixtures/cli/rank-candidates.json"
+      --score-id ic_mod29
+      --k 3
+      --backend cuda
+      --json
+  )
+  set_tests_properties(cli_rank_cuda_requires_allow_cuda PROPERTIES WILL_FAIL TRUE)
 
   add_test(
     NAME cli_score_ic_indices

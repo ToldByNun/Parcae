@@ -18,8 +18,9 @@
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
 #include "parcae_cli_paths.h"
-#if !defined(PARCAE_CLI_HYPOTHESIS) || !defined(PARCAE_CLI_SCORE)
-#error "PARCAE_CLI_HYPOTHESIS and PARCAE_CLI_SCORE required"
+#if !defined(PARCAE_CLI_HYPOTHESIS) || !defined(PARCAE_CLI_SCORE) || \
+    !defined(PARCAE_CLI_RANK)
+#error "PARCAE_CLI_HYPOTHESIS, PARCAE_CLI_SCORE, and PARCAE_CLI_RANK required"
 #endif
 #endif
 
@@ -164,5 +165,24 @@ TEST_CASE(
          (data_root() / "fixtures" / "cli" / "score-indices.txt").string(),
          "--json"},
         "score");
+}
+
+TEST_CASE(
+    "CLI rank --backend cuda without --allow-cuda yields policy envelope exit 2",
+    "[tool][policy][cli][rank]") {
+    expect_policy_denial(
+        PARCAE_CLI_RANK,
+        {"--data-dir",
+         std::string(PARCAE_TEST_DATA_DIR),
+         "--candidates",
+         (data_root() / "fixtures" / "cli" / "rank-candidates.json").string(),
+         "--score-id",
+         "ic_mod29",
+         "--k",
+         "3",
+         "--backend",
+         "cuda",
+         "--json"},
+        "rank");
 }
 #endif

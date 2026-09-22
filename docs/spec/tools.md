@@ -244,6 +244,7 @@ wraps `result.candidates[]` (`TransformCandidate::to_json`) plus `count`,
 ```text
 parcae-rank --candidates <file|-> --score-id <id> --k <n>
             [--params-json <json>] [--latin-max <n>] [--no-latin]
+            [--backend cpu|cuda] [--allow-cuda]
             [--json] [--data-dir <path>]
 ```
 
@@ -254,6 +255,8 @@ score → `candidate_id` → `source_index`). `--candidates` accepts a generate
 `rank`, `candidate_id`, `score`, `source_index`, `envelope`, optional `latin`
 preview, plus `backend`). Pairwise scores may pass `reference` via
 `--params-json`. χ² loads expected frequencies from `--data-dir` automatically.
+`--backend cuda` requires a CUDA-linked build **and** `--allow-cuda`
+(AgentPolicy); otherwise exit status **2** (`not_built` or `policy`).
 `RankCandidates::run(..., backend=cuda)` scores via `CudaScore` when linked;
 CPU `BatchRunner` remains the default / small-N oracle.
 
