@@ -144,8 +144,87 @@ public:
         updated_utc_ = std::move(utc);
     }
 
-    void set_source(nlohmann::json source) {
+    [[nodiscard]] Status set_source(nlohmann::json source) {
+        Status ok = validate_source(source);
+        if (!ok.ok()) {
+            return ok;
+        }
         source_ = std::move(source);
+        return Status::success();
+    }
+
+    /// Validate `source` per hypothesis-workspace.md (null or object with known keys).
+    [[nodiscard]] static Status validate_source(const nlohmann::json& source) {
+        if (source.is_null()) {
+            return Status::success();
+        }
+        if (!source.is_object()) {
+            return Status::error("HypothesisRecord.source must be an object or null");
+        }
+        for (auto it = source.begin(); it != source.end(); ++it) {
+            const std::string& key = it.key();
+            if (key != "generator_id" && key != "candidate_id" && key != "agent_run_id" &&
+                key != "batch_id" && key != "family" && key != "rank") {
+                return Status::error("HypothesisRecord.source unknown key: " + key);
+            }
+        }
+        Status gen = validate_optional_id_string(source, "generator_id", /*allow_empty=*/false);
+        if (!gen.ok()) {
+            return gen;
+        }
+        Status cand = validate_optional_id_string(source, "candidate_id", /*allow_empty=*/false);
+        if (!cand.ok()) {
+            return cand;
+        }
+        Status agent = validate_optional_id_string(source, "agent_run_id", /*allow_empty=*/false);
+        if (!agent.ok()) {
+            return agent;
+        }
+        if (source.contains("batch_id") && !source.at("batch_id").is_null()) {
+            if (!source.at("batch_id").is_string()) {
+                return Status::error("HypothesisRecord.source.batch_id must be a string or null");
+            }
+            const std::string batch_id = source.at("batch_id").get<std::string>();
+            if (batch_id.empty()) {
+                return Status::error("HypothesisRecord.source.batch_id must be non-empty when set");
+            }
+            StatusOr<std::string> ok = WorkspacePaths::validate_id(batch_id);
+            if (!ok.ok()) {
+                return Status::error(
+                    "HypothesisRecord.source.batch_id invalid: " + ok.status().message());
+            }
+        }
+        if (source.contains("family") && !source.at("family").is_null()) {
+            if (!source.at("family").is_string()) {
+                return Status::error("HypothesisRecord.source.family must be a string or null");
+            }
+            const std::string family = source.at("family").get<std::string>();
+            if (!is_known_family(family)) {
+                return Status::error(
+                    "HypothesisRecord.source.family unknown: " + family);
+            }
+        }
+        if (source.contains("rank") && !source.at("rank").is_null()) {
+            if (!source.at("rank").is_number_integer()) {
+                return Status::error("HypothesisRecord.source.rank must be an integer or null");
+            }
+            if (source.at("rank").get<std::int64_t>() < 0) {
+                return Status::error("HypothesisRecord.source.rank must be >= 0");
+            }
+        }
+        return Status::success();
+    }
+
+    /// Empty provenance stub used by `make_draft` / CLI init.
+    [[nodiscard]] static nlohmann::json empty_source() {
+        return nlohmann::json{
+            {"generator_id", nullptr},
+            {"candidate_id", nullptr},
+            {"agent_run_id", nullptr},
+            {"batch_id", nullptr},
+            {"family", nullptr},
+            {"rank", nullptr},
+        };
     }
 
     void set_preview(nlohmann::json preview) {
@@ -315,6 +394,10 @@ public:
                 return Status::error("HypothesisRecord.source must be an object or null");
             }
             if (root.at("source").is_object()) {
+                Status source_ok = validate_source(root.at("source"));
+                if (!source_ok.ok()) {
+                    return source_ok;
+                }
                 record.source_ = root.at("source");
             }
         }
@@ -506,11 +589,7 @@ public:
         record.status_ = HypothesisStatus::Draft;
         record.title_ = std::string(title);
         record.method_ = envelope.value().to_json();
-        record.source_ = nlohmann::json{
-            {"generator_id", nullptr},
-            {"candidate_id", nullptr},
-            {"agent_run_id", nullptr},
-        };
+        record.source_ = empty_source();
         record.scores_ = nlohmann::json::array();
         record.preview_ = nlohmann::json{{"latin_prefix", nullptr}, {"max_chars", 64}};
         record.digests_ = nlohmann::json{
@@ -525,6 +604,31 @@ public:
     }
 
 private:
+    [[nodiscard]] static bool is_known_family(std::string_view family) noexcept {
+        return family == "caesar" || family == "atbash" || family == "atbash_caesar" ||
+               family == "affine" || family == "vigenere" || family == "beaufort" ||
+               family == "totient";
+    }
+
+    [[nodiscard]] static Status validate_optional_id_string(
+        const nlohmann::json& source,
+        const char* key,
+        bool allow_empty) {
+        if (!source.contains(key) || source.at(key).is_null()) {
+            return Status::success();
+        }
+        if (!source.at(key).is_string()) {
+            return Status::error(
+                std::string("HypothesisRecord.source.") + key + " must be a string or null");
+        }
+        const std::string value = source.at(key).get<std::string>();
+        if (!allow_empty && value.empty()) {
+            return Status::error(
+                std::string("HypothesisRecord.source.") + key + " must be non-empty when set");
+        }
+        return Status::success();
+    }
+
     [[nodiscard]] static StatusOr<std::string> require_string(
         const nlohmann::json& root,
         const char* key) {

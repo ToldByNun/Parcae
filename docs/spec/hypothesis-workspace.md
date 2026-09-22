@@ -111,9 +111,12 @@ File: `data/workspaces/<workspace_id>/hypotheses/<hypothesis_id>.json`
     }
   },
   "source": {
-    "generator_id": "gen_caesar_shifts",
-    "candidate_id": "caesar-shift-3",
-    "agent_run_id": null
+    "generator_id": "gen_caesar",
+    "candidate_id": "caesar:shift=3",
+    "agent_run_id": null,
+    "batch_id": "b-caesar-20260921-0001",
+    "family": "caesar",
+    "rank": 0
   },
   "scores": [
     {
@@ -187,11 +190,21 @@ registered `transform_id`. Do not invent ad-hoc pipeline JSON.
 
 ### `source` (optional object)
 
+Provenance for how the hypothesis was produced. All fields MAY be `null` for
+hand-edited / CLI `init` stubs. When created from a search batch
+([search-loop.md](search-loop.md)), `batch_id` and `candidate_id` MUST be set.
+
 | Field | Meaning |
 |-------|---------|
-| `generator_id` | Id from `parcae-catalog` / GeneratorRegistry |
-| `candidate_id` | From `TransformCandidate.candidate_id` |
-| `agent_run_id` | Ties to a transcript series; MAY be null for human edits |
+| `generator_id` | Id from `parcae-catalog` / GeneratorRegistry; MAY be null |
+| `candidate_id` | From `TransformCandidate.candidate_id`; MAY be null |
+| `agent_run_id` | Ties to a transcript series; MAY be null for human / scheduler ingest |
+| `batch_id` | `BatchArtifact.batch_id` when ingested from a batch; MUST match `[a-z_][a-z0-9_-]{0,63}` when non-null |
+| `family` | Search family (`caesar` \| `atbash` \| `atbash_caesar` \| `affine` \| `vigenere`, plus opt-in `beaufort` \| `totient`); MAY be null |
+| `rank` | Best-first rank in the batch (non-negative integer); MAY be null |
+
+Unknown keys MUST be rejected (`schema`). Implementations validate via
+`HypothesisRecord::validate_source`.
 
 ### `scores[]` entries
 

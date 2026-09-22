@@ -299,7 +299,10 @@ private:
             return proposed;
         }
 
-        record.value().set_source(source);
+        Status source_ok = record.value().set_source(source);
+        if (!source_ok.ok()) {
+            return source_ok;
+        }
         record.value().set_rationale(
             "Auto-ingested from batch " + artifact.batch_id() + " by HypothesisBridge");
         record.value().recompute_method_digest();
@@ -326,7 +329,10 @@ private:
                         return method_ok;
                     }
                     // Refresh provenance (batch_id / candidate_id) even when status is kept.
-                    previous.value().set_source(std::move(source));
+                    Status refresh_source = previous.value().set_source(std::move(source));
+                    if (!refresh_source.ok()) {
+                        return refresh_source;
+                    }
                     previous.value().set_title(record.value().title());
                     previous.value().set_rationale(record.value().rationale());
                     previous.value().set_updated_utc(artifact.created_utc());

@@ -383,7 +383,10 @@ void print_help() {
         if (!source.ok()) {
             return fail(tool, json_mode, ToolErrorCode::Schema, source.status().message(), kExitUsage);
         }
-        record.set_source(std::move(source.value()));
+        Status source_ok = record.set_source(std::move(source.value()));
+        if (!source_ok.ok()) {
+            return fail(tool, json_mode, ToolErrorCode::Schema, source_ok.message(), kExitUsage);
+        }
     }
     record.set_updated_utc(utc);
     record.recompute_method_digest();

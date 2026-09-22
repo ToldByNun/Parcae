@@ -336,18 +336,17 @@ MUST always resolve to the same path under
 
 ### Extended `source` fields
 
-In addition to [`hypothesis-workspace.md`](hypothesis-workspace.md) `source`:
+Authoritative field table:
+[`hypothesis-workspace.md`](hypothesis-workspace.md) `source`. Search ingest
+MUST populate at least:
 
 | Field | Rule |
 |-------|------|
-| `batch_id` | MUST be set when created from a batch; MUST match `BatchArtifact.batch_id` |
+| `batch_id` | MUST match `BatchArtifact.batch_id` |
 | `candidate_id` | MUST match the artifact line |
 | `generator_id` / `family` | SHOULD record expansion provenance |
 | `rank` | SHOULD be the best-first rank from the artifact line |
 | `agent_run_id` | MAY be null for pure scheduler ingest |
-
-Until the hypothesis-workspace field table is synced in the bridge implementation
-commit, this table is authoritative for search ingest.
 
 ### Scoring
 

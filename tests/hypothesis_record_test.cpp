@@ -132,6 +132,65 @@ TEST_CASE("HypothesisRecord store round-trip under temp workspace", "[hypothesis
     std::filesystem::remove_all(tmp, ec);
 }
 
+TEST_CASE("HypothesisRecord source validates extended provenance fields", "[hypothesis][source]") {
+    REQUIRE(HypothesisRecord::validate_source(nullptr).ok());
+    REQUIRE(HypothesisRecord::validate_source(HypothesisRecord::empty_source()).ok());
+
+    nlohmann::json batch_source = {
+        {"generator_id", "gen_caesar"},
+        {"candidate_id", "caesar:shift=3"},
+        {"agent_run_id", nullptr},
+        {"batch_id", "b-caesar-0001"},
+        {"family", "caesar"},
+        {"rank", 0},
+    };
+    REQUIRE(HypothesisRecord::validate_source(batch_source).ok());
+
+    REQUIRE_FALSE(HypothesisRecord::validate_source(
+                      nlohmann::json{{"generator_id", "gen_x"}, {"extra", 1}})
+                      .ok());
+    REQUIRE_FALSE(HypothesisRecord::validate_source(
+                      nlohmann::json{{"batch_id", "BadId"}, {"candidate_id", "x"}})
+                      .ok());
+    REQUIRE_FALSE(HypothesisRecord::validate_source(
+                      nlohmann::json{{"family", "rot13"}, {"candidate_id", "x"}})
+                      .ok());
+    REQUIRE_FALSE(HypothesisRecord::validate_source(
+                      nlohmann::json{{"rank", -1}, {"candidate_id", "x"}})
+                      .ok());
+    REQUIRE_FALSE(HypothesisRecord::validate_source(
+                      nlohmann::json{{"candidate_id", ""}})
+                      .ok());
+
+    StatusOr<HypothesisRecord> draft = HypothesisRecord::make_draft(
+        "src-ws",
+        "h-src-1",
+        "2026-09-22T12:00:00Z");
+    REQUIRE(draft.ok());
+    REQUIRE(draft.value().source().contains("batch_id"));
+    REQUIRE(draft.value().source().at("batch_id").is_null());
+    REQUIRE(draft.value().source().contains("family"));
+    REQUIRE(draft.value().source().contains("rank"));
+
+    REQUIRE(draft.value().set_source(batch_source).ok());
+    REQUIRE_FALSE(draft.value()
+                       .set_source(nlohmann::json{{"batch_id", "!!"}, {"candidate_id", "x"}})
+                       .ok());
+
+    // Round-trip with extended source.
+    const auto tmp = std::filesystem::temp_directory_path() / "parcae_hypothesis_source_f21";
+    std::error_code ec;
+    std::filesystem::remove_all(tmp, ec);
+    std::filesystem::create_directories(tmp / "workspaces", ec);
+    REQUIRE(draft.value().store(tmp).ok());
+    StatusOr<HypothesisRecord> loaded = HypothesisRecord::load(tmp, "src-ws", "h-src-1");
+    REQUIRE(loaded.ok());
+    REQUIRE(loaded.value().source().at("batch_id").get<std::string>() == "b-caesar-0001");
+    REQUIRE(loaded.value().source().at("family").get<std::string>() == "caesar");
+    REQUIRE(loaded.value().source().at("rank").get<int>() == 0);
+    std::filesystem::remove_all(tmp, ec);
+}
+
 TEST_CASE("HypothesisRecord load rejects id mismatch", "[hypothesis][load]") {
     const auto path = data_root() / "workspaces" / "_example" / "hypotheses" / "h-atbash-example.json";
     REQUIRE_FALSE(

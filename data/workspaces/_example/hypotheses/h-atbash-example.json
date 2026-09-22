@@ -15,7 +15,10 @@
   "source": {
     "generator_id": null,
     "candidate_id": null,
-    "agent_run_id": null
+    "agent_run_id": null,
+    "batch_id": null,
+    "family": null,
+    "rank": null
   },
   "scores": [],
   "preview": {
