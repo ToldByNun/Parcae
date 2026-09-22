@@ -24,4 +24,5 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,
 `[search][cipher]`, `[search][cipher][resolve]`, `[search][export]`,
-`[search][export][parity]`, `[search][bridge]` — types + export + batch ingest.
+`[search][export][parity]`, `[search][bridge]`, `[search][bridge][score]` —
+types + export + batch ingest + score/set-status post-pass.
