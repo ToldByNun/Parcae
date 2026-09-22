@@ -217,6 +217,27 @@ class ToolBridge:
                 )
             return argv
 
+        # search_cycle: status is a bool flag (not the hypothesis status string);
+        # workspace + omit-timing are bridge-owned for cycle runs.
+        if tool == "search_cycle":
+            status_only = args.pop("status", False)
+            if not isinstance(status_only, bool):
+                raise ToolBridgeError("status must be a boolean")
+            if status_only:
+                if args:
+                    raise ToolBridgeError(
+                        "search_cycle status=true does not take cycle-run "
+                        "arguments: " + ", ".join(sorted(args))
+                    )
+                argv.append("--status")
+                return argv
+            if "family" not in args and "job" not in args:
+                raise ToolBridgeError(
+                    "search_cycle requires family or job (or status=true)"
+                )
+            argv.extend(["--workspace", self._config.workspace])
+            argv.append("--omit-timing")
+
         for key, value in args.items():
             if key in BOOL_FLAGS:
                 if not isinstance(value, bool):

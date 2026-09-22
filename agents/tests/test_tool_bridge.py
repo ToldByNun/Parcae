@@ -45,7 +45,62 @@ def _config(**overrides: object):
 def test_allowlist_covers_spec_tools() -> None:
     assert "catalog" in ALLOWED_TOOLS
     assert "hypothesis_set_status" in ALLOWED_TOOLS
+    assert "search_cycle" in ALLOWED_TOOLS
     assert "parcae-blind-crack" in DENIED_BINARIES
+    assert "parcae-search-run" in DENIED_BINARIES
+    assert "search-run" in DENIED_BINARIES
+
+
+def test_build_argv_search_cycle_status_only() -> None:
+    bridge = ToolBridge(_config())
+    argv = bridge.build_argv("search_cycle", {"status": True})
+    assert argv[0].endswith("parcae-search-cycle") or argv[0].endswith(
+        "parcae-search-cycle.exe"
+    )
+    assert "--status" in argv
+    assert "--json" in argv
+    assert "--data-dir" in argv
+    assert "--workspace" not in argv
+    assert "--omit-timing" not in argv
+    assert "--family" not in argv
+
+
+def test_build_argv_search_cycle_family_injects_workspace_and_omit_timing() -> None:
+    bridge = ToolBridge(_config())
+    argv = bridge.build_argv(
+        "search_cycle",
+        {
+            "family": "atbash",
+            "k": 3,
+            "seed": 1,
+            "iterations": 2,
+            "created_utc": "2026-09-22T20:00:01Z",
+            "backend": "cpu",
+        },
+    )
+    assert "--workspace" in argv
+    assert argv[argv.index("--workspace") + 1] == "demo-ws"
+    assert "--omit-timing" in argv
+    assert argv[argv.index("--family") + 1] == "atbash"
+    assert argv[argv.index("--k") + 1] == "3"
+    assert argv[argv.index("--seed") + 1] == "1"
+    assert argv[argv.index("--iterations") + 1] == "2"
+    assert argv[argv.index("--created-utc") + 1] == "2026-09-22T20:00:01Z"
+    assert argv[argv.index("--backend") + 1] == "cpu"
+    assert "--status" not in argv
+
+
+def test_build_argv_search_cycle_rejects_incomplete_and_status_mix() -> None:
+    bridge = ToolBridge(_config())
+    with pytest.raises(ToolBridgeError, match="family or job"):
+        bridge.build_argv("search_cycle", {})
+    with pytest.raises(ToolBridgeError, match="status=true"):
+        bridge.build_argv("search_cycle", {"status": True, "family": "caesar"})
+    with pytest.raises(ToolBridgeError, match="allow_cuda"):
+        bridge.build_argv(
+            "search_cycle",
+            {"family": "caesar", "k": 1, "backend": "cuda"},
+        )
 
 
 def test_build_argv_catalog_injects_data_dir_and_json() -> None:

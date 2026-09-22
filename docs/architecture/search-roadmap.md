@@ -115,7 +115,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 
 | # | Commit |
 |---|--------|
-| 31 | feat(agent): allowlist + schemas for `search_cycle` |
+| 31 | feat(agent): allowlist + schemas for `search_cycle` | **done** |
 | 32 | feat(agent): C++ `AgentPolicy` default allow sync | **done** (with H30) |
 | 33 | feat(agent): prompts — `search_cycle` vs generate/rank |
 | 34 | test(agent): mock LLM `search_cycle` CI-safe |

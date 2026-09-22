@@ -55,9 +55,8 @@ Notes:
   the allow-list is binding for the agent design.
 - `search_cycle` is the **search-engine** entry point. Prefer it for large family
   grids; keep `generate` + `rank` for tiny explicit candidate sets.
-  CLI / `AgentPolicy` / Python allow-list wiring lands with search-roadmap
-  commits 27–32; until then schemas MAY omit it from runtime allow-lists while
-  this table remains the target contract.
+  Wired in C++ (`AgentPolicy` + `parcae-search-cycle`) and Python
+  (`agents/parcae_agent/allowlist.py` + `tool_schemas.py`).
 - `decode` covers `apply_transform` + `to_latin` from [`tools.md`](tools.md);
   agents SHOULD prefer `decode` over inventing a second transform path.
 - Listing score/transform ids is part of `catalog` (and MAY remain on
@@ -73,7 +72,6 @@ The agent MUST NOT expose these as tools by default:
 | `parcae-throughput-tiers` | Benchmarking; non-deterministic timing |
 | `parcae-parity` / `parcae-parity-gen` | Dev / golden maintenance |
 | `parcae-search-run` | Metrics / fused sweep dashboard — **not** the workspace loop; use `search_cycle` instead |
-| `parcae-search-cycle` without allow-list entry | Until commits 27–32 land, binary MAY exist in-tree but MUST NOT be exposed unless on the allow-list |
 | Arbitrary shell (`cmd`, `bash`, `powershell`, `python -c`, …) | Escape hatch |
 | Writing under `data/fixtures/` | Locked corpus integrity |
 | Path traversal outside `data_dir` / workspace | Sandbox |

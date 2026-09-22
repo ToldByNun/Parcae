@@ -66,10 +66,20 @@ def test_tool_schema_unknown() -> None:
 def test_schemas_are_json_serializable() -> None:
     payload = json.dumps(openai_tools())
     assert "hypothesis_list" in payload
+    assert "search_cycle" in payload
     for entry in openai_tools():
         props = entry["function"]["parameters"]["properties"]
         assert "data_dir" not in props
         assert "workspace" not in props
+
+
+def test_search_cycle_schema_steers_large_grids() -> None:
+    desc = tool_schema("search_cycle")["function"]["description"].lower()
+    assert "family" in desc or "grid" in desc
+    props = tool_schema("search_cycle")["function"]["parameters"]["properties"]
+    assert "family" in props
+    assert "status" in props
+    assert props["status"]["type"] == "boolean"
 
 
 def test_descriptions_steer_away_from_invented_ids() -> None:

@@ -26,6 +26,7 @@ TOOL_SCHEMA_ORDER: tuple[str, ...] = (
     "hypothesis_list",
     "hypothesis_score",
     "hypothesis_set_status",
+    "search_cycle",
 )
 
 _BOOL = {"type": "boolean"}
@@ -315,6 +316,60 @@ _TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "utc": {**_STRING},
             },
             required=["id", "status"],
+        ),
+    ),
+    "search_cycle": _tool(
+        "search_cycle",
+        "Run one or more workspace search cycles (job → BatchArtifact → "
+        "hypotheses). Prefer for large family grids; keep generate+rank for "
+        "tiny explicit sets. Workspace id is injected by ToolBridge. "
+        "Use status=true for toolkit readiness only (no cycle).",
+        _object(
+            {
+                "status": {
+                    **_BOOL,
+                    "description": "If true, only report readiness (--status); "
+                    "do not pass family/job/iterations",
+                },
+                "job": {
+                    **_STRING,
+                    "description": "Path to parcae.search_job.v0 JSON "
+                    "(alternative to family)",
+                },
+                "family": {
+                    **_STRING,
+                    "description": "Catalog family to expand "
+                    "(caesar|atbash|atbash_caesar|affine|vigenere|…)",
+                },
+                "k": {
+                    **_INT,
+                    "minimum": 1,
+                    "description": "Top-k candidates to ingest (with family)",
+                },
+                "seed": {
+                    **_INT,
+                    "minimum": 0,
+                    "description": "Replay seed (fixed for CI / agent replay)",
+                },
+                "score_id": {
+                    **_STRING,
+                    "description": "Catalog score id (default: workspace default)",
+                },
+                "backend": {
+                    **_BACKEND,
+                    "description": "cpu (default) or cuda (needs allow_cuda)",
+                },
+                "iterations": {
+                    **_INT,
+                    "minimum": 1,
+                    "description": "SearchScheduler run_loop iterations (default 1)",
+                },
+                "created_utc": {
+                    **_STRING,
+                    "description": "RFC3339 UTC for replayable digests "
+                    "(YYYY-MM-DDTHH:MM:SSZ)",
+                },
+            }
         ),
     ),
 }

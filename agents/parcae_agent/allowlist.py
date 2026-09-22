@@ -17,6 +17,7 @@ ALLOWED_TOOLS: frozenset[str] = frozenset(
         "hypothesis_list",
         "hypothesis_score",
         "hypothesis_set_status",
+        "search_cycle",
     }
 )
 
@@ -51,6 +52,7 @@ TOOL_BINARY: dict[str, str] = {
     "hypothesis_list": "parcae-hypothesis",
     "hypothesis_score": "parcae-hypothesis",
     "hypothesis_set_status": "parcae-hypothesis",
+    "search_cycle": "parcae-search-cycle",
 }
 
 HYPOTHESIS_SUBCOMMAND: dict[str, str] = {
@@ -138,6 +140,21 @@ TOOL_ARG_KEYS: dict[str, frozenset[str]] = {
         {"id", "input", "score_id", "latin", "runes", "indices", "utc"}
     ),
     "hypothesis_set_status": frozenset({"id", "status", "utc"}),
+    # workspace / data_dir / json / allow_cuda injected by ToolBridge.
+    # status=true → readiness only (--status); else family|job cycle run.
+    "search_cycle": frozenset(
+        {
+            "status",
+            "job",
+            "family",
+            "k",
+            "seed",
+            "score_id",
+            "backend",
+            "iterations",
+            "created_utc",
+        }
+    ),
 }
 
 # Boolean CLI flags (presence = true).
@@ -183,6 +200,11 @@ VALUE_FLAGS: dict[str, str] = {
     "source_json": "--source-json",
     "utc": "--utc",
     "status": "--status",
+    "job": "--job",
+    "family": "--family",
+    "seed": "--seed",
+    "iterations": "--iterations",
+    "created_utc": "--created-utc",
 }
 
 # Keys the model MUST NOT supply (bridge injects them).

@@ -157,12 +157,12 @@ The model only sees tools from [`agent-tools.md`](../spec/agent-tools.md):
 
 `tokenize`, `decode`, `score`, `validate`, `catalog`, `generate`, `rank`,
 `hypothesis_init`, `hypothesis_propose`, `hypothesis_show`, `hypothesis_list`,
-`hypothesis_score`, `hypothesis_set_status`, and (target contract) `search_cycle`.
+`hypothesis_score`, `hypothesis_set_status`, and `search_cycle`.
 
 **Operator tips for prompts:**
 
 1. Ask for `catalog` before naming `transform_id` / `score_id` / `generator_id`.
-2. Prefer `search_cycle` for large family grids once the CLI is wired; keep
+2. Prefer `search_cycle` for large family grids; keep
    `generate` + `rank` for tiny explicit sets; use `decode` / `score` to check.
 3. Persist work with `hypothesis_*` into the configured workspace (id is injected;
    do not pass `workspace` / `data_dir` in tool args).
