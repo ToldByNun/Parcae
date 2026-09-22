@@ -19,9 +19,9 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `workspace_cipher.hpp` | `WorkspaceCipher` | Done (`workspace.v0` → `Index29`) |
 | `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere) |
 | `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (generate + rank + prior) |
-| `hypothesis_bridge.hpp` | `HypothesisBridge` | Planned |
+| `hypothesis_bridge.hpp` | `HypothesisBridge` | Done (batch top-k → proposed) |
 | `search_scheduler.hpp` | `SearchScheduler` | Planned |
 
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,
-`[search][cipher]`, `[search][cipher][resolve]`, `[search][export]`, `[search][export][parity]` — GPU/CPU export + a-warning
-CPU↔CUDA top-k parity (CUDA device skip when unavailable).
+`[search][cipher]`, `[search][cipher][resolve]`, `[search][export]`,
+`[search][export][parity]`, `[search][bridge]` — types + export + batch ingest.
