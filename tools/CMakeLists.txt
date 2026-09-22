@@ -42,10 +42,19 @@ parcae_add_cli(parcae-hypothesis parcae_hypothesis/main.cpp)
 parcae_add_cli(parcae-parity-gen parcae_parity_gen/main.cpp)
 parcae_add_cli(parcae-parity parcae_parity/main.cpp)
 parcae_add_cli(parcae-search-run parcae_search_run/main.cpp)
+parcae_add_cli(parcae-search-cycle parcae_search_cycle/main.cpp)
 parcae_add_cli(parcae-blind-crack parcae_blind_crack/main.cpp)
 parcae_add_cli(parcae-throughput-tiers parcae_throughput_tiers/main.cpp)
 
 if(PARCAE_BUILD_TESTS)
+  add_test(
+    NAME cli_search_cycle_status_json
+    COMMAND $<TARGET_FILE:parcae-search-cycle>
+      --status
+      --json
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+  )
+
   add_test(
     NAME cli_catalog_json
     COMMAND $<TARGET_FILE:parcae-catalog>
