@@ -99,6 +99,11 @@ jobs:
       - name: Gate [parity]
         run: ${{ matrix.test_bin }} "[parity]" --reporter console
 
+      - name: Gate [search]
+        # CPU search-engine path (job/prior/batch/cipher/export/bridge/scheduler).
+        # CUDA-tagged [search] cases skip when PARCAE_BUILD_CUDA=OFF.
+        run: ${{ matrix.test_bin }} "[search]" --reporter console
+
       - name: Gate [cuda] host stubs
         run: ${{ matrix.test_bin }} "[cuda]" --reporter console
 

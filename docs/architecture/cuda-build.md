@@ -108,7 +108,7 @@ CPU-default workflows under [`.github/workflows/`](../../.github/workflows/):
 
 | Workflow | Role |
 |----------|------|
-| [`ci.yml`](../../.github/workflows/ci.yml) | Matrix: Ubuntu GCC/Clang, macOS, Windows — full `ctest` + `[solved]` / `[parity]` / `[cuda]` host gates; ASan+UBSan job; `parity-goldens` regen+byte-compare; optional self-hosted CUDA via `workflow_dispatch` |
+| [`ci.yml`](../../.github/workflows/ci.yml) | Matrix: Ubuntu GCC/Clang, macOS, Windows — full `ctest` + `[solved]` / `[parity]` / `[search]` / `[cuda]` host gates; ASan+UBSan job; `parity-goldens` regen+byte-compare; optional self-hosted CUDA via `workflow_dispatch` |
 | [`clang-format.yml`](../../.github/workflows/clang-format.yml) | `clang-format --dry-run --Werror` on `include/`, `tests/`, `tools/`, `Parcae/Parcae/cuda/` |
 | [`codeql.yml`](../../.github/workflows/codeql.yml) | CodeQL C/C++ analysis (PR + weekly) |
 

@@ -34,3 +34,4 @@ Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtri
 `[tool][policy][cli][search_cycle]` — types + export + ingest + scheduler + CLI
 cycle run + goldens + AgentPolicy allow path.
 CLI smoke: `ctest -R cli_search_cycle_status_json`.
+Hosted CI matrix gate: `parcae_tests "[search]"` (`.github/workflows/ci.yml`).

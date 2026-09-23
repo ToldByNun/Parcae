@@ -63,7 +63,7 @@ This workstream **owns** the closed loop that agent-tooling explicitly deferred
 | Feedback | `SearchPrior`: `promoted` → seed envelopes; `rejected` → exclusion keys (param hash). v0: hard include/exclude only (no soft weights). |
 | Determinism | Same inputs + seed + job JSON ⇒ same candidate order ([`BatchOrdering`](../../include/parcae/batch/)) and same artifact digests. Timing fields optional; agent JSON uses `--omit-timing`. |
 | Agent allow-list | New tool `search_cycle` → binary `parcae-search-cycle`. Keep `search-run` / `throughput-tiers` / `blind-crack` on the **deny-list** by default. |
-| CUDA in CI | Hosted CI stays `PARCAE_BUILD_CUDA=OFF`. CPU scheduler path **MUST** be tested in CI. GPU parity path: local / optional self-hosted. |
+| CUDA in CI | Hosted CI stays `PARCAE_BUILD_CUDA=OFF`. CPU search path **MUST** be tested in CI (`Gate [search]` on the matrix in [`ci.yml`](../../.github/workflows/ci.yml)). GPU parity path: local / optional self-hosted. |
 | English in source | All new claims, strings, comments, and docs in English. |
 | Naming | Descriptive kebab paths only (`search-engine.md`, `search-loop.md`, …). **No** numbered-stage prefixes in paths, docs, tags, or CI job names. |
 | Exit tag | `v0.7.0-search-engine` (toolkit version **0.7.0**) |
@@ -327,7 +327,7 @@ Numbering is **local to this search-engine roadmap**. Detailed mirror:
 
 | # | Commit |
 |---|--------|
-| 43 | ci: gate `[search]` CPU scheduler tests on matrix |
+| 43 | ci: gate `[search]` CPU scheduler tests on matrix — **done** |
 | 44 | test(search): adversarial job JSON / path escape / caps |
 | 45 | test(search): BatchArtifact limits + stable ordering fuzz |
 | 46 | docs: `cuda-build.md` Catch2 tags `[search][scheduler]` |
