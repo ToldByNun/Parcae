@@ -1,0 +1,229 @@
+# Search handbook — closed-loop `search_cycle`
+
+**Audience:** operators running workspace search cycles from a shell or via
+`parcae-agent`  
+**Product:** `parcae-search-cycle` (C++) + agent tool `search_cycle`  
+**Normative contracts:** [`docs/spec/search-loop.md`](../spec/search-loop.md),
+[`docs/spec/agent-tools.md`](../spec/agent-tools.md),
+[`docs/spec/hypothesis-workspace.md`](../spec/hypothesis-workspace.md)  
+**Plan freeze:** [`search-engine.md`](search-engine.md) · roadmap:
+[`search-roadmap.md`](search-roadmap.md)
+
+This handbook is the **how-to**. Specs remain authoritative when they disagree
+with examples here. For the Liber Primus LLM loop itself, see
+[`agent-handbook.md`](agent-handbook.md).
+
+## What it is
+
+```text
+workspace.v0 ciphertext
+    → SearchJob (+ SearchPrior from hypothesis statuses)
+    → CpuCandidateExport | GpuCandidateExport  (top-k)
+    → BatchArtifact (parcae.batch_artifact.v0)
+    → HypothesisBridge → hypotheses/*.json
+    → next iteration prior (promoted seeds / rejected exclusions)
+```
+
+CLI entry: `parcae-search-cycle`. Agent tool name: `search_cycle` (allow-listed).
+Crypto and scoring stay in C++; the agent only chooses **when** to run a cycle
+and which `family` / `job` / budgets to pass.
+
+## What it is not
+
+| Thing | Use instead |
+|-------|-------------|
+| Metrics / fused-sweep dashboard | `parcae-search-run` (**deny-listed** for agents) |
+| Tiny explicit candidate lists | `generate` + `rank` |
+| Heavy research crackers | `parcae-blind-crack` (**deny-listed**) |
+| Writing under `data/fixtures/` | Never — AgentPolicy blocks it |
+| Unbounded dictionary search | Out of scope for v0 |
+
+## Prerequisites
+
+1. **Build tools** (Release example):
+
+   ```bash
+   cmake -S . -B build -DPARCAE_BUILD_TOOLS=ON -DPARCAE_BUILD_TESTS=ON
+   cmake --build build --config Release --target parcae-search-cycle
+   ```
+
+   Optional CUDA: your usual `-DPARCAE_BUILD_CUDA=ON` tree; cycle `--backend cuda`
+   still needs `--allow-cuda` (or agent config `allow_cuda: true`).
+
+2. A **workspace** under `data/workspaces/<id>/` with `workspace.json`
+   (`parcae.workspace.v0`) whose `input` resolves to ciphertext (fixture id or
+   workspace-relative file). See [`hypothesis-workspace.md`](../spec/hypothesis-workspace.md).
+
+3. For agent runs: Python agent package + OpenAI-compatible endpoint — same as
+   [`agent-handbook.md`](agent-handbook.md).
+
+## Quick start (CLI)
+
+### Readiness
+
+```bash
+parcae-search-cycle --status --json --data-dir data
+```
+
+Expect `ok: true`, `tool: "search_cycle"`, and `result.run_ready: true`.
+
+### One CPU cycle on a family
+
+```bash
+# Assume workspace my-ws already exists and points at a fixture / input file.
+parcae-search-cycle \
+  --workspace my-ws \
+  --family atbash \
+  --k 8 \
+  --seed 1 \
+  --iterations 1 \
+  --backend cpu \
+  --created-utc 2026-09-22T20:00:01Z \
+  --json \
+  --omit-timing \
+  --data-dir data
+```
+
+`--json` alone also omits timing. Prefer `--created-utc` + fixed `--seed` when you
+need replayable digests / `batch_id`s across machines.
+
+### Multi-iteration loop
+
+```bash
+parcae-search-cycle \
+  --workspace my-ws \
+  --family caesar \
+  --k 16 \
+  --seed 1 \
+  --iterations 2 \
+  --backend cpu \
+  --json \
+  --data-dir data
+```
+
+Iteration 2 reloads priors from hypothesis statuses (promoted → seeds, rejected →
+exclusions) per [`search-loop.md`](../spec/search-loop.md).
+
+### Job file instead of `--family`
+
+```bash
+parcae-search-cycle \
+  --workspace my-ws \
+  --job path/to/job.json \
+  --backend cpu \
+  --json \
+  --data-dir data
+```
+
+Job schema: `parcae.search_job.v0` (normative in search-loop).
+
+### CUDA (opt-in)
+
+```bash
+parcae-search-cycle \
+  --workspace my-ws \
+  --family caesar \
+  --k 16 \
+  --backend cuda \
+  --allow-cuda \
+  --json \
+  --data-dir data
+```
+
+Without `--allow-cuda`, expect `error.code: "policy"` (exit 2).
+
+## Outputs to inspect
+
+After a successful cycle:
+
+```text
+data/workspaces/<id>/
+  batches/<batch_id>.json     # parcae.batch_artifact.v0
+  hypotheses/*.json           # ingested top-k (source.batch_id set)
+  # optional report.json only when timing is not omitted
+```
+
+Useful follow-ups:
+
+```bash
+parcae-hypothesis list --data-dir data --workspace my-ws --json
+parcae-hypothesis show --data-dir data --workspace my-ws --id <hyp-id> --json
+parcae-hypothesis score --data-dir data --workspace my-ws --id <hyp-id> \
+  --input <cipher-path> --json
+```
+
+## Agent path (`search_cycle` tool)
+
+ToolBridge injects `--data-dir`, `--json`, `--workspace` (from config), and
+`--omit-timing` for cycle runs. The model MUST NOT pass `workspace` / `data_dir` /
+`allow_cuda`.
+
+| Model args | Meaning |
+|------------|---------|
+| `status: true` | Readiness only (`--status`); no family/job |
+| `family` / `job` | One required for a cycle (mutually with status) |
+| `k`, `seed`, `iterations`, `score_id`, `backend`, `created_utc` | Optional cycle knobs |
+
+Prompt guidance (built into `parcae-agent`): prefer `search_cycle` for **large
+family grids**; keep `generate` + `rank` for **tiny explicit** sets.
+
+Example operator prompt:
+
+```bash
+python -m parcae_agent run -c configs/ollama.example.yaml -v --prompt \
+  "On this workspace, run search_cycle family=atbash k=8 seed=1 iterations=1 backend=cpu. Summarize batches and hypotheses_written. Do not invent catalog ids."
+```
+
+Offline CI contract (no network, no real CLI): `cd agents && pytest -m ci -q`
+(includes mock `search_cycle` argv + envelope checks).
+
+## `search_cycle` vs `generate`+`rank` vs `search-run`
+
+| Goal | Tool |
+|------|------|
+| Broad family sweep → batch → hypotheses | **`search_cycle`** |
+| Score a small hand-built candidate JSON | `generate` + `rank` |
+| Throughput / sweep dashboard / fixture eval rates | `parcae-search-run` (human/metrics; not agent) |
+
+## Safety checklist
+
+- [ ] `data_dir` is the repo `data/` root — never under `fixtures/`
+- [ ] Fixtures stay read-only; cycles write only under `workspaces/<id>/`
+- [ ] Fixed `--seed` + `--created-utc` for replay / golden digests
+- [ ] `--allow-cuda` / `allow_cuda: true` only when intended
+- [ ] Do not expose deny-listed `search-run` / `blind-crack` to the agent
+
+## Tests (operators / CI)
+
+| What | Command |
+|------|---------|
+| CLI status smoke | `ctest -R cli_search_cycle_status_json` |
+| Catch2 search + CLI | `parcae_tests "[search]"` / `"[tool][search_cycle]"` |
+| JSON goldens | `parcae_tests "[tool][golden][cli][search_cycle]"` |
+| AgentPolicy path | `parcae_tests "[tool][policy][cli][search_cycle]"` |
+| Agent mock CI | `cd agents && pytest -m ci -q` |
+
+Headers / tags: [`include/parcae/search/README.md`](../../include/parcae/search/README.md).
+
+## Package map (contributors)
+
+| Piece | Role |
+|-------|------|
+| `include/parcae/search/*.hpp` | Job, prior, artifact, cipher, export, bridge, scheduler |
+| `tools/parcae_search_cycle/main.cpp` | CLI |
+| `agents/parcae_agent/allowlist.py` | Tool → binary map |
+| `agents/parcae_agent/tool_schemas.py` | LLM function schema |
+| `agents/parcae_agent/tool_bridge.py` | Argv builder (`--omit-timing`, workspace) |
+| `agents/parcae_agent/prompts.py` | Prefer cycle vs generate/rank |
+
+## Related docs
+
+| Doc | Why |
+|-----|-----|
+| [`search-loop.md`](../spec/search-loop.md) | Schemas, scheduler semantics, result shape |
+| [`search-engine.md`](search-engine.md) | Plan freeze + exit criteria |
+| [`search-roadmap.md`](search-roadmap.md) | Commit list 1–52 |
+| [`tools.md`](../spec/tools.md) | CLI flag reference |
+| [`agent-handbook.md`](agent-handbook.md) | Running `parcae-agent` |
+| [`agent-tools.md`](../spec/agent-tools.md) | Allow/deny + envelope |
+| [`cuda-score-reduction.md`](cuda-score-reduction.md) | CUDA top-k score contract |

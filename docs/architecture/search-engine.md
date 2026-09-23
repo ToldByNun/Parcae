@@ -105,7 +105,7 @@ tools/parcae_search_cycle/   # CLI: one/N cycles on a workspace (--json)
 
 docs/architecture/search-engine.md      # this freeze
 docs/architecture/search-roadmap.md     # commit list mirror (commit 3)
-docs/architecture/search-handbook.md    # operator guide (later)
+docs/architecture/search-handbook.md    # operator guide
 docs/spec/search-loop.md                # normative contracts (commit 2)
 ```
 
@@ -297,7 +297,7 @@ Numbering is **local to this search-engine roadmap**. Detailed mirror:
 | 32 | feat(agent): C++ `AgentPolicy` default allow sync — **done** (with H30) |
 | 33 | feat(agent): prompts — `search_cycle` vs generate/rank — **done** |
 | 34 | test(agent): mock LLM `search_cycle` CI-safe — **done** |
-| 35 | docs: search-handbook operator guide |
+| 35 | docs: search-handbook operator guide — **done** |
 
 ### J — Extended families
 
@@ -344,6 +344,7 @@ Numbering is **local to this search-engine roadmap**. Detailed mirror:
 |-----|------|
 | [`agent-tooling.md`](agent-tooling.md) | CMD agent freeze (tool bridge; deferred the loop) |
 | [`agent-handbook.md`](agent-handbook.md) | Agent operator guide |
+| [`search-handbook.md`](search-handbook.md) | Search-cycle operator guide |
 | [`cuda-reference.md`](cuda-reference.md) | Fused / SoA CUDA map |
 | [`cuda-score-reduction.md`](cuda-score-reduction.md) | CPU↔CUDA score compare rules |
 | [`hypothesis-workspace.md`](../spec/hypothesis-workspace.md) | Workspace + HypothesisRecord |

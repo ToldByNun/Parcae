@@ -33,7 +33,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | B–C — Core types + workspace cipher | 5–10 | **done** |
 | D–F — Export, rank CUDA, hypothesis bridge | 11–22 | **11–13 done**; next **14** |
 | G–H — Scheduler + CLI | 23–30 | pending |
-| I — Agent wiring | 31–35 | pending |
+| I — Agent wiring | 31–35 | **done** |
 | J–K — Extended families / research CLI docs | 36–42 | pending |
 | L–M — CI + exit | 43–52 | pending |
 
@@ -119,7 +119,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | 32 | feat(agent): C++ `AgentPolicy` default allow sync | **done** (with H30) |
 | 33 | feat(agent): prompts — `search_cycle` vs generate/rank | **done** |
 | 34 | test(agent): mock LLM `search_cycle` CI-safe | **done** |
-| 35 | docs: search-handbook operator guide |
+| 35 | docs: search-handbook operator guide | **done** |
 
 ## J — Extended families
 
@@ -174,6 +174,7 @@ Specs (A) → types + WorkspaceCipher (B,C) → export (D) → bridge (F)
 |-----|------|
 | [`search-engine.md`](search-engine.md) | Locked decisions + module map |
 | [`search-loop.md`](../spec/search-loop.md) | Normative schemas |
+| [`search-handbook.md`](search-handbook.md) | Operator how-to |
 | [`agent-tools.md`](../spec/agent-tools.md) | Allow/deny (`search_cycle`) |
 | [`cuda-roadmap.md`](cuda-roadmap.md) | Prior CUDA twin roadmap |
 | [`agent-tooling.md`](agent-tooling.md) | CMD agent freeze |

@@ -200,7 +200,7 @@ python -m parcae_agent run -c configs/ollama.example.yaml -v --prompt \
   "Use catalog (transforms+scores). Then validate fixture a-warning with require_locked."
 ```
 
-### B — Generate and rank candidates
+### B — Generate and rank candidates (tiny sets)
 
 ```bash
 python -m parcae_agent run -c configs/ollama.example.yaml -v --prompt \
@@ -210,7 +210,24 @@ python -m parcae_agent run -c configs/ollama.example.yaml -v --prompt \
 Paths in tool args should be usable by the CLIs (absolute or relative to how you
 invoke them). Prefer fixture ids for `validate`.
 
-### C — Resume / inspect workspace
+### C — Workspace family sweep (`search_cycle`)
+
+Prefer this over generate+rank when sweeping a full family grid into the
+workspace. Details: [`search-handbook.md`](search-handbook.md).
+
+```bash
+python -m parcae_agent run -c configs/ollama.example.yaml -v --prompt \
+  "Run search_cycle with family=atbash k=8 seed=1 iterations=1 backend=cpu. Summarize hypotheses_written and stop."
+```
+
+Or call the CLI directly:
+
+```bash
+parcae-search-cycle --workspace my-ws --family atbash --k 8 --seed 1 \
+  --json --omit-timing --data-dir data
+```
+
+### D — Resume / inspect workspace
 
 Use C++ CLIs directly when you only need I/O:
 
@@ -261,4 +278,5 @@ Hosted CI must not set `PARCAE_AGENT_LIVE`. Details:
 | [`hypothesis-workspace.md`](../spec/hypothesis-workspace.md) | HypothesisRecord + transcripts |
 | [`tools.md`](../spec/tools.md) | C++ library / CLI contracts |
 | [`agent-tooling.md`](agent-tooling.md) | Commit roadmap / exit tag |
+| [`search-handbook.md`](search-handbook.md) | Closed-loop `search_cycle` operator guide |
 | [`agents/README.md`](../../agents/README.md) | Short package README |

@@ -3,6 +3,8 @@
 C++20 closed-loop search surface. Normative:
 [`docs/spec/search-loop.md`](../../../docs/spec/search-loop.md). Architecture:
 [`docs/architecture/search-engine.md`](../../../docs/architecture/search-engine.md).
+Operator guide:
+[`docs/architecture/search-handbook.md`](../../../docs/architecture/search-handbook.md).
 
 ## Style (HARD)
 
