@@ -1,4 +1,6 @@
 #include <parcae/batch/batch_ordering.hpp>
+#include <parcae/batch/batch_runner.hpp>
+#include <parcae/cli/console_progress_sink.hpp>
 #include <parcae/core/index29.hpp>
 #include <parcae/generate/affine_candidate_generator.hpp>
 #include <parcae/generate/atbash_candidate_generator.hpp>
@@ -21,7 +23,9 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstdint>
+#include <mutex>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #ifndef PARCAE_TEST_DATA_DIR
@@ -359,9 +363,125 @@ TEST_CASE(
 #endif
 }
 
+namespace {
+
+class GpuExportProgressRecordingSink : public ConsoleProgressSink {
+public:
+    void on_progress(const ConsoleProgressSnapshot& /*snapshot*/) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        ++progress_count;
+    }
+
+    void on_stage(
+        std::string_view stage,
+        const ConsoleProgressSnapshot& snapshot) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        stages.emplace_back(stage);
+        if (snapshot.candidates_total().has_value()) {
+            last_stage_total = snapshot.candidates_total().value();
+        }
+        last_rune_count = snapshot.rune_count();
+    }
+
+    std::mutex mutex_;
+    std::size_t progress_count = 0;
+    std::size_t last_stage_total = 0;
+    std::size_t last_rune_count = 0;
+    std::vector<std::string> stages;
+};
+
+}  // namespace
+
+TEST_CASE(
+    "GpuCandidateExport host-score path emits materialize; rows match without sink",
+    "[search][export][progress]") {
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = synthetic_cipher();
+    const std::vector<double> scores = cpu_chi2_by_shift(cipher, freqs.value());
+
+    GpuExportProgressRecordingSink sink;
+    BatchRunner::Progress progress;
+    progress.sink = &sink;
+
+    constexpr std::size_t k = 5;
+    StatusOr<GpuCandidateExport::Result> with_sink =
+        GpuCandidateExport::caesar_from_host_scores(
+            cipher,
+            scores,
+            k,
+            TransformDirection::Decrypt,
+            parcae::tool::Backend::Cpu,
+            progress);
+    REQUIRE(with_sink.ok());
+
+    StatusOr<GpuCandidateExport::Result> without =
+        GpuCandidateExport::caesar_from_host_scores(cipher, scores, k);
+    REQUIRE(without.ok());
+
+    REQUIRE(with_sink.value().size() == without.value().size());
+    for (std::size_t i = 0; i < without.value().size(); ++i) {
+        REQUIRE(
+            with_sink.value().rows()[i].candidate().candidate_id() ==
+            without.value().rows()[i].candidate().candidate_id());
+        REQUIRE(with_sink.value().rows()[i].score() == without.value().rows()[i].score());
+    }
+
+    REQUIRE(sink.stages.size() == 1);
+    REQUIRE(sink.stages[0] == "materialize");
+    REQUIRE(sink.last_stage_total == Index29::modulus);
+    REQUIRE(sink.last_rune_count == cipher.size());
+    REQUIRE(sink.progress_count == 0);
+}
+
 #if defined(PARCAE_HAS_CUDA)
 
 #include "parcae_cuda.hpp"
+
+TEST_CASE(
+    "GpuCandidateExport fused caesar emits fuse/d2h/materialize; rows match host",
+    "[search][export][progress][cuda]") {
+    if (!ParcaeCuda::available()) {
+        SKIP("No CUDA device");
+    }
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = synthetic_cipher();
+    const std::vector<double> cpu_scores = cpu_chi2_by_shift(cipher, freqs.value());
+
+    GpuExportProgressRecordingSink sink;
+    BatchRunner::Progress progress;
+    progress.sink = &sink;
+
+    constexpr std::size_t k = 5;
+    StatusOr<GpuCandidateExport::Result> gpu = GpuCandidateExport::caesar(
+        cipher, freqs.value(), k, TransformDirection::Decrypt, progress);
+    REQUIRE(gpu.ok());
+
+    StatusOr<GpuCandidateExport::Result> host =
+        GpuCandidateExport::caesar_from_host_scores(cipher, cpu_scores, k);
+    REQUIRE(host.ok());
+
+    REQUIRE(gpu.value().size() == host.value().size());
+    for (std::size_t i = 0; i < host.value().size(); ++i) {
+        REQUIRE(
+            gpu.value().rows()[i].candidate().candidate_id() ==
+            host.value().rows()[i].candidate().candidate_id());
+        REQUIRE(gpu.value().rows()[i].score() == host.value().rows()[i].score());
+    }
+
+    REQUIRE(sink.stages.size() == 3);
+    REQUIRE(sink.stages[0] == "fuse");
+    REQUIRE(sink.stages[1] == "d2h");
+    REQUIRE(sink.stages[2] == "materialize");
+    REQUIRE(sink.last_stage_total == Index29::modulus);
+    REQUIRE(sink.last_rune_count == cipher.size());
+}
 
 TEST_CASE(
     "GpuCandidateExport::caesar fused matches host-score materialization",
