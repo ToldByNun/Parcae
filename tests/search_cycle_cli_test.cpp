@@ -77,11 +77,17 @@ namespace {
 }
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
+struct CliRunResult {
+    int exit_code = 1;
+    std::string stdout_text;
+    std::string stderr_text;
+};
+
 [[nodiscard]] std::string quote_arg(const std::string& arg) {
     return std::string("\"") + arg + '"';
 }
 
-[[nodiscard]] std::pair<int, std::string> run_cli(
+[[nodiscard]] CliRunResult run_cli(
     const std::filesystem::path& exe,
     const std::vector<std::string>& args) {
     const auto tmp = std::filesystem::temp_directory_path();
@@ -105,19 +111,33 @@ namespace {
     const int exit_code =
         std::system((std::string("cmd /C ") + quote_arg(script_path.string())).c_str());
 
-    std::string stdout_text;
+    CliRunResult result;
+    result.exit_code = exit_code;
     if (std::filesystem::exists(out_path)) {
         std::ifstream in(out_path, std::ios::binary);
         std::ostringstream buf;
         buf << in.rdbuf();
-        stdout_text = buf.str();
+        result.stdout_text = buf.str();
+    }
+    if (std::filesystem::exists(err_path)) {
+        std::ifstream in(err_path, std::ios::binary);
+        std::ostringstream buf;
+        buf << in.rdbuf();
+        result.stderr_text = buf.str();
     }
 
     std::error_code ec;
     std::filesystem::remove(out_path, ec);
     std::filesystem::remove(err_path, ec);
     std::filesystem::remove(script_path, ec);
-    return {exit_code, stdout_text};
+    return result;
+}
+
+[[nodiscard]] bool stderr_looks_like_progress(std::string_view err) {
+    return err.find("[search_cycle]") != std::string_view::npos ||
+           err.find("runes/s") != std::string_view::npos ||
+           err.find("cand/s") != std::string_view::npos ||
+           err.find("c/s") != std::string_view::npos;
 }
 #endif
 
@@ -128,11 +148,11 @@ namespace {
 TEST_CASE(
     "parcae-search-cycle --status --json reports run_ready and toolkit_version",
     "[tool][search_cycle][status][smoke][version]") {
-    const auto [code, out] = run_cli(
+    const CliRunResult run = run_cli(
         PARCAE_CLI_SEARCH_CYCLE,
         {"--status", "--json", "--data-dir", std::string(PARCAE_TEST_DATA_DIR)});
-    REQUIRE(code == 0);
-    const nlohmann::json envelope = nlohmann::json::parse(out);
+    REQUIRE(run.exit_code == 0);
+    const nlohmann::json envelope = nlohmann::json::parse(run.stdout_text);
     REQUIRE(envelope.at("ok").get<bool>());
     REQUIRE(envelope.at("tool").get<std::string>() == "search_cycle");
     REQUIRE(envelope.at("result").at("toolkit_version").get<std::string>() ==
@@ -154,7 +174,7 @@ TEST_CASE(
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
-    const auto [code, out] = run_cli(
+    const CliRunResult run = run_cli(
         PARCAE_CLI_SEARCH_CYCLE,
         {"--workspace",
          "h28-ws",
@@ -169,8 +189,8 @@ TEST_CASE(
          "--json",
          "--data-dir",
          root.string()});
-    REQUIRE(code == 0);
-    const nlohmann::json envelope = nlohmann::json::parse(out);
+    REQUIRE(run.exit_code == 0);
+    const nlohmann::json envelope = nlohmann::json::parse(run.stdout_text);
     REQUIRE(envelope.at("ok").get<bool>());
     REQUIRE(envelope.at("tool").get<std::string>() == "search_cycle");
     REQUIRE(envelope.at("backend").get<std::string>() == "cpu");
@@ -201,7 +221,7 @@ TEST_CASE(
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
-    const auto [code, out] = run_cli(
+    const CliRunResult run = run_cli(
         PARCAE_CLI_SEARCH_CYCLE,
         {"--workspace",
          "h28-pol-ws",
@@ -214,8 +234,8 @@ TEST_CASE(
          "--json",
          "--data-dir",
          root.string()});
-    REQUIRE(code != 0);
-    const nlohmann::json envelope = nlohmann::json::parse(out);
+    REQUIRE(run.exit_code != 0);
+    const nlohmann::json envelope = nlohmann::json::parse(run.stdout_text);
     REQUIRE_FALSE(envelope.at("ok").get<bool>());
     REQUIRE(envelope.at("error").at("code").get<std::string>() == "policy");
 
@@ -226,7 +246,7 @@ TEST_CASE(
 TEST_CASE(
     "parcae-search-cycle --omit-timing requires --json",
     "[tool][search_cycle][omit-timing]") {
-    const auto [code, out] = run_cli(
+    const CliRunResult run = run_cli(
         PARCAE_CLI_SEARCH_CYCLE,
         {"--workspace",
          "_example",
@@ -235,8 +255,8 @@ TEST_CASE(
          "--omit-timing",
          "--data-dir",
          std::string(PARCAE_TEST_DATA_DIR)});
-    REQUIRE(code != 0);
-    (void)out;
+    REQUIRE(run.exit_code != 0);
+    (void)run.stdout_text;
 }
 
 TEST_CASE(
@@ -249,7 +269,7 @@ TEST_CASE(
         REQUIRE(ws.ok());
         REQUIRE(ws.value().store(root).ok());
 
-        const auto [code, out] = run_cli(
+        const CliRunResult run = run_cli(
             PARCAE_CLI_SEARCH_CYCLE,
             {"--workspace",
              std::string(workspace_id),
@@ -269,8 +289,8 @@ TEST_CASE(
              "--omit-timing",
              "--data-dir",
              root.string()});
-        REQUIRE(code == 0);
-        const nlohmann::json envelope = nlohmann::json::parse(out);
+        REQUIRE(run.exit_code == 0);
+        const nlohmann::json envelope = nlohmann::json::parse(run.stdout_text);
         REQUIRE(envelope.at("ok").get<bool>());
         const nlohmann::json& result = envelope.at("result");
         REQUIRE(result.at("omit_timing").get<bool>());
@@ -309,6 +329,76 @@ TEST_CASE(
     REQUIRE(a.at("candidate_ids") == b.at("candidate_ids"));
     REQUIRE(a.at("result").at("stop_reason") == b.at("result").at("stop_reason"));
     REQUIRE(a.at("result").at("hypotheses_written") == b.at("result").at("hypotheses_written"));
+}
+
+TEST_CASE(
+    "parcae-search-cycle --json --quiet keeps stdout JSON and stderr without progress",
+    "[tool][search_cycle][progress][quiet]") {
+    const auto root = make_sandbox("parcae_search_cycle_progress_quiet");
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("h-progress-quiet", "2026-09-23T12:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    const CliRunResult run = run_cli(
+        PARCAE_CLI_SEARCH_CYCLE,
+        {"--workspace",
+         "h-progress-quiet",
+         "--family",
+         "caesar",
+         "--k",
+         "1",
+         "--iterations",
+         "1",
+         "--backend",
+         "cpu",
+         "--json",
+         "--quiet",
+         "--data-dir",
+         root.string()});
+    REQUIRE(run.exit_code == 0);
+    const nlohmann::json envelope = nlohmann::json::parse(run.stdout_text);
+    REQUIRE(envelope.at("ok").get<bool>());
+    REQUIRE(envelope.at("tool").get<std::string>() == "search_cycle");
+    REQUIRE_FALSE(stderr_looks_like_progress(run.stderr_text));
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE(
+    "parcae-search-cycle --plain-progress emits stderr progress lines",
+    "[tool][search_cycle][progress][plain]") {
+    const auto root = make_sandbox("parcae_search_cycle_progress_plain");
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("h-progress-plain", "2026-09-23T12:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    const CliRunResult run = run_cli(
+        PARCAE_CLI_SEARCH_CYCLE,
+        {"--workspace",
+         "h-progress-plain",
+         "--family",
+         "caesar",
+         "--k",
+         "3",
+         "--iterations",
+         "1",
+         "--backend",
+         "cpu",
+         "--plain-progress",
+         "--json",
+         "--data-dir",
+         root.string()});
+    REQUIRE(run.exit_code == 0);
+    const nlohmann::json envelope = nlohmann::json::parse(run.stdout_text);
+    REQUIRE(envelope.at("ok").get<bool>());
+    REQUIRE(stderr_looks_like_progress(run.stderr_text));
+    REQUIRE(run.stderr_text.find("[search_cycle]") != std::string::npos);
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
 }
 
 #endif  // PARCAE_HAS_CLI_GOLDENS

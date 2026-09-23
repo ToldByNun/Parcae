@@ -2,6 +2,11 @@
 #include "cli_io.hpp"
 #include "tool_cli_json.hpp"
 
+#include "parcae/cli/console_ansi.hpp"
+#include "parcae/cli/console_dashboard.hpp"
+#include "parcae/cli/console_progress_mode.hpp"
+#include "parcae/cli/console_progress_sink.hpp"
+#include "parcae/cli/console_progress_snapshot.hpp"
 #include "parcae/core/version.hpp"
 #include "parcae/hypothesis/workspace_manifest.hpp"
 #include "parcae/search/batch_artifact.hpp"
@@ -43,11 +48,13 @@ void print_help() {
         << "                           [--backend cpu|cuda] [--allow-cuda]\n"
         << "                           [--iterations <n>] [--created-utc <rfc3339>]\n"
         << "                           [--json] [--omit-timing] [--data-dir <path>]\n"
+        << "                           [--quiet | --plain-progress | --progress auto|panel|lines|off]\n"
         << "       parcae-search-cycle --workspace <id> --family <id> [--k <n>]\n"
         << "                           [--seed <u32>] [--score-id <id>]\n"
         << "                           [--backend cpu|cuda] [--allow-cuda]\n"
         << "                           [--iterations <n>] [--created-utc <rfc3339>]\n"
         << "                           [--json] [--omit-timing] [--data-dir <path>]\n"
+        << "                           [--quiet | --plain-progress | --progress auto|panel|lines|off]\n"
         << "\n"
         << "Workspace closed-loop search: job → BatchArtifact → hypotheses\n"
         << "(SearchScheduler). Normative: docs/spec/search-loop.md\n"
@@ -73,11 +80,89 @@ void print_help() {
         << "                   batch/prior digests; default = wall clock\n"
         << "  --json           JSON envelope on stdout (parcae.tool_response.v0)\n"
         << "  --omit-timing    Agent-safe: no timing fields / no report.json (requires --json)\n"
+        << "  --quiet          Suppress stderr progress (agents / scripts)\n"
+        << "  --plain-progress Force append-only progress lines on stderr\n"
+        << "  --progress       auto|panel|lines|off (default auto; TTY → panel)\n"
         << "  --data-dir       Parcae data/ root\n"
         << "  -h, --help       Show this help\n"
         << "\n"
+        << "Progress paints stderr only; --json stdout stays machine-readable.\n"
+        << "Precedence: --quiet > --plain-progress > --progress.\n"
+        << "\n"
         << "Planned: --with-agent\n";
 }
+
+/// Stamps cycle identity + wall clock onto scheduler progress events for the dashboard.
+class SearchCycleProgressBridge : public ConsoleProgressSink {
+public:
+    SearchCycleProgressBridge(
+        ConsoleDashboard& dashboard,
+        std::string workspace_id,
+        std::string family,
+        std::string backend,
+        std::string score_id,
+        std::size_t iteration_total)
+        : dashboard_(dashboard),
+          workspace_id_(std::move(workspace_id)),
+          family_(std::move(family)),
+          backend_(std::move(backend)),
+          score_id_(std::move(score_id)),
+          iteration_total_(iteration_total) {}
+
+    void on_progress(const ConsoleProgressSnapshot& snapshot) override {
+        dashboard_.on_progress(enrich(snapshot, snapshot.stage()));
+    }
+
+    void on_stage(
+        std::string_view stage,
+        const ConsoleProgressSnapshot& snapshot) override {
+        dashboard_.on_stage(stage, enrich(snapshot, stage));
+    }
+
+    void finish() {
+        ConsoleProgressSnapshot snap;
+        stamp(snap);
+        snap.set_stage("done");
+        snap.set_elapsed_seconds(dashboard_.clock().elapsed_seconds());
+        snap.refresh_rates();
+        if (iteration_total_ > 0) {
+            snap.set_iteration(iteration_total_, iteration_total_);
+        }
+        dashboard_.finish(snap);
+    }
+
+private:
+    void stamp(ConsoleProgressSnapshot& snap) const {
+        snap.set_tool(std::string(kTool));
+        snap.set_workspace_id(workspace_id_);
+        snap.set_family(family_);
+        snap.set_backend(backend_);
+        snap.set_score_id(score_id_);
+    }
+
+    [[nodiscard]] ConsoleProgressSnapshot enrich(
+        const ConsoleProgressSnapshot& incoming,
+        std::string_view stage) const {
+        ConsoleProgressSnapshot snap = incoming;
+        stamp(snap);
+        if (!stage.empty()) {
+            snap.set_stage(std::string(stage));
+        }
+        snap.set_elapsed_seconds(dashboard_.clock().elapsed_seconds());
+        if (stage == "iteration" && incoming.candidates_done() > 0 && iteration_total_ > 0) {
+            snap.set_iteration(incoming.candidates_done(), iteration_total_);
+        }
+        snap.refresh_rates();
+        return snap;
+    }
+
+    ConsoleDashboard& dashboard_;
+    std::string workspace_id_;
+    std::string family_;
+    std::string backend_;
+    std::string score_id_;
+    std::size_t iteration_total_ = 0;
+};
 
 [[nodiscard]] int fail(
     bool json_mode,
@@ -283,13 +368,14 @@ void print_help() {
            a == "--workspace" || a == "--job" || a == "--family" || a == "--k" || a == "--seed" ||
            a == "--score-id" || a == "--max-candidates" || a == "--backend" || a == "--allow-cuda" ||
            a == "--allow-extended-families" || a == "--allow-theory-uri" || a == "--iterations" ||
-           a == "--omit-timing" || a == "--created-utc";
+           a == "--omit-timing" || a == "--created-utc" || a == "--quiet" ||
+           a == "--plain-progress" || a == "--progress";
 }
 
 [[nodiscard]] bool flag_takes_value(std::string_view a) {
     return a == "--data-dir" || a == "--workspace" || a == "--job" || a == "--family" ||
            a == "--k" || a == "--seed" || a == "--score-id" || a == "--max-candidates" ||
-           a == "--backend" || a == "--iterations" || a == "--created-utc";
+           a == "--backend" || a == "--iterations" || a == "--created-utc" || a == "--progress";
 }
 
 [[nodiscard]] StatusOr<std::string> resolve_created_utc(const std::vector<std::string>& args) {
@@ -305,6 +391,20 @@ void print_help() {
             "--created-utc must be RFC3339 UTC of the form YYYY-MM-DDTHH:MM:SSZ");
     }
     return ok.value();
+}
+
+[[nodiscard]] StatusOr<ConsoleProgressMode> resolve_progress_mode(
+    const std::vector<std::string>& args) {
+    using namespace parcae::cli;
+    const bool quiet = has_flag(args, "--quiet");
+    const bool plain = has_flag(args, "--plain-progress");
+    const std::string progress_flag = optional_option(args, "--progress");
+    StatusOr<ConsoleProgressMode> requested =
+        ConsoleProgressMode::from_flags(quiet, plain, progress_flag);
+    if (!requested.ok()) {
+        return requested.status();
+    }
+    return requested.value().resolve(ConsoleAnsi::stderr_is_tty());
 }
 
 }  // namespace
@@ -456,6 +556,16 @@ int main(int argc, char** argv) {
             kExitUsage);
     }
 
+    StatusOr<ConsoleProgressMode> progress_mode = resolve_progress_mode(args);
+    if (!progress_mode.ok()) {
+        return fail(
+            json_mode,
+            backend_label,
+            ToolErrorCode::Usage,
+            progress_mode.status().message(),
+            kExitUsage);
+    }
+
     // Agent / --json defaults to omit_timing; human runs may write a digest-only report.
     const bool omit_timing = json_mode || omit_timing_flag;
 
@@ -464,9 +574,28 @@ int main(int argc, char** argv) {
     loop.max_iterations = iterations.value();
     loop.omit_timing = omit_timing;
 
+    std::optional<ConsoleDashboard> dashboard;
+    std::optional<SearchCycleProgressBridge> progress_bridge;
+    if (!progress_mode.value().is_off()) {
+        ConsoleDashboard::Options dash_opts;
+        dash_opts.mode = progress_mode.value();
+        dashboard.emplace(dash_opts);
+        progress_bridge.emplace(
+            dashboard.value(),
+            job.value().workspace_id(),
+            job.value().family(),
+            *backend_label,
+            job.value().score_id(),
+            iterations.value());
+        loop.progress = &progress_bridge.value();
+    }
+
     StatusOr<SearchScheduler::CycleResult> cycle =
         SearchScheduler::run_loop(data_root, ctx.value(), job.value(), loop);
     if (!cycle.ok()) {
+        if (progress_bridge.has_value()) {
+            progress_bridge->finish();
+        }
         ToolErrorCode code = ToolErrorCode::Validation;
         const std::string& msg = cycle.status().message();
         if (msg.find("CUDA") != std::string::npos) {
@@ -481,6 +610,10 @@ int main(int argc, char** argv) {
             code,
             cycle.status().message(),
             ToolErrorCodeUtil::exit_status(code));
+    }
+
+    if (progress_bridge.has_value()) {
+        progress_bridge->finish();
     }
 
     nlohmann::json result = cycle.value().to_json();
