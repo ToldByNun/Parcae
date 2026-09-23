@@ -336,7 +336,8 @@ parcae-search-cycle --workspace <id> --job <file>
                     [--json] [--data-dir <path>]
 parcae-search-cycle --workspace <id> --family <id> [--k <n>] [--seed <u32>]
                     [--score-id <id>] [--backend cpu|cuda] [--allow-cuda]
-                    [--allow-extended-families] [--iterations <n>] [--json]
+                    [--allow-extended-families] [--allow-theory-uri]
+                    [--iterations <n>] [--json]
                     [--omit-timing] [--created-utc <rfc3339>] [--data-dir <path>]
 ```
 
@@ -348,7 +349,9 @@ schema ids, CUDA build flag, and readiness (`scheduler_ready` / `run_ready`).
 Cycle runs require `--workspace` plus either `--job` (`parcae.search_job.v0`) or
 `--family` (builds a job using workspace `default_score_id`). `--backend cuda`
 requires `--allow-cuda` (AgentPolicy). `--allow-extended-families` opts in
-`beaufort` / `totient` (also settable on the job JSON). `--iterations` defaults to `1`.
+`beaufort` / `totient` (also settable on the job JSON). `--allow-theory-uri` opts
+in family `theory` (job JSON MUST supply `param_grid.theory_uri` +
+`params_list`; CPU-only). `--iterations` defaults to `1`.
 `--omit-timing` requires `--json` and forces agent-safe output (no timing fields;
 no `report.json`). `--json` alone also omits timing by default. `--created-utc`
 fixes batch/prior timestamps for replayable digests and auto `batch_id`s.

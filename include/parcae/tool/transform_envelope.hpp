@@ -3,6 +3,7 @@
 
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
+#include "parcae/dsl/theory_uri.hpp"
 #include "parcae/interrupt/policy.hpp"
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
@@ -34,10 +35,14 @@ public:
         if (!root.contains("transform_id") || !root.at("transform_id").is_string()) {
             return Status::error("TransformEnvelope.transform_id is required");
         }
-        StatusOr<TransformId> id =
-            TransformId::from_string(root.at("transform_id").get<std::string>());
+        const std::string id_text = root.at("transform_id").get<std::string>();
+        StatusOr<TransformId> id = TransformId::from_string(id_text);
         if (!id.ok()) {
-            return id.status();
+            StatusOr<TheoryUri> theory = TheoryUri::parse(id_text);
+            if (!theory.ok()) {
+                return id.status();
+            }
+            id = TransformId::unchecked(theory.value().to_string());
         }
 
         TransformDirection direction = TransformDirection::Decrypt;

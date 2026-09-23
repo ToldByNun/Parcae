@@ -152,10 +152,11 @@ public:
         if (!digest_ok.ok()) {
             return digest_ok;
         }
-        if (!SearchJob::is_v0_family(family) && !SearchJob::is_extended_family(family)) {
+        if (!SearchJob::is_v0_family(family) && !SearchJob::is_extended_family(family) &&
+            !SearchJob::is_theory_family(family)) {
             return Status::error(
                 "BatchArtifact.family unknown (expected caesar|atbash|atbash_caesar|"
-                "affine|vigenere|beaufort|totient): " +
+                "affine|vigenere|beaufort|totient|theory): " +
                 std::string(family));
         }
         StatusOr<std::string> sid = SearchJob::validate_score_id(score_id);

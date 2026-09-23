@@ -556,7 +556,8 @@ private:
         const SearchJob& job,
         const parcae::tool::Context& ctx,
         const SearchPrior& prior) {
-        if (job.backend() == parcae::tool::Backend::Cpu) {
+        // Theory-URI jobs are CPU-only (TheoryDispatch / apply_ir); no fused CUDA path.
+        if (job.backend() == parcae::tool::Backend::Cpu || SearchJob::is_theory_family(job.family())) {
             return CpuCandidateExport::from_job(cipher, job, ctx, &prior);
         }
 

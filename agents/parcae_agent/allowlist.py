@@ -154,6 +154,7 @@ TOOL_ARG_KEYS: dict[str, frozenset[str]] = {
             "iterations",
             "created_utc",
             "allow_extended_families",
+            "allow_theory_uri",
         }
     ),
 }
@@ -174,6 +175,7 @@ BOOL_FLAGS: dict[str, str] = {
     "backends": "--backends",
     "no_latin": "--no-latin",
     "allow_extended_families": "--allow-extended-families",
+    "allow_theory_uri": "--allow-theory-uri",
 }
 
 # String/int option flags (key → --flag).

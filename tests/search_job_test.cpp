@@ -103,6 +103,31 @@ TEST_CASE("SearchJob rejects bad schema and bounds", "[search][job]") {
     }
     {
         nlohmann::json j = valid_job_json();
+        j["family"] = "theory";
+        REQUIRE_FALSE(SearchJob::from_json(j).ok());
+    }
+    {
+        nlohmann::json j = valid_job_json();
+        j["family"] = "theory";
+        j["allow_theory_uri"] = true;
+        REQUIRE_FALSE(SearchJob::from_json(j).ok());  // missing params_list
+    }
+    {
+        nlohmann::json j = valid_job_json();
+        j["family"] = "theory";
+        j["allow_theory_uri"] = true;
+        j["param_grid"] = {
+            {"theory_uri", "parcae://theories/quadratic_polynomial_stream@1"},
+            {"params_list",
+             nlohmann::json::array({nlohmann::json{{"c2", 1}, {"c1", 0}, {"c0", 0}}})}};
+        StatusOr<SearchJob> job = SearchJob::from_json(j);
+        REQUIRE(job.ok());
+        REQUIRE(job.value().family() == "theory");
+        REQUIRE(job.value().allow_theory_uri());
+        REQUIRE(job.value().to_json().at("allow_theory_uri") == true);
+    }
+    {
+        nlohmann::json j = valid_job_json();
         j["backend"] = "metal";
         REQUIRE_FALSE(SearchJob::from_json(j).ok());
     }

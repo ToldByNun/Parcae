@@ -82,6 +82,11 @@ public:
         return allow_extended_families_;
     }
 
+    /// When true, family `theory` (explicit theory-URI params_list) is accepted.
+    [[nodiscard]] bool allow_theory_uri() const noexcept {
+        return allow_theory_uri_;
+    }
+
     [[nodiscard]] static bool is_v0_family(std::string_view family) noexcept {
         return family == "caesar" || family == "atbash" || family == "atbash_caesar" ||
                family == "affine" || family == "vigenere";
@@ -91,9 +96,14 @@ public:
         return family == "beaufort" || family == "totient";
     }
 
+    [[nodiscard]] static bool is_theory_family(std::string_view family) noexcept {
+        return family == "theory";
+    }
+
     [[nodiscard]] static StatusOr<std::string> validate_family(
         std::string_view family,
-        bool allow_extended) {
+        bool allow_extended,
+        bool allow_theory = false) {
         if (family.empty()) {
             return Status::error("SearchJob.family must be non-empty");
         }
@@ -107,9 +117,16 @@ public:
             return Status::error(
                 "SearchJob.family requires allow_extended_families: " + std::string(family));
         }
+        if (allow_theory && is_theory_family(family)) {
+            return std::string(family);
+        }
+        if (is_theory_family(family)) {
+            return Status::error(
+                "SearchJob.family requires allow_theory_uri: theory");
+        }
         return Status::error(
             "SearchJob.family unknown (expected caesar|atbash|atbash_caesar|affine|vigenere"
-            " or opt-in beaufort|totient): " +
+            " or opt-in beaufort|totient|theory): " +
             std::string(family));
     }
 
@@ -118,6 +135,31 @@ public:
             return Status::error("SearchJob.score_id length must be 1..128");
         }
         return std::string(score_id);
+    }
+
+    /// Family `theory`: explicit `theory_uri` + non-empty `params_list` only
+    /// (no TheorySweep expansion).
+    [[nodiscard]] static Status validate_theory_param_grid(const nlohmann::json& param_grid) {
+        if (!param_grid.is_object()) {
+            return Status::error("SearchJob.param_grid for theory must be an object");
+        }
+        if (!param_grid.contains("theory_uri") || !param_grid.at("theory_uri").is_string() ||
+            param_grid.at("theory_uri").get<std::string>().empty()) {
+            return Status::error(
+                "SearchJob.param_grid.theory_uri must be a non-empty string");
+        }
+        if (!param_grid.contains("params_list") || !param_grid.at("params_list").is_array() ||
+            param_grid.at("params_list").empty()) {
+            return Status::error(
+                "SearchJob.param_grid.params_list must be a non-empty array");
+        }
+        for (const auto& item : param_grid.at("params_list")) {
+            if (!item.is_object()) {
+                return Status::error(
+                    "SearchJob.param_grid.params_list entries must be objects");
+            }
+        }
+        return Status::success();
     }
 
     /// Build a validated job (does not check that the workspace directory exists).
@@ -133,12 +175,14 @@ public:
         nlohmann::json param_grid = nlohmann::json::object(),
         std::optional<nlohmann::json> prior = std::nullopt,
         std::string_view score_version = "v0",
-        bool allow_extended_families = false) {
+        bool allow_extended_families = false,
+        bool allow_theory_uri = false) {
         StatusOr<std::string> wid = WorkspacePaths::validate_id(workspace_id);
         if (!wid.ok()) {
             return wid.status();
         }
-        StatusOr<std::string> fam = validate_family(family, allow_extended_families);
+        StatusOr<std::string> fam =
+            validate_family(family, allow_extended_families, allow_theory_uri);
         if (!fam.ok()) {
             return fam.status();
         }
@@ -164,6 +208,13 @@ public:
                 return prior_ok;
             }
         }
+        if (is_theory_family(fam.value())) {
+            Status theory_ok = validate_theory_param_grid(
+                param_grid.is_null() ? nlohmann::json::object() : param_grid);
+            if (!theory_ok.ok()) {
+                return theory_ok;
+            }
+        }
 
         SearchJob job;
         job.workspace_id_ = std::move(wid.value());
@@ -178,6 +229,7 @@ public:
         job.param_grid_ = param_grid.is_null() ? nlohmann::json::object() : std::move(param_grid);
         job.prior_ = std::move(prior);
         job.allow_extended_families_ = allow_extended_families;
+        job.allow_theory_uri_ = allow_theory_uri;
         return job;
     }
 
@@ -283,6 +335,14 @@ public:
             allow_extended = root.at("allow_extended_families").get<bool>();
         }
 
+        bool allow_theory = false;
+        if (root.contains("allow_theory_uri") && !root.at("allow_theory_uri").is_null()) {
+            if (!root.at("allow_theory_uri").is_boolean()) {
+                return Status::error("SearchJob.allow_theory_uri must be a boolean");
+            }
+            allow_theory = root.at("allow_theory_uri").get<bool>();
+        }
+
         return make(
             workspace_id.value(),
             family.value(),
@@ -295,7 +355,8 @@ public:
             std::move(param_grid),
             std::move(prior),
             score_version,
-            allow_extended);
+            allow_extended,
+            allow_theory);
     }
 
     [[nodiscard]] static StatusOr<SearchJob> parse(std::string_view text) {
@@ -350,6 +411,9 @@ public:
         };
         if (allow_extended_families_) {
             j["allow_extended_families"] = true;
+        }
+        if (allow_theory_uri_) {
+            j["allow_theory_uri"] = true;
         }
         return j;
     }
@@ -418,6 +482,7 @@ private:
     nlohmann::json param_grid_ = nlohmann::json::object();
     std::optional<nlohmann::json> prior_;
     bool allow_extended_families_ = false;
+    bool allow_theory_uri_ = false;
 };
 
 #endif // SEARCH_JOB_HPP

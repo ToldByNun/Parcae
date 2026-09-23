@@ -90,6 +90,20 @@ def test_build_argv_search_cycle_family_injects_workspace_and_omit_timing() -> N
     assert "--status" not in argv
 
 
+def test_build_argv_search_cycle_allow_theory_uri_flag() -> None:
+    bridge = ToolBridge(_config())
+    argv = bridge.build_argv(
+        "search_cycle",
+        {
+            "job": "jobs/theory.json",
+            "allow_theory_uri": True,
+            "backend": "cpu",
+        },
+    )
+    assert "--allow-theory-uri" in argv
+    assert argv[argv.index("--job") + 1] == "jobs/theory.json"
+
+
 def test_build_argv_search_cycle_rejects_incomplete_and_status_mix() -> None:
     bridge = ToolBridge(_config())
     with pytest.raises(ToolBridgeError, match="family or job"):

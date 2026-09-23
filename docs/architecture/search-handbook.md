@@ -152,6 +152,38 @@ Default totient grid: `prime_start_index` in `0..31`. Override via job
 `param_grid.prime_start_count` or `param_grid.prime_start_indices`. Beaufort uses
 the same bounded key grid as Vigenère (`max_key_length`, default 20).
 
+### Theory URI family (explicit params_list)
+
+Require `allow_theory_uri: true` (job JSON) or CLI `--allow-theory-uri`, and a
+job file whose `param_grid` lists the URI plus a **bounded** `params_list`
+(no TheorySweep expansion). Prefer `--job` over `--family theory` (family mode
+has an empty param grid and will fail validation):
+
+```bash
+parcae-search-cycle \
+  --workspace my-ws \
+  --job path/to/theory_job.json \
+  --allow-theory-uri \
+  --backend cpu \
+  --json \
+  --data-dir data
+```
+
+Example `param_grid`:
+
+```json
+{
+  "theory_uri": "parcae://theories/quadratic_polynomial_stream@1",
+  "params_list": [
+    {"c2": 1, "c1": 0, "c0": 0},
+    {"c2": 0, "c1": 1, "c0": 0}
+  ]
+}
+```
+
+Theory jobs are CPU-only (`TheoryDispatch` / `apply_ir`); `--backend cuda` falls
+back to the CPU export path.
+
 ## Outputs to inspect
 
 After a successful cycle:

@@ -374,6 +374,11 @@ _TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "description": "Opt-in for beaufort|totient families "
                     "(required when family is beaufort or totient)",
                 },
+                "allow_theory_uri": {
+                    **_BOOL,
+                    "description": "Opt-in for family theory "
+                    "(requires job JSON with theory_uri + params_list)",
+                },
             }
         ),
     ),

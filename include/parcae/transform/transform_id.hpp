@@ -43,6 +43,11 @@ public:
         return TransformId{"totient_prime_stream"};
     }
 
+    /// Non-catalog id (theory URI). Callers MUST validate the URI separately.
+    [[nodiscard]] static TransformId unchecked(std::string value) {
+        return TransformId{std::move(value)};
+    }
+
     /// Parse a catalog id. Unknown ids fail.
     [[nodiscard]] static StatusOr<TransformId> from_string(std::string_view text) {
         if (text == "identity") {

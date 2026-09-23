@@ -10,6 +10,7 @@
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
 #include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
+#include "parcae/generate/theory_explicit_params_candidate_generator.hpp"
 #include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
 #include "parcae/hypothesis/hypothesis_record.hpp"
@@ -187,6 +188,9 @@ public:
         }
         if (family == "totient") {
             return TotientOffsetCandidateGenerator::generator_id;
+        }
+        if (family == "theory") {
+            return TheoryExplicitParamsCandidateGenerator::generator_id;
         }
         return Status::error(
             "HypothesisBridge: unsupported family for generator_id mapping: " +

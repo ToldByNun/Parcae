@@ -12,12 +12,16 @@
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
 #include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
+#include "parcae/generate/theory_explicit_params_candidate_generator.hpp"
 #include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/transform_candidate.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
 #include "parcae/search/gpu_candidate_export.hpp"
 #include "parcae/search/search_job.hpp"
 #include "parcae/search/search_prior.hpp"
+#include "parcae/dsl/theory_dispatch.hpp"
+#include "parcae/dsl/theory_envelope_bridge.hpp"
+#include "parcae/dsl/theory_uri.hpp"
 #include "parcae/tool/api.hpp"
 #include "parcae/tool/context.hpp"
 #include "parcae/tool/generate_candidates.hpp"
@@ -30,6 +34,7 @@
 #include <climits>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <span>
 #include <string>
@@ -93,18 +98,8 @@ public:
             return Status::error("CpuCandidateExport: k must be >= 1");
         }
 
-        StatusOr<std::string_view> generator_id = generator_id_for_family(family);
-        if (!generator_id.ok()) {
-            return generator_id.status();
-        }
-
-        StatusOr<nlohmann::json> gen_params = generator_params_for_family(family, param_grid);
-        if (!gen_params.ok()) {
-            return gen_params.status();
-        }
-
-        StatusOr<std::vector<TransformCandidate>> generated = GenerateCandidates::from_indices(
-            generator_id.value(), cipher, direction, gen_params.value());
+        StatusOr<std::vector<TransformCandidate>> generated =
+            expand_family(cipher, family, direction, param_grid, ctx);
         if (!generated.ok()) {
             return generated.status();
         }
@@ -116,7 +111,7 @@ public:
                 return filter;
             }
             StatusOr<std::vector<TransformCandidate>> merged =
-                merge_seeds(cipher, direction, candidates, *prior);
+                merge_seeds(cipher, direction, candidates, *prior, ctx.data_root() / "theories");
             if (!merged.ok()) {
                 return merged.status();
             }
@@ -170,11 +165,15 @@ public:
         if (family == "totient") {
             return TotientOffsetCandidateGenerator::generator_id;
         }
+        if (family == "theory") {
+            return TheoryExplicitParamsCandidateGenerator::generator_id;
+        }
         return Status::error("CpuCandidateExport: unsupported family");
     }
 
     /// Vigenère / Beaufort: explicit keys or bounded synthetic grid.
     /// Totient: `prime_start_indices` or contiguous `0..prime_start_count-1`.
+    /// Theory: `theory_uri` + `params_list` (passed through).
     /// Other families ignore `param_grid` (family default enumeration).
     [[nodiscard]] static StatusOr<nlohmann::json> generator_params_for_family(
         std::string_view family,
@@ -185,11 +184,67 @@ public:
         if (family == "totient") {
             return totient_family_params(param_grid);
         }
+        if (family == "theory") {
+            return theory_family_params(param_grid);
+        }
         return nlohmann::json::object();
     }
 
 private:
     CpuCandidateExport() = delete;
+
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> expand_family(
+        std::span<const Index29> cipher,
+        std::string_view family,
+        TransformDirection direction,
+        const nlohmann::json& param_grid,
+        const parcae::tool::Context& ctx) {
+        if (family == "theory") {
+            StatusOr<nlohmann::json> gen_params = theory_family_params(param_grid);
+            if (!gen_params.ok()) {
+                return gen_params.status();
+            }
+            const std::string theory_uri =
+                gen_params.value().at("theory_uri").get<std::string>();
+            std::vector<nlohmann::json> params_list;
+            params_list.reserve(gen_params.value().at("params_list").size());
+            for (const auto& item : gen_params.value().at("params_list")) {
+                params_list.push_back(item);
+            }
+            return TheoryExplicitParamsCandidateGenerator::generate(
+                cipher,
+                ctx.data_root() / "theories",
+                theory_uri,
+                params_list,
+                direction);
+        }
+
+        StatusOr<std::string_view> generator_id = generator_id_for_family(family);
+        if (!generator_id.ok()) {
+            return generator_id.status();
+        }
+
+        StatusOr<nlohmann::json> gen_params = generator_params_for_family(family, param_grid);
+        if (!gen_params.ok()) {
+            return gen_params.status();
+        }
+
+        return GenerateCandidates::from_indices(
+            generator_id.value(), cipher, direction, gen_params.value());
+    }
+
+    [[nodiscard]] static StatusOr<nlohmann::json> theory_family_params(
+        const nlohmann::json& param_grid) {
+        Status ok = SearchJob::validate_theory_param_grid(
+            param_grid.is_null() ? nlohmann::json::object() : param_grid);
+        if (!ok.ok()) {
+            return Status::error(
+                std::string("CpuCandidateExport: ") + ok.message());
+        }
+        return nlohmann::json{
+            {"theory_uri", param_grid.at("theory_uri")},
+            {"params_list", param_grid.at("params_list")}};
+    }
 
     [[nodiscard]] static StatusOr<nlohmann::json> keyed_family_params(
         const nlohmann::json& param_grid) {
@@ -301,10 +356,11 @@ private:
         std::span<const Index29> cipher,
         TransformDirection job_direction,
         std::vector<TransformCandidate> candidates,
-        const SearchPrior& prior) {
+        const SearchPrior& prior,
+        const std::filesystem::path& theories_root) {
         for (const SearchPrior::Seed& seed : prior.seeds()) {
             StatusOr<TransformCandidate> materialized =
-                candidate_from_seed(cipher, seed, job_direction);
+                candidate_from_seed(cipher, seed, job_direction, theories_root);
             if (!materialized.ok()) {
                 return materialized.status();
             }
@@ -319,7 +375,8 @@ private:
     [[nodiscard]] static StatusOr<TransformCandidate> candidate_from_seed(
         std::span<const Index29> cipher,
         const SearchPrior::Seed& seed,
-        TransformDirection job_direction) {
+        TransformDirection job_direction,
+        const std::filesystem::path& theories_root) {
         if (!seed.envelope().is_object()) {
             return Status::error("CpuCandidateExport: seed envelope must be an object");
         }
@@ -330,6 +387,36 @@ private:
         }
 
         const parcae::tool::TransformEnvelope& envelope = parsed.value();
+
+        std::optional<nlohmann::json> interrupt;
+        if (!envelope.interrupt().skip_indices().empty()) {
+            interrupt = envelope.interrupt().to_json();
+        }
+
+        const std::string candidate_id = "prior-seed:" + seed.hypothesis_id();
+
+        StatusOr<TheoryUri> theory_uri = TheoryUri::parse(envelope.transform_id().str());
+        if (theory_uri.ok()) {
+            TheoryEnvelopeBridge::Envelope theory_env{
+                TheoryEnvelopeBridge::Kind::Theory,
+                theory_uri.value().to_string(),
+                job_direction,
+                envelope.params(),
+                envelope.interrupt(),
+                theory_uri.value()};
+            StatusOr<std::vector<Index29>> plain =
+                TheoryDispatch::apply(theories_root, theory_env, cipher);
+            if (!plain.ok()) {
+                return plain.status();
+            }
+            return TransformCandidate(
+                candidate_id,
+                TransformId::unchecked(theory_uri.value().to_string()),
+                job_direction,
+                envelope.params(),
+                std::move(plain.value()),
+                std::move(interrupt));
+        }
 
         const parcae::tool::TransformEnvelope call(
             envelope.transform_id(),
@@ -342,12 +429,6 @@ private:
             return plain.status();
         }
 
-        std::optional<nlohmann::json> interrupt;
-        if (!envelope.interrupt().skip_indices().empty()) {
-            interrupt = envelope.interrupt().to_json();
-        }
-
-        const std::string candidate_id = "prior-seed:" + seed.hypothesis_id();
         return TransformCandidate(
             candidate_id,
             envelope.transform_id(),

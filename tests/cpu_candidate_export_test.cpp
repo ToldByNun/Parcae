@@ -1,5 +1,7 @@
 #include <parcae/core/index29.hpp>
+#include <parcae/dsl/dsl_compile.hpp>
 #include <parcae/generate/caesar_candidate_generator.hpp>
+#include <parcae/generate/theory_explicit_params_candidate_generator.hpp>
 #include <parcae/score/expected_frequency_loader.hpp>
 #include <parcae/score/expected_frequency_table.hpp>
 #include <parcae/score/score_registry.hpp>
@@ -17,14 +19,31 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <vector>
 
 #ifndef PARCAE_TEST_DATA_DIR
 #error "PARCAE_TEST_DATA_DIR must be defined"
 #endif
+#ifndef PARCAE_EXAMPLES_DIR
+#error "PARCAE_EXAMPLES_DIR must be defined"
+#endif
+#ifndef PARCAE_PYTHON_DIR
+#error "PARCAE_PYTHON_DIR must be defined"
+#endif
+#ifndef PARCAE_PYTHON_EXE
+#error "PARCAE_PYTHON_EXE must be defined"
+#endif
 
 namespace {
+
+[[nodiscard]] DslCompile::Options compile_options() {
+    DslCompile::Options opt;
+    (void)opt.set_python_exe(PARCAE_PYTHON_EXE);
+    (void)opt.set_python_path(PARCAE_PYTHON_DIR);
+    return opt;
+}
 
 [[nodiscard]] std::vector<Index29> synthetic_cipher() {
     std::vector<Index29> plain;
@@ -255,4 +274,82 @@ TEST_CASE(
     REQUIRE(beaufort.value().size() == 2);
     REQUIRE(
         beaufort.value().rows()[0].candidate().transform_id() == TransformId::beaufort_key());
+}
+
+TEST_CASE(
+    "CpuCandidateExport opt-in theory URI params_list",
+    "[search][export][cpu][theory][compile]") {
+    REQUIRE(DslCompile::pipeline_ready(compile_options()));
+
+    const auto root =
+        std::filesystem::temp_directory_path() / "parcae_cpu_export_theory_j37";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+    std::filesystem::create_directories(root / "profiles" / "scores", ec);
+
+    const auto src_expected = std::filesystem::path(PARCAE_TEST_DATA_DIR) / "profiles" /
+                              "scores" / "english-gp-expected-v0.json";
+    std::filesystem::copy_file(
+        src_expected,
+        root / "profiles" / "scores" / "english-gp-expected-v0.json",
+        std::filesystem::copy_options::overwrite_existing,
+        ec);
+    REQUIRE_FALSE(ec);
+
+    const auto src =
+        std::filesystem::path(PARCAE_EXAMPLES_DIR) / "new_math_example.py";
+    StatusOr<DslCompile::Result> compiled =
+        DslCompile::compile_file(src, root / "theories", compile_options());
+    REQUIRE(compiled.ok());
+
+    const std::string uri = "parcae://theories/quadratic_polynomial_stream@1";
+    const nlohmann::json param_grid{
+        {"theory_uri", uri},
+        {"params_list",
+         nlohmann::json::array(
+             {nlohmann::json{{"c2", 1}, {"c1", 0}, {"c0", 0}},
+              nlohmann::json{{"c2", 0}, {"c1", 1}, {"c0", 0}}})}};
+
+    StatusOr<SearchJob> denied = SearchJob::make(
+        "_example",
+        "theory",
+        "chi2_english_gp_v0",
+        2,
+        1,
+        parcae::tool::Backend::Cpu,
+        64,
+        TransformDirection::Decrypt,
+        param_grid);
+    REQUIRE_FALSE(denied.ok());
+
+    StatusOr<SearchJob> job = SearchJob::make(
+        "_example",
+        "theory",
+        "chi2_english_gp_v0",
+        2,
+        1,
+        parcae::tool::Backend::Cpu,
+        64,
+        TransformDirection::Decrypt,
+        param_grid,
+        std::nullopt,
+        "v0",
+        false,
+        true);
+    REQUIRE(job.ok());
+    REQUIRE(job.value().allow_theory_uri());
+
+    const parcae::tool::Context ctx{root};
+    const std::vector<Index29> cipher = synthetic_cipher();
+    StatusOr<CpuCandidateExport::Result> exported =
+        CpuCandidateExport::from_job(cipher, job.value(), ctx);
+    REQUIRE(exported.ok());
+    REQUIRE(exported.value().size() == 2);
+    REQUIRE(exported.value().rows()[0].candidate().transform_id().str() == uri);
+    REQUIRE(
+        CpuCandidateExport::generator_id_for_family("theory").value() ==
+        TheoryExplicitParamsCandidateGenerator::generator_id);
+
+    std::filesystem::remove_all(root, ec);
 }

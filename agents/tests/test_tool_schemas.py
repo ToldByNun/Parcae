@@ -79,6 +79,7 @@ def test_search_cycle_schema_steers_large_grids() -> None:
     props = tool_schema("search_cycle")["function"]["parameters"]["properties"]
     assert "family" in props
     assert "status" in props
+    assert "allow_theory_uri" in props
     assert props["status"]["type"] == "boolean"
 
 
