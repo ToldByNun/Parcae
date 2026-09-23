@@ -62,10 +62,11 @@ def test_build_argv_search_cycle_status_only() -> None:
     assert "--data-dir" in argv
     assert "--workspace" not in argv
     assert "--omit-timing" not in argv
+    assert "--quiet" not in argv
     assert "--family" not in argv
 
 
-def test_build_argv_search_cycle_family_injects_workspace_and_omit_timing() -> None:
+def test_build_argv_search_cycle_family_injects_workspace_omit_timing_and_quiet() -> None:
     bridge = ToolBridge(_config())
     argv = bridge.build_argv(
         "search_cycle",
@@ -81,6 +82,7 @@ def test_build_argv_search_cycle_family_injects_workspace_and_omit_timing() -> N
     assert "--workspace" in argv
     assert argv[argv.index("--workspace") + 1] == "demo-ws"
     assert "--omit-timing" in argv
+    assert "--quiet" in argv
     assert argv[argv.index("--family") + 1] == "atbash"
     assert argv[argv.index("--k") + 1] == "3"
     assert argv[argv.index("--seed") + 1] == "1"

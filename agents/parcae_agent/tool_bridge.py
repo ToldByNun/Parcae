@@ -218,7 +218,8 @@ class ToolBridge:
             return argv
 
         # search_cycle: status is a bool flag (not the hypothesis status string);
-        # workspace + omit-timing are bridge-owned for cycle runs.
+        # workspace + omit-timing + quiet are bridge-owned for cycle runs
+        # (--quiet keeps stderr free of ConsoleDashboard progress noise).
         if tool == "search_cycle":
             status_only = args.pop("status", False)
             if not isinstance(status_only, bool):
@@ -237,6 +238,7 @@ class ToolBridge:
                 )
             argv.extend(["--workspace", self._config.workspace])
             argv.append("--omit-timing")
+            argv.append("--quiet")
 
         for key, value in args.items():
             if key in BOOL_FLAGS:

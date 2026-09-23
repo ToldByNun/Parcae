@@ -228,16 +228,20 @@ workspace. **Closed-loop ownership** (scheduler, batch artifacts, priors):
 [`search-engine.md`](search-engine.md). Operator details:
 [`search-handbook.md`](search-handbook.md).
 
+ToolBridge injects `--workspace`, `--json`, `--omit-timing`, and `--quiet` for
+cycle runs so agent transcripts stay free of ConsoleDashboard stderr progress.
+Pass `--quiet` yourself when invoking the CLI from scripts.
+
 ```bash
 python -m parcae_agent run -c configs/ollama.example.yaml -v --prompt \
   "Run search_cycle with family=atbash k=8 seed=1 iterations=1 backend=cpu. Summarize hypotheses_written and stop."
 ```
 
-Or call the CLI directly:
+Or call the CLI directly (agent-safe):
 
 ```bash
 parcae-search-cycle --workspace my-ws --family atbash --k 8 --seed 1 \
-  --json --omit-timing --data-dir data
+  --json --omit-timing --quiet --data-dir data
 ```
 
 ### D — Resume / inspect workspace

@@ -307,6 +307,7 @@ def test_ci_mock_loop_search_cycle_then_summary(tmp_path: Path) -> None:
     assert "parcae-search-cycle" in joined
     assert "--json" in argv
     assert "--omit-timing" in argv
+    assert "--quiet" in argv
     assert "--workspace" in argv
     assert argv[argv.index("--workspace") + 1] == "ci-mock-ws"
     assert argv[argv.index("--family") + 1] == "atbash"
@@ -360,6 +361,7 @@ def test_ci_mock_loop_search_cycle_status_only(tmp_path: Path) -> None:
     assert "--status" in argv
     assert "--workspace" not in argv
     assert "--omit-timing" not in argv
+    assert "--quiet" not in argv
     payload = json.loads(
         next(m.content for m in result.messages if m.role == "tool") or "{}"
     )

@@ -140,8 +140,8 @@ TOOL_ARG_KEYS: dict[str, frozenset[str]] = {
         {"id", "input", "score_id", "latin", "runes", "indices", "utc"}
     ),
     "hypothesis_set_status": frozenset({"id", "status", "utc"}),
-    # workspace / data_dir / json / allow_cuda injected by ToolBridge.
-    # status=true → readiness only (--status); else family|job cycle run.
+    # workspace / data_dir / json / allow_cuda / omit-timing / quiet injected
+    # by ToolBridge. status=true → readiness only (--status); else family|job.
     "search_cycle": frozenset(
         {
             "status",
