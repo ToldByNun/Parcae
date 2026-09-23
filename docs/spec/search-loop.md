@@ -444,7 +444,31 @@ Success and failure of the CLI MUST still wrap in `parcae.tool_response.v0`
 | `--json` | Envelope on stdout |
 | `--omit-timing` | MUST strip timing from reports / result |
 | `--status` | Versions / readiness (no cycle) |
+| `--quiet` | MUST suppress stderr progress UI |
+| `--plain-progress` | MUST force append-only progress lines on stderr |
+| `--progress` | `auto` \| `panel` \| `lines` \| `off` (default `auto`) |
 | `--with-agent` | Optional; off by default |
+
+### Console progress contract
+
+Progress is **observe-only**: it MUST NOT affect candidate order, digests,
+`batch_id`s, or JSON `result` fields. It MUST write to **stderr only**.
+
+| Rule | Requirement |
+|------|-------------|
+| Channels | Progress → stderr; `--json` stdout stays a single `parcae.tool_response.v0` envelope |
+| Precedence | `--quiet` > `--plain-progress` > `--progress` |
+| Default | `auto`: interactive TTY → panel; non-TTY / pipe → lines |
+| VT fallback | If panel VT enable fails, MUST fall back to lines (no hard fail) |
+| Agent path | ToolBridge MUST pass `--quiet` on cycle runs (with `--omit-timing`) |
+| Timing vs progress | `--omit-timing` / `--json` strip timing from **JSON** / skip `report.json`; stderr progress remains allowed unless `--quiet` |
+
+Typical stages (CPU): `iteration` → `load` → `prior` → `expand` → `filter` →
+`score` → `write` → `bridge` → `done`. GPU fused export uses coarse stages
+(`fuse` / `d2h` / `materialize`) instead of per-candidate ticks during one kernel.
+
+Human layout examples: [`search-handbook.md`](../architecture/search-handbook.md)
+§ Console progress. Flag reference: [`tools.md`](tools.md) § `parcae-search-cycle`.
 
 `parcae-search-run` remains a **metrics / sweep dashboard** CLI and MUST stay
 deny-listed for agents by default. It is not a substitute for `search-cycle`.
@@ -504,6 +528,8 @@ A search-loop implementation conforms when:
    fixture under documented score rules.
 4. `--json --omit-timing` emits no timing fields.
 5. Fixture directories are never written by the scheduler or bridge.
+6. Progress on vs `--quiet` does not change digests / `candidate_id` order when
+   `--created-utc` and seed are fixed (observe-only stderr).
 
 **Exit checklist (engineering green; release cut pending):**
 [`search-engine.md`](../architecture/search-engine.md) § Exit criteria →

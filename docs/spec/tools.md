@@ -365,12 +365,16 @@ Agents MUST NOT receive `parcae-blind-crack` as a tool by default
 parcae-search-cycle --status [--json] [--data-dir <path>]
 parcae-search-cycle --workspace <id> --job <file>
                     [--backend cpu|cuda] [--allow-cuda] [--iterations <n>]
-                    [--json] [--data-dir <path>]
+                    [--json] [--omit-timing] [--created-utc <rfc3339>]
+                    [--quiet | --plain-progress | --progress auto|panel|lines|off]
+                    [--data-dir <path>]
 parcae-search-cycle --workspace <id> --family <id> [--k <n>] [--seed <u32>]
                     [--score-id <id>] [--backend cpu|cuda] [--allow-cuda]
                     [--allow-extended-families] [--allow-theory-uri]
                     [--iterations <n>] [--json]
-                    [--omit-timing] [--created-utc <rfc3339>] [--data-dir <path>]
+                    [--omit-timing] [--created-utc <rfc3339>]
+                    [--quiet | --plain-progress | --progress auto|panel|lines|off]
+                    [--data-dir <path>]
 ```
 
 Workspace closed-loop search via `SearchScheduler` ([search-loop.md](search-loop.md)):
@@ -388,6 +392,26 @@ in family `theory` (job JSON MUST supply `param_grid.theory_uri` +
 no `report.json`). `--json` alone also omits timing by default. `--created-utc`
 fixes batch/prior timestamps for replayable digests and auto `batch_id`s.
 `--with-agent` lands in a follow-up commit.
+
+#### Console progress (stderr)
+
+Live progress paints **stderr only** via `ConsoleDashboard`. With `--json`,
+stdout remains a single `parcae.tool_response.v0` envelope; progress does **not**
+pollute JSON. Digests / ranking are unchanged when progress is on or off.
+
+| Flag | Effect |
+|------|--------|
+| *(default)* | `--progress auto`: TTY → live panel; pipe/CI → append-only lines |
+| `--progress panel\|lines\|off` | Force mode (`off` = no progress UI) |
+| `--plain-progress` | Force append-only lines |
+| `--quiet` | Suppress all progress UI (agents / scripts) |
+
+Precedence: `--quiet` > `--plain-progress` > `--progress`.
+
+Agent ToolBridge injects `--quiet` (with `--omit-timing`) on cycle runs so
+transcripts stay clean. Human operators wanting live feedback omit `--quiet`
+(and may pass `--plain-progress` for CI-friendly logs). ASCII examples:
+[`search-handbook.md`](../architecture/search-handbook.md) § Console progress.
 
 ### `parcae-validate`
 

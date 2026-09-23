@@ -176,6 +176,69 @@ parcae-search-cycle \
 `--json` alone also omits timing. Prefer `--created-utc` + fixed `--seed` when you
 need replayable digests / `batch_id`s across machines.
 
+### Console progress
+
+Live progress paints **stderr only** (`ConsoleDashboard`). Ranking, digests, and
+`--json` stdout are unchanged whether progress is on or off.
+
+| Mode | When | Look |
+|------|------|------|
+| **Panel** | Interactive TTY (default `auto`) | Fixed multi-line block rewritten in place |
+| **Lines** | Pipe / CI, or `--plain-progress` | Append-only one-liners |
+| **Off** | `--quiet` or `--progress off` | Silent (agent path) |
+
+Precedence: `--quiet` > `--plain-progress` > `--progress` (`auto|panel|lines|off`).
+
+**Line mode** (illustrative):
+
+```text
+[search_cycle] score 12/29 (41.4%) 45.00c/s 1.23k runes/s eta=0.4s best=-12.3450 shift=7 iter=1/1 t=0.27s
+[search_cycle] done 29/29 (100.0%) 50.00c/s 1.45k runes/s eta=0.0s best=-8.1000 shift=3 iter=1/1 t=0.58s  [done]
+```
+
+**Panel mode** (illustrative; VT cursor-up rewrites the block):
+
+```text
+PARCAE  search_cycle  ws=my-ws  family=caesar  backend=cpu  score=chi2_english_gp_v0
+stage=score  iter=1/1
+[========--------------------] 41.4%  12/29
+runes=87  1.23k runes/s  45.00 cand/s  eta=0.4s
+best=-12.3450  shift=7
+elapsed=0.27s
+```
+
+Human demo (plain lines + JSON on stdout):
+
+```bash
+parcae-search-cycle \
+  --workspace my-ws \
+  --family caesar \
+  --k 8 \
+  --seed 1 \
+  --backend cpu \
+  --plain-progress \
+  --json \
+  --data-dir data
+```
+
+Agent / script path (no progress noise):
+
+```bash
+parcae-search-cycle \
+  --workspace my-ws \
+  --family caesar \
+  --k 8 \
+  --seed 1 \
+  --backend cpu \
+  --json \
+  --omit-timing \
+  --quiet \
+  --data-dir data
+```
+
+Normative contract: [`search-loop.md`](../spec/search-loop.md) § Console progress
+contract. Flags: [`tools.md`](../spec/tools.md) § `parcae-search-cycle`.
+
 ### Multi-iteration loop
 
 ```bash
@@ -313,9 +376,9 @@ parcae-hypothesis score --data-dir data --workspace my-ws --id <hyp-id> \
 
 ## Agent path (`search_cycle` tool)
 
-ToolBridge injects `--data-dir`, `--json`, `--workspace` (from config), and
-`--omit-timing` for cycle runs. The model MUST NOT pass `workspace` / `data_dir` /
-`allow_cuda`.
+ToolBridge injects `--data-dir`, `--json`, `--workspace` (from config),
+`--omit-timing`, and `--quiet` for cycle runs. The model MUST NOT pass
+`workspace` / `data_dir` / `allow_cuda` / `quiet` / `omit_timing`.
 
 | Model args | Meaning |
 |------------|---------|
@@ -387,7 +450,7 @@ Headers / tags: [`include/parcae/search/README.md`](../../include/parcae/search/
 | `tools/parcae_search_cycle/main.cpp` | CLI |
 | `agents/parcae_agent/allowlist.py` | Tool → binary map |
 | `agents/parcae_agent/tool_schemas.py` | LLM function schema |
-| `agents/parcae_agent/tool_bridge.py` | Argv builder (`--omit-timing`, workspace) |
+| `agents/parcae_agent/tool_bridge.py` | Argv builder (`--omit-timing`, `--quiet`, workspace) |
 | `agents/parcae_agent/prompts.py` | Prefer cycle vs generate/rank |
 
 ## Related docs

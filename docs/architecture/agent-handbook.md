@@ -230,7 +230,10 @@ workspace. **Closed-loop ownership** (scheduler, batch artifacts, priors):
 
 ToolBridge injects `--workspace`, `--json`, `--omit-timing`, and `--quiet` for
 cycle runs so agent transcripts stay free of ConsoleDashboard stderr progress.
-Pass `--quiet` yourself when invoking the CLI from scripts.
+Pass `--quiet` yourself when invoking the CLI from scripts. Human operators who
+want live feedback omit `--quiet` (TTY → panel; use `--plain-progress` for
+append-only logs). Layout examples:
+[`search-handbook.md`](search-handbook.md) § Console progress.
 
 ```bash
 python -m parcae_agent run -c configs/ollama.example.yaml -v --prompt \

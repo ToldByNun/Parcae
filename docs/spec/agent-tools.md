@@ -290,8 +290,10 @@ under `agents/parcae_agent/`):
    (`agents/parcae_agent/tool_bridge.py`); runs as a subprocess **without**
    `shell=True` on raw LLM text; rejects bridge-owned keys (`data_dir`,
    `workspace`, `argv`, `command`, …); always injects `--json` + config
-   `data_dir` / `workspace`; parses `parcae.tool_response.v0` (synthesizes
-   `internal` if stdout is unusable).
+   `data_dir` / `workspace`; for `search_cycle` cycle runs also injects
+   `--omit-timing` and `--quiet` (suppress ConsoleDashboard stderr progress);
+   parses `parcae.tool_response.v0` (synthesizes `internal` if stdout is
+   unusable).
 4. **Tool schemas:** OpenAI function definitions for every allow-listed tool
    (`agents/parcae_agent/tool_schemas.py` → `openai_tools()`). Property names
    MUST match ToolBridge `TOOL_ARG_KEYS`; bridge-owned keys MUST be omitted;
