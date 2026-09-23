@@ -200,7 +200,7 @@ hand-edited / CLI `init` stubs. When created from a search batch
 | `candidate_id` | From `TransformCandidate.candidate_id`; MAY be null |
 | `agent_run_id` | Ties to a transcript series; MAY be null for human / scheduler ingest |
 | `batch_id` | `BatchArtifact.batch_id` when ingested from a batch; MUST match `[a-z_][a-z0-9_-]{0,63}` when non-null |
-| `family` | Search family (`caesar` \| `atbash` \| `atbash_caesar` \| `affine` \| `vigenere`, plus opt-in `beaufort` \| `totient` \| `theory`); MAY be null |
+| `family` | Search family (`caesar` \| `atbash` \| `atbash_caesar` \| `affine` \| `vigenere` \| `compose`, plus opt-in `beaufort` \| `totient` \| `theory`); MAY be null |
 | `rank` | Best-first rank in the batch (non-negative integer); MAY be null |
 
 Unknown keys MUST be rejected (`schema`). Implementations validate via

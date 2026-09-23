@@ -156,7 +156,7 @@ public:
             !SearchJob::is_theory_family(family)) {
             return Status::error(
                 "BatchArtifact.family unknown (expected caesar|atbash|atbash_caesar|"
-                "affine|vigenere|beaufort|totient|theory): " +
+                "affine|vigenere|compose|beaufort|totient|theory): " +
                 std::string(family));
         }
         StatusOr<std::string> sid = SearchJob::validate_score_id(score_id);

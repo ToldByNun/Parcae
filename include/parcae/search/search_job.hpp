@@ -89,7 +89,7 @@ public:
 
     [[nodiscard]] static bool is_v0_family(std::string_view family) noexcept {
         return family == "caesar" || family == "atbash" || family == "atbash_caesar" ||
-               family == "affine" || family == "vigenere";
+               family == "affine" || family == "vigenere" || family == "compose";
     }
 
     [[nodiscard]] static bool is_extended_family(std::string_view family) noexcept {
@@ -125,8 +125,8 @@ public:
                 "SearchJob.family requires allow_theory_uri: theory");
         }
         return Status::error(
-            "SearchJob.family unknown (expected caesar|atbash|atbash_caesar|affine|vigenere"
-            " or opt-in beaufort|totient|theory): " +
+            "SearchJob.family unknown (expected caesar|atbash|atbash_caesar|affine|vigenere|"
+            "compose or opt-in beaufort|totient|theory): " +
             std::string(family));
     }
 

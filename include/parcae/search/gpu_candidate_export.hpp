@@ -11,11 +11,13 @@
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
 #include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
+#include "parcae/generate/compose_recipe_candidate_generator.hpp"
 #include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/transform_candidate.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
 #include "parcae/interrupt/policy.hpp"
 #include "parcae/math/totient_keystream.hpp"
+#include "parcae/score/chi2_english_gp.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
 #include "parcae/score/score_order.hpp"
 #include "parcae/tool/tool_backend.hpp"
@@ -33,6 +35,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <span>
 #include <string>
 #include <utility>
@@ -42,10 +45,13 @@
 
 #if defined(PARCAE_HAS_CUDA)
 #include "caesar_chi2_batch.hpp"
+#include "compose_driver.hpp"
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
 #include "family_chi2_batch.hpp"
+#include "interrupt_device_view.hpp"
 #include "parcae_cuda.hpp"
+#include "params_json.hpp"
 
 #include <cuda_runtime_api.h>
 #endif
@@ -55,6 +61,8 @@
 /// Scores-only fused χ² → D2H scores → host `BatchOrdering` → apply transform
 /// **only** for retained lanes (search-loop.md). Caesar uses `CaesarChi2Batch`;
 /// atbash / atbash_caesar / affine / vigenere use `FamilyChi2Batch`.
+/// Family `compose`: Atbash∘Caesar grid reuses fused export; arbitrary recipes
+/// score via `ComposeDriver` apply + host χ² (top-k only).
 /// Vigenère is **explicit keys or a bounded synthetic grid only** — never an
 /// unbounded dictionary search.
 class GpuCandidateExport {
@@ -360,6 +368,42 @@ public:
         return atbash_caesar_from_host_scores(
             cipher, scores.value(), k, TransformDirection::Decrypt, parcae::tool::Backend::Cuda);
 #endif
+    }
+
+    // --- Compose recipes (AtbashCaesar reuse + ComposeDriver) --------------------
+
+    /// Score explicit compose recipes (host χ² after apply). Prefer
+    /// `compose_from_param_grid` so Atbash∘Caesar grids hit the fused path.
+    [[nodiscard]] static StatusOr<Result> compose_recipes(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        const std::vector<nlohmann::json>& recipes,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt) {
+        if (recipes.empty()) {
+            return Status::error("GpuCandidateExport::compose_recipes requires recipes");
+        }
+        if (ComposeRecipeCandidateGenerator::is_full_atbash_caesar_grid(recipes) &&
+            direction == TransformDirection::Decrypt) {
+            return atbash_caesar(cipher, freqs, k, direction);
+        }
+        return compose_recipes_driver(cipher, freqs, recipes, k, direction);
+    }
+
+    /// Resolve `param_grid` like `ComposeRecipeCandidateGenerator`, then export.
+    [[nodiscard]] static StatusOr<Result> compose_from_param_grid(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        const nlohmann::json& param_grid,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt) {
+        StatusOr<std::vector<nlohmann::json>> recipes =
+            ComposeRecipeCandidateGenerator::recipes_from_param_grid(
+                param_grid.is_null() ? nlohmann::json::object() : param_grid);
+        if (!recipes.ok()) {
+            return recipes.status();
+        }
+        return compose_recipes(cipher, freqs, recipes.value(), k, direction);
     }
 
     // --- Affine ----------------------------------------------------------------
@@ -836,6 +880,114 @@ private:
             }
         }
         return Status::success();
+    }
+
+    /// Apply each recipe (ComposeDriver on CUDA, ComposeTransform otherwise), χ², top-k.
+    [[nodiscard]] static StatusOr<Result> compose_recipes_driver(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        const std::vector<nlohmann::json>& recipes,
+        std::size_t k,
+        TransformDirection direction) {
+        Status common = require_cipher_k(cipher, k);
+        if (!common.ok()) {
+            return common;
+        }
+
+        std::vector<double> scores;
+        std::vector<std::vector<Index29>> plains;
+        scores.reserve(recipes.size());
+        plains.reserve(recipes.size());
+
+        for (std::size_t i = 0; i < recipes.size(); ++i) {
+            Status params_ok =
+                ComposeRecipeCandidateGenerator::require_compose_params(recipes[i]);
+            if (!params_ok.ok()) {
+                return Status::error(
+                    "GpuCandidateExport::compose recipes[" + std::to_string(i) + "]: " +
+                    params_ok.message());
+            }
+            StatusOr<std::vector<Index29>> plain =
+                apply_compose_recipe(cipher, recipes[i], direction);
+            if (!plain.ok()) {
+                return Status::error(
+                    "GpuCandidateExport::compose apply failed for index " +
+                    std::to_string(i) + ": " + plain.status().message());
+            }
+            StatusOr<double> score = Chi2EnglishGp::score(plain.value(), freqs);
+            if (!score.ok()) {
+                return score.status();
+            }
+            scores.push_back(score.value());
+            plains.push_back(std::move(plain.value()));
+        }
+
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(
+            scores,
+            k,
+            [&](std::size_t index) {
+                return ComposeRecipeCandidateGenerator::make_candidate_id(
+                    index, recipes[index]);
+            });
+        if (!hits.ok()) {
+            return hits.status();
+        }
+
+        const parcae::tool::Backend backend =
+#if defined(PARCAE_HAS_CUDA)
+            ParcaeCuda::available() ? parcae::tool::Backend::Cuda : parcae::tool::Backend::Cpu;
+#else
+            parcae::tool::Backend::Cpu;
+#endif
+        std::vector<Row> rows;
+        rows.reserve(hits.value().size());
+        for (std::size_t rank = 0; rank < hits.value().size(); ++rank) {
+            const BatchHit& hit = hits.value()[rank];
+            TransformCandidate candidate(
+                hit.candidate_id(),
+                TransformId::compose(),
+                direction,
+                recipes[hit.source_index()],
+                plains[hit.source_index()]);
+            rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
+        }
+        return Result{std::move(rows), backend};
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<Index29>> apply_compose_recipe(
+        std::span<const Index29> cipher,
+        const nlohmann::json& params,
+        TransformDirection direction) {
+#if defined(PARCAE_HAS_CUDA)
+        if (ParcaeCuda::available()) {
+            StatusOr<ComposeParamsHost> recipe = CudaParamsJson::compose_from_json(params);
+            if (!recipe.ok()) {
+                return recipe.status();
+            }
+            StatusOr<InterruptDeviceView> view =
+                InterruptDeviceView::from_policy(InterruptPolicy::none(), cipher.size());
+            if (!view.ok()) {
+                return view.status();
+            }
+            const auto host_in = to_bytes(cipher);
+            std::vector<std::uint8_t> host_out(host_in.size(), 0);
+            const CudaDir cuda_dir = direction == TransformDirection::Encrypt
+                                         ? CudaDir::Encrypt
+                                         : CudaDir::Decrypt;
+            Status applied = ComposeDriver::apply_host(
+                host_in, host_out, recipe.value(), view.value(), cuda_dir);
+            if (!applied.ok()) {
+                return applied;
+            }
+            std::vector<Index29> out;
+            out.reserve(host_out.size());
+            for (const std::uint8_t b : host_out) {
+                out.push_back(Index29{b});
+            }
+            return out;
+        }
+#endif
+        return ComposeTransform{}.apply(cipher, params, direction);
     }
 
     [[nodiscard]] static Status require_cipher_k(

@@ -217,6 +217,7 @@ Generators emit deterministic sequences of transform envelopes.
 | `gen_vigenere_explicit_keys` | caller-supplied key list only (no dictionary expansion) | \|keys\| |
 | `gen_beaufort_explicit_keys` | caller-supplied key list only (Beaufort; no dictionary) | \|keys\| |
 | `gen_totient_offsets` | caller-supplied / bounded `prime_start_index` list | small |
+| `gen_compose_recipes` | empty → Atbash∘Caesar 29; or `recipes` / `stages` / `template` | \|recipes\| or 29 |
 
 `gen_affine` is the largest Tier-A monoalphabetic sweep in the CPU reference.
 Callers MUST treat 812 as an explicit budget (score/batch), not an unbounded

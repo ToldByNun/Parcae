@@ -1,6 +1,7 @@
 #include <parcae/core/index29.hpp>
 #include <parcae/dsl/dsl_compile.hpp>
 #include <parcae/generate/caesar_candidate_generator.hpp>
+#include <parcae/generate/compose_recipe_candidate_generator.hpp>
 #include <parcae/generate/theory_explicit_params_candidate_generator.hpp>
 #include <parcae/score/expected_frequency_loader.hpp>
 #include <parcae/score/expected_frequency_table.hpp>
@@ -13,6 +14,7 @@
 #include <parcae/tool/context.hpp>
 #include <parcae/tool/tool_backend.hpp>
 #include <parcae/transform/caesar_transform.hpp>
+#include <parcae/transform/compose_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
 
@@ -274,6 +276,71 @@ TEST_CASE(
     REQUIRE(beaufort.value().size() == 2);
     REQUIRE(
         beaufort.value().rows()[0].candidate().transform_id() == TransformId::beaufort_key());
+}
+
+TEST_CASE(
+    "CpuCandidateExport compose recipes reuse AtbashCaesar grid",
+    "[search][export][cpu][compose]") {
+    const parcae::tool::Context ctx = test_context();
+    const std::vector<Index29> cipher = synthetic_cipher();
+
+    StatusOr<SearchJob> default_job = SearchJob::make(
+        "_example",
+        "compose",
+        "chi2_english_gp_v0",
+        5,
+        1,
+        parcae::tool::Backend::Cpu,
+        64);
+    REQUIRE(default_job.ok());
+    StatusOr<CpuCandidateExport::Result> def =
+        CpuCandidateExport::from_job(cipher, default_job.value(), ctx);
+    REQUIRE(def.ok());
+    REQUIRE(def.value().size() == 5);
+    REQUIRE(def.value().rows()[0].candidate().transform_id() == TransformId::compose());
+
+    StatusOr<SearchJob> atbash_job = SearchJob::make(
+        "_example",
+        "atbash_caesar",
+        "chi2_english_gp_v0",
+        5,
+        1,
+        parcae::tool::Backend::Cpu,
+        64);
+    REQUIRE(atbash_job.ok());
+    StatusOr<CpuCandidateExport::Result> atbash =
+        CpuCandidateExport::from_job(cipher, atbash_job.value(), ctx);
+    REQUIRE(atbash.ok());
+    REQUIRE(atbash.value().size() == 5);
+    // Same family of candidates: Atbash∘Caesar ids and top-k ordering should match.
+    REQUIRE(
+        def.value().rows()[0].candidate().candidate_id() ==
+        atbash.value().rows()[0].candidate().candidate_id());
+    REQUIRE(def.value().rows()[0].score() == atbash.value().rows()[0].score());
+
+    const nlohmann::json recipes{
+        {"recipes",
+         nlohmann::json::array(
+             {ComposeTransform::atbash_then_caesar_params(3),
+              ComposeTransform::atbash_then_caesar_params(7)})}};
+    StatusOr<SearchJob> explicit_job = SearchJob::make(
+        "_example",
+        "compose",
+        "chi2_english_gp_v0",
+        2,
+        1,
+        parcae::tool::Backend::Cpu,
+        64,
+        TransformDirection::Decrypt,
+        recipes);
+    REQUIRE(explicit_job.ok());
+    StatusOr<CpuCandidateExport::Result> explicit_export =
+        CpuCandidateExport::from_job(cipher, explicit_job.value(), ctx);
+    REQUIRE(explicit_export.ok());
+    REQUIRE(explicit_export.value().size() == 2);
+    REQUIRE(
+        CpuCandidateExport::generator_id_for_family("compose").value() ==
+        ComposeRecipeCandidateGenerator::generator_id);
 }
 
 TEST_CASE(

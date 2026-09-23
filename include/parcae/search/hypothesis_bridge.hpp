@@ -10,6 +10,7 @@
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
 #include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
+#include "parcae/generate/compose_recipe_candidate_generator.hpp"
 #include "parcae/generate/theory_explicit_params_candidate_generator.hpp"
 #include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
@@ -188,6 +189,9 @@ public:
         }
         if (family == "totient") {
             return TotientOffsetCandidateGenerator::generator_id;
+        }
+        if (family == "compose") {
+            return ComposeRecipeCandidateGenerator::generator_id;
         }
         if (family == "theory") {
             return TheoryExplicitParamsCandidateGenerator::generator_id;

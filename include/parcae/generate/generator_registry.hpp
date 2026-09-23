@@ -9,6 +9,7 @@
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
 #include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
+#include "parcae/generate/compose_recipe_candidate_generator.hpp"
 #include "parcae/generate/generator_catalog_entry.hpp"
 #include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/transform_candidate.hpp"
@@ -57,6 +58,10 @@ public:
              TransformId::totient_prime_stream().str(),
              0,
              true},
+            {std::string(ComposeRecipeCandidateGenerator::generator_id),
+             TransformId::compose().str(),
+             0,
+             true},
         };
     }
 
@@ -82,6 +87,8 @@ public:
     /// Keyed generators (`gen_vigenere_explicit_keys` / `gen_beaufort_explicit_keys`):
     /// `params` MUST contain `key_indices_list` or `keys`.
     /// `gen_totient_offsets`: `params.prime_start_indices` (array of ints) required.
+    /// `gen_compose_recipes`: empty → Atbash∘Caesar 29; or `recipes` / `params_list` /
+    /// `stages` / `template`=`atbash_caesar` (see ComposeRecipeCandidateGenerator).
     [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate(
         std::string_view generator_id,
         std::span<const Index29> ciphertext,
@@ -120,11 +127,31 @@ public:
         if (generator_id == TotientOffsetCandidateGenerator::generator_id) {
             return generate_totient(ciphertext, direction, params);
         }
+        if (generator_id == ComposeRecipeCandidateGenerator::generator_id) {
+            return generate_compose(ciphertext, direction, params);
+        }
         return Status::error("Unknown generator_id");
     }
 
 private:
     GeneratorRegistry() = delete;
+
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate_compose(
+        std::span<const Index29> ciphertext,
+        TransformDirection direction,
+        const nlohmann::json& params) {
+        StatusOr<std::vector<nlohmann::json>> recipes =
+            ComposeRecipeCandidateGenerator::recipes_from_param_grid(
+                params.is_null() ? nlohmann::json::object() : params);
+        if (!recipes.ok()) {
+            return recipes.status();
+        }
+        if (ComposeRecipeCandidateGenerator::is_full_atbash_caesar_grid(recipes.value())) {
+            return ComposeRecipeCandidateGenerator::generate_atbash_caesar(ciphertext, direction);
+        }
+        return ComposeRecipeCandidateGenerator::generate(
+            ciphertext, recipes.value(), direction);
+    }
 
     [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate_totient(
         std::span<const Index29> ciphertext,

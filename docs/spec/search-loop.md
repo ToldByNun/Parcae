@@ -131,6 +131,7 @@ In-memory record and JSON object used by `SearchScheduler` / CLI.
 | `atbash_caesar` | Atbash ∘ Caesar (29) | Compose / fused twin |
 | `affine` | Bounded affine grid (e.g. 812) | |
 | `vigenere` | Explicit keys / bounded grid only | MUST NOT imply unbounded dictionary search |
+| `compose` | Empty grid → Atbash∘Caesar 29; or explicit `recipes` / `stages` / `template` | Reuses `AtbashCaesar` fused export when grid matches; else ComposeDriver / ComposeTransform |
 | `beaufort` | Explicit keys / bounded grid (same as vigenère) | **Opt-in:** `allow_extended_families: true` |
 | `totient` | Bounded `prime_start_index` list / count | **Opt-in:** `allow_extended_families: true` |
 | `theory` | Explicit `param_grid.theory_uri` + `param_grid.params_list` only | **Opt-in:** `allow_theory_uri: true`; no TheorySweep expansion; CPU-only |

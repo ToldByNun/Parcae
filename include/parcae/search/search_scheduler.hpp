@@ -605,6 +605,10 @@ private:
         if (family == "atbash_caesar") {
             return GpuCandidateExport::atbash_caesar(cipher, freqs, job.k(), job.direction());
         }
+        if (family == "compose") {
+            return GpuCandidateExport::compose_from_param_grid(
+                cipher, freqs, job.param_grid(), job.k(), job.direction());
+        }
         if (family == "affine") {
             return GpuCandidateExport::affine(cipher, freqs, job.k(), job.direction());
         }

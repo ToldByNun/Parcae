@@ -12,6 +12,7 @@
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
 #include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
+#include "parcae/generate/compose_recipe_candidate_generator.hpp"
 #include "parcae/generate/theory_explicit_params_candidate_generator.hpp"
 #include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/transform_candidate.hpp"
@@ -165,6 +166,9 @@ public:
         if (family == "totient") {
             return TotientOffsetCandidateGenerator::generator_id;
         }
+        if (family == "compose") {
+            return ComposeRecipeCandidateGenerator::generator_id;
+        }
         if (family == "theory") {
             return TheoryExplicitParamsCandidateGenerator::generator_id;
         }
@@ -173,6 +177,7 @@ public:
 
     /// Vigenère / Beaufort: explicit keys or bounded synthetic grid.
     /// Totient: `prime_start_indices` or contiguous `0..prime_start_count-1`.
+    /// Compose: empty → Atbash∘Caesar 29; or recipes / stages / template (passed through).
     /// Theory: `theory_uri` + `params_list` (passed through).
     /// Other families ignore `param_grid` (family default enumeration).
     [[nodiscard]] static StatusOr<nlohmann::json> generator_params_for_family(
@@ -183,6 +188,9 @@ public:
         }
         if (family == "totient") {
             return totient_family_params(param_grid);
+        }
+        if (family == "compose") {
+            return compose_family_params(param_grid);
         }
         if (family == "theory") {
             return theory_family_params(param_grid);
@@ -231,6 +239,22 @@ private:
 
         return GenerateCandidates::from_indices(
             generator_id.value(), cipher, direction, gen_params.value());
+    }
+
+    [[nodiscard]] static StatusOr<nlohmann::json> compose_family_params(
+        const nlohmann::json& param_grid) {
+        // Validate resolve; pass grid through so GeneratorRegistry can expand.
+        StatusOr<std::vector<nlohmann::json>> recipes =
+            ComposeRecipeCandidateGenerator::recipes_from_param_grid(
+                param_grid.is_null() ? nlohmann::json::object() : param_grid);
+        if (!recipes.ok()) {
+            return Status::error(
+                std::string("CpuCandidateExport: ") + recipes.status().message());
+        }
+        if (param_grid.is_null() || (param_grid.is_object() && param_grid.empty())) {
+            return nlohmann::json::object();
+        }
+        return param_grid;
     }
 
     [[nodiscard]] static StatusOr<nlohmann::json> theory_family_params(

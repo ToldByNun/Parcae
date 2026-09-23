@@ -184,6 +184,24 @@ Example `param_grid`:
 Theory jobs are CPU-only (`TheoryDispatch` / `apply_ir`); `--backend cuda` falls
 back to the CPU export path.
 
+### Compose recipes (Atbash∘Caesar / ComposeDriver)
+
+Family `compose` (no extra opt-in). Empty `param_grid` expands the Koan-1
+Atbash∘Caesar 29-shift grid (same as `--family atbash_caesar`). Explicit recipes:
+
+```json
+{
+  "stages": [
+    {"transform_id": "atbash", "params": {}},
+    {"transform_id": "caesar", "direction": "encrypt", "params": {"shift": 3}}
+  ]
+}
+```
+
+Or `param_grid.recipes` / `params_list` for several compose params objects, or
+`template: "atbash_caesar"`. CUDA: full Atbash∘Caesar grids use the fused export;
+other recipes apply via `ComposeDriver` then host χ² (top-k only).
+
 ## Outputs to inspect
 
 After a successful cycle:

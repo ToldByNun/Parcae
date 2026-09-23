@@ -406,7 +406,7 @@ TEST_CASE(
 
 TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][registry]") {
     const std::vector<std::string> ids = GeneratorRegistry::list_generator_ids();
-    REQUIRE(ids.size() == 7);
+    REQUIRE(ids.size() == 8);
     REQUIRE(ids[0] == "gen_atbash");
     REQUIRE(ids[1] == "gen_caesar");
     REQUIRE(ids[2] == "gen_atbash_caesar");
@@ -414,19 +414,22 @@ TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][regist
     REQUIRE(ids[4] == "gen_vigenere_explicit_keys");
     REQUIRE(ids[5] == "gen_beaufort_explicit_keys");
     REQUIRE(ids[6] == "gen_totient_offsets");
+    REQUIRE(ids[7] == "gen_compose_recipes");
     REQUIRE(GeneratorRegistry::is_known("gen_caesar"));
     REQUIRE(GeneratorRegistry::is_known("gen_beaufort_explicit_keys"));
     REQUIRE(GeneratorRegistry::is_known("gen_totient_offsets"));
+    REQUIRE(GeneratorRegistry::is_known("gen_compose_recipes"));
     REQUIRE_FALSE(GeneratorRegistry::is_known("gen_nope"));
 
     const std::vector<GeneratorCatalogEntry> entries = GeneratorRegistry::catalog();
-    REQUIRE(entries.size() == 7);
+    REQUIRE(entries.size() == 8);
     REQUIRE(entries[1].bounded_count() == 29);
     REQUIRE_FALSE(entries[1].requires_params());
     REQUIRE(entries[4].requires_params());
     REQUIRE(entries[4].bounded_count() == 0);
     REQUIRE(entries[5].requires_params());
     REQUIRE(entries[6].requires_params());
+    REQUIRE(entries[7].requires_params());
     REQUIRE(entries[1].to_json().at("generator_id").get<std::string>() == "gen_caesar");
 
     const std::vector<Index29> cipher = {I(0), I(5), I(10)};
@@ -470,6 +473,27 @@ TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][regist
     REQUIRE(totient.ok());
     REQUIRE(totient.value().size() == 3);
     REQUIRE(totient.value()[0].transform_id() == TransformId::totient_prime_stream());
+
+    StatusOr<std::vector<TransformCandidate>> compose_default =
+        GeneratorRegistry::generate("gen_compose_recipes", cipher);
+    REQUIRE(compose_default.ok());
+    REQUIRE(compose_default.value().size() == 29);
+    REQUIRE(compose_default.value()[0].transform_id() == TransformId::compose());
+
+    const nlohmann::json one_recipe = {
+        {"stages",
+         nlohmann::json::array(
+             {nlohmann::json{{"transform_id", "atbash"}, {"params", nlohmann::json::object()}},
+              nlohmann::json{
+                  {"transform_id", "caesar"},
+                  {"direction", "encrypt"},
+                  {"params", {{"shift", 3}}},
+              }})}};
+    StatusOr<std::vector<TransformCandidate>> compose_one = GeneratorRegistry::generate(
+        "gen_compose_recipes", cipher, TransformDirection::Decrypt, one_recipe);
+    REQUIRE(compose_one.ok());
+    REQUIRE(compose_one.value().size() == 1);
+    REQUIRE(compose_one.value()[0].candidate_id() == "atbash_caesar:shift=3");
 
     const nlohmann::json vig_keys = {
         {"keys",

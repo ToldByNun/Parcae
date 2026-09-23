@@ -120,7 +120,7 @@ Normative detail: [`docs/spec/search-loop.md`](../spec/search-loop.md)
 ### `SearchJob`
 
 - Fields: `workspace_id`, `family` (`caesar` \| `atbash` \| `atbash_caesar` \|
-  `affine` \| `vigenere`; opt-in `beaufort` / `totient` via `allow_extended_families`;
+  `affine` \| `vigenere` \| `compose`; opt-in `beaufort` / `totient` via `allow_extended_families`;
   opt-in `theory` via `allow_theory_uri` + explicit `params_list`), `score_id`, `k`,
   `seed`, `backend` (`cpu` \| `cuda`), `max_candidates`, optional `param_grid` /
   prior reference.
@@ -306,7 +306,7 @@ Numbering is **local to this search-engine roadmap**. Detailed mirror:
 |---|--------|
 | 36 | feat(search): optional beaufort/totient families (explicit opt-in) — **done** |
 | 37 | feat(search): optional theory-URI job step (top candidates only) — **done** |
-| 38 | feat(search): compose recipe jobs (AtbashCaesar / ComposeDriver export) |
+| 38 | feat(search): compose recipe jobs (AtbashCaesar / ComposeDriver export) — **done** |
 | 39 | test(search): compose job CPU/CUDA mirror smoke |
 | 40 | docs: LP2 workspace recipe (`inputs/`, no fixture plaintext assumption) |
 
