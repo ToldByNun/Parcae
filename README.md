@@ -152,7 +152,7 @@ See [Python in this repo](#python-in-this-repo) below.
 | Record a research hypothesis | `parcae-hypothesis` + [`docs/spec/hypothesis-workspace.md`](docs/spec/hypothesis-workspace.md) |
 | Author a new theory in Python syntax | [`theories/examples/`](theories/examples/) → `parcae-compile` |
 | Drive tools from an LLM | [`agents/`](agents/README.md) (`parcae-agent`) |
-| Closed-loop search (workspace cycles) | [`docs/architecture/search-engine.md`](docs/architecture/search-engine.md) |
+| Closed-loop search (workspace cycles) | [`docs/architecture/search-handbook.md`](docs/architecture/search-handbook.md) (`parcae-search-cycle` / `search_cycle`) |
 | GPU fused search / throughput | [`docs/architecture/cuda-build.md`](docs/architecture/cuda-build.md) |
 
 ---
@@ -298,14 +298,16 @@ CPU reference         →  include/, fixtures, scores, CLIs   done
 CUDA parity           →  Parcae/Parcae/cuda/ twins          done — v0.3.0-cuda-parity
 Theory DSL compiler   →  theories/ + include/parcae/dsl/    done — v0.5.0-theory-dsl
 CMD agent tooling     →  agents/ + agent-facing CLIs        in progress — v0.6.0-agent-tools
-Search engine loop    →  GPU ↔ candidates ↔ hypotheses      planned — v0.7.0-search-engine
+Search engine loop    →  GPU ↔ candidates ↔ hypotheses      done — v0.7.0-search-engine
 Open-source polish    →  packaging, contribution docs       later
 ```
 
 Frozen CUDA commit list: [`docs/architecture/cuda-roadmap.md`](docs/architecture/cuda-roadmap.md).  
 CMD-agent plan: [`docs/architecture/agent-tooling.md`](docs/architecture/agent-tooling.md).  
-Search engine: [`docs/architecture/search-engine.md`](docs/architecture/search-engine.md) ·
+Search engine: [`docs/architecture/search-engine.md`](docs/architecture/search-engine.md)
+(exit checklist engineering-green) ·
 commit list [`docs/architecture/search-roadmap.md`](docs/architecture/search-roadmap.md) ·
+operator guide [`docs/architecture/search-handbook.md`](docs/architecture/search-handbook.md) ·
 spec [`docs/spec/search-loop.md`](docs/spec/search-loop.md).
 
 ### Goals

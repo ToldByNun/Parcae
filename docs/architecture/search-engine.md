@@ -1,7 +1,7 @@
 # Search engine plan freeze
 
-**Status:** Engineering exit **green** (checklist below); release cut
-`v0.7.0-search-engine` pending M48–M52  
+**Status:** Engineering exit **green**; README roadmap marks loop **done**
+(`v0.7.0-search-engine`); release cut (version / annotated tag) pending M49–M52  
 **Upstream:** CUDA parity (`v0.3.0-cuda-parity`) + Theory DSL (`v0.5.0-theory-dsl`) +
 CMD agent tooling ([`agent-tooling.md`](agent-tooling.md), planned exit
 `v0.6.0-agent-tools`)  
@@ -265,17 +265,18 @@ in-tree agent stack (`generate` / `rank` / `hypothesis` / `AgentLoop` +
       foothold bench (not the workspace loop)
 - [x] Header map: [`include/parcae/search/README.md`](../../include/parcae/search/README.md)
 
-### Release cut (remaining — M48–M52)
+### Release cut (remaining — M49–M52)
 
-- [ ] Root README roadmap marks search loop **done** with exit tag
+- [x] Root README roadmap marks search loop **done** with exit tag
 - [ ] [`agent-tooling.md`](agent-tooling.md) / handbooks point here (closed-loop
       owned by search)
 - [ ] Toolkit version bump to **0.7.0**
 - [ ] Smoke: `Version` + `parcae-search-cycle --status`
 - [ ] Annotated tag `v0.7.0-search-engine`
 
-**Engineering exit (this checklist through Gates & Docs): green.** Release cut
-items stay open until M48–M52.
+**Engineering exit (this checklist through Gates & Docs): green.** README roadmap
+marks the loop **done** (`v0.7.0-search-engine`). Remaining release-cut items:
+M49–M52.
 
 ---
 
@@ -395,7 +396,7 @@ Numbering is **local to this search-engine roadmap**. Detailed mirror:
 | # | Commit |
 |---|--------|
 | 47 | docs: search-engine exit checklist green — **done** |
-| 48 | docs: README roadmap — search loop done (`v0.7.0-search-engine`) |
+| 48 | docs: README roadmap — search loop done (`v0.7.0-search-engine`) — **done** |
 | 49 | docs: agent-tooling / handbook point here (closed-loop owned by search) |
 | 50 | chore: version bump 0.7.0 |
 | 51 | test: smoke Version + `parcae-search-cycle --status` |

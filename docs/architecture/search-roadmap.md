@@ -3,7 +3,7 @@
 **Status:** Frozen granular commit list for the Liber Primus **search engine**  
 **Plan freeze:** [`search-engine.md`](search-engine.md)  
 **Normative contract:** [`docs/spec/search-loop.md`](../spec/search-loop.md)  
-**Exit tag (planned):** `v0.7.0-search-engine`  
+**Exit tag:** `v0.7.0-search-engine` (README roadmap **done**; annotated git tag = M52)  
 **Upstream:** CUDA parity (`v0.3.0-cuda-parity`), Theory DSL (`v0.5.0-theory-dsl`),
 CMD agent tooling ([`agent-tooling.md`](agent-tooling.md), planned `v0.6.0-agent-tools`)
 
@@ -35,7 +35,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | G–H — Scheduler + CLI | 23–30 | pending |
 | I — Agent wiring | 31–35 | **done** |
 | J–K — Extended families / research CLI docs | 36–42 | **done** |
-| L–M — CI + exit | 43–52 | **L done**; M47 **done**; M48–52 release cut pending |
+| L–M — CI + exit | 43–52 | **L done**; M47–M48 **done**; M49–52 release cut pending |
 
 ---
 
@@ -152,7 +152,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | # | Commit |
 |---|--------|
 | 47 | docs: search-engine exit checklist green | **done** |
-| 48 | docs: README roadmap — search loop done (`v0.7.0-search-engine`) |
+| 48 | docs: README roadmap — search loop done (`v0.7.0-search-engine`) | **done** |
 | 49 | docs: agent-tooling / handbook point here (closed-loop owned by search) |
 | 50 | chore: version bump 0.7.0 |
 | 51 | test: smoke Version + `parcae-search-cycle --status` |
