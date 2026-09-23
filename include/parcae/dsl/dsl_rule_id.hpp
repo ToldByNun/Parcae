@@ -19,6 +19,10 @@ public:
     static constexpr std::string_view E040_param_domain = "E040";
     static constexpr std::string_view E050_verify_failed = "E050";
 
+    // --- Warnings (W0xx; never alone fail compile) ---
+    static constexpr std::string_view W010_dsl_ignore_used = "W010";
+    static constexpr std::string_view W011_relaxed_branch = "W011";
+
     // --- Ingest / protocol (E1xx) ---
     static constexpr std::string_view E100_json_schema = "E100";
     static constexpr std::string_view E101_source_size = "E101";

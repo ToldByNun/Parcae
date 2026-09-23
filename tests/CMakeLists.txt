@@ -13,6 +13,7 @@ add_executable(parcae_tests
   dsl_ast_ingest_test.cpp
   dsl_semantic_gate_test.cpp
   dsl_scope_analyzer_test.cpp
+  dsl_divergence_gate_test.cpp
   dsl_z29_expr_test.cpp
   dsl_ir_test.cpp
   dsl_forbidden_ast_test.cpp

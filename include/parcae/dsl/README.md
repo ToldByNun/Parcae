@@ -35,6 +35,7 @@ private:
 | `dsl_ast.hpp` | `DslAstNode` / `DslAstDocument` | Done |
 | `dsl_ast_json_ingest.hpp` | `DslAstJsonIngest` | Done (strict + limits) |
 | `dsl_semantic_gate.hpp` | `DslSemanticGate` | Done (whitelist + scope-aware CF / E034) |
+| `dsl_divergence_gate.hpp` | `DslDivergenceGate` / `DslPredicateClass` | Done (HotLoop If → E033 / W011) |
 | `dsl_exec_scope.hpp` | `DslExecScope` | Done (OuterControl / HotLoop + loop depth) |
 | `dsl_scope_analyzer.hpp` | `DslScopeAnalyzer` / `DslScopeMap` | Done (AST → scope map) |
 | `z29_expr.hpp` | `Z29Expr` | Done (IR + `Select` mux + eval via Z29) |
@@ -64,6 +65,7 @@ private:
 
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md always-forbidden kinds → stable `E031`/`E021`.
 Tests: `[dsl][gate][scope]` OuterControl If/For/While OK; HotLoop For/While → E034.
+Tests: `[dsl][divergence]` HotLoop If ThreadVarying → E033; Param/const → W011.
 Tests: `[dsl][scope]` DslExecScope + DslScopeAnalyzer OuterControl vs HotLoop.
 Tests: `[dsl][ingest][fuzz]` adversarial mutations + limit rejects (no crash).
 Tests: `[dsl][applicator]` IR → Index29 stream apply_into.

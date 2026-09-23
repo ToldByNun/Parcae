@@ -52,6 +52,7 @@ python -m parcae.dsl.ast_dump
 parcae-compile (C++20)
     DslAstJsonIngest     (limits, UTF-8, strict schema)
     DslSemanticGate      (dsl.md whitelist; scope-aware control flow — see below)
+    DslDivergenceGate    (HotLoop If → E033 / W011)
     DslBuildIr           (Z29Expr / PrimitiveIr / TheoryIr / ComposeIr)
     DslVerifier          (exhaustive | fuzz; hard fail)
     DslOptimize          (const-fold, inv hoist, LaunchPlan, peak sanity)
@@ -74,6 +75,7 @@ flowchart TB
   json["dsl_ast_json.v0"]
   ingest["DslAstJsonIngest"]
   gate["DslSemanticGate"]
+  div["DslDivergenceGate"]
   ir["Z29Expr IR"]
   verify["DslVerifier"]
   opt["DslOptimize + DslFuse"]
@@ -83,7 +85,7 @@ flowchart TB
   dispatch["TheoryDispatch"]
 
   stubs -.->|"import OK; calls raise"| src
-  src --> dump --> json --> ingest --> gate --> ir --> verify
+  src --> dump --> json --> ingest --> gate --> div --> ir --> verify
   verify -->|fail| diag["DslDiag path:line:col"]
   verify -->|pass| opt --> cpu
   opt --> cuda
@@ -166,7 +168,8 @@ flowchart TB
 | **HotLoop** | Primitive bodies; encrypt/decrypt/keystream steps | Branch-free / uniform `if` only; no loops by default |
 
 **Landed:** `DslExecScope`, `DslScopeAnalyzer`, scope-aware `DslSemanticGate` (E034),
-`Z29Expr::Select` + applicator eval + `DslOptimize` dead-arm fold.
+`DslDivergenceGate` (E033 / W011), `Z29Expr::Select` + applicator eval +
+`DslOptimize` dead-arm fold.
 
 **Planned classes** (not all landed yet; names are stable targets):
 
@@ -175,14 +178,15 @@ flowchart TB
 | `DslExecScope` | Scope kind + loop depth |
 | `DslScopeAnalyzer` | Walk AST JSON → scope map |
 | `DslSemanticGate` | Whitelist + scope-aware `If`/`For`/`While`/`Break`/`Continue` (HotLoop loops → **E034**) |
-| `DslDivergenceGate` | HotLoop predicate class → E033 / W011 (follow-on) |
+| `DslDivergenceGate` | HotLoop predicate class → **E033** / **W011** |
 | `DslDirectiveTable` | `#ignore DSL_FLAG:…` binding (follow-on) |
 | `DslHostGlue` / host IR | OuterControl loop/if lowering (follow-on) |
 
 `DslSemanticGate` runs `DslScopeAnalyzer` first, then applies the control-flow
-table in [dsl.md](../spec/dsl.md) § Execution scopes. HotLoop divergent `if`
-remains deferred to `DslDivergenceGate` (**E033**). HotLoop relaxed `if` will
-lower to `Z29Expr::Select` in BuildIr (follow-on).
+table in [dsl.md](../spec/dsl.md) § Execution scopes. `DslDivergenceGate` classifies
+HotLoop `If.test` as CompileTimeConstant / LoopInvariant / HostFlag / ThreadVarying;
+ThreadVarying → **E033**, relaxed accepts → **W011**. HotLoop relaxed `if` lowers
+to `Z29Expr::Select` in BuildIr (follow-on).
 
 **`DslFuse` reminder:** fuse only inlines `ComposedTheory` chains and chooses
 fused vs staged emit. It does **not** own Python control-flow policy — that sits

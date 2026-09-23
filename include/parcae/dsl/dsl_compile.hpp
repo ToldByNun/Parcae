@@ -7,6 +7,7 @@
 #include "parcae/dsl/dsl_ast_json_ingest.hpp"
 #include "parcae/dsl/dsl_build_ir.hpp"
 #include "parcae/dsl/dsl_catalog_builtins.hpp"
+#include "parcae/dsl/dsl_divergence_gate.hpp"
 #include "parcae/dsl/dsl_emit_cpu.hpp"
 #include "parcae/dsl/dsl_emit_cuda.hpp"
 #include "parcae/dsl/dsl_fuse.hpp"
@@ -154,6 +155,10 @@ public:
         Status gate = DslSemanticGate::check(doc.value());
         if (!gate.ok()) {
             return gate;
+        }
+        Status divergence = DslDivergenceGate::check_errors_only(doc.value());
+        if (!divergence.ok()) {
+            return divergence;
         }
         StatusOr<DslBuildIr::Unit> unit = DslBuildIr::build(doc.value());
         if (!unit.ok()) {

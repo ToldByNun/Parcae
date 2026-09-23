@@ -13,6 +13,7 @@
 ///   - DslAst / DslAstLimits / DslAstJsonIngest
 ///   - DslSemanticGate
 ///   - DslExecScope / DslScopeAnalyzer (OuterControl vs HotLoop)
+///   - DslDivergenceGate (HotLoop If → E033 / W011)
 ///   - Z29Expr
 ///   - ParamIr / PrimitiveIr / TheoryIr / ComposeIr
 ///   - DslIrApplicator
@@ -41,6 +42,7 @@
 #include "parcae/dsl/dsl_catalog_builtins.hpp"
 #include "parcae/dsl/dsl_compile.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
+#include "parcae/dsl/dsl_divergence_gate.hpp"
 #include "parcae/dsl/dsl_emit_cpu.hpp"
 #include "parcae/dsl/dsl_emit_cuda.hpp"
 #include "parcae/dsl/dsl_exec_scope.hpp"
