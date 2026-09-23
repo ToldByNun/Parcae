@@ -59,13 +59,14 @@ private:
 | `theory_envelope_bridge.hpp` | `TheoryEnvelopeBridge` | Done (catalog / theory-URI envelope) |
 | `theory_apply_ir.hpp` | `TheoryApplyIr` | Done (`apply_ir.json` serialize) |
 | `theory_dispatch.hpp` | `TheoryDispatch` | Done (ApplyTransform hook) |
-| `dsl_build_ir.hpp` | `DslBuildIr` | Done (AST → PrimitiveIr / TheoryIr) |
+| `dsl_build_ir.hpp` | `DslBuildIr` | Done (AST → PrimitiveIr / TheoryIr; HotLoop If → Select) |
 | `dsl_compile.hpp` | `DslCompile` | Done (ast_dump spawn → artifact) |
 | `dsl.hpp` | umbrella | Done |
 
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md always-forbidden kinds → stable `E031`/`E021`.
 Tests: `[dsl][gate][scope]` OuterControl If/For/While OK; HotLoop For/While → E034.
 Tests: `[dsl][divergence]` HotLoop If ThreadVarying → E033; Param/const → W011.
+Tests: `[dsl][build][select]` HotLoop If/IfExp → Z29Expr Select + fold.
 Tests: `[dsl][scope]` DslExecScope + DslScopeAnalyzer OuterControl vs HotLoop.
 Tests: `[dsl][ingest][fuzz]` adversarial mutations + limit rejects (no crash).
 Tests: `[dsl][applicator]` IR → Index29 stream apply_into.

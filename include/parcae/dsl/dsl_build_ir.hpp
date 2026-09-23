@@ -69,10 +69,11 @@ public:
         if (!st.ok()) {
             return st;
         }
-        if (b.unit.theories_.empty() && b.unit.composes_.empty()) {
+        if (b.unit.theories_.empty() && b.unit.composes_.empty() &&
+            b.unit.primitives_.empty()) {
             return fail(
                 DslRuleId::E032_primitive_body,
-                "module must define at least one @Theory or @ComposedTheory",
+                "module must define at least one @define_primitive, @Theory, or @ComposedTheory",
                 doc.source_path());
         }
         b.unit.source_path_ = doc.source_path();
@@ -83,7 +84,7 @@ public:
 private:
     struct MethodBody {
         std::vector<std::string> arg_names;  // excluding self
-        const DslAstNode* return_expr = nullptr;
+        const DslAstNode* fn = nullptr;      // FunctionDef (HotLoop body → Z29Expr)
         std::optional<int> lineno;
         std::optional<int> col;
     };
@@ -151,15 +152,11 @@ private:
             if (!args.ok()) {
                 return args.status();
             }
-            StatusOr<const DslAstNode*> ret = single_return_expr(fn);
-            if (!ret.ok()) {
-                return ret.status();
-            }
             std::unordered_map<std::string, Z29Expr::Ptr> locals;
             for (const std::string& a : args.value()) {
                 locals.emplace(a, Z29Expr::var(a));
             }
-            StatusOr<Z29Expr::Ptr> body = lower_expr(*ret.value(), locals, /*theory=*/nullptr);
+            StatusOr<Z29Expr::Ptr> body = lower_hotloop_body(fn, locals, /*theory=*/nullptr);
             if (!body.ok()) {
                 return body.status();
             }
@@ -695,13 +692,9 @@ private:
             if (!args.ok()) {
                 return args.status();
             }
-            StatusOr<const DslAstNode*> ret = single_return_expr(fn);
-            if (!ret.ok()) {
-                return ret.status();
-            }
             MethodBody body;
             body.arg_names = std::move(args.value());
-            body.return_expr = ret.value();
+            body.fn = &fn;
             body.lineno = fn.lineno();
             body.col = fn.col_offset();
             draft.methods[mname] = std::move(body);
@@ -711,6 +704,9 @@ private:
         [[nodiscard]] StatusOr<Z29Expr::Ptr> lower_method(
             const MethodBody& method,
             const TheoryDraft& draft) {
+            if (!method.fn) {
+                return fail(DslRuleId::E032_primitive_body, "method body missing", source_path);
+            }
             std::unordered_map<std::string, Z29Expr::Ptr> locals;
             for (const std::string& a : method.arg_names) {
                 locals.emplace(a, Z29Expr::var(a));
@@ -718,7 +714,130 @@ private:
             for (const ParamIr& p : draft.params) {
                 locals.emplace(p.name(), Z29Expr::var(p.name()));
             }
-            return lower_expr(*method.return_expr, locals, &draft);
+            return lower_hotloop_body(*method.fn, locals, &draft);
+        }
+
+        [[nodiscard]] StatusOr<Z29Expr::Ptr> lower_hotloop_body(
+            const DslAstNode& fn,
+            std::unordered_map<std::string, Z29Expr::Ptr>& locals,
+            const TheoryDraft* theory) {
+            const DslAstValue* body = fn.find_field("body");
+            if (!body || body->type() != DslAstValue::Type::Array || body->as_array().empty()) {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "function body is empty",
+                    source_path,
+                    fn.lineno(),
+                    fn.col_offset());
+            }
+            return lower_stmt_list(body->as_array(), locals, theory, fn);
+        }
+
+        [[nodiscard]] StatusOr<Z29Expr::Ptr> lower_stmt_list(
+            const std::vector<DslAstValue>& stmts,
+            std::unordered_map<std::string, Z29Expr::Ptr>& locals,
+            const TheoryDraft* theory,
+            const DslAstNode& loc_node) {
+            if (stmts.size() != 1) {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "HotLoop body must be a single return or if/else returning Z29Expr "
+                    "(assignments / multi-stmt not supported yet)",
+                    source_path,
+                    loc_node.lineno(),
+                    loc_node.col_offset());
+            }
+            const DslAstValue& only = stmts.front();
+            if (only.type() != DslAstValue::Type::Node || !only.as_node()) {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "malformed function body statement",
+                    source_path,
+                    loc_node.lineno(),
+                    loc_node.col_offset());
+            }
+            return lower_stmt(*only.as_node(), locals, theory);
+        }
+
+        [[nodiscard]] StatusOr<Z29Expr::Ptr> lower_stmt(
+            const DslAstNode& stmt,
+            std::unordered_map<std::string, Z29Expr::Ptr>& locals,
+            const TheoryDraft* theory) {
+            if (stmt.kind() == "Return") {
+                const DslAstValue* value = stmt.find_field("value");
+                if (!value || value->type() != DslAstValue::Type::Node || !value->as_node()) {
+                    return fail(
+                        DslRuleId::E032_primitive_body,
+                        "return value missing",
+                        source_path,
+                        stmt.lineno(),
+                        stmt.col_offset());
+                }
+                return lower_expr(*value->as_node(), locals, theory);
+            }
+            if (stmt.kind() == "If") {
+                return lower_if_stmt(stmt, locals, theory);
+            }
+            return fail(
+                DslRuleId::E032_primitive_body,
+                "unsupported HotLoop statement '" + stmt.kind() +
+                    "' (expected Return or If → Select)",
+                source_path,
+                stmt.lineno(),
+                stmt.col_offset());
+        }
+
+        [[nodiscard]] StatusOr<Z29Expr::Ptr> lower_if_stmt(
+            const DslAstNode& if_node,
+            std::unordered_map<std::string, Z29Expr::Ptr>& locals,
+            const TheoryDraft* theory) {
+            const DslAstValue* test = if_node.find_field("test");
+            const DslAstValue* body = if_node.find_field("body");
+            const DslAstValue* orelse = if_node.find_field("orelse");
+            if (!test || test->type() != DslAstValue::Type::Node || !test->as_node() || !body ||
+                body->type() != DslAstValue::Type::Array) {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "malformed If for Select lowering",
+                    source_path,
+                    if_node.lineno(),
+                    if_node.col_offset());
+            }
+            if (!orelse || orelse->type() != DslAstValue::Type::Array ||
+                orelse->as_array().empty()) {
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "HotLoop if requires else/elif arm to lower to Select",
+                    source_path,
+                    if_node.lineno(),
+                    if_node.col_offset());
+            }
+
+            StatusOr<Z29Expr::Ptr> cond = lower_expr(*test->as_node(), locals, theory);
+            if (!cond.ok()) {
+                return cond.status();
+            }
+            StatusOr<Z29Expr::Ptr> if_true =
+                lower_stmt_list(body->as_array(), locals, theory, if_node);
+            if (!if_true.ok()) {
+                return if_true.status();
+            }
+
+            // elif: orelse is a single nested If; else: statement list with Return.
+            const auto& orelse_arr = orelse->as_array();
+            StatusOr<Z29Expr::Ptr> if_false =
+                (orelse_arr.size() == 1 && orelse_arr.front().type() == DslAstValue::Type::Node &&
+                 orelse_arr.front().as_node() && orelse_arr.front().as_node()->kind() == "If")
+                    ? lower_if_stmt(*orelse_arr.front().as_node(), locals, theory)
+                    : lower_stmt_list(orelse_arr, locals, theory, if_node);
+            if (!if_false.ok()) {
+                return if_false.status();
+            }
+
+            Z29Expr::Ptr sel = Z29Expr::make_select(
+                std::move(cond.value()), std::move(if_true.value()), std::move(if_false.value()));
+            sel->set_location(source_path, if_node.lineno(), if_node.col_offset());
+            return sel;
         }
 
         [[nodiscard]] StatusOr<Z29Expr::Ptr> lower_expr(
@@ -727,15 +846,59 @@ private:
             const TheoryDraft* theory) {
             if (node.kind() == "Constant") {
                 const DslAstValue* val = node.find_field("value");
-                if (!val || val->type() != DslAstValue::Type::Int) {
+                if (!val) {
                     return fail(
                         DslRuleId::E032_primitive_body,
-                        "only integer constants are allowed in Z29Expr",
+                        "Constant.value missing",
                         source_path,
                         node.lineno(),
                         node.col_offset());
                 }
-                return Z29Expr::constant(val->as_int());
+                if (val->type() == DslAstValue::Type::Int) {
+                    return Z29Expr::constant(val->as_int());
+                }
+                if (val->type() == DslAstValue::Type::Bool) {
+                    return Z29Expr::constant(val->as_bool() ? 1 : 0);
+                }
+                return fail(
+                    DslRuleId::E032_primitive_body,
+                    "only integer/bool constants are allowed in Z29Expr",
+                    source_path,
+                    node.lineno(),
+                    node.col_offset());
+            }
+            if (node.kind() == "IfExp") {
+                const DslAstValue* test = node.find_field("test");
+                const DslAstValue* body = node.find_field("body");
+                const DslAstValue* orelse = node.find_field("orelse");
+                if (!test || test->type() != DslAstValue::Type::Node || !test->as_node() || !body ||
+                    body->type() != DslAstValue::Type::Node || !body->as_node() || !orelse ||
+                    orelse->type() != DslAstValue::Type::Node || !orelse->as_node()) {
+                    return fail(
+                        DslRuleId::E032_primitive_body,
+                        "malformed IfExp",
+                        source_path,
+                        node.lineno(),
+                        node.col_offset());
+                }
+                StatusOr<Z29Expr::Ptr> cond = lower_expr(*test->as_node(), locals, theory);
+                if (!cond.ok()) {
+                    return cond.status();
+                }
+                StatusOr<Z29Expr::Ptr> if_true = lower_expr(*body->as_node(), locals, theory);
+                if (!if_true.ok()) {
+                    return if_true.status();
+                }
+                StatusOr<Z29Expr::Ptr> if_false = lower_expr(*orelse->as_node(), locals, theory);
+                if (!if_false.ok()) {
+                    return if_false.status();
+                }
+                Z29Expr::Ptr sel = Z29Expr::make_select(
+                    std::move(cond.value()),
+                    std::move(if_true.value()),
+                    std::move(if_false.value()));
+                sel->set_location(source_path, node.lineno(), node.col_offset());
+                return sel;
             }
             if (node.kind() == "Name") {
                 const DslAstValue* idv = node.find_field("id");
@@ -1155,6 +1318,14 @@ private:
                                 node.col_offset());
                         }
                         const MethodBody& mb = mit->second;
+                        if (!mb.fn) {
+                            return fail(
+                                DslRuleId::E032_primitive_body,
+                                "method '" + mname + "' body missing",
+                                source_path,
+                                node.lineno(),
+                                node.col_offset());
+                        }
                         if (args.size() != mb.arg_names.size()) {
                             return fail(
                                 DslRuleId::E032_primitive_body,
@@ -1170,7 +1341,7 @@ private:
                         for (const ParamIr& p : theory->params) {
                             bound.emplace(p.name(), Z29Expr::var(p.name()));
                         }
-                        return lower_expr(*mb.return_expr, bound, theory);
+                        return lower_hotloop_body(*mb.fn, bound, theory);
                     }
                 }
             }

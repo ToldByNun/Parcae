@@ -181,7 +181,8 @@ than full Python.
 ### Expressions
 
 `Name`, `Attribute`, `Call`, `Constant`, `BinOp`, `UnaryOp`, `Compare`,
-`BoolOp`, `Subscript`, `Tuple`, `List`, `Dict`, `Starred` (only where gate
+`BoolOp`, `IfExp` (HotLoop → `Z29Expr::Select`; see [dsl.md](dsl.md) § Execution
+scopes), `Subscript`, `Tuple`, `List`, `Dict`, `Starred` (only where gate
 allows; v0 primitive bodies **MUST NOT** use starred args)
 
 ### Operators / ctx (as nested objects or string enums)

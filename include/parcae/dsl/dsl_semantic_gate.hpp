@@ -148,7 +148,7 @@ private:
         if (kind == "Name" || kind == "Attribute" || kind == "Call" || kind == "Constant" ||
             kind == "BinOp" || kind == "UnaryOp" || kind == "Compare" || kind == "BoolOp" ||
             kind == "Subscript" || kind == "Tuple" || kind == "List" || kind == "Dict" ||
-            kind == "Starred" || kind == "keyword") {
+            kind == "Starred" || kind == "keyword" || kind == "IfExp") {
             return true;
         }
         // Operators / ctx as nested nodes

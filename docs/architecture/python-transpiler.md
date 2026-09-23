@@ -186,7 +186,7 @@ flowchart TB
 table in [dsl.md](../spec/dsl.md) § Execution scopes. `DslDivergenceGate` classifies
 HotLoop `If.test` as CompileTimeConstant / LoopInvariant / HostFlag / ThreadVarying;
 ThreadVarying → **E033**, relaxed accepts → **W011**. HotLoop relaxed `if` lowers
-to `Z29Expr::Select` in BuildIr (follow-on).
+to `Z29Expr::Select` in BuildIr (statement `If` / `elif` / `else`, and `IfExp`).
 
 **`DslFuse` reminder:** fuse only inlines `ComposedTheory` chains and chooses
 fused vs staged emit. It does **not** own Python control-flow policy — that sits

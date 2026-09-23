@@ -416,6 +416,62 @@ private:
         return Status::success();
     }
 
+    [[nodiscard]] static Status check_hotloop_if_exp(
+        const DslAstNode& ifexp,
+        GateState& state) {
+        const DslAstValue* test = ifexp.find_field("test");
+        if (!test || test->type() != DslAstValue::Type::Node || !test->as_node()) {
+            return DslDiag::make(
+                       DslRuleId::E032_primitive_body,
+                       "IfExp missing test expression",
+                       state.source_path,
+                       lineno_of(ifexp),
+                       col_of(ifexp))
+                .to_status();
+        }
+
+        const DslPredicateClass pred = classify_value(*test, state.cipher_var);
+        const DslExecScope scope = scope_of(ifexp, state);
+
+        if (pred.is_thread_varying()) {
+            std::string msg =
+                "HotLoop if-expression depends on rune-varying data; use const/Param flag or Select";
+            if (!pred.evidence().empty()) {
+                msg += " (name '";
+                msg += pred.evidence();
+                msg += "')";
+            }
+            if (scope.loop_depth() > 0) {
+                msg += " (loop_depth=";
+                msg += std::to_string(scope.loop_depth());
+                msg += ")";
+            }
+            return DslDiag::make(
+                       DslRuleId::E033_divergent_branch,
+                       std::move(msg),
+                       state.source_path,
+                       lineno_of(ifexp),
+                       col_of(ifexp),
+                       "Prefer Param/host flags, compile-time constants, or Z29Expr Select")
+                .to_status();
+        }
+
+        std::string wmsg = "HotLoop if-expression accepted as ";
+        wmsg += pred.kind_string();
+        if (!pred.evidence().empty()) {
+            wmsg += " (";
+            wmsg += pred.evidence();
+            wmsg += ")";
+        }
+        state.warnings.push_back(DslDiag::make(
+            DslRuleId::W011_relaxed_branch,
+            std::move(wmsg),
+            state.source_path,
+            lineno_of(ifexp),
+            col_of(ifexp)));
+        return Status::success();
+    }
+
     [[nodiscard]] static Status walk_value(const DslAstValue& value, GateState& state) {
         if (value.type() == DslAstValue::Type::Node && value.as_node()) {
             return walk_node(*value.as_node(), state);
@@ -471,6 +527,16 @@ private:
                 }
             }
             // Always walk children (elif chain, nested If).
+        }
+
+        if (kind == "IfExp") {
+            const DslExecScope scope = scope_of(node, state);
+            if (scope.is_hot_loop()) {
+                Status st = check_hotloop_if_exp(node, state);
+                if (!st.ok()) {
+                    return st;
+                }
+            }
         }
 
         for (const auto& entry : node.fields()) {

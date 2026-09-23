@@ -29,7 +29,8 @@
 ///   - TheorySweep (expand sweep.param_grid plan)
 ///   - TheoryEnvelopeBridge (envelope_template ↔ TransformEnvelope / theory URI)
 ///   - TheoryApplyIr / TheoryDispatch (ApplyTransform hook for theory URIs)
-///   - DslBuildIr / DslCatalogBuiltins / DslCompile (ast_dump → artifact)
+///   - DslBuildIr / DslCatalogBuiltins / DslCompile (ast_dump → artifact;
+///     HotLoop If/IfExp → Select)
 ///   - Examples: theories/examples/new_math_example.py,
 ///     theories/examples/full_lifecycle_example.py (@ComposedTheory)
 

@@ -186,7 +186,7 @@ and **E035** (unbounded OuterControl `while`) are reserved for these diagnostics
 
 | Allowed | Forbidden (compile error + lineno) |
 |---------|-------------------------------------|
-| `return` of a `Z29Expr` (and scope-legal relaxed `if` lowering to select) | HotLoop `for` / `while` / `break` / `continue` (unless ignore) |
+| `return` of a `Z29Expr` (and scope-legal relaxed `if` / `IfExp` → `Select`) | HotLoop `for` / `while` / `break` / `continue` (unless ignore) |
 | Full operator set on `Z29Expr` (see table below) | List/dict/set comprehensions, `lambda`, `yield` |
 | Calls to `z29_*` and other registered primitives | `eval` / `exec` / `open` / arbitrary attributes |
 | Local bindings to expressions only | Hidden state, RNG, I/O |
