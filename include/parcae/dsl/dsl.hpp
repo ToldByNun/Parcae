@@ -12,6 +12,7 @@
 ///   - DslDiag / DslRuleId
 ///   - DslAst / DslAstLimits / DslAstJsonIngest
 ///   - DslSemanticGate
+///   - DslExecScope / DslScopeAnalyzer (OuterControl vs HotLoop)
 ///   - Z29Expr
 ///   - ParamIr / PrimitiveIr / TheoryIr / ComposeIr
 ///   - DslIrApplicator
@@ -42,12 +43,14 @@
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_emit_cpu.hpp"
 #include "parcae/dsl/dsl_emit_cuda.hpp"
+#include "parcae/dsl/dsl_exec_scope.hpp"
 #include "parcae/dsl/dsl_fuse.hpp"
 #include "parcae/dsl/dsl_ir_applicator.hpp"
 #include "parcae/dsl/dsl_launch_plan.hpp"
 #include "parcae/dsl/dsl_optimize.hpp"
 #include "parcae/dsl/dsl_peak_sanity.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
+#include "parcae/dsl/dsl_scope_analyzer.hpp"
 #include "parcae/dsl/dsl_semantic_gate.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
 #include "parcae/dsl/dsl_verifier.hpp"
