@@ -141,3 +141,48 @@ TEST_CASE("Z29Expr bitwise shift compare bool match Z29 and cuda mirror", "[dsl]
     }
 }
 
+TEST_CASE("Z29Expr Select picks arms by nonzero cond", "[dsl][z29expr][select]") {
+    const Z29Expr::Ptr t = Z29Expr::constant(7).value();
+    const Z29Expr::Ptr f = Z29Expr::constant(11).value();
+    REQUIRE(
+        Z29Expr::select(Z29Expr::constant(1).value(), t, f)->eval({}).value().value() == 7);
+    REQUIRE(
+        Z29Expr::select(Z29Expr::constant(0).value(), t, f)->eval({}).value().value() == 11);
+    // Nonzero non-1 also takes true arm (bool-ish).
+    REQUIRE(
+        Z29Expr::select(Z29Expr::constant(5).value(), t, f)->eval({}).value().value() == 7);
+}
+
+TEST_CASE("Z29Expr Select with compare cond and vars", "[dsl][z29expr][select]") {
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        Z29Expr::eq(x, Z29Expr::constant(3).value()),
+        Z29Expr::constant(10).value(),
+        Z29Expr::add(x, Z29Expr::constant(1).value()));
+    REQUIRE(expr->eval({{"x", Index29{3}}}).value().value() == 10);
+    REQUIRE(expr->eval({{"x", Index29{4}}}).value().value() == 5);
+    REQUIRE(
+        expr->eval({{"x", Index29{4}}}).value() ==
+        expr->eval_cuda_mirror({{"x", Index29{4}}}).value());
+}
+
+TEST_CASE("Z29Expr z29_select call builtin", "[dsl][z29expr][select]") {
+    const auto expr = Z29Expr::call(
+        "z29_select",
+        {Z29Expr::constant(0).value(),
+         Z29Expr::constant(1).value(),
+         Z29Expr::constant(2).value()});
+    REQUIRE(expr->eval({}).value().value() == 2);
+}
+
+TEST_CASE("Z29Expr Select remap", "[dsl][z29expr][select]") {
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        Z29Expr::var("c"), Z29Expr::var("a"), Z29Expr::var("b"));
+    const auto remapped = expr->remap(
+        {{"c", Z29Expr::constant(1).value()},
+         {"a", Z29Expr::constant(9).value()},
+         {"b", Z29Expr::constant(8).value()}});
+    REQUIRE(remapped->kind() == Z29Expr::Kind::Select);
+    REQUIRE(remapped->eval({}).value().value() == 9);
+}
+

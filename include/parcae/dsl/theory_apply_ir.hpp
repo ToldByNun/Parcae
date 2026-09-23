@@ -313,6 +313,8 @@ private:
             return std::string("boolor");
         case Z29Expr::Kind::BoolNot:
             return std::string("boolnot");
+        case Z29Expr::Kind::Select:
+            return std::string("select");
         case Z29Expr::Kind::Call:
             return std::string("call");
         }
@@ -401,6 +403,9 @@ private:
         if (text == "boolnot") {
             return Z29Expr::Kind::BoolNot;
         }
+        if (text == "select") {
+            return Z29Expr::Kind::Select;
+        }
         if (text == "call") {
             return Z29Expr::Kind::Call;
         }
@@ -432,6 +437,25 @@ private:
             }
             return nlohmann::json{
                 {"kind", kind.value()}, {"name", node->name()}, {"args", std::move(args)}};
+        }
+        if (node->kind() == Z29Expr::Kind::Select) {
+            StatusOr<nlohmann::json> c = expr_to_json(node->cond());
+            if (!c.ok()) {
+                return c.status();
+            }
+            StatusOr<nlohmann::json> t = expr_to_json(node->if_true());
+            if (!t.ok()) {
+                return t.status();
+            }
+            StatusOr<nlohmann::json> f = expr_to_json(node->if_false());
+            if (!f.ok()) {
+                return f.status();
+            }
+            return nlohmann::json{
+                {"kind", kind.value()},
+                {"cond", std::move(c.value())},
+                {"if_true", std::move(t.value())},
+                {"if_false", std::move(f.value())}};
         }
         if (Z29Expr::is_unary(node->kind())) {
             StatusOr<nlohmann::json> arg = expr_to_json(node->arg());
@@ -495,6 +519,25 @@ private:
                 args.push_back(std::move(p.value()));
             }
             return Z29Expr::call(root.at("name").get<std::string>(), std::move(args));
+        }
+        if (kind.value() == Z29Expr::Kind::Select) {
+            if (!root.contains("cond") || !root.contains("if_true") || !root.contains("if_false")) {
+                return Status::error("select Z29Expr requires cond, if_true, if_false");
+            }
+            StatusOr<Z29Expr::Ptr> c = expr_from_json(root.at("cond"));
+            if (!c.ok()) {
+                return c.status();
+            }
+            StatusOr<Z29Expr::Ptr> t = expr_from_json(root.at("if_true"));
+            if (!t.ok()) {
+                return t.status();
+            }
+            StatusOr<Z29Expr::Ptr> f = expr_from_json(root.at("if_false"));
+            if (!f.ok()) {
+                return f.status();
+            }
+            return Z29Expr::make_select(
+                std::move(c.value()), std::move(t.value()), std::move(f.value()));
         }
         if (Z29Expr::is_unary(kind.value())) {
             if (!root.contains("arg")) {

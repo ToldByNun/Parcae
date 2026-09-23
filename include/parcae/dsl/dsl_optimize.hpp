@@ -19,6 +19,7 @@
 
 /// IR peephole passes for theory DSL expressions (docs/architecture/python-transpiler.md).
 /// - Const-fold pure \(\mathbb{Z}_{29}\) subtrees (incl. `inv` of nonzero constants).
+/// - Fold `Select` when cond is const (dead-arm elimination) or arms are equal consts.
 /// - Hoist `inv` of cipher-independent args to named temps (`__parcae_inv_N`) for emit.
 class DslOptimize {
 public:
@@ -190,6 +191,10 @@ public:
                 }
             }
             return false;
+        case Kind::Select:
+            return depends_on_var(*expr.cond(), var_name) ||
+                   depends_on_var(*expr.if_true(), var_name) ||
+                   depends_on_var(*expr.if_false(), var_name);
         default:
             break;
         }
@@ -307,6 +312,14 @@ private:
             if (n == "z29_bool_not") {
                 return as_unary(Kind::BoolNot);
             }
+            if (n == "z29_select") {
+                if (args.size() != 3) {
+                    return DslDiag::make(DslRuleId::E032_primitive_body, "const_fold call arity")
+                        .to_status();
+                }
+                return const_fold_rec(
+                    *Z29Expr::make_select(args[0], args[1], args[2]), folds);
+            }
             std::vector<Z29Expr::Ptr> mapped;
             mapped.reserve(args.size());
             for (const Z29Expr::Ptr& a : args) {
@@ -317,6 +330,32 @@ private:
                 mapped.push_back(fa.value());
             }
             return Z29Expr::call(n, std::move(mapped));
+        }
+        case Kind::Select: {
+            StatusOr<Z29Expr::Ptr> c = const_fold_rec(*expr.cond(), folds);
+            if (!c.ok()) {
+                return c.status();
+            }
+            StatusOr<Z29Expr::Ptr> t = const_fold_rec(*expr.if_true(), folds);
+            if (!t.ok()) {
+                return t.status();
+            }
+            StatusOr<Z29Expr::Ptr> f = const_fold_rec(*expr.if_false(), folds);
+            if (!f.ok()) {
+                return f.status();
+            }
+            // Dead-arm elimination when condition is a compile-time constant.
+            if (c.value()->kind() == Kind::Const) {
+                ++folds;
+                return (c.value()->const_value() != 0) ? t.value() : f.value();
+            }
+            // select(c, a, a) → a
+            if (t.value()->kind() == Kind::Const && f.value()->kind() == Kind::Const &&
+                t.value()->const_value() == f.value()->const_value()) {
+                ++folds;
+                return t.value();
+            }
+            return Z29Expr::make_select(c.value(), t.value(), f.value());
         }
         default:
             break;
@@ -446,6 +485,24 @@ private:
                 mapped.push_back(fa.value());
             }
             return Z29Expr::call(expr.name(), std::move(mapped));
+        }
+        case Kind::Select: {
+            StatusOr<Z29Expr::Ptr> c =
+                hoist_inv_rec(*expr.cond(), cipher_var, hoists, hoist_count);
+            if (!c.ok()) {
+                return c.status();
+            }
+            StatusOr<Z29Expr::Ptr> t =
+                hoist_inv_rec(*expr.if_true(), cipher_var, hoists, hoist_count);
+            if (!t.ok()) {
+                return t.status();
+            }
+            StatusOr<Z29Expr::Ptr> f =
+                hoist_inv_rec(*expr.if_false(), cipher_var, hoists, hoist_count);
+            if (!f.ok()) {
+                return f.status();
+            }
+            return Z29Expr::make_select(c.value(), t.value(), f.value());
         }
         default:
             break;

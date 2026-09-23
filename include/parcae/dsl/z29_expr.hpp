@@ -55,6 +55,8 @@ public:
         BoolAnd,
         BoolOr,
         BoolNot,
+        /// Branch-free mux: `select(cond, t, f)` → `cond != 0 ? t : f` (Z29 0/1).
+        Select,
         Call,
     };
 
@@ -100,6 +102,10 @@ public:
         default:
             return false;
         }
+    }
+
+    [[nodiscard]] static bool is_select(Kind k) noexcept {
+        return k == Kind::Select;
     }
 
     [[nodiscard]] static StatusOr<Ptr> constant(std::int64_t value) {
@@ -197,6 +203,11 @@ public:
         return make_unary(Kind::BoolNot, std::move(arg));
     }
 
+    /// `select(cond, t, f)` — nonzero `cond` yields `t`, else `f` (branch-free mux).
+    [[nodiscard]] static Ptr select(Ptr cond, Ptr if_true, Ptr if_false) {
+        return make_select(std::move(cond), std::move(if_true), std::move(if_false));
+    }
+
     [[nodiscard]] static Ptr call(std::string primitive, std::vector<Ptr> args) {
         auto node = std::shared_ptr<Z29Expr>(new Z29Expr(Kind::Call));
         node->name_ = std::move(primitive);
@@ -211,6 +222,14 @@ public:
 
     [[nodiscard]] static Ptr make_unary_kind(Kind kind, Ptr arg) {
         return make_unary(kind, std::move(arg));
+    }
+
+    [[nodiscard]] static Ptr make_select(Ptr cond, Ptr if_true, Ptr if_false) {
+        auto node = std::shared_ptr<Z29Expr>(new Z29Expr(Kind::Select));
+        node->left_ = std::move(cond);
+        node->right_ = std::move(if_true);
+        node->alt_ = std::move(if_false);
+        return node;
     }
 
     [[nodiscard]] Kind kind() const noexcept {
@@ -235,6 +254,21 @@ public:
 
     [[nodiscard]] const Ptr& arg() const noexcept {
         return left_;
+    }
+
+    /// Select: condition (nonzero → true arm).
+    [[nodiscard]] const Ptr& cond() const noexcept {
+        return left_;
+    }
+
+    /// Select: arm taken when `cond != 0`.
+    [[nodiscard]] const Ptr& if_true() const noexcept {
+        return right_;
+    }
+
+    /// Select: arm taken when `cond == 0`.
+    [[nodiscard]] const Ptr& if_false() const noexcept {
+        return alt_;
     }
 
     [[nodiscard]] const std::vector<Ptr>& args() const noexcept {
@@ -277,6 +311,8 @@ public:
         }
         case Kind::Call:
             return eval_call(env);
+        case Kind::Select:
+            return eval_select(env, /*cuda_mirror=*/false);
         default:
             break;
         }
@@ -322,6 +358,8 @@ public:
         }
         case Kind::Call:
             return eval_call_cuda_mirror(env);
+        case Kind::Select:
+            return eval_select(env, /*cuda_mirror=*/true);
         default:
             break;
         }
@@ -372,6 +410,9 @@ public:
             }
             return call(name_, std::move(mapped));
         }
+        case Kind::Select:
+            return make_select(
+                left_->remap(mapping), right_->remap(mapping), alt_->remap(mapping));
         default:
             break;
         }
@@ -619,6 +660,21 @@ private:
             .to_status();
     }
 
+    [[nodiscard]] StatusOr<Index29> eval_select(const Env& env, bool cuda_mirror) const {
+        if (!left_ || !right_ || !alt_) {
+            return diag_fail(DslRuleId::E032_primitive_body, "Select Z29Expr missing operands");
+        }
+        StatusOr<Index29> c = cuda_mirror ? left_->eval_cuda_mirror(env) : left_->eval(env);
+        if (!c.ok()) {
+            return c.status();
+        }
+        // Nonzero → true arm (matches Z29 bool-ish / compare 0|1 convention).
+        if (c.value().value() != 0) {
+            return cuda_mirror ? right_->eval_cuda_mirror(env) : right_->eval(env);
+        }
+        return cuda_mirror ? alt_->eval_cuda_mirror(env) : alt_->eval(env);
+    }
+
     [[nodiscard]] StatusOr<Index29> eval_call(const Env& env) const {
         return eval_call_dispatch(env, /*cuda_mirror=*/false);
     }
@@ -726,6 +782,17 @@ private:
         if (name_ == "z29_bool_not") {
             return as_unary(Kind::BoolNot);
         }
+        if (name_ == "z29_select") {
+            if (args_.size() != 3 || !args_[0] || !args_[1] || !args_[2]) {
+                return diag_fail(
+                    DslRuleId::E032_primitive_body, "call 'z29_select' expects 3 arguments");
+            }
+            auto tmp = make_select(args_[0], args_[1], args_[2]);
+            tmp->source_path_ = source_path_;
+            tmp->lineno_ = lineno_;
+            tmp->col_offset_ = col_offset_;
+            return cuda_mirror ? tmp->eval_cuda_mirror(env) : tmp->eval(env);
+        }
         return diag_fail(
             DslRuleId::E032_primitive_body,
             "unknown primitive call '" + name_ + "' (not a builtin; registry comes later)");
@@ -736,6 +803,7 @@ private:
     std::string name_;
     Ptr left_;
     Ptr right_;
+    Ptr alt_;  // Select false-arm only
     std::vector<Ptr> args_;
     std::string source_path_;
     std::optional<int> lineno_;

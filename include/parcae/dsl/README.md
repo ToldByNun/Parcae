@@ -37,7 +37,7 @@ private:
 | `dsl_semantic_gate.hpp` | `DslSemanticGate` | Done (whitelist + scope-aware CF / E034) |
 | `dsl_exec_scope.hpp` | `DslExecScope` | Done (OuterControl / HotLoop + loop depth) |
 | `dsl_scope_analyzer.hpp` | `DslScopeAnalyzer` / `DslScopeMap` | Done (AST → scope map) |
-| `z29_expr.hpp` | `Z29Expr` | Done (IR + eval via Z29) |
+| `z29_expr.hpp` | `Z29Expr` | Done (IR + `Select` mux + eval via Z29) |
 | `param_ir.hpp` | `ParamIr` | Done |
 | `primitive_ir.hpp` | `PrimitiveIr` | Done |
 | `theory_ir.hpp` | `TheoryIr` | Done |
@@ -47,7 +47,7 @@ private:
 | `dsl_emit_cuda.hpp` | `DslEmitCuda` | Done (Z29Device + Kernel façade) |
 | `dsl_verifier.hpp` | `DslVerifier` | Done (exhaustive ≤4 + fuzz + CPU↔CUDA mirror) |
 | `dsl_fuse.hpp` | `DslFuse` | Done (inline + emit + CPU bench gate) |
-| `dsl_optimize.hpp` | `DslOptimize` | Done (const-fold + `inv` hoist) |
+| `dsl_optimize.hpp` | `DslOptimize` | Done (const-fold + Select dead-arm + `inv` hoist) |
 | `dsl_launch_plan.hpp` | `DslLaunchPlan` | Done (1D / HistFast 2D twin grids) |
 | `dsl_peak_sanity.hpp` | `DslPeakSanity` | Done (ThroughputTiers peak / SLO) |
 | `theory_uri.hpp` | `TheoryUri` | Done (`parcae://theories/<name>@<ver>`) |

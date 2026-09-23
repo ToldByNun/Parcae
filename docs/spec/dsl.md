@@ -226,10 +226,13 @@ representatives. `**` is modular exponentiation (`0**0` → `1`). `~x` is
 | `z29_bool_or` / `or` | nonzero ∨ nonzero → `1` else `0` |
 | `z29_bool_not` / `not` | zero → `1` else `0` |
 | `z29_atbash` | `28 - x` |
+| `select` / `z29_select` | Branch-free mux: nonzero cond → true arm, else false arm |
 
 `Z29Expr` operator overloads **MUST** build IR in the compiler path, not execute
 arithmetic in the stub package (stubs fail-loud). `MatMult` (`@`) and
-identity/container compares (`is` / `in`) **MUST** be rejected.
+identity/container compares (`is` / `in`) **MUST** be rejected. HotLoop relaxed
+`if` lowers to `Select` (see § Execution scopes); raw divergent CUDA `if` is
+not the default lowering.
 
 ---
 

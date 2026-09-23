@@ -1223,6 +1223,22 @@ private:
                 }
                 return Z29Expr::call(node->name(), std::move(nargs));
             }
+            case Z29Expr::Kind::Select: {
+                StatusOr<Z29Expr::Ptr> c = subst_rec(node->cond(), env);
+                if (!c.ok()) {
+                    return c.status();
+                }
+                StatusOr<Z29Expr::Ptr> t = subst_rec(node->if_true(), env);
+                if (!t.ok()) {
+                    return t.status();
+                }
+                StatusOr<Z29Expr::Ptr> f = subst_rec(node->if_false(), env);
+                if (!f.ok()) {
+                    return f.status();
+                }
+                return Z29Expr::make_select(
+                    std::move(c.value()), std::move(t.value()), std::move(f.value()));
+            }
             default:
                 break;
             }

@@ -165,6 +165,9 @@ flowchart TB
 | **OuterControl** | Module body; `step_params`; structural helpers | `if` / bounded `for` / finite `while` → host glue or compile-time unroll |
 | **HotLoop** | Primitive bodies; encrypt/decrypt/keystream steps | Branch-free / uniform `if` only; no loops by default |
 
+**Landed:** `DslExecScope`, `DslScopeAnalyzer`, scope-aware `DslSemanticGate` (E034),
+`Z29Expr::Select` + applicator eval + `DslOptimize` dead-arm fold.
+
 **Planned classes** (not all landed yet; names are stable targets):
 
 | Class | Role |
@@ -178,7 +181,8 @@ flowchart TB
 
 `DslSemanticGate` runs `DslScopeAnalyzer` first, then applies the control-flow
 table in [dsl.md](../spec/dsl.md) § Execution scopes. HotLoop divergent `if`
-remains deferred to `DslDivergenceGate` (**E033**).
+remains deferred to `DslDivergenceGate` (**E033**). HotLoop relaxed `if` will
+lower to `Z29Expr::Select` in BuildIr (follow-on).
 
 **`DslFuse` reminder:** fuse only inlines `ComposedTheory` chains and chooses
 fused vs staged emit. It does **not** own Python control-flow policy — that sits

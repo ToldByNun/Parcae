@@ -138,3 +138,59 @@ TEST_CASE("DslOptimize depends_on_var", "[dsl][optimize]") {
     REQUIRE(DslOptimize::depends_on_var(*expr, "a"));
     REQUIRE_FALSE(DslOptimize::depends_on_var(*expr, "b"));
 }
+
+TEST_CASE("DslOptimize folds Select with const cond (dead arm)", "[dsl][optimize][select]") {
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        Z29Expr::constant(1).value(),
+        Z29Expr::add(Z29Expr::constant(2).value(), Z29Expr::constant(3).value()),
+        Z29Expr::constant(9).value());
+    const StatusOr<Z29Expr::Ptr> folded = DslOptimize::const_fold(expr);
+    REQUIRE(folded.ok());
+    REQUIRE(folded.value()->kind() == Z29Expr::Kind::Const);
+    REQUIRE(folded.value()->const_value() == 5);
+}
+
+TEST_CASE("DslOptimize folds Select false arm when cond is 0", "[dsl][optimize][select]") {
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        Z29Expr::eq(Z29Expr::constant(1).value(), Z29Expr::constant(2).value()),
+        Z29Expr::constant(7).value(),
+        Z29Expr::constant(13).value());
+    const StatusOr<Z29Expr::Ptr> folded = DslOptimize::const_fold(expr);
+    REQUIRE(folded.ok());
+    REQUIRE(folded.value()->kind() == Z29Expr::Kind::Const);
+    REQUIRE(folded.value()->const_value() == 13);
+}
+
+TEST_CASE("DslOptimize Select equal arms collapses", "[dsl][optimize][select]") {
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr expr = Z29Expr::select(x, Z29Expr::constant(4).value(), Z29Expr::constant(4).value());
+    const StatusOr<Z29Expr::Ptr> folded = DslOptimize::const_fold(expr);
+    REQUIRE(folded.ok());
+    REQUIRE(folded.value()->kind() == Z29Expr::Kind::Const);
+    REQUIRE(folded.value()->const_value() == 4);
+}
+
+TEST_CASE("DslOptimize keeps Select when cond is var", "[dsl][optimize][select]") {
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        Z29Expr::var("flag"),
+        Z29Expr::var("x"),
+        Z29Expr::constant(0).value());
+    const StatusOr<Z29Expr::Ptr> folded = DslOptimize::const_fold(expr);
+    REQUIRE(folded.ok());
+    REQUIRE(folded.value()->kind() == Z29Expr::Kind::Select);
+    REQUIRE(DslOptimize::depends_on_var(*folded.value(), "flag"));
+    REQUIRE(DslOptimize::depends_on_var(*folded.value(), "x"));
+}
+
+TEST_CASE("DslOptimize hoists inv under Select arms", "[dsl][optimize][select]") {
+    const Z29Expr::Ptr body = Z29Expr::select(
+        Z29Expr::var("flag"),
+        Z29Expr::mul(Z29Expr::inv(Z29Expr::var("a")), Z29Expr::var("x")),
+        Z29Expr::var("x"));
+    const StatusOr<DslOptimize::Result> opt = DslOptimize::optimize(body, "x");
+    REQUIRE(opt.ok());
+    REQUIRE(opt.value().inv_hoists() == 1);
+    REQUIRE(opt.value().expr()->kind() == Z29Expr::Kind::Select);
+    REQUIRE(opt.value().expr()->if_true()->kind() == Z29Expr::Kind::Mul);
+    REQUIRE(opt.value().expr()->if_true()->left()->name() == "__parcae_inv_0");
+}

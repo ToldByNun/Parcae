@@ -181,3 +181,18 @@ TEST_CASE("DslIrApplicator rejects param outside declared domain", "[dsl][applic
     REQUIRE_FALSE(out.ok());
     REQUIRE(out.status().message().find("E040") != std::string::npos);
 }
+
+TEST_CASE("DslIrApplicator Select mux on stream", "[dsl][applicator][select]") {
+    // if x == 0 then 5 else x + 1
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr step = Z29Expr::select(
+        Z29Expr::eq(x, Z29Expr::constant(0).value()),
+        Z29Expr::constant(5).value(),
+        Z29Expr::add(x, Z29Expr::constant(1).value()));
+    const std::vector<Index29> input{Index29{0}, Index29{3}, Index29{28}};
+    std::vector<Index29> out(input.size());
+    REQUIRE(DslIrApplicator::apply_into(step, "x", {}, input, out).ok());
+    REQUIRE(out[0].value() == 5);
+    REQUIRE(out[1].value() == 4);
+    REQUIRE(out[2].value() == 0);  // 28+1 mod 29
+}
