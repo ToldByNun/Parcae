@@ -122,19 +122,79 @@ def poly2_mod29(i: Z29Expr, c2: Z29Expr, c1: Z29Expr, c0: Z29Expr) -> Z29Expr:
 |------|-------------|
 | `name` | Non-empty; stable id for registry / artifacts |
 | `signature` | Must match parameter list arity and `Z29` / `-> Z29` shape |
-| Body | Expression tree only — see subset table |
+| Body | **HotLoop** expression tree (see § Execution scopes + subset table) |
 | Recursion | **MUST NOT** call itself (directly or indirectly) |
 | Side effects | **MUST NOT** |
 
-### Primitive body subset
+### Execution scopes
+
+Every statement and expression in a theory source **MUST** be classified as
+exactly one execution scope. Scope drives which control-flow constructs are
+legal and whether code may run inside a per-rune / CUDA hot path.
+
+| Scope | Meaning |
+|-------|---------|
+| **OuterControl** | Host / setup / compile-time configuration. Runs **outside** the per-index math kernel (module body, theory setup helpers, building `step_params`, rule toggles, bounded host loops). |
+| **HotLoop** | Math-engine body that lowers to `Z29Expr` / CPU applicator / CUDA element loop (primitive bodies; theory `encrypt_step` / `decrypt_step` / equivalent per-rune steps; `keystream_at` expressions that evaluate per index). |
+
+#### Classification (normative)
+
+| Region | Scope |
+|--------|-------|
+| Module-level imports, class definitions, and config bindings | OuterControl |
+| `@Theory` / `@ComposedTheory` methods other than encrypt/decrypt/keystream/apply steps (e.g. `step_params`, `structural_claim`, `interrupt_policy` **structure**) | OuterControl |
+| `@define_primitive` function body | HotLoop |
+| `encrypt_step` / `decrypt_step` / per-index `keystream_at` bodies | HotLoop |
+| Nested `for` / `while` whose nearest enclosing HotLoop ancestor exists | HotLoop (loop depth ≥ 1) |
+| Nested `for` / `while` under OuterControl only | OuterControl (loop depth ≥ 1) |
+
+`interrupt_policy` **predicates** that consume a plaintext/ciphertext rune value
+are HotLoop-shaped for divergence analysis even when defined as a method: their
+boolean result **MUST NOT** introduce thread-divergent control flow in emitted
+kernels unless an explicit ignore directive is honored (see follow-on compiler
+work; rule id **E033**).
+
+#### Control flow by scope
+
+Constructs that remain **forbidden in every scope** (compile error + lineno):
+`async*` forms, `with`, `try` / `except`, `lambda`, comprehensions / generator
+expressions, `yield`, `eval` / `exec` / `open`, bare `Import`, nested `ClassDef`
+inside functions, starred / `**kwargs` forms rejected by the semantic gate.
+
+| Construct | OuterControl | HotLoop |
+|-----------|--------------|---------|
+| `if` / `elif` / `else` | **Allowed** (host glue / const-fold) | **Allowed only** when the condition is compile-time constant, loop-invariant, or a host/Param flag (lower to branch-free select / dead-arm elimination). If the condition depends on thread-/rune-varying data (e.g. cipher index, per-rune value) → **E033**. |
+| `for` | **Allowed** when bounds are compile-time unrollable or launch-time host-known finite ranges | **Forbidden** (**E034**) unless an explicit ignore directive is honored |
+| `while` | **Allowed** only with a **provably finite** bound (const or Param max); otherwise **E035** | **Forbidden** (**E034**) unless an explicit ignore directive is honored |
+| `break` / `continue` | **Allowed** inside OuterControl loops | **Forbidden** in HotLoop |
+
+HotLoop bodies remain **side-effect free** and **non-recursive**. Dynamic
+allocation, host/device sync inside the element loop, and arbitrary Python
+objects in HotLoop **MUST** fail compile.
+
+OuterControl **MUST NOT** be treated as “full Python”: I/O, network, RNG, and
+non-deterministic host helpers remain forbidden. OuterControl exists for
+**deterministic** setup and static specialization of theories.
+
+Rule ids **E033** (divergent HotLoop branch), **E034** (HotLoop loop/control),
+and **E035** (unbounded OuterControl `while`) are reserved for these diagnostics
+(see § Diagnostics). Implementations that have not yet shipped the scope-aware
+gate **MUST** document the interim behavior; once shipped, they **MUST** match
+this table.
+
+### Primitive / HotLoop body subset
 
 
 | Allowed | Forbidden (compile error + lineno) |
 |---------|-------------------------------------|
-| `return` of a `Z29Expr` | `for` / `while` / `async` / `with` / `try` |
+| `return` of a `Z29Expr` (and scope-legal relaxed `if` lowering to select) | HotLoop `for` / `while` / `break` / `continue` (unless ignore) |
 | Full operator set on `Z29Expr` (see table below) | List/dict/set comprehensions, `lambda`, `yield` |
 | Calls to `z29_*` and other registered primitives | `eval` / `exec` / `open` / arbitrary attributes |
 | Local bindings to expressions only | Hidden state, RNG, I/O |
+| Uniform / const HotLoop `if` (see § Execution scopes) | Thread-divergent HotLoop `if` (**E033**) |
+
+OuterControl `for` / `while` / `if` are **not** part of the HotLoop subset; they
+belong to host-glue lowering described under § Execution scopes.
 
 ### Core math ops (`parcae.dsl.math`)
 
@@ -310,7 +370,7 @@ decorators **MUST** fail-loud (see IDE stubs).
 User-facing compile errors **MUST**:
 
 1. Include `path:line:col` when location is known.
-2. Include a stable `rule_id` (e.g. `E013`, `E021`, `E030`).
+2. Include a stable `rule_id` (e.g. `E013`, `E021`, `E030`, `E033`).
 3. Prefer a short actionable hint over compiler/CPython stack traces as the
    primary message.
 
@@ -320,7 +380,18 @@ Examples (informative):
 theories/x.py:42:4: E013 tier B requires structural_claim()
 theories/x.py:3:1: E021 import 'numpy' not in parcae.dsl.* whitelist
 theories/x.py:88:4: E030 interrupt_policy missing; set interrupts='none_by_design' if intentional
+theories/x.py:55:8: E033 HotLoop if depends on rune-varying data; use const/Param flag or Select
+theories/x.py:60:4: E034 for/while not allowed in HotLoop
+theories/x.py:12:0: E035 while without finite bound in OuterControl
 ```
+
+Reserved scope-aware rule ids (see § Execution scopes):
+
+| Id | Meaning |
+|----|---------|
+| `E033` | Divergent / thread-varying branch in HotLoop |
+| `E034` | Illegal loop or `break`/`continue` in HotLoop |
+| `E035` | OuterControl `while` without provable finite bound |
 
 ---
 
@@ -340,8 +411,11 @@ Verification gates remain hard regardless of fusion status.
 
 ## Non-goals
 
-- Arbitrary Python as primitive bodies
+- Arbitrary Python as HotLoop / primitive bodies (OuterControl is a **limited**
+  deterministic host/setup subset — not full CPython)
 - CPython inside exhaustive/fuzz verify loops
 - Replacing locked fixture oracles with DSL scores
 - Closed-loop search/agent scheduling (separate tooling)
 - Fast-math or nondeterministic score reductions in emitted kernels
+- Thread-divergent CUDA control flow as a default (requires explicit ignore +
+  warning when the compiler honors it)

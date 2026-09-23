@@ -51,7 +51,7 @@ python -m parcae.dsl.ast_dump
     ▼
 parcae-compile (C++20)
     DslAstJsonIngest     (limits, UTF-8, strict schema)
-    DslSemanticGate      (dsl.md whitelist)
+    DslSemanticGate      (dsl.md whitelist; scope-aware control flow — see below)
     DslBuildIr           (Z29Expr / PrimitiveIr / TheoryIr / ComposeIr)
     DslVerifier          (exhaustive | fuzz; hard fail)
     DslOptimize          (const-fold, inv hoist, LaunchPlan, peak sanity)
@@ -139,6 +139,50 @@ Artifacts embed `dsl_spec_version`. MAJOR mismatch with
 `DslSpecVersion::current` → registry/validate/sweep **reject** (recompile
 required). Catalog lists stale entries with `stale_spec: true`. Details:
 [dsl.md](../spec/dsl.md), [theory-artifact.md](../spec/theory-artifact.md).
+
+### Execution scopes (OuterControl vs HotLoop)
+
+Normative contract: [dsl.md](../spec/dsl.md) § Execution scopes.
+
+The compiler **must** distinguish host/setup code from per-rune math so that
+`if` / `for` / `while` can exist for theory configuration without opening
+thread-divergent CUDA hot paths.
+
+```mermaid
+flowchart TB
+  module[Module and theory setup]
+  primBody["define_primitive / encrypt decrypt / keystream body"]
+  module --> outer[OuterControl]
+  primBody --> hot[HotLoop]
+  outer -->|"if for while under host rules"| hostGlue[Host glue or const-fold]
+  hot -->|"uniform or const if"| select[Z29Expr select]
+  hot -->|"rune-varying if"| e033[E033]
+  hot -->|"for while"| e034[E034]
+```
+
+| Scope | Typical regions | Control flow |
+|-------|-----------------|--------------|
+| **OuterControl** | Module body; `step_params`; structural helpers | `if` / bounded `for` / finite `while` → host glue or compile-time unroll |
+| **HotLoop** | Primitive bodies; encrypt/decrypt/keystream steps | Branch-free / uniform `if` only; no loops by default |
+
+**Planned classes** (not all landed yet; names are stable targets):
+
+| Class | Role |
+|-------|------|
+| `DslExecScope` | Scope kind + loop depth |
+| `DslScopeAnalyzer` | Walk AST JSON → scope map |
+| `DslDivergenceGate` | HotLoop predicate class → E033 / W011 |
+| `DslDirectiveTable` | `#ignore DSL_FLAG:…` binding (follow-on) |
+| `DslHostGlue` / host IR | OuterControl loop/if lowering (follow-on) |
+
+**Interim tooling:** until the scope-aware gate ships, `DslSemanticGate` may still
+reject all `If` / `For` / `While` with **E031**. Authors should treat
+[dsl.md](../spec/dsl.md) § Execution scopes as the binding end state; CI examples
+remain on the expression-only HotLoop subset until the gate lands.
+
+**`DslFuse` reminder:** fuse only inlines `ComposedTheory` chains and chooses
+fused vs staged emit. It does **not** own Python control-flow policy — that sits
+in scope analysis + semantic/divergence gates **before** fuse.
 
 ### Envelope bridge + dispatch
 
@@ -287,6 +331,10 @@ Community `.py` / hostile JSON must not crash the compiler:
       (`.github/workflows/ci.yml` gates + `scripts/check-dsl-examples.sh`)
 - [x] Toolkit version **0.5.0** (`v0.5.0-theory-dsl`)
 - [x] Artifact paths use stable names (no numbered-stage prefixes in DSL paths)
+
+**Smart-compiler follow-on (docs first):** OuterControl vs HotLoop is normative in
+[dsl.md](../spec/dsl.md) § Execution scopes; implementation classes listed under
+§ Execution scopes above. Not part of the `v0.5.0-theory-dsl` exit.
 
 **Exit:** compiler workstream complete at toolkit 0.5.0.
 
