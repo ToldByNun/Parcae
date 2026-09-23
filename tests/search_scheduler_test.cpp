@@ -1,3 +1,4 @@
+#include <parcae/cli/console_progress_sink.hpp>
 #include <parcae/core/sha256.hpp>
 #include <parcae/hypothesis/hypothesis_record.hpp>
 #include <parcae/hypothesis/hypothesis_status.hpp>
@@ -14,8 +15,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -880,4 +883,106 @@ TEST_CASE(
     const nlohmann::json b = run_feedback("parcae_search_scheduler_g26_fb_b");
     REQUIRE(a == b);
     REQUIRE(a.at("ids1") != a.at("ids2"));
+}
+
+namespace {
+
+class SchedulerProgressRecordingSink : public ConsoleProgressSink {
+public:
+    void on_progress(const ConsoleProgressSnapshot& /*snapshot*/) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        ++progress_count;
+    }
+
+    void on_stage(
+        std::string_view stage,
+        const ConsoleProgressSnapshot& snapshot) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        stages.emplace_back(stage);
+        if (stage == "iteration" && snapshot.candidates_done() > 0) {
+            iteration_dones.push_back(snapshot.candidates_done());
+        }
+    }
+
+    std::mutex mutex_;
+    std::size_t progress_count = 0;
+    std::vector<std::string> stages;
+    std::vector<std::size_t> iteration_dones;
+};
+
+}  // namespace
+
+TEST_CASE(
+    "SearchScheduler::run_loop emits iteration stages; digests match silent run",
+    "[search][scheduler][loop][progress]") {
+    const auto root_silent = make_sandbox("parcae_search_scheduler_g28_silent");
+    const auto root_live = make_sandbox("parcae_search_scheduler_g28_live");
+    const parcae::tool::Context ctx_silent{root_silent};
+    const parcae::tool::Context ctx_live{root_live};
+
+    StatusOr<WorkspaceManifest> ws_silent =
+        make_fixture_workspace("g28-ws", "2026-09-22T17:00:00Z");
+    REQUIRE(ws_silent.ok());
+    REQUIRE(ws_silent.value().store(root_silent).ok());
+
+    StatusOr<WorkspaceManifest> ws_live =
+        make_fixture_workspace("g28-ws", "2026-09-22T17:00:00Z");
+    REQUIRE(ws_live.ok());
+    REQUIRE(ws_live.value().store(root_live).ok());
+
+    StatusOr<SearchJob> job = SearchJob::make(
+        "g28-ws",
+        "caesar",
+        "chi2_english_gp_v0",
+        /*k=*/2,
+        /*seed=*/1,
+        parcae::tool::Backend::Cpu,
+        /*max_candidates=*/64);
+    REQUIRE(job.ok());
+
+    SearchScheduler::LoopOptions loop_silent;
+    loop_silent.created_utc = "2026-09-22T17:00:00Z";
+    loop_silent.max_iterations = 2;
+    loop_silent.omit_timing = true;
+    loop_silent.batch_ids = {"b-g28-caesar-0001", "b-g28-caesar-0002"};
+
+    SearchScheduler::LoopOptions loop_live = loop_silent;
+    SchedulerProgressRecordingSink sink;
+    loop_live.progress = &sink;
+
+    StatusOr<SearchScheduler::CycleResult> silent =
+        SearchScheduler::run_loop(root_silent, ctx_silent, job.value(), loop_silent);
+    REQUIRE(silent.ok());
+
+    StatusOr<SearchScheduler::CycleResult> live =
+        SearchScheduler::run_loop(root_live, ctx_live, job.value(), loop_live);
+    REQUIRE(live.ok());
+
+    REQUIRE(silent.value().to_json() == live.value().to_json());
+    REQUIRE(
+        silent.value().batches()[0].job_digest_sha256() ==
+        live.value().batches()[0].job_digest_sha256());
+    REQUIRE(
+        silent.value().batches()[1].job_digest_sha256() ==
+        live.value().batches()[1].job_digest_sha256());
+
+    REQUIRE(sink.iteration_dones.size() == 2);
+    REQUIRE(sink.iteration_dones[0] == 1);
+    REQUIRE(sink.iteration_dones[1] == 2);
+
+    auto count_stage = [&](std::string_view name) {
+        return static_cast<std::size_t>(
+            std::count(sink.stages.begin(), sink.stages.end(), std::string(name)));
+    };
+    REQUIRE(count_stage("iteration") == 2);
+    REQUIRE(count_stage("load") == 2);
+    REQUIRE(count_stage("prior") == 2);
+    REQUIRE(count_stage("write") == 2);
+    REQUIRE(count_stage("bridge") == 2);
+    REQUIRE(count_stage("expand") >= 2);
+    REQUIRE(count_stage("score") >= 2);
+
+    std::error_code ec;
+    std::filesystem::remove_all(root_silent, ec);
+    std::filesystem::remove_all(root_live, ec);
 }

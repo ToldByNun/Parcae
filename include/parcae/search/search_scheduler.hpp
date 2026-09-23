@@ -4,6 +4,9 @@
 #include "parcae/core/sha256.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
+#include "parcae/batch/batch_runner.hpp"
+#include "parcae/cli/console_progress_sink.hpp"
+#include "parcae/cli/console_progress_snapshot.hpp"
 #include "parcae/hypothesis/hypothesis_record.hpp"
 #include "parcae/hypothesis/hypothesis_status.hpp"
 #include "parcae/hypothesis/workspace_paths.hpp"
@@ -35,6 +38,8 @@
 
 /// One closed-loop search cycle or multi-iteration loop.
 /// Normative: `docs/spec/search-loop.md` (`SearchScheduler` / `parcae.search_cycle_result.v0`).
+/// Optional `Options::progress` / `LoopOptions::progress` is observe-only (digests
+/// unchanged when null).
 class SearchScheduler {
 public:
     static constexpr std::string_view result_schema_id = "parcae.search_cycle_result.v0";
@@ -57,6 +62,8 @@ public:
         bool omit_timing = true;
         /// Workspace prior build flags (ignored when `SearchJob.prior` is inline).
         SearchPrior::BuildOptions prior_build{};
+        /// Optional observe-only progress sink (nullptr = silent). Digests unchanged.
+        ConsoleProgressSink* progress = nullptr;
     };
 
     /// Budgets and stop policy for `run_loop` (`search-loop.md`).
@@ -86,6 +93,8 @@ public:
         const bool* validate_ok = nullptr;
         /// Forwarded to each `run_once` prior rebuild from the workspace.
         SearchPrior::BuildOptions prior_build{};
+        /// Optional observe-only progress sink (nullptr = silent). Digests unchanged.
+        ConsoleProgressSink* progress = nullptr;
     };
 
     /// One batch summary line inside the cycle result.
@@ -206,14 +215,30 @@ public:
         if (!cipher.ok()) {
             return cipher.status();
         }
+        emit_stage(
+            options.progress,
+            "load",
+            1,
+            1,
+            cipher.value().indices().size());
 
         StatusOr<SearchPrior> prior = resolve_prior(data_root, job, options);
         if (!prior.ok()) {
             return prior.status();
         }
+        emit_stage(
+            options.progress,
+            "prior",
+            1,
+            1,
+            cipher.value().indices().size());
 
-        StatusOr<CpuCandidateExport::Result> exported =
-            export_candidates(cipher.value().indices(), job, ctx, prior.value());
+        BatchRunner::Progress export_progress;
+        export_progress.sink = options.progress;
+        export_progress.rune_count = cipher.value().indices().size();
+
+        StatusOr<CpuCandidateExport::Result> exported = export_candidates(
+            cipher.value().indices(), job, ctx, prior.value(), export_progress);
         if (!exported.ok()) {
             return exported.status();
         }
@@ -287,12 +312,24 @@ public:
         if (!stored.ok()) {
             return stored;
         }
+        emit_stage(
+            options.progress,
+            "write",
+            artifact.value().candidate_count(),
+            artifact.value().candidate_count(),
+            cipher.value().indices().size());
 
         StatusOr<HypothesisBridge::Result> ingested =
             HypothesisBridge::ingest(data_root, artifact.value());
         if (!ingested.ok()) {
             return ingested.status();
         }
+        emit_stage(
+            options.progress,
+            "bridge",
+            ingested.value().written_count(),
+            ingested.value().written_count(),
+            cipher.value().indices().size());
 
         result.batches_.emplace_back(
             artifact.value().batch_id(),
@@ -369,9 +406,17 @@ public:
             once.created_utc = std::move(utc.value());
             once.omit_timing = options.omit_timing;
             once.prior_build = options.prior_build;
+            once.progress = options.progress;
             if (!options.batch_ids.empty()) {
                 once.batch_id = options.batch_ids[i];
             }
+
+            emit_stage(
+                options.progress,
+                "iteration",
+                i + 1,
+                options.max_iterations,
+                /*rune_count=*/0);
 
             StatusOr<CycleResult> cycle = run_once(data_root, ctx, job, once);
             if (!cycle.ok()) {
@@ -490,6 +535,23 @@ public:
 private:
     SearchScheduler() = delete;
 
+    static void emit_stage(
+        ConsoleProgressSink* sink,
+        std::string_view stage,
+        std::size_t done,
+        std::size_t total,
+        std::size_t rune_count) {
+        if (sink == nullptr) {
+            return;
+        }
+        ConsoleProgressSnapshot snap;
+        snap.set_stage(std::string(stage));
+        snap.set_candidates_done(done);
+        snap.set_candidates_total(total);
+        snap.set_rune_count(rune_count);
+        sink->on_stage(stage, snap);
+    }
+
     [[nodiscard]] static int parse_digits(std::string_view digits) {
         int v = 0;
         for (char ch : digits) {
@@ -555,10 +617,11 @@ private:
         std::span<const Index29> cipher,
         const SearchJob& job,
         const parcae::tool::Context& ctx,
-        const SearchPrior& prior) {
+        const SearchPrior& prior,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         // Theory-URI jobs are CPU-only (TheoryDispatch / apply_ir); no fused CUDA path.
         if (job.backend() == parcae::tool::Backend::Cpu || SearchJob::is_theory_family(job.family())) {
-            return CpuCandidateExport::from_job(cipher, job, ctx, &prior);
+            return CpuCandidateExport::from_job(cipher, job, ctx, &prior, progress);
         }
 
         // CUDA fused export is χ²-only (GpuCandidateExport).
@@ -577,7 +640,7 @@ private:
         }
 
         StatusOr<CpuCandidateExport::Result> fused =
-            export_cuda_fused(cipher, job, freqs.value());
+            export_cuda_fused(cipher, job, freqs.value(), progress);
         if (!fused.ok()) {
             return fused.status();
         }
@@ -586,7 +649,7 @@ private:
         // Fused GPU export does not yet fold SearchPrior; re-run CPU with prior when
         // the prior is non-empty so exclusions/seeds match the CPU oracle.
         if (!prior.seeds().empty() || !prior.exclusions().empty()) {
-            return CpuCandidateExport::from_job(cipher, job, ctx, &prior);
+            return CpuCandidateExport::from_job(cipher, job, ctx, &prior, progress);
         }
         return fused;
     }
@@ -594,23 +657,28 @@ private:
     [[nodiscard]] static StatusOr<CpuCandidateExport::Result> export_cuda_fused(
         std::span<const Index29> cipher,
         const SearchJob& job,
-        const ExpectedFrequencyTable& freqs) {
+        const ExpectedFrequencyTable& freqs,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         const std::string& family = job.family();
         if (family == "caesar") {
-            return GpuCandidateExport::caesar(cipher, freqs, job.k(), job.direction());
+            return GpuCandidateExport::caesar(
+                cipher, freqs, job.k(), job.direction(), progress);
         }
         if (family == "atbash") {
-            return GpuCandidateExport::atbash(cipher, freqs, job.k(), job.direction());
+            return GpuCandidateExport::atbash(
+                cipher, freqs, job.k(), job.direction(), progress);
         }
         if (family == "atbash_caesar") {
-            return GpuCandidateExport::atbash_caesar(cipher, freqs, job.k(), job.direction());
+            return GpuCandidateExport::atbash_caesar(
+                cipher, freqs, job.k(), job.direction(), progress);
         }
         if (family == "compose") {
             return GpuCandidateExport::compose_from_param_grid(
-                cipher, freqs, job.param_grid(), job.k(), job.direction());
+                cipher, freqs, job.param_grid(), job.k(), job.direction(), progress);
         }
         if (family == "affine") {
-            return GpuCandidateExport::affine(cipher, freqs, job.k(), job.direction());
+            return GpuCandidateExport::affine(
+                cipher, freqs, job.k(), job.direction(), progress);
         }
         if (family == "vigenere") {
             std::size_t max_len = GpuCandidateExport::default_vigenere_max_key_length;
@@ -623,7 +691,7 @@ private:
                 max_len = static_cast<std::size_t>(v);
             }
             return GpuCandidateExport::vigenere_bounded(
-                cipher, freqs, job.k(), max_len, job.direction());
+                cipher, freqs, job.k(), max_len, job.direction(), progress);
         }
         if (family == "beaufort") {
             if (!job.allow_extended_families()) {
@@ -640,7 +708,7 @@ private:
                 max_len = static_cast<std::size_t>(v);
             }
             return GpuCandidateExport::beaufort_bounded(
-                cipher, freqs, job.k(), max_len, job.direction());
+                cipher, freqs, job.k(), max_len, job.direction(), progress);
         }
         if (family == "totient") {
             if (!job.allow_extended_families()) {
@@ -671,10 +739,10 @@ private:
                     starts.push_back(static_cast<std::size_t>(item.get<std::int64_t>()));
                 }
                 return GpuCandidateExport::totient(
-                    cipher, freqs, starts, job.k(), job.direction());
+                    cipher, freqs, starts, job.k(), job.direction(), progress);
             }
             return GpuCandidateExport::totient_bounded(
-                cipher, freqs, job.k(), count, job.direction());
+                cipher, freqs, job.k(), count, job.direction(), progress);
         }
         return Status::error(
             "SearchScheduler: unsupported family for cuda export: " + family);
