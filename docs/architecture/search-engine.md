@@ -1,7 +1,8 @@
 # Search engine plan freeze
 
-**Status:** Toolkit **0.7.0**; engineering exit **green**; annotated git tag
-pending M52  
+**Status:** Toolkit **0.7.0**; search-engine exit **complete**
+(`v0.7.0-search-engine`)  
+
 **Upstream:** CUDA parity (`v0.3.0-cuda-parity`) + Theory DSL (`v0.5.0-theory-dsl`) +
 CMD agent tooling ([`agent-tooling.md`](agent-tooling.md), planned exit
 `v0.6.0-agent-tools`)  
@@ -265,16 +266,16 @@ in-tree agent stack (`generate` / `rank` / `hypothesis` / `AgentLoop` +
       foothold bench (not the workspace loop)
 - [x] Header map: [`include/parcae/search/README.md`](../../include/parcae/search/README.md)
 
-### Release cut (remaining — M52)
+### Release cut
 
 - [x] Root README roadmap marks search loop **done** with exit tag
 - [x] [`agent-tooling.md`](agent-tooling.md) / handbooks point here (closed-loop
       owned by search)
 - [x] Toolkit version bump to **0.7.0**
 - [x] Smoke: `Version` + `parcae-search-cycle --status`
-- [ ] Annotated tag `v0.7.0-search-engine`
+- [x] Annotated tag `v0.7.0-search-engine`
 
-**Engineering exit green.** Toolkit is **0.7.0**. Remaining: M52 annotated tag.
+**Search-engine exit complete.** Toolkit **0.7.0**; tag `v0.7.0-search-engine`.
 
 ---
 
@@ -398,7 +399,7 @@ Numbering is **local to this search-engine roadmap**. Detailed mirror:
 | 49 | docs: agent-tooling / handbook point here (closed-loop owned by search) — **done** |
 | 50 | chore: version bump 0.7.0 — **done** |
 | 51 | test: smoke Version + `parcae-search-cycle --status` — **done** |
-| 52 | chore: annotated tag `v0.7.0-search-engine` |
+| 52 | chore: annotated tag `v0.7.0-search-engine` — **done** |
 
 ---
 
