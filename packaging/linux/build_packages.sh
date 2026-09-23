@@ -100,6 +100,7 @@ for fmt in "${fmt_arr[@]}"; do
   case "${fmt}" in
     deb)
       target="${out}/${deb_name}"
+      rm -f "${target}"
       if command -v fpm >/dev/null 2>&1; then
         build_with_fpm deb "${target}"
       else
@@ -125,6 +126,7 @@ EOF
       ;;
     rpm)
       target="${out}/${rpm_name}"
+      rm -f "${target}"
       if command -v fpm >/dev/null 2>&1; then
         build_with_fpm rpm "${target}"
       else

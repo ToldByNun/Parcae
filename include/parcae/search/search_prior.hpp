@@ -194,8 +194,15 @@ public:
     [[nodiscard]] static StatusOr<SearchPrior> from_workspace(
         const std::filesystem::path& data_root,
         std::string_view workspace_id,
+        std::string_view built_utc) {
+        return from_workspace(data_root, workspace_id, built_utc, BuildOptions{});
+    }
+
+    [[nodiscard]] static StatusOr<SearchPrior> from_workspace(
+        const std::filesystem::path& data_root,
+        std::string_view workspace_id,
         std::string_view built_utc,
-        BuildOptions options = {}) {
+        BuildOptions options) {
         StatusOr<std::string> wid = WorkspacePaths::validate_id(workspace_id);
         if (!wid.ok()) {
             return wid.status();

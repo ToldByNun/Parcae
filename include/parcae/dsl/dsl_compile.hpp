@@ -108,8 +108,11 @@ public:
         std::string source_sha256_;
     };
 
-    [[nodiscard]] static bool pipeline_ready(
-        const Options& options = Options{}) {
+    [[nodiscard]] static bool pipeline_ready() {
+        return pipeline_ready(Options{});
+    }
+
+    [[nodiscard]] static bool pipeline_ready(const Options& options) {
         if (options.python_path().empty()) {
             return false;
         }
@@ -122,8 +125,14 @@ public:
     /// Compile `theory_py` into `theories_root/<name>/<version>/`.
     [[nodiscard]] static StatusOr<Result> compile_file(
         const std::filesystem::path& theory_py,
+        const std::filesystem::path& theories_root) {
+        return compile_file(theory_py, theories_root, Options{});
+    }
+
+    [[nodiscard]] static StatusOr<Result> compile_file(
+        const std::filesystem::path& theory_py,
         const std::filesystem::path& theories_root,
-        const Options& options = Options{}) {
+        const Options& options) {
         if (!std::filesystem::is_regular_file(theory_py)) {
             return Status::error("theory source is not a readable file: " + theory_py.string());
         }

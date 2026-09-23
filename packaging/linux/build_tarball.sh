@@ -37,5 +37,6 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
 mkdir -p "${tmp}/${name}"
 cp -a "${stage}/." "${tmp}/${name}/"
+rm -f "${out}/${name}.tar.gz"
 tar -C "${tmp}" -czf "${out}/${name}.tar.gz" "${name}"
 echo "Wrote ${out}/${name}.tar.gz"

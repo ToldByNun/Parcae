@@ -127,7 +127,11 @@ public:
     };
 
     /// Build a sweep plan from a loaded (spec-compatible) artifact.
-    [[nodiscard]] static StatusOr<Plan> plan(const TheoryArtifact& artifact, Options opt = {}) {
+    [[nodiscard]] static StatusOr<Plan> plan(const TheoryArtifact& artifact) {
+        return plan(artifact, Options{});
+    }
+
+    [[nodiscard]] static StatusOr<Plan> plan(const TheoryArtifact& artifact, Options opt) {
         const nlohmann::json& sweep = artifact.sweep();
         if (sweep.is_null()) {
             return Status::error(
@@ -194,8 +198,14 @@ public:
     /// Load via TheoryRegistry (stale dsl_spec → error) then plan.
     [[nodiscard]] static StatusOr<Plan> plan_uri(
         const std::filesystem::path& theories_root,
+        std::string_view uri_or_ref) {
+        return plan_uri(theories_root, uri_or_ref, Options{});
+    }
+
+    [[nodiscard]] static StatusOr<Plan> plan_uri(
+        const std::filesystem::path& theories_root,
         std::string_view uri_or_ref,
-        Options opt = {}) {
+        Options opt) {
         StatusOr<TheoryUri> uri = parse_ref(uri_or_ref);
         if (!uri.ok()) {
             return uri.status();

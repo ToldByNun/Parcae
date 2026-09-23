@@ -41,7 +41,7 @@ public:
     [[nodiscard]] static Status score_lanes(
         CandidateBatchBuffers& buffers,
         std::string_view score_id,
-        const ScoreRequest& request = {},
+        const ScoreRequest& request = ScoreRequest(),
         std::string_view score_version = "v0",
         const nlohmann::json& params = nlohmann::json::object()) {
         if (buffers.scores().empty()) {
@@ -119,7 +119,7 @@ public:
         std::span<const std::string> candidate_ids,
         std::string_view score_id,
         std::size_t k,
-        const ScoreRequest& request = {},
+        const ScoreRequest& request = ScoreRequest(),
         std::string_view score_version = "v0",
         const nlohmann::json& params = nlohmann::json::object()) {
         if (candidate_ids.size() != buffers.candidate_count()) {

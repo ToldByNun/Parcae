@@ -79,7 +79,7 @@ public:
         std::span<const Index29> candidate,
         std::string_view score_version = "v0",
         const nlohmann::json& params = nlohmann::json::object(),
-        const ScoreRequest& request = {}) {
+        const ScoreRequest& request = ScoreRequest()) {
         if (score_version != "v0") {
             return Status::error("Unsupported score_version (only v0 is registered)");
         }

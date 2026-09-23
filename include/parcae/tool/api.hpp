@@ -208,7 +208,7 @@ namespace parcae::tool {
     std::string_view score_id,
     std::string_view score_version = "v0",
     const nlohmann::json& params = nlohmann::json::object(),
-    ScoreRequest request = {},
+    ScoreRequest request = ScoreRequest(),
     Backend backend = Backend::Cpu) {
     Status usable = BackendUtil::ensure_usable(backend);
     if (!usable.ok()) {

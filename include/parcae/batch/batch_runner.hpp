@@ -37,7 +37,7 @@ public:
         std::span<const TransformCandidate> candidates,
         std::string_view score_id,
         std::size_t k,
-        const ScoreRequest& request = {},
+        const ScoreRequest& request = ScoreRequest(),
         BatchExecution execution = BatchExecution::Serial,
         std::string_view score_version = "v0",
         const nlohmann::json& params = nlohmann::json::object()) {

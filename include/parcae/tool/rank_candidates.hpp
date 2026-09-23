@@ -51,7 +51,7 @@ public:
         std::string_view score_id,
         std::size_t k,
         const parcae::tool::Context* ctx = nullptr,
-        ScoreRequest request = {},
+        ScoreRequest request = ScoreRequest(),
         const nlohmann::json& params = nlohmann::json::object(),
         std::string_view score_version = "v0",
         BatchExecution execution = BatchExecution::Serial,

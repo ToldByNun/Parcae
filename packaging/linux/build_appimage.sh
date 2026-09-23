@@ -81,9 +81,11 @@ Categories=Development;Science;
 Terminal=true
 EOF
 
+# appimagetool expects .desktop + icon at AppDir root.
+cp -a "${appdir}/usr/share/applications/parcae.desktop" "${appdir}/parcae.desktop"
+
 # Minimal placeholder icon (AppImage tooling wants one).
 mkdir -p "${appdir}/usr/share/icons/hicolor/256x256/apps"
-# 1x1 PNG via printf (valid minimal PNG) — appimagetool accepts it as icon source.
 printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82' \
   > "${appdir}/usr/share/icons/hicolor/256x256/apps/parcae.png"
 cp -a "${appdir}/usr/share/icons/hicolor/256x256/apps/parcae.png" "${appdir}/parcae.png"

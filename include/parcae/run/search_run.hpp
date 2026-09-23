@@ -60,9 +60,13 @@ public:
         bool compare_cpu_cuda = true;            // when backend is cuda
     };
 
+    [[nodiscard]] static StatusOr<SearchRunMetrics> run(const parcae::tool::Context& ctx) {
+        return run(ctx, Options{});
+    }
+
     [[nodiscard]] static StatusOr<SearchRunMetrics> run(
         const parcae::tool::Context& ctx,
-        Options options = {}) {
+        Options options) {
         Status usable = parcae::tool::BackendUtil::ensure_usable(options.backend);
         if (!usable.ok()) {
             return usable;

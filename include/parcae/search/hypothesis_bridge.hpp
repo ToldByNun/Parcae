@@ -205,8 +205,14 @@ public:
     /// Leaves `scores` empty; callers MAY attach values via `hypothesis_score`.
     [[nodiscard]] static StatusOr<Result> ingest(
         const std::filesystem::path& data_root,
+        const BatchArtifact& artifact) {
+        return ingest(data_root, artifact, Options{});
+    }
+
+    [[nodiscard]] static StatusOr<Result> ingest(
+        const std::filesystem::path& data_root,
         const BatchArtifact& artifact,
-        const Options& options = {}) {
+        const Options& options) {
         StatusOr<std::string_view> generator_id =
             generator_id_for_family(artifact.family());
         if (!generator_id.ok()) {
@@ -228,8 +234,15 @@ public:
     [[nodiscard]] static StatusOr<Result> ingest_batch_dir(
         const std::filesystem::path& data_root,
         std::string_view workspace_id,
+        std::string_view batch_id) {
+        return ingest_batch_dir(data_root, workspace_id, batch_id, Options{});
+    }
+
+    [[nodiscard]] static StatusOr<Result> ingest_batch_dir(
+        const std::filesystem::path& data_root,
+        std::string_view workspace_id,
         std::string_view batch_id,
-        const Options& options = {}) {
+        const Options& options) {
         StatusOr<BatchArtifact> artifact =
             BatchArtifact::load(data_root, workspace_id, batch_id);
         if (!artifact.ok()) {

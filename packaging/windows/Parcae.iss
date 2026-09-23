@@ -1,7 +1,8 @@
 ; Parcae Windows installer (Inno Setup 6).
-; Build via packaging/windows/build_installer.sh (copies bootstrap into stage).
+; Build via packaging/windows/build_installer.sh
 ;
-; Defines: ParcaeVersion, ParcaeFlavor (cpu|cuda|full), ParcaeStage, ParcaeOut
+; Required defines: ParcaeVersion, ParcaeFlavor (cpu|cuda|full), ParcaeStage, ParcaeOut
+; Optional (set by build_installer.sh): ParcaeSuffix, ParcaeAppName, ParcaeAppIdGuid
 
 #ifndef ParcaeVersion
   #define ParcaeVersion "0.7.0"
@@ -16,18 +17,15 @@
   #define ParcaeOut "."
 #endif
 
-#if StrComp(ParcaeFlavor, "cpu", False) == 0
+; Defaults when build script does not pass them:
+#ifndef ParcaeSuffix
   #define ParcaeSuffix "-cpu"
+#endif
+#ifndef ParcaeAppName
   #define ParcaeAppName "Parcae (CPU)"
+#endif
+#ifndef ParcaeAppIdGuid
   #define ParcaeAppIdGuid "{{A7C3E5F1-9B2D-4E8A-B1C0-111111111111}"
-#elif StrComp(ParcaeFlavor, "cuda", False) == 0
-  #define ParcaeSuffix "-cuda"
-  #define ParcaeAppName "Parcae (CUDA)"
-  #define ParcaeAppIdGuid "{{A7C3E5F1-9B2D-4E8A-B1C0-222222222222}"
-#else
-  #define ParcaeSuffix ""
-  #define ParcaeAppName "Parcae"
-  #define ParcaeAppIdGuid "{{A7C3E5F1-9B2D-4E8A-B1C0-333333333333}"
 #endif
 
 #define MyAppPublisher "Parcae"
@@ -35,7 +33,8 @@
 #define MyAppExeName "parcae-catalog.exe"
 
 [Setup]
-AppId={#ParcaeAppIdGuid}AppName={#ParcaeAppName}
+AppId={#ParcaeAppIdGuid}
+AppName={#ParcaeAppName}
 AppVersion={#ParcaeVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
@@ -72,9 +71,6 @@ Name: "{group}\{#ParcaeAppName} Search Cycle (status)"; Filename: "{app}\bin\par
 Name: "{group}\Developer shell"; Filename: "{cmd}"; Parameters: "/K set PATH={app}\bin;%PATH% && cd /d {app}\src"
 Name: "{group}\README"; Filename: "{app}\README.md"
 Name: "{group}\{cm:UninstallProgram,{#ParcaeAppName}}"; Filename: "{uninstallexe}"
-#if StrComp(ParcaeFlavor, "full", False) == 0
-Name: "{group}\Parcae (CUDA) Catalog"; Filename: "{app}\bin-cuda\{#MyAppExeName}"; Parameters: "--json"; WorkingDir: "{app}"
-#endif
 Name: "{autodesktop}\{#ParcaeAppName}"; Filename: "{app}\bin\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]

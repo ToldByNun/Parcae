@@ -18,7 +18,7 @@ rm -f "${out}"
   mapfile -t files < <(
     find . -maxdepth 1 -type f \( \
       -name '*.exe' -o -name '*.tar.gz' -o -name '*.AppImage' -o \
-      -name '*.deb' -o -name '*.rpm' \
+      -name '*.deb' -o -name '*.rpm' -o -name '*.zip' \
     \) | sed 's|^\./||' | sort
   )
   if [[ ${#files[@]} -eq 0 ]]; then

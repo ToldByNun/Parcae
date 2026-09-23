@@ -50,8 +50,14 @@ public:
 
     [[nodiscard]] static StatusOr<CandidateBatchBuffers> allocate(
         std::size_t candidate_count,
+        std::size_t token_count) {
+        return allocate(candidate_count, token_count, AllocateOptions{});
+    }
+
+    [[nodiscard]] static StatusOr<CandidateBatchBuffers> allocate(
+        std::size_t candidate_count,
         std::size_t token_count,
-        AllocateOptions options = {}) {
+        AllocateOptions options) {
         if (candidate_count == 0) {
             return Status::error("CandidateBatchBuffers: C must be >= 1");
         }
