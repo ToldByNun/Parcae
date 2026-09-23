@@ -131,10 +131,12 @@ In-memory record and JSON object used by `SearchScheduler` / CLI.
 | `atbash_caesar` | Atbash ∘ Caesar (29) | Compose / fused twin |
 | `affine` | Bounded affine grid (e.g. 812) | |
 | `vigenere` | Explicit keys / bounded grid only | MUST NOT imply unbounded dictionary search |
+| `beaufort` | Explicit keys / bounded grid (same as vigenère) | **Opt-in:** `allow_extended_families: true` |
+| `totient` | Bounded `prime_start_index` list / count | **Opt-in:** `allow_extended_families: true` |
 
-Opt-in families (`beaufort`, `totient`, theory-URI jobs) MAY be added later.
-Loaders MUST reject unknown `family` values in v0 unless an explicit opt-in flag
-is set in the CLI/API contract.
+Loaders MUST reject unknown `family` values. Extended families (`beaufort`,
+`totient`) MUST be rejected unless `allow_extended_families` is true (job JSON
+and/or CLI `--allow-extended-families`). Theory-URI jobs MAY be added later.
 
 ### Ciphertext resolution
 

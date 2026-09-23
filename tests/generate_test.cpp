@@ -13,6 +13,7 @@
 #include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/compose_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
+#include <parcae/transform/transform_id.hpp>
 #include <parcae/transform/vigenere_key_transform.hpp>
 
 #include <catch2/catch_test_macros.hpp>
@@ -405,21 +406,27 @@ TEST_CASE(
 
 TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][registry]") {
     const std::vector<std::string> ids = GeneratorRegistry::list_generator_ids();
-    REQUIRE(ids.size() == 5);
+    REQUIRE(ids.size() == 7);
     REQUIRE(ids[0] == "gen_atbash");
     REQUIRE(ids[1] == "gen_caesar");
     REQUIRE(ids[2] == "gen_atbash_caesar");
     REQUIRE(ids[3] == "gen_affine");
     REQUIRE(ids[4] == "gen_vigenere_explicit_keys");
+    REQUIRE(ids[5] == "gen_beaufort_explicit_keys");
+    REQUIRE(ids[6] == "gen_totient_offsets");
     REQUIRE(GeneratorRegistry::is_known("gen_caesar"));
+    REQUIRE(GeneratorRegistry::is_known("gen_beaufort_explicit_keys"));
+    REQUIRE(GeneratorRegistry::is_known("gen_totient_offsets"));
     REQUIRE_FALSE(GeneratorRegistry::is_known("gen_nope"));
 
     const std::vector<GeneratorCatalogEntry> entries = GeneratorRegistry::catalog();
-    REQUIRE(entries.size() == 5);
+    REQUIRE(entries.size() == 7);
     REQUIRE(entries[1].bounded_count() == 29);
     REQUIRE_FALSE(entries[1].requires_params());
     REQUIRE(entries[4].requires_params());
     REQUIRE(entries[4].bounded_count() == 0);
+    REQUIRE(entries[5].requires_params());
+    REQUIRE(entries[6].requires_params());
     REQUIRE(entries[1].to_json().at("generator_id").get<std::string>() == "gen_caesar");
 
     const std::vector<Index29> cipher = {I(0), I(5), I(10)};
@@ -439,6 +446,8 @@ TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][regist
     REQUIRE(atbash.value().size() == 1);
 
     REQUIRE_FALSE(GeneratorRegistry::generate("gen_vigenere_explicit_keys", cipher).ok());
+    REQUIRE_FALSE(GeneratorRegistry::generate("gen_beaufort_explicit_keys", cipher).ok());
+    REQUIRE_FALSE(GeneratorRegistry::generate("gen_totient_offsets", cipher).ok());
 
     const nlohmann::json vig_params = {
         {"key_indices_list", {{1, 2, 3}, {4, 5}}},
@@ -447,6 +456,20 @@ TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][regist
         GeneratorRegistry::generate("gen_vigenere_explicit_keys", cipher, TransformDirection::Decrypt, vig_params);
     REQUIRE(vig.ok());
     REQUIRE(vig.value().size() == 2);
+
+    StatusOr<std::vector<TransformCandidate>> beaufort =
+        GeneratorRegistry::generate(
+            "gen_beaufort_explicit_keys", cipher, TransformDirection::Decrypt, vig_params);
+    REQUIRE(beaufort.ok());
+    REQUIRE(beaufort.value().size() == 2);
+    REQUIRE(beaufort.value()[0].transform_id() == TransformId::beaufort_key());
+
+    const nlohmann::json totient_params = {{"prime_start_indices", {0, 1, 2}}};
+    StatusOr<std::vector<TransformCandidate>> totient = GeneratorRegistry::generate(
+        "gen_totient_offsets", cipher, TransformDirection::Decrypt, totient_params);
+    REQUIRE(totient.ok());
+    REQUIRE(totient.value().size() == 3);
+    REQUIRE(totient.value()[0].transform_id() == TransformId::totient_prime_stream());
 
     const nlohmann::json vig_keys = {
         {"keys",

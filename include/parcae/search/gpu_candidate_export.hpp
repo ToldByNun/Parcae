@@ -9,17 +9,22 @@
 #include "parcae/generate/affine_candidate_generator.hpp"
 #include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
+#include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
+#include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/transform_candidate.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
 #include "parcae/interrupt/policy.hpp"
+#include "parcae/math/totient_keystream.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
 #include "parcae/score/score_order.hpp"
 #include "parcae/tool/tool_backend.hpp"
 #include "parcae/transform/affine_transform.hpp"
 #include "parcae/transform/atbash_transform.hpp"
+#include "parcae/transform/beaufort_key_transform.hpp"
 #include "parcae/transform/caesar_transform.hpp"
 #include "parcae/transform/compose_transform.hpp"
+#include "parcae/transform/totient_prime_stream_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
 #include "parcae/transform/vigenere_key_transform.hpp"
@@ -56,8 +61,10 @@ class GpuCandidateExport {
 public:
     static constexpr std::string_view score_id = "chi2_english_gp_v0";
     static constexpr std::string_view score_version = "v0";
-    /// Default max key length for `vigenere_bounded` (matches SearchRun CUDA sweep).
+    /// Default max key length for `vigenere_bounded` / `beaufort_bounded`.
     static constexpr std::size_t default_vigenere_max_key_length = 20;
+    /// Default contiguous `prime_start_index` count for opt-in `totient` family.
+    static constexpr std::size_t default_totient_start_count = 32;
 
     /// One best-first row after export (envelope + plaintext indices + score).
     class Row {
@@ -574,6 +581,229 @@ public:
         return vigenere(cipher, freqs, keys.value(), k, direction);
     }
 
+    // --- Beaufort (opt-in; same key grids as Vigenère) --------------------------
+
+    [[nodiscard]] static StatusOr<Result> beaufort_from_host_scores(
+        std::span<const Index29> cipher,
+        const std::vector<std::vector<Index29>>& keys,
+        std::span<const double> scores,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt,
+        parcae::tool::Backend backend = parcae::tool::Backend::Cpu) {
+        Status common = require_cipher_k(cipher, k);
+        if (!common.ok()) {
+            return common;
+        }
+        Status keys_ok = require_vigenere_keys(keys);
+        if (!keys_ok.ok()) {
+            return keys_ok;
+        }
+        if (scores.size() != keys.size()) {
+            return Status::error(
+                "GpuCandidateExport: beaufort scores length must equal keys length");
+        }
+
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(
+            scores,
+            k,
+            [&](std::size_t index) {
+                return BeaufortExplicitKeyCandidateGenerator::make_candidate_id(
+                    keys[index], index);
+            });
+        if (!hits.ok()) {
+            return hits.status();
+        }
+
+        const BeaufortKeyTransform transform;
+        std::vector<Row> rows;
+        rows.reserve(hits.value().size());
+        for (std::size_t rank = 0; rank < hits.value().size(); ++rank) {
+            const BatchHit& hit = hits.value()[rank];
+            const std::size_t index = hit.source_index();
+            nlohmann::json params{{"key_indices", nlohmann::json::array()}};
+            for (const Index29 idx : keys[index]) {
+                params["key_indices"].push_back(static_cast<int>(idx.value()));
+            }
+            StatusOr<std::vector<Index29>> plain =
+                transform.apply(cipher, params, direction, InterruptPolicy::none());
+            if (!plain.ok()) {
+                return plain.status();
+            }
+            TransformCandidate candidate(
+                hit.candidate_id(),
+                TransformId::beaufort_key(),
+                direction,
+                std::move(params),
+                std::move(plain.value()));
+            rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
+        }
+        return Result{std::move(rows), backend};
+    }
+
+    [[nodiscard]] static StatusOr<Result> beaufort(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        const std::vector<std::vector<Index29>>& keys,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt) {
+        if (direction != TransformDirection::Decrypt) {
+            return Status::error(
+                "GpuCandidateExport::beaufort fused path supports decrypt only");
+        }
+#if !defined(PARCAE_HAS_CUDA)
+        (void)freqs;
+        return Status::error(
+            "GpuCandidateExport::beaufort requires CUDA (build with PARCAE_BUILD_CUDA=ON)");
+#else
+        StatusOr<std::vector<double>> scores = fused_beaufort_scores(cipher, freqs, keys);
+        if (!scores.ok()) {
+            return scores.status();
+        }
+        return beaufort_from_host_scores(
+            cipher, keys, scores.value(), k, TransformDirection::Decrypt,
+            parcae::tool::Backend::Cuda);
+#endif
+    }
+
+    [[nodiscard]] static StatusOr<Result> beaufort_bounded(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        std::size_t k,
+        std::size_t max_key_length = default_vigenere_max_key_length,
+        TransformDirection direction = TransformDirection::Decrypt) {
+        StatusOr<std::vector<std::vector<Index29>>> keys =
+            default_bounded_key_grid(max_key_length);
+        if (!keys.ok()) {
+            return keys.status();
+        }
+        return beaufort(cipher, freqs, keys.value(), k, direction);
+    }
+
+    // --- Totient (opt-in; bounded prime_start_index list) -----------------------
+
+    [[nodiscard]] static StatusOr<std::vector<std::size_t>> default_totient_starts(
+        std::size_t count = default_totient_start_count) {
+        if (count == 0) {
+            return Status::error("GpuCandidateExport: totient start count must be >= 1");
+        }
+#if defined(PARCAE_HAS_CUDA)
+        if (count > FamilyChi2Batch::kMaxCandidates) {
+            return Status::error(
+                "GpuCandidateExport: totient start count exceeds FamilyChi2Batch::kMaxCandidates");
+        }
+#else
+        if (count > 16384) {
+            return Status::error("GpuCandidateExport: totient start count exceeds 16384");
+        }
+#endif
+        std::vector<std::size_t> starts(count);
+        for (std::size_t i = 0; i < count; ++i) {
+            starts[i] = i;
+        }
+        return starts;
+    }
+
+    [[nodiscard]] static StatusOr<Result> totient_from_host_scores(
+        std::span<const Index29> cipher,
+        const std::vector<std::size_t>& prime_start_indices,
+        std::span<const double> scores,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt,
+        parcae::tool::Backend backend = parcae::tool::Backend::Cpu) {
+        Status common = require_cipher_k(cipher, k);
+        if (!common.ok()) {
+            return common;
+        }
+        if (prime_start_indices.empty()) {
+            return Status::error(
+                "GpuCandidateExport: totient requires a non-empty prime_start_indices list");
+        }
+        if (scores.size() != prime_start_indices.size()) {
+            return Status::error(
+                "GpuCandidateExport: totient scores length must equal starts length");
+        }
+
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(
+            scores,
+            k,
+            [&](std::size_t index) {
+                return TotientOffsetCandidateGenerator::make_candidate_id(
+                    prime_start_indices[index]);
+            });
+        if (!hits.ok()) {
+            return hits.status();
+        }
+
+        const TotientPrimeStreamTransform transform;
+        std::vector<Row> rows;
+        rows.reserve(hits.value().size());
+        for (std::size_t rank = 0; rank < hits.value().size(); ++rank) {
+            const BatchHit& hit = hits.value()[rank];
+            const std::size_t index = hit.source_index();
+            const nlohmann::json params{
+                {"prime_start_index",
+                 static_cast<std::uint64_t>(prime_start_indices[index])},
+                {"shift_mode", "prime_minus_one_mod_29"},
+            };
+            StatusOr<std::vector<Index29>> plain =
+                transform.apply(cipher, params, direction, InterruptPolicy::none());
+            if (!plain.ok()) {
+                return plain.status();
+            }
+            TransformCandidate candidate(
+                hit.candidate_id(),
+                TransformId::totient_prime_stream(),
+                direction,
+                params,
+                std::move(plain.value()));
+            rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
+        }
+        return Result{std::move(rows), backend};
+    }
+
+    [[nodiscard]] static StatusOr<Result> totient(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        const std::vector<std::size_t>& prime_start_indices,
+        std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt) {
+        if (direction != TransformDirection::Decrypt) {
+            return Status::error(
+                "GpuCandidateExport::totient fused path supports decrypt only");
+        }
+#if !defined(PARCAE_HAS_CUDA)
+        (void)freqs;
+        return Status::error(
+            "GpuCandidateExport::totient requires CUDA (build with PARCAE_BUILD_CUDA=ON)");
+#else
+        StatusOr<std::vector<double>> scores =
+            fused_totient_scores(cipher, freqs, prime_start_indices);
+        if (!scores.ok()) {
+            return scores.status();
+        }
+        return totient_from_host_scores(
+            cipher,
+            prime_start_indices,
+            scores.value(),
+            k,
+            TransformDirection::Decrypt,
+            parcae::tool::Backend::Cuda);
+#endif
+    }
+
+    [[nodiscard]] static StatusOr<Result> totient_bounded(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        std::size_t k,
+        std::size_t start_count = default_totient_start_count,
+        TransformDirection direction = TransformDirection::Decrypt) {
+        StatusOr<std::vector<std::size_t>> starts = default_totient_starts(start_count);
+        if (!starts.ok()) {
+            return starts.status();
+        }
+        return totient(cipher, freqs, starts.value(), k, direction);
+    }
+
 private:
     GpuCandidateExport() = delete;
 
@@ -956,7 +1186,157 @@ private:
             },
             "GpuCandidateExport::vigenere sync");
     }
+
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_beaufort_scores(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        const std::vector<std::vector<Index29>>& keys) {
+        Status ok = require_cuda_freqs(freqs);
+        if (!ok.ok()) {
+            return ok;
+        }
+        Status common = require_cipher_k(cipher, 1);
+        if (!common.ok()) {
+            return common;
+        }
+        Status keys_ok = require_vigenere_keys(keys);
+        if (!keys_ok.ok()) {
+            return keys_ok;
+        }
+
+        const std::size_t C = keys.size();
+        const auto host_in = to_bytes(cipher);
+        StatusOr<DeviceScratch> scratch = make_scratch(host_in, freqs, C);
+        if (!scratch.ok()) {
+            return scratch.status();
+        }
+
+        std::size_t arena = 0;
+        for (const auto& key : keys) {
+            arena += key.size();
+        }
+        std::vector<std::uint8_t> key_bytes;
+        key_bytes.reserve(arena);
+        std::vector<std::uint32_t> key_begin(C);
+        std::vector<std::uint32_t> key_len(C);
+        std::uint32_t cursor = 0;
+        for (std::size_t i = 0; i < C; ++i) {
+            key_begin[i] = cursor;
+            key_len[i] = static_cast<std::uint32_t>(keys[i].size());
+            for (const Index29 idx : keys[i]) {
+                key_bytes.push_back(idx.value());
+            }
+            cursor += key_len[i];
+        }
+
+        StatusOr<DeviceBuffer<std::uint8_t>> device_keys =
+            DeviceBuffer<std::uint8_t>::from_host(key_bytes);
+        if (!device_keys.ok()) {
+            return device_keys.status();
+        }
+        StatusOr<DeviceBuffer<std::uint32_t>> device_begin =
+            DeviceBuffer<std::uint32_t>::from_host(key_begin);
+        if (!device_begin.ok()) {
+            return device_begin.status();
+        }
+        StatusOr<DeviceBuffer<std::uint32_t>> device_len =
+            DeviceBuffer<std::uint32_t>::from_host(key_len);
+        if (!device_len.ok()) {
+            return device_len.status();
+        }
+
+        return launch_sync_copy(
+            scratch.value(),
+            [&]() {
+                return FamilyChi2Batch::launch_beaufort_async(
+                    scratch.value().in.data(),
+                    device_keys.value().data(),
+                    device_begin.value().data(),
+                    device_len.value().data(),
+                    scratch.value().probs.data(),
+                    scratch.value().counts.data(),
+                    scratch.value().scores.data(),
+                    C,
+                    scratch.value().T);
+            },
+            "GpuCandidateExport::beaufort sync");
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_totient_scores(
+        std::span<const Index29> cipher,
+        const ExpectedFrequencyTable& freqs,
+        const std::vector<std::size_t>& prime_start_indices) {
+        Status ok = require_cuda_freqs(freqs);
+        if (!ok.ok()) {
+            return ok;
+        }
+        Status common = require_cipher_k(cipher, 1);
+        if (!common.ok()) {
+            return common;
+        }
+        if (prime_start_indices.empty()) {
+            return Status::error(
+                "GpuCandidateExport: totient requires a non-empty prime_start_indices list");
+        }
+        if (prime_start_indices.size() > FamilyChi2Batch::kMaxCandidates) {
+            return Status::error(
+                "GpuCandidateExport: totient start count exceeds FamilyChi2Batch::kMaxCandidates");
+        }
+
+        const std::size_t C = prime_start_indices.size();
+        const auto host_in = to_bytes(cipher);
+        StatusOr<DeviceScratch> scratch = make_scratch(host_in, freqs, C);
+        if (!scratch.ok()) {
+            return scratch.status();
+        }
+
+        std::size_t max_start = 0;
+        for (const std::size_t s : prime_start_indices) {
+            if (s > max_start) {
+                max_start = s;
+            }
+        }
+        StatusOr<std::vector<Index29>> shifts =
+            TotientKeystream::shifts(max_start + scratch.value().T, 0);
+        if (!shifts.ok()) {
+            return shifts.status();
+        }
+        std::vector<std::uint8_t> shift_bytes;
+        shift_bytes.reserve(shifts.value().size());
+        for (const Index29 idx : shifts.value()) {
+            shift_bytes.push_back(idx.value());
+        }
+        std::vector<std::uint32_t> shift_begin(C);
+        for (std::size_t i = 0; i < C; ++i) {
+            shift_begin[i] = static_cast<std::uint32_t>(prime_start_indices[i]);
+        }
+
+        StatusOr<DeviceBuffer<std::uint8_t>> device_shifts =
+            DeviceBuffer<std::uint8_t>::from_host(shift_bytes);
+        if (!device_shifts.ok()) {
+            return device_shifts.status();
+        }
+        StatusOr<DeviceBuffer<std::uint32_t>> device_begin =
+            DeviceBuffer<std::uint32_t>::from_host(shift_begin);
+        if (!device_begin.ok()) {
+            return device_begin.status();
+        }
+
+        return launch_sync_copy(
+            scratch.value(),
+            [&]() {
+                return FamilyChi2Batch::launch_totient_async(
+                    scratch.value().in.data(),
+                    device_shifts.value().data(),
+                    device_begin.value().data(),
+                    scratch.value().probs.data(),
+                    scratch.value().counts.data(),
+                    scratch.value().scores.data(),
+                    C,
+                    scratch.value().T);
+            },
+            "GpuCandidateExport::totient sync");
+    }
 #endif
 };
-
 #endif // GPU_CANDIDATE_EXPORT_HPP

@@ -10,7 +10,9 @@
 #include "parcae/generate/affine_candidate_generator.hpp"
 #include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
+#include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
+#include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/transform_candidate.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
 #include "parcae/search/gpu_candidate_export.hpp"
@@ -162,17 +164,35 @@ public:
         if (family == "vigenere") {
             return VigenereExplicitKeyCandidateGenerator::generator_id;
         }
+        if (family == "beaufort") {
+            return BeaufortExplicitKeyCandidateGenerator::generator_id;
+        }
+        if (family == "totient") {
+            return TotientOffsetCandidateGenerator::generator_id;
+        }
         return Status::error("CpuCandidateExport: unsupported family");
     }
 
-    /// Vigenère requires explicit keys or a bounded synthetic grid; other families
-    /// ignore `param_grid` (family default enumeration).
+    /// Vigenère / Beaufort: explicit keys or bounded synthetic grid.
+    /// Totient: `prime_start_indices` or contiguous `0..prime_start_count-1`.
+    /// Other families ignore `param_grid` (family default enumeration).
     [[nodiscard]] static StatusOr<nlohmann::json> generator_params_for_family(
         std::string_view family,
         const nlohmann::json& param_grid) {
-        if (family != "vigenere") {
-            return nlohmann::json::object();
+        if (family == "vigenere" || family == "beaufort") {
+            return keyed_family_params(param_grid);
         }
+        if (family == "totient") {
+            return totient_family_params(param_grid);
+        }
+        return nlohmann::json::object();
+    }
+
+private:
+    CpuCandidateExport() = delete;
+
+    [[nodiscard]] static StatusOr<nlohmann::json> keyed_family_params(
+        const nlohmann::json& param_grid) {
         if (param_grid.is_object() && !param_grid.empty()) {
             if (param_grid.contains("key_indices_list") || param_grid.contains("keys")) {
                 return param_grid;
@@ -195,15 +215,7 @@ public:
             if (!keys.ok()) {
                 return keys.status();
             }
-            nlohmann::json list = nlohmann::json::array();
-            for (const std::vector<Index29>& key : keys.value()) {
-                nlohmann::json row = nlohmann::json::array();
-                for (const Index29 idx : key) {
-                    row.push_back(idx.value());
-                }
-                list.push_back(std::move(row));
-            }
-            return nlohmann::json{{"key_indices_list", std::move(list)}};
+            return key_indices_list_json(keys.value());
         }
 
         StatusOr<std::vector<std::vector<Index29>>> keys =
@@ -212,8 +224,48 @@ public:
         if (!keys.ok()) {
             return keys.status();
         }
+        return key_indices_list_json(keys.value());
+    }
+
+    [[nodiscard]] static StatusOr<nlohmann::json> totient_family_params(
+        const nlohmann::json& param_grid) {
+        if (param_grid.is_object() && param_grid.contains("prime_start_indices")) {
+            if (!param_grid.at("prime_start_indices").is_array()) {
+                return Status::error(
+                    "CpuCandidateExport: param_grid.prime_start_indices must be an array");
+            }
+            return nlohmann::json{
+                {"prime_start_indices", param_grid.at("prime_start_indices")}};
+        }
+        std::size_t count = GpuCandidateExport::default_totient_start_count;
+        if (param_grid.is_object() && param_grid.contains("prime_start_count")) {
+            if (!param_grid.at("prime_start_count").is_number_integer()) {
+                return Status::error(
+                    "CpuCandidateExport: param_grid.prime_start_count must be an integer");
+            }
+            const std::int64_t v = param_grid.at("prime_start_count").get<std::int64_t>();
+            if (v < 1) {
+                return Status::error(
+                    "CpuCandidateExport: param_grid.prime_start_count must be >= 1");
+            }
+            count = static_cast<std::size_t>(v);
+        }
+        StatusOr<std::vector<std::size_t>> starts =
+            GpuCandidateExport::default_totient_starts(count);
+        if (!starts.ok()) {
+            return starts.status();
+        }
         nlohmann::json list = nlohmann::json::array();
-        for (const std::vector<Index29>& key : keys.value()) {
+        for (const std::size_t s : starts.value()) {
+            list.push_back(s);
+        }
+        return nlohmann::json{{"prime_start_indices", std::move(list)}};
+    }
+
+    [[nodiscard]] static nlohmann::json key_indices_list_json(
+        const std::vector<std::vector<Index29>>& keys) {
+        nlohmann::json list = nlohmann::json::array();
+        for (const std::vector<Index29>& key : keys) {
             nlohmann::json row = nlohmann::json::array();
             for (const Index29 idx : key) {
                 row.push_back(idx.value());
@@ -222,9 +274,6 @@ public:
         }
         return nlohmann::json{{"key_indices_list", std::move(list)}};
     }
-
-private:
-    CpuCandidateExport() = delete;
 
     [[nodiscard]] static Status filter_exclusions(
         std::vector<TransformCandidate>& candidates,

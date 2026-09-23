@@ -215,7 +215,8 @@ Generators emit deterministic sequences of transform envelopes.
 | `gen_atbash_caesar` | Atbash ∘ Caesar(+shift) for all shifts (Koan-1 family) | 29 |
 | `gen_affine` | all `a∈1..28`, `b∈0..28` (nested `a` then `b`) | **28×29 = 812** |
 | `gen_vigenere_explicit_keys` | caller-supplied key list only (no dictionary expansion) | \|keys\| |
-| `gen_totient_offsets` | optional small range of `prime_start_index` (bounded) | small |
+| `gen_beaufort_explicit_keys` | caller-supplied key list only (Beaufort; no dictionary) | \|keys\| |
+| `gen_totient_offsets` | caller-supplied / bounded `prime_start_index` list | small |
 
 `gen_affine` is the largest Tier-A monoalphabetic sweep in the CPU reference.
 Callers MUST treat 812 as an explicit budget (score/batch), not an unbounded

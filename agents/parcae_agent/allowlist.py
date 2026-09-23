@@ -153,6 +153,7 @@ TOOL_ARG_KEYS: dict[str, frozenset[str]] = {
             "backend",
             "iterations",
             "created_utc",
+            "allow_extended_families",
         }
     ),
 }
@@ -172,6 +173,7 @@ BOOL_FLAGS: dict[str, str] = {
     "generators": "--generators",
     "backends": "--backends",
     "no_latin": "--no-latin",
+    "allow_extended_families": "--allow-extended-families",
 }
 
 # String/int option flags (key → --flag).

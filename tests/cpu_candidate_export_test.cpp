@@ -6,10 +6,13 @@
 #include <parcae/score/score_request.hpp>
 #include <parcae/search/cpu_candidate_export.hpp>
 #include <parcae/search/gpu_candidate_export.hpp>
+#include <parcae/search/search_job.hpp>
 #include <parcae/search/search_prior.hpp>
 #include <parcae/tool/context.hpp>
+#include <parcae/tool/tool_backend.hpp>
 #include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
+#include <parcae/transform/transform_id.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -192,4 +195,64 @@ TEST_CASE("CpuCandidateExport rejects expansion above max_candidates", "[search]
         "v0",
         29);
     REQUIRE(pass.ok());
+}
+
+TEST_CASE(
+    "CpuCandidateExport opt-in beaufort / totient families",
+    "[search][export][cpu][extended]") {
+    const parcae::tool::Context ctx = test_context();
+    const std::vector<Index29> cipher = synthetic_cipher();
+
+    StatusOr<SearchJob> denied = SearchJob::make(
+        "_example",
+        "totient",
+        "chi2_english_gp_v0",
+        3,
+        1,
+        parcae::tool::Backend::Cpu,
+        64);
+    REQUIRE_FALSE(denied.ok());
+
+    StatusOr<SearchJob> totient_job = SearchJob::make(
+        "_example",
+        "totient",
+        "chi2_english_gp_v0",
+        3,
+        1,
+        parcae::tool::Backend::Cpu,
+        64,
+        TransformDirection::Decrypt,
+        nlohmann::json{{"prime_start_count", 8}},
+        std::nullopt,
+        "v0",
+        true);
+    REQUIRE(totient_job.ok());
+    StatusOr<CpuCandidateExport::Result> totient =
+        CpuCandidateExport::from_job(cipher, totient_job.value(), ctx);
+    REQUIRE(totient.ok());
+    REQUIRE(totient.value().size() == 3);
+    REQUIRE(
+        totient.value().rows()[0].candidate().transform_id() ==
+        TransformId::totient_prime_stream());
+
+    StatusOr<SearchJob> beaufort_job = SearchJob::make(
+        "_example",
+        "beaufort",
+        "chi2_english_gp_v0",
+        2,
+        1,
+        parcae::tool::Backend::Cpu,
+        64,
+        TransformDirection::Decrypt,
+        nlohmann::json{{"max_key_length", 4}},
+        std::nullopt,
+        "v0",
+        true);
+    REQUIRE(beaufort_job.ok());
+    StatusOr<CpuCandidateExport::Result> beaufort =
+        CpuCandidateExport::from_job(cipher, beaufort_job.value(), ctx);
+    REQUIRE(beaufort.ok());
+    REQUIRE(beaufort.value().size() == 2);
+    REQUIRE(
+        beaufort.value().rows()[0].candidate().transform_id() == TransformId::beaufort_key());
 }

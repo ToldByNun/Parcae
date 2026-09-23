@@ -132,6 +132,26 @@ parcae-search-cycle \
 
 Without `--allow-cuda`, expect `error.code: "policy"` (exit 2).
 
+### Extended families (beaufort / totient)
+
+Require an explicit opt-in — either job JSON `allow_extended_families: true` or
+CLI `--allow-extended-families`:
+
+```bash
+parcae-search-cycle \
+  --workspace my-ws \
+  --family totient \
+  --k 8 \
+  --allow-extended-families \
+  --backend cpu \
+  --json \
+  --data-dir data
+```
+
+Default totient grid: `prime_start_index` in `0..31`. Override via job
+`param_grid.prime_start_count` or `param_grid.prime_start_indices`. Beaufort uses
+the same bounded key grid as Vigenère (`max_key_length`, default 20).
+
 ## Outputs to inspect
 
 After a successful cycle:

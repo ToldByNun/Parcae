@@ -125,7 +125,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 
 | # | Commit |
 |---|--------|
-| 36 | feat(search): optional beaufort/totient families (explicit opt-in) |
+| 36 | feat(search): optional beaufort/totient families (explicit opt-in) | **done** |
 | 37 | feat(search): optional theory-URI job step (top candidates only) |
 | 38 | feat(search): compose recipe jobs (AtbashCaesar / ComposeDriver export) |
 | 39 | test(search): compose job CPU/CUDA mirror smoke |

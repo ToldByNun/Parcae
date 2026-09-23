@@ -56,12 +56,14 @@ void print_help() {
         << "  --status         Toolkit / schema / backend readiness (no cycle)\n"
         << "  --workspace      Workspace id under data/workspaces/ (required for run)\n"
         << "  --job            Path to parcae.search_job.v0 JSON\n"
-        << "  --family         Build a job when --job is omitted (caesar|atbash|…)\n"
+        << "  --family         Build a job when --job is omitted (caesar|atbash|…;\n"
+        << "                   beaufort|totient need --allow-extended-families)\n"
         << "  --k              Top-k (default 16; with --family)\n"
         << "  --seed           Replay seed (default 1; with --family)\n"
         << "  --score-id       Score id (default: workspace default_score_id)\n"
         << "  --backend        cpu|cuda (default cpu; cuda needs --allow-cuda)\n"
         << "  --allow-cuda     AgentPolicy opt-in for --backend cuda\n"
+        << "  --allow-extended-families  Opt-in for beaufort|totient families\n"
         << "  --iterations     run_loop count (default 1, >= 1)\n"
         << "  --created-utc    Fixed RFC3339 UTC (YYYY-MM-DDTHH:MM:SSZ) for replayable\n"
         << "                   batch/prior digests; default = wall clock\n"
@@ -163,8 +165,10 @@ void print_help() {
 
 [[nodiscard]] StatusOr<SearchJob> job_with_backend(
     const SearchJob& job,
-    parcae::tool::Backend backend) {
-    if (job.backend() == backend) {
+    parcae::tool::Backend backend,
+    bool allow_extended_families) {
+    const bool extended = job.allow_extended_families() || allow_extended_families;
+    if (job.backend() == backend && job.allow_extended_families() == extended) {
         return job;
     }
     return SearchJob::make(
@@ -179,7 +183,7 @@ void print_help() {
         job.param_grid(),
         job.prior(),
         job.score_version(),
-        job.allow_extended_families());
+        extended);
 }
 
 [[nodiscard]] StatusOr<SearchJob> resolve_job(
@@ -190,6 +194,7 @@ void print_help() {
     using namespace parcae::cli;
     const std::string job_path = optional_option(args, "--job");
     const std::string family = optional_option(args, "--family");
+    const bool allow_extended = has_flag(args, "--allow-extended-families");
 
     if (!job_path.empty() && !family.empty()) {
         return Status::error("Use either --job or --family, not both");
@@ -205,7 +210,7 @@ void print_help() {
                 "SearchJob.workspace_id (" + loaded.value().workspace_id() +
                 ") does not match --workspace (" + std::string(workspace_id) + ")");
         }
-        return job_with_backend(loaded.value(), backend);
+        return job_with_backend(loaded.value(), backend, allow_extended);
     }
 
     if (family.empty()) {
@@ -259,14 +264,16 @@ void print_help() {
         TransformDirection::Decrypt,
         nlohmann::json::object(),
         std::nullopt,
-        score_version);
+        score_version,
+        has_flag(args, "--allow-extended-families"));
 }
 
 [[nodiscard]] bool is_known_flag(std::string_view a) {
     return a == "--json" || a == "--status" || a == "-h" || a == "--help" || a == "--data-dir" ||
            a == "--workspace" || a == "--job" || a == "--family" || a == "--k" || a == "--seed" ||
            a == "--score-id" || a == "--max-candidates" || a == "--backend" || a == "--allow-cuda" ||
-           a == "--iterations" || a == "--omit-timing" || a == "--created-utc";
+           a == "--allow-extended-families" || a == "--iterations" || a == "--omit-timing" ||
+           a == "--created-utc";
 }
 
 [[nodiscard]] bool flag_takes_value(std::string_view a) {

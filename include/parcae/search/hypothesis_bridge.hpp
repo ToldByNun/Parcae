@@ -8,7 +8,9 @@
 #include "parcae/generate/affine_candidate_generator.hpp"
 #include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
+#include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
+#include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
 #include "parcae/hypothesis/hypothesis_record.hpp"
 #include "parcae/hypothesis/hypothesis_status.hpp"
@@ -179,6 +181,12 @@ public:
         }
         if (family == "vigenere") {
             return VigenereExplicitKeyCandidateGenerator::generator_id;
+        }
+        if (family == "beaufort") {
+            return BeaufortExplicitKeyCandidateGenerator::generator_id;
+        }
+        if (family == "totient") {
+            return TotientOffsetCandidateGenerator::generator_id;
         }
         return Status::error(
             "HypothesisBridge: unsupported family for generator_id mapping: " +

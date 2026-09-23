@@ -369,6 +369,11 @@ _TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "description": "RFC3339 UTC for replayable digests "
                     "(YYYY-MM-DDTHH:MM:SSZ)",
                 },
+                "allow_extended_families": {
+                    **_BOOL,
+                    "description": "Opt-in for beaufort|totient families "
+                    "(required when family is beaufort or totient)",
+                },
             }
         ),
     ),

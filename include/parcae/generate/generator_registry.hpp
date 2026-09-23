@@ -7,8 +7,10 @@
 #include "parcae/generate/affine_candidate_generator.hpp"
 #include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
+#include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
 #include "parcae/generate/generator_catalog_entry.hpp"
+#include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/transform_candidate.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
 #include "parcae/transform/transform_direction.hpp"
@@ -47,6 +49,14 @@ public:
              TransformId::vigenere_key().str(),
              0,
              true},
+            {std::string(BeaufortExplicitKeyCandidateGenerator::generator_id),
+             TransformId::beaufort_key().str(),
+             0,
+             true},
+            {std::string(TotientOffsetCandidateGenerator::generator_id),
+             TransformId::totient_prime_stream().str(),
+             0,
+             true},
         };
     }
 
@@ -67,9 +77,11 @@ public:
         return false;
     }
 
-    /// Dispatch `gen_*` → candidates. For `gen_vigenere_explicit_keys`, `params`
-    /// MUST contain `key_indices_list` (array of Index29 arrays) or `keys`
-    /// (array of `{key_indices, key_latin?}` objects).
+    /// Dispatch `gen_*` → candidates.
+    ///
+    /// Keyed generators (`gen_vigenere_explicit_keys` / `gen_beaufort_explicit_keys`):
+    /// `params` MUST contain `key_indices_list` or `keys`.
+    /// `gen_totient_offsets`: `params.prime_start_indices` (array of ints) required.
     [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate(
         std::string_view generator_id,
         std::span<const Index29> ciphertext,
@@ -88,7 +100,25 @@ public:
             return AffineCandidateGenerator::generate(ciphertext, direction);
         }
         if (generator_id == VigenereExplicitKeyCandidateGenerator::generator_id) {
-            return generate_vigenere(ciphertext, direction, params);
+            StatusOr<std::vector<ExplicitVigenereKey>> keys =
+                parse_explicit_keys(params, "gen_vigenere_explicit_keys");
+            if (!keys.ok()) {
+                return keys.status();
+            }
+            return VigenereExplicitKeyCandidateGenerator::generate(
+                ciphertext, keys.value(), direction);
+        }
+        if (generator_id == BeaufortExplicitKeyCandidateGenerator::generator_id) {
+            StatusOr<std::vector<ExplicitVigenereKey>> keys =
+                parse_explicit_keys(params, "gen_beaufort_explicit_keys");
+            if (!keys.ok()) {
+                return keys.status();
+            }
+            return BeaufortExplicitKeyCandidateGenerator::generate(
+                ciphertext, keys.value(), direction);
+        }
+        if (generator_id == TotientOffsetCandidateGenerator::generator_id) {
+            return generate_totient(ciphertext, direction, params);
         }
         return Status::error("Unknown generator_id");
     }
@@ -96,49 +126,77 @@ public:
 private:
     GeneratorRegistry() = delete;
 
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate_vigenere(
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate_totient(
         std::span<const Index29> ciphertext,
         TransformDirection direction,
         const nlohmann::json& params) {
         if (!params.is_object()) {
-            return Status::error("gen_vigenere_explicit_keys params must be an object");
+            return Status::error("gen_totient_offsets params must be an object");
+        }
+        if (!params.contains("prime_start_indices") ||
+            !params.at("prime_start_indices").is_array()) {
+            return Status::error(
+                "gen_totient_offsets requires params.prime_start_indices array");
+        }
+        std::vector<std::size_t> starts;
+        starts.reserve(params.at("prime_start_indices").size());
+        for (const auto& item : params.at("prime_start_indices")) {
+            if (!item.is_number_integer()) {
+                return Status::error(
+                    "gen_totient_offsets prime_start_indices entries must be integers");
+            }
+            const std::int64_t raw = item.get<std::int64_t>();
+            if (raw < 0) {
+                return Status::error(
+                    "gen_totient_offsets prime_start_indices must be non-negative");
+            }
+            starts.push_back(static_cast<std::size_t>(raw));
+        }
+        return TotientOffsetCandidateGenerator::generate(ciphertext, starts, direction);
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<ExplicitVigenereKey>> parse_explicit_keys(
+        const nlohmann::json& params,
+        std::string_view generator_id) {
+        if (!params.is_object()) {
+            return Status::error(std::string(generator_id) + " params must be an object");
         }
 
         if (params.contains("key_indices_list")) {
             if (!params.at("key_indices_list").is_array()) {
                 return Status::error(
-                    "gen_vigenere_explicit_keys params.key_indices_list must be an array");
+                    std::string(generator_id) + " params.key_indices_list must be an array");
             }
-            std::vector<std::vector<Index29>> keys;
+            std::vector<ExplicitVigenereKey> keys;
             keys.reserve(params.at("key_indices_list").size());
             for (const auto& key_json : params.at("key_indices_list")) {
-                StatusOr<std::vector<Index29>> key = parse_index_array(key_json, "key_indices_list");
+                StatusOr<std::vector<Index29>> key =
+                    parse_index_array(key_json, generator_id, "key_indices_list");
                 if (!key.ok()) {
                     return key.status();
                 }
-                keys.push_back(std::move(key.value()));
+                keys.push_back(ExplicitVigenereKey{std::move(key.value()), std::nullopt});
             }
-            return VigenereExplicitKeyCandidateGenerator::generate(
-                ciphertext, keys, direction);
+            return keys;
         }
 
         if (params.contains("keys")) {
             if (!params.at("keys").is_array()) {
-                return Status::error("gen_vigenere_explicit_keys params.keys must be an array");
+                return Status::error(std::string(generator_id) + " params.keys must be an array");
             }
             std::vector<ExplicitVigenereKey> keys;
             keys.reserve(params.at("keys").size());
             for (const auto& item : params.at("keys")) {
                 if (!item.is_object()) {
                     return Status::error(
-                        "gen_vigenere_explicit_keys params.keys entries must be objects");
+                        std::string(generator_id) + " params.keys entries must be objects");
                 }
                 if (!item.contains("key_indices")) {
                     return Status::error(
-                        "gen_vigenere_explicit_keys params.keys[].key_indices is required");
+                        std::string(generator_id) + " params.keys[].key_indices is required");
                 }
                 StatusOr<std::vector<Index29>> indices =
-                    parse_index_array(item.at("key_indices"), "keys[].key_indices");
+                    parse_index_array(item.at("key_indices"), generator_id, "keys[].key_indices");
                 if (!indices.ok()) {
                     return indices.status();
                 }
@@ -147,26 +205,27 @@ private:
                 if (item.contains("key_latin")) {
                     if (!item.at("key_latin").is_string()) {
                         return Status::error(
-                            "gen_vigenere_explicit_keys params.keys[].key_latin must be a string");
+                            std::string(generator_id) +
+                            " params.keys[].key_latin must be a string");
                     }
                     key.key_latin = item.at("key_latin").get<std::string>();
                 }
                 keys.push_back(std::move(key));
             }
-            return VigenereExplicitKeyCandidateGenerator::generate(
-                ciphertext, keys, direction);
+            return keys;
         }
 
         return Status::error(
-            "gen_vigenere_explicit_keys requires params.key_indices_list or params.keys");
+            std::string(generator_id) + " requires params.key_indices_list or params.keys");
     }
 
     [[nodiscard]] static StatusOr<std::vector<Index29>> parse_index_array(
         const nlohmann::json& arr,
+        std::string_view generator_id,
         std::string_view field_name) {
         if (!arr.is_array()) {
             return Status::error(
-                std::string("gen_vigenere_explicit_keys ") + std::string(field_name) +
+                std::string(generator_id) + " " + std::string(field_name) +
                 " must be an array");
         }
         std::vector<Index29> out;
@@ -174,13 +233,13 @@ private:
         for (const auto& item : arr) {
             if (!item.is_number_integer()) {
                 return Status::error(
-                    std::string("gen_vigenere_explicit_keys ") + std::string(field_name) +
+                    std::string(generator_id) + " " + std::string(field_name) +
                     " entries must be integers");
             }
             const int value = item.get<int>();
             if (value < 0 || value >= static_cast<int>(Index29::modulus)) {
                 return Status::error(
-                    std::string("gen_vigenere_explicit_keys ") + std::string(field_name) +
+                    std::string(generator_id) + " " + std::string(field_name) +
                     " entry out of range [0,28]");
             }
             out.push_back(Index29{static_cast<std::uint8_t>(value)});

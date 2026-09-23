@@ -620,9 +620,59 @@ private:
             return GpuCandidateExport::vigenere_bounded(
                 cipher, freqs, job.k(), max_len, job.direction());
         }
+        if (family == "beaufort") {
+            if (!job.allow_extended_families()) {
+                return Status::error(
+                    "SearchScheduler: beaufort requires allow_extended_families");
+            }
+            std::size_t max_len = GpuCandidateExport::default_vigenere_max_key_length;
+            if (job.param_grid().is_object() && job.param_grid().contains("max_key_length") &&
+                job.param_grid().at("max_key_length").is_number_integer()) {
+                const std::int64_t v = job.param_grid().at("max_key_length").get<std::int64_t>();
+                if (v < 1) {
+                    return Status::error("SearchScheduler: param_grid.max_key_length must be >= 1");
+                }
+                max_len = static_cast<std::size_t>(v);
+            }
+            return GpuCandidateExport::beaufort_bounded(
+                cipher, freqs, job.k(), max_len, job.direction());
+        }
+        if (family == "totient") {
+            if (!job.allow_extended_families()) {
+                return Status::error(
+                    "SearchScheduler: totient requires allow_extended_families");
+            }
+            std::size_t count = GpuCandidateExport::default_totient_start_count;
+            if (job.param_grid().is_object() &&
+                job.param_grid().contains("prime_start_count") &&
+                job.param_grid().at("prime_start_count").is_number_integer()) {
+                const std::int64_t v =
+                    job.param_grid().at("prime_start_count").get<std::int64_t>();
+                if (v < 1) {
+                    return Status::error(
+                        "SearchScheduler: param_grid.prime_start_count must be >= 1");
+                }
+                count = static_cast<std::size_t>(v);
+            }
+            if (job.param_grid().is_object() &&
+                job.param_grid().contains("prime_start_indices") &&
+                job.param_grid().at("prime_start_indices").is_array()) {
+                std::vector<std::size_t> starts;
+                for (const auto& item : job.param_grid().at("prime_start_indices")) {
+                    if (!item.is_number_integer() || item.get<std::int64_t>() < 0) {
+                        return Status::error(
+                            "SearchScheduler: prime_start_indices must be non-negative integers");
+                    }
+                    starts.push_back(static_cast<std::size_t>(item.get<std::int64_t>()));
+                }
+                return GpuCandidateExport::totient(
+                    cipher, freqs, starts, job.k(), job.direction());
+            }
+            return GpuCandidateExport::totient_bounded(
+                cipher, freqs, job.k(), count, job.direction());
+        }
         return Status::error(
             "SearchScheduler: unsupported family for cuda export: " + family);
     }
 };
-
 #endif  // SEARCH_SCHEDULER_HPP

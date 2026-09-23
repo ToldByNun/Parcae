@@ -19,8 +19,8 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `search_prior.hpp` | `SearchPrior` | Done (`parcae.search_prior.v0`) |
 | `batch_artifact.hpp` | `BatchArtifact` | Done (`parcae.batch_artifact.v0`) |
 | `workspace_cipher.hpp` | `WorkspaceCipher` | Done (`workspace.v0` → `Index29`) |
-| `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere) |
-| `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (generate + rank + prior) |
+| `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere + opt-in beaufort/totient) |
+| `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (generate + rank + prior + extended families) |
 | `hypothesis_bridge.hpp` | `HypothesisBridge` | Done (ingest + idempotent ids / provenance) |
 | `search_scheduler.hpp` | `SearchScheduler` | Done (`run_once` / `run_loop` + prior feedback) |
 | CLI `parcae-search-cycle` | tool `search_cycle` | Done (`--status` / run / `--omit-timing` / AgentPolicy + JSON goldens) |
