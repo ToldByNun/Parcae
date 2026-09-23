@@ -5,6 +5,8 @@
 #include "parcae/batch/batch_hit.hpp"
 #include "parcae/batch/batch_result.hpp"
 #include "parcae/batch/batch_runner.hpp"
+#include "parcae/cli/console_dashboard.hpp"
+#include "parcae/cli/console_progress_snapshot.hpp"
 #include "parcae/core/index29.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
@@ -33,6 +35,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <iomanip>
+#include <optional>
 #include <span>
 #include <sstream>
 #include <string>
@@ -128,26 +131,17 @@ public:
     }
 
     [[nodiscard]] static std::string format_runes_per_sec(double rps) {
-        std::ostringstream out;
-        out << std::fixed;
-        if (rps >= 1.0e9) {
-            out << std::setprecision(2) << (rps / 1.0e9) << "B runes/s";
-        } else if (rps >= 1.0e6) {
-            out << std::setprecision(2) << (rps / 1.0e6) << "M runes/s";
-        } else if (rps >= 1.0e3) {
-            out << std::setprecision(2) << (rps / 1.0e3) << "k runes/s";
-        } else {
-            out << std::setprecision(2) << rps << " runes/s";
-        }
-        return out.str();
+        return ConsoleDashboard::format_throughput(rps);
     }
 
+    /// Human report: shared `ConsoleDashboard` panel + fixture table.
     [[nodiscard]] static std::string format(const Report& report) {
+        const ConsoleProgressSnapshot snap = to_snapshot(report);
         std::ostringstream out;
-        out << "PARCAE — BLIND CRACK BENCH\n";
+        out << ConsoleDashboard::format_panel(snap, 28) << '\n';
         out << "(locked fixtures as stand-in; no unsolved LP2 transcripts in-repo)\n";
         out << "Battery: identity + atbash + caesar + atbash_caesar + affine (~871)\n";
-        out << "Score:   chi2_english_gp_v0 — plaintext NOT used for ranking\n";
+        out << "Score:   chi2_english_gp_v0 - plaintext NOT used for ranking\n";
         out << "Throughput: C x T / wall (expand+score)\n\n";
 
         out << "Fixture              T    Cands     ms      runes/s  Top hit                         Cracked?\n";
@@ -176,11 +170,48 @@ public:
             << std::setprecision(3) << std::fixed << report.total_wall_seconds << " s total\n";
         out << "Aggregate throughput: " << format_runes_per_sec(report.aggregate_runes_per_sec)
             << "  (" << report.total_runes_scored << " rune-evals)\n";
+        out << ConsoleDashboard::format_line(snap) << "  [done]\n";
         return out.str();
     }
 
 private:
     BlindCrack() = delete;
+
+    [[nodiscard]] static ConsoleProgressSnapshot to_snapshot(const Report& report) {
+        ConsoleProgressSnapshot snap;
+        snap.set_tool("blind-crack");
+        snap.set_score_id("chi2_english_gp_v0");
+        snap.set_backend("cpu");
+        snap.set_stage("done");
+        snap.set_candidates_done(report.attempted_count);
+        snap.set_candidates_total(report.attempted_count);
+        snap.set_elapsed_seconds(report.total_wall_seconds);
+        snap.set_runes_per_sec(report.aggregate_runes_per_sec);
+        if (report.total_wall_seconds > 0.0 && report.attempted_count > 0) {
+            snap.set_candidates_per_sec(
+                static_cast<double>(report.attempted_count) / report.total_wall_seconds);
+        }
+        // Prefer a cracked top hit; else best (lowest) χ² among fixtures.
+        std::optional<double> best;
+        std::string best_label;
+        for (const FixtureReport& f : report.fixtures) {
+            if (!best.has_value() || f.top.score < best.value()) {
+                best = f.top.score;
+                best_label = f.fixture_id;
+                if (!f.top.candidate_id.empty()) {
+                    best_label += " " + f.top.candidate_id;
+                    if (best_label.size() > 40) {
+                        best_label = best_label.substr(0, 37) + "...";
+                    }
+                }
+            }
+        }
+        if (best.has_value()) {
+            snap.set_best_score(best);
+            snap.set_best_label(std::move(best_label));
+        }
+        return snap;
+    }
 
     [[nodiscard]] static bool family_in_battery(const std::string& transform_id) {
         return transform_id == "identity" || transform_id == "atbash" ||

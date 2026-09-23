@@ -1,6 +1,8 @@
 #ifndef SEARCH_RUN_CONSOLE_HPP
 #define SEARCH_RUN_CONSOLE_HPP
 
+#include "parcae/cli/console_dashboard.hpp"
+#include "parcae/cli/console_progress_snapshot.hpp"
 #include "parcae/run/search_run_metrics.hpp"
 
 #include <algorithm>
@@ -11,69 +13,72 @@
 #include <string>
 #include <vector>
 
-/// Human console report for `SearchRunMetrics` (AI-training-dashboard analogue).
+/// Human console report for `SearchRunMetrics`.
+///
+/// Shares the `ConsoleDashboard` panel / throughput vocabulary with
+/// `parcae-search-cycle` (same `PARCAE  tool …` header and runes/s labels).
+/// Sweep score bars remain search-run-specific detail below the panel.
 class SearchRunConsole {
 public:
     [[nodiscard]] static std::string format(const SearchRunMetrics& metrics) {
+        const ConsoleProgressSnapshot snap = to_snapshot(metrics);
         std::ostringstream out;
-        if (metrics.backend() == "cuda") {
-            out << "PARCAE - CUDA SEARCH RUN\n\n";
-        } else {
-            out << "PARCAE - SEARCH RUN\n\n";
-        }
-        out << "Transform:      " << display_transform(metrics.transform_id()) << '\n';
-        out << "Parameters:     " << metrics.parameters_label() << '\n';
-        out << "Seed:           " << metrics.seed() << '\n';
+        out << ConsoleDashboard::format_panel(snap, 28) << '\n';
+        out << "params=" << metrics.parameters_label() << "  seed=" << metrics.seed() << '\n';
         out << '\n';
-
-        out << "Throughput      " << format_throughput(metrics.tok_per_sec()) << '\n';
         out << score_bars(metrics);
         out << "Fixture Eval    " << metrics.eval_passed() << " / " << metrics.eval_total()
             << '\n';
-
         if (metrics.cpu_cuda_pass().has_value()) {
-            out << '\n';
             out << "CPU <-> CUDA      "
                 << (metrics.cpu_cuda_pass().value() ? "PASS" : "FAIL") << '\n';
         }
+        out << ConsoleDashboard::format_line(snap) << "  [done]\n";
         return out.str();
     }
 
 private:
     SearchRunConsole() = delete;
 
-    [[nodiscard]] static std::string display_transform(const std::string& id) {
-        if (id == "caesar") {
-            return "Caesar";
+    [[nodiscard]] static ConsoleProgressSnapshot to_snapshot(const SearchRunMetrics& metrics) {
+        ConsoleProgressSnapshot snap;
+        snap.set_tool("search-run");
+        snap.set_family(metrics.transform_id());
+        snap.set_backend(metrics.backend());
+        snap.set_score_id(metrics.score_id());
+        snap.set_stage("done");
+        const std::size_t n = metrics.steps().size();
+        snap.set_candidates_done(n);
+        snap.set_candidates_total(n);
+        snap.set_runes_per_sec(metrics.tok_per_sec());
+        if (n > 0) {
+            // chi2-style scores: lower is better — surface the minimum as best.
+            std::size_t best_i = 0;
+            for (std::size_t i = 1; i < n; ++i) {
+                if (metrics.steps()[i].score() < metrics.steps()[best_i].score()) {
+                    best_i = i;
+                }
+            }
+            snap.set_best_score(metrics.steps()[best_i].score());
+            snap.set_best_label(step_label(metrics.steps()[best_i]));
         }
-        if (id == "atbash_caesar") {
-            return "Atbash+Caesar";
-        }
-        if (id == "vigenere_key") {
-            return "Vigenere";
-        }
-        if (id == "affine") {
-            return "Affine";
-        }
-        if (id == "atbash") {
-            return "Atbash";
-        }
-        if (id == "compose") {
-            return "Compose";
-        }
-        return id;
+        return snap;
     }
 
-    [[nodiscard]] static std::string format_throughput(double tok_per_sec) {
-        std::ostringstream out;
-        if (tok_per_sec >= 1.0e6) {
-            out << std::setprecision(2) << std::fixed << (tok_per_sec / 1.0e6) << "M runes/s";
-        } else if (tok_per_sec >= 1.0e3) {
-            out << std::setprecision(2) << std::fixed << (tok_per_sec / 1.0e3) << "k runes/s";
-        } else {
-            out << std::setprecision(2) << std::fixed << tok_per_sec << " runes/s";
+    [[nodiscard]] static std::string step_label(const SearchRunStep& step) {
+        const nlohmann::json& p = step.params();
+        if (p.contains("shift") && p.at("shift").is_number_integer()) {
+            return "shift=" + std::to_string(p.at("shift").get<int>());
         }
-        return out.str();
+        if (p.contains("a") && p.contains("b")) {
+            std::ostringstream out;
+            out << "a=" << p.at("a") << ",b=" << p.at("b");
+            return out.str();
+        }
+        if (!step.transform_id().empty()) {
+            return step.transform_id();
+        }
+        return {};
     }
 
     /// ASCII bar chart over the sweep axis (high score = taller bar). Pure 7-bit.

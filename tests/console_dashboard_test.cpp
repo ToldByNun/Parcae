@@ -101,6 +101,13 @@ TEST_CASE("ConsoleDashboard format_panel golden", "[cli][dashboard]") {
         "elapsed=2.00s");
 }
 
+TEST_CASE("ConsoleDashboard format_throughput scales B/M/k", "[cli][dashboard]") {
+    REQUIRE(ConsoleDashboard::format_throughput(1500.0) == "1.50k runes/s");
+    REQUIRE(ConsoleDashboard::format_throughput(2.5e6) == "2.50M runes/s");
+    REQUIRE(ConsoleDashboard::format_throughput(3.25e9) == "3.25B runes/s");
+    REQUIRE(ConsoleDashboard::format_throughput(42.0) == "42.00 runes/s");
+}
+
 TEST_CASE("ConsoleDashboard Off mode writes nothing", "[cli][dashboard]") {
     std::ostringstream out;
     ConsoleDashboard::Options options;

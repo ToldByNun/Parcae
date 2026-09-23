@@ -50,15 +50,17 @@ TEST_CASE("SearchRun CPU caesar sweep + fixture eval", "[run][search]") {
     REQUIRE(omit.at("seed").get<std::uint32_t>() == 2109016688u);
 
     const std::string report = SearchRunConsole::format(metrics.value());
-    REQUIRE(report.find("PARCAE - SEARCH RUN") != std::string::npos);
-    REQUIRE(report.find("Transform:      Caesar") != std::string::npos);
-    REQUIRE(report.find("Parameters:     shift 0-28") != std::string::npos);
-    REQUIRE(report.find("Seed:           2109016688") != std::string::npos);
-    REQUIRE(report.find("Throughput") != std::string::npos);
+    REQUIRE(report.find("PARCAE  search-run") != std::string::npos);
+    REQUIRE(report.find("family=caesar") != std::string::npos);
+    REQUIRE(report.find("backend=cpu") != std::string::npos);
+    REQUIRE(report.find("stage=done") != std::string::npos);
+    REQUIRE(report.find("params=shift 0-28") != std::string::npos);
+    REQUIRE(report.find("seed=2109016688") != std::string::npos);
+    REQUIRE(report.find("runes/s") != std::string::npos);
     REQUIRE(report.find('#') != std::string::npos);
     REQUIRE(report.find("Fixture Eval    9 / 9") != std::string::npos);
+    REQUIRE(report.find("[done]") != std::string::npos);
 }
-
 #if defined(PARCAE_HAS_CUDA)
 TEST_CASE("SearchRun CUDA caesar sweep + CPU↔CUDA parity", "[run][search][cuda]") {
     const parcae::tool::Context ctx{PARCAE_TEST_DATA_DIR};
@@ -81,7 +83,8 @@ TEST_CASE("SearchRun CUDA caesar sweep + CPU↔CUDA parity", "[run][search][cuda
     REQUIRE(metrics.value().cpu_cuda_pass().value());
 
     const std::string report = SearchRunConsole::format(metrics.value());
-    REQUIRE(report.find("PARCAE - CUDA SEARCH RUN") != std::string::npos);
+    REQUIRE(report.find("PARCAE  search-run") != std::string::npos);
+    REQUIRE(report.find("backend=cuda") != std::string::npos);
     REQUIRE(report.find("CPU <-> CUDA      PASS") != std::string::npos);
 }
 

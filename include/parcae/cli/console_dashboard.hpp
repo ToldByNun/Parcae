@@ -237,12 +237,19 @@ public:
         return out.str();
     }
 
-private:
-    [[nodiscard]] static ConsoleProgressMode normalize_mode(ConsoleProgressMode mode) {
-        if (mode.is_auto()) {
-            return ConsoleProgressMode{ConsoleProgressMode::Kind::Lines};
+    /// Shared runes/s label (B / M / k / raw). Used by search-run and blind-crack.
+    [[nodiscard]] static std::string format_throughput(double runes_per_sec) {
+        std::ostringstream out;
+        if (runes_per_sec >= 1.0e9) {
+            out << format_fixed(runes_per_sec / 1.0e9, 2) << "B runes/s";
+        } else if (runes_per_sec >= 1.0e6) {
+            out << format_fixed(runes_per_sec / 1.0e6, 2) << "M runes/s";
+        } else if (runes_per_sec >= 1.0e3) {
+            out << format_fixed(runes_per_sec / 1.0e3, 2) << "k runes/s";
+        } else {
+            out << format_fixed(runes_per_sec, 2) << " runes/s";
         }
-        return mode;
+        return out.str();
     }
 
     [[nodiscard]] static std::string format_fixed(double value, int precision) {
@@ -251,16 +258,12 @@ private:
         return out.str();
     }
 
-    [[nodiscard]] static std::string format_throughput(double runes_per_sec) {
-        std::ostringstream out;
-        if (runes_per_sec >= 1.0e6) {
-            out << format_fixed(runes_per_sec / 1.0e6, 2) << "M runes/s";
-        } else if (runes_per_sec >= 1.0e3) {
-            out << format_fixed(runes_per_sec / 1.0e3, 2) << "k runes/s";
-        } else {
-            out << format_fixed(runes_per_sec, 2) << " runes/s";
+private:
+    [[nodiscard]] static ConsoleProgressMode normalize_mode(ConsoleProgressMode mode) {
+        if (mode.is_auto()) {
+            return ConsoleProgressMode{ConsoleProgressMode::Kind::Lines};
         }
-        return out.str();
+        return mode;
     }
 
     void maybe_init_unlocked() {
