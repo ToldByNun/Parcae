@@ -4,6 +4,9 @@
 #include "parcae/batch/batch_hit.hpp"
 #include "parcae/batch/batch_ordering.hpp"
 #include "parcae/batch/batch_result.hpp"
+#include "parcae/batch/batch_runner.hpp"
+#include "parcae/cli/console_progress_sink.hpp"
+#include "parcae/cli/console_progress_snapshot.hpp"
 #include "parcae/core/index29.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
@@ -47,6 +50,10 @@
 
 /// CPU export: expand via `GeneratorRegistry`, apply `SearchPrior`, rank top-k
 /// (`search-loop.md`). Wire shape matches `GpuCandidateExport::Result`.
+///
+/// Optional `BatchRunner::Progress` emits stage ticks (`expand` / `filter` /
+/// then `score` via `RankCandidates`). Observe-only — results are identical
+/// with or without a sink.
 class CpuCandidateExport {
 public:
     using Row = GpuCandidateExport::Row;
@@ -56,7 +63,8 @@ public:
         std::span<const Index29> cipher,
         const SearchJob& job,
         const parcae::tool::Context& ctx,
-        const SearchPrior* prior = nullptr) {
+        const SearchPrior* prior = nullptr,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         std::optional<SearchPrior> owned_prior;
         const SearchPrior* prior_ptr = prior;
         if (prior_ptr == nullptr && job.prior().has_value() && job.prior()->is_object()) {
@@ -78,7 +86,8 @@ public:
             job.param_grid(),
             prior_ptr,
             job.score_version(),
-            job.max_candidates());
+            job.max_candidates(),
+            progress);
     }
 
     [[nodiscard]] static StatusOr<Result> run(
@@ -91,12 +100,17 @@ public:
         const nlohmann::json& param_grid = nlohmann::json::object(),
         const SearchPrior* prior = nullptr,
         std::string_view score_version = "v0",
-        std::size_t max_candidates = SIZE_MAX) {
+        std::size_t max_candidates = SIZE_MAX,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         if (cipher.empty()) {
             return Status::error("CpuCandidateExport: ciphertext must be non-empty");
         }
         if (k == 0) {
             return Status::error("CpuCandidateExport: k must be >= 1");
+        }
+
+        if (progress.rune_count == 0) {
+            progress.rune_count = cipher.size();
         }
 
         StatusOr<std::vector<TransformCandidate>> generated =
@@ -106,6 +120,13 @@ public:
         }
 
         std::vector<TransformCandidate> candidates = std::move(generated.value());
+        emit_stage(
+            progress.sink,
+            "expand",
+            candidates.size(),
+            candidates.size(),
+            progress.rune_count);
+
         if (prior != nullptr) {
             Status filter = filter_exclusions(candidates, *prior);
             if (!filter.ok()) {
@@ -117,6 +138,12 @@ public:
                 return merged.status();
             }
             candidates = std::move(merged.value());
+            emit_stage(
+                progress.sink,
+                "filter",
+                candidates.size(),
+                candidates.size(),
+                progress.rune_count);
         }
 
         if (candidates.empty()) {
@@ -135,7 +162,10 @@ public:
             &ctx,
             {},
             nlohmann::json::object(),
-            score_version);
+            score_version,
+            BatchExecution::Serial,
+            parcae::tool::Backend::Cpu,
+            progress);
         if (!ranked.ok()) {
             return ranked.status();
         }
@@ -200,6 +230,23 @@ public:
 
 private:
     CpuCandidateExport() = delete;
+
+    static void emit_stage(
+        ConsoleProgressSink* sink,
+        std::string_view stage,
+        std::size_t done,
+        std::size_t total,
+        std::size_t rune_count) {
+        if (sink == nullptr) {
+            return;
+        }
+        ConsoleProgressSnapshot snap;
+        snap.set_stage(std::string(stage));
+        snap.set_candidates_done(done);
+        snap.set_candidates_total(total);
+        snap.set_rune_count(rune_count);
+        sink->on_stage(stage, snap);
+    }
 
     [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> expand_family(
         std::span<const Index29> cipher,

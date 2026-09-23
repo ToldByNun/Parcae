@@ -93,3 +93,4 @@ python/build/
 agents/configs/lmstudio.local.yaml
 *.log
 scripts/research/periodic_key_switch_lp2.py
+scripts/research/falsify_nt_keystreams_lp2.py

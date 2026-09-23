@@ -1,3 +1,5 @@
+#include <parcae/batch/batch_runner.hpp>
+#include <parcae/cli/console_progress_sink.hpp>
 #include <parcae/core/index29.hpp>
 #include <parcae/dsl/dsl_compile.hpp>
 #include <parcae/generate/caesar_candidate_generator.hpp>
@@ -22,6 +24,8 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -419,4 +423,120 @@ TEST_CASE(
         TheoryExplicitParamsCandidateGenerator::generator_id);
 
     std::filesystem::remove_all(root, ec);
+}
+
+class CpuExportProgressRecordingSink : public ConsoleProgressSink {
+public:
+    void on_progress(const ConsoleProgressSnapshot& snapshot) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        ++progress_count;
+        max_done = (std::max)(max_done, snapshot.candidates_done());
+        last_rune_count = snapshot.rune_count();
+    }
+
+    void on_stage(
+        std::string_view stage,
+        const ConsoleProgressSnapshot& snapshot) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        stages.emplace_back(stage);
+        if (snapshot.candidates_total().has_value()) {
+            last_stage_total = snapshot.candidates_total().value();
+        }
+    }
+
+    std::mutex mutex_;
+    std::size_t progress_count = 0;
+    std::size_t max_done = 0;
+    std::size_t last_rune_count = 0;
+    std::size_t last_stage_total = 0;
+    std::vector<std::string> stages;
+};
+
+TEST_CASE(
+    "CpuCandidateExport emits expand then score; rows match without sink",
+    "[search][export][cpu][progress]") {
+    const parcae::tool::Context ctx = test_context();
+    const std::vector<Index29> cipher = synthetic_cipher();
+
+    CpuExportProgressRecordingSink sink;
+    BatchRunner::Progress progress;
+    progress.sink = &sink;
+
+    constexpr std::size_t k = 5;
+    StatusOr<CpuCandidateExport::Result> with_sink = CpuCandidateExport::run(
+        cipher,
+        "caesar",
+        "chi2_english_gp_v0",
+        k,
+        ctx,
+        TransformDirection::Decrypt,
+        nlohmann::json::object(),
+        nullptr,
+        "v0",
+        SIZE_MAX,
+        progress);
+    REQUIRE(with_sink.ok());
+
+    StatusOr<CpuCandidateExport::Result> without = CpuCandidateExport::run(
+        cipher,
+        "caesar",
+        "chi2_english_gp_v0",
+        k,
+        ctx,
+        TransformDirection::Decrypt);
+    REQUIRE(without.ok());
+
+    REQUIRE(with_sink.value().size() == without.value().size());
+    for (std::size_t i = 0; i < without.value().size(); ++i) {
+        REQUIRE(
+            with_sink.value().rows()[i].candidate().candidate_id() ==
+            without.value().rows()[i].candidate().candidate_id());
+        REQUIRE(with_sink.value().rows()[i].score() == without.value().rows()[i].score());
+    }
+
+    REQUIRE(sink.stages.size() >= 2);
+    REQUIRE(sink.stages[0] == "expand");
+    REQUIRE(sink.stages[1] == "score");
+    REQUIRE(sink.last_stage_total == 29);
+    REQUIRE(sink.progress_count == 29);
+    REQUIRE(sink.max_done == 29);
+    REQUIRE(sink.last_rune_count == cipher.size());
+}
+
+TEST_CASE(
+    "CpuCandidateExport emits filter stage when prior is set",
+    "[search][export][cpu][progress]") {
+    const parcae::tool::Context ctx = test_context();
+    const std::vector<Index29> cipher = synthetic_cipher();
+
+    const nlohmann::json shift7_params = {{"shift", 7}};
+    const std::string shift7_hash = SearchPrior::param_hash_of(shift7_params);
+    StatusOr<SearchPrior> prior = SearchPrior::make(
+        "lp2-page-0-explore",
+        {},
+        {SearchPrior::Exclusion{shift7_hash, "h-reject-7", "rejected"}},
+        "2026-09-21T18:00:00Z");
+    REQUIRE(prior.ok());
+
+    CpuExportProgressRecordingSink sink;
+    BatchRunner::Progress progress;
+    progress.sink = &sink;
+
+    StatusOr<CpuCandidateExport::Result> exported = CpuCandidateExport::run(
+        cipher,
+        "caesar",
+        "chi2_english_gp_v0",
+        5,
+        ctx,
+        TransformDirection::Decrypt,
+        nlohmann::json::object(),
+        &prior.value(),
+        "v0",
+        SIZE_MAX,
+        progress);
+    REQUIRE(exported.ok());
+    REQUIRE(sink.stages.size() >= 3);
+    REQUIRE(sink.stages[0] == "expand");
+    REQUIRE(sink.stages[1] == "filter");
+    REQUIRE(sink.stages[2] == "score");
 }
