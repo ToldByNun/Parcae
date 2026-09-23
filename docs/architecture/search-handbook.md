@@ -57,6 +57,95 @@ and which `family` / `job` / budgets to pass.
 3. For agent runs: Python agent package + OpenAI-compatible endpoint — same as
    [`agent-handbook.md`](agent-handbook.md).
 
+## LP2 workspace recipe (`inputs/`, no fixture plaintext)
+
+Unsolved Liber Primus pages (`0`–`55`) are **not** shipped as fixtures in this
+repo ([`test-material.md`](../research/test-material.md)). Practice cycles on
+committed solved fixtures (`fixture_ciphertext`) are fine; **research** on an
+unsolved page MUST use a local workspace whose ciphertext lives under
+`inputs/` — never assume a fixture plaintext exists.
+
+### Layout
+
+```text
+data/workspaces/lp2-page-0-explore/     # id MUST match directory; gitignored except _example
+  workspace.json
+  inputs/
+    ciphertext.txt                      # UTF-8 runes / separator text (tokenized)
+  hypotheses/                           # created by search_cycle / hypothesis tools
+  batches/                              # BatchArtifact trees
+```
+
+`WorkspaceCipher` tokenizes `inputs/ciphertext.txt` the same way as fixture
+ciphertext files (consumable Index29 stream). Path escapes (`..`, absolute) are
+rejected.
+
+### `workspace.json` (recommended for unsolved LP2)
+
+```json
+{
+  "schema": "parcae.workspace.v0",
+  "id": "lp2-page-0-explore",
+  "created_utc": "2026-09-23T00:00:00Z",
+  "updated_utc": "2026-09-23T00:00:00Z",
+  "title": "LP2 page 0 exploratory",
+  "notes": "Ciphertext only under inputs/; no oracle plaintext in this tree.",
+  "input": {
+    "kind": "workspace_file",
+    "fixture_id": null,
+    "path": "inputs/ciphertext.txt"
+  },
+  "default_score_id": "chi2_english_gp_v0",
+  "default_score_version": "v0"
+}
+```
+
+| Do | Don't |
+|----|-------|
+| Copy / paste community ciphertext into `inputs/ciphertext.txt` | Point `input` at a solved fixture and treat its plaintext as LP2 ground truth |
+| Use `kind: "workspace_file"` + workspace-relative `path` | Invent `data/fixtures/` entries with fake plaintext for unsolved pages |
+| Keep fixtures read-only (`fixture_ciphertext` for drills only) | Ask tools to read fixture **plaintext** when building search inputs |
+| Let `search_cycle` write batches/hypotheses under the workspace | Write under `data/fixtures/` (AgentPolicy denies) |
+
+Normative: [`search-loop.md`](../spec/search-loop.md) § Ciphertext resolution —
+`WorkspaceCipher` MUST NOT read fixture plaintext for unsolved research
+workspaces. Fixture loaders used by search only consume ciphertext files
+([`fixtures.md`](../spec/fixtures.md)).
+
+### Bootstrap (shell)
+
+```bash
+# From repo root — create a local (gitignored) workspace
+mkdir -p data/workspaces/lp2-page-0-explore/inputs
+# Place UTF-8 ciphertext into:
+#   data/workspaces/lp2-page-0-explore/inputs/ciphertext.txt
+# Then write workspace.json as above (id == directory name).
+
+parcae-search-cycle \
+  --workspace lp2-page-0-explore \
+  --family caesar \
+  --k 16 \
+  --seed 1 \
+  --backend cpu \
+  --json \
+  --omit-timing \
+  --data-dir data
+```
+
+Suggested early families: `caesar`, `atbash`, `atbash_caesar` / `compose`, then
+opt-in `beaufort` / `totient` or explicit `theory` jobs as in the sections below.
+Promote / reject hypotheses between iterations so `SearchPrior` seeds and
+exclusions apply.
+
+### Practice vs research
+
+| Mode | `input.kind` | Example |
+|------|--------------|---------|
+| Practice / CI | `fixture_ciphertext` | `_example` → `a-warning` (has locked plaintext for **validate**, unused by search) |
+| Unsolved LP2 research | `workspace_file` | `inputs/ciphertext.txt` only |
+
+The committed `_example` workspace is illustration only — not an LP2 claim.
+
 ## Quick start (CLI)
 
 ### Readiness
@@ -259,6 +348,7 @@ Offline CI contract (no network, no real CLI): `cd agents && pytest -m ci -q`
 
 - [ ] `data_dir` is the repo `data/` root — never under `fixtures/`
 - [ ] Fixtures stay read-only; cycles write only under `workspaces/<id>/`
+- [ ] Unsolved LP2 workspaces use `inputs/` + `workspace_file` — no fixture plaintext assumption
 - [ ] Fixed `--seed` + `--created-utc` for replay / golden digests
 - [ ] `--allow-cuda` / `allow_cuda: true` only when intended
 - [ ] Do not expose deny-listed `search-run` / `blind-crack` to the agent

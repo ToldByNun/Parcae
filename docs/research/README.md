@@ -47,6 +47,8 @@ Normative implementation contracts: [`docs/spec/`](../spec/README.md).
 - No implementation code
 - No CUDA, agents, or search-engine design beyond noting constraints
 - No solve attempts on unsolved LP2 pages `0.jpg`–`55.jpg`
+- Search on unsolved ciphertext: local workspace + `inputs/` (see
+  [`search-handbook.md`](../architecture/search-handbook.md) § LP2 workspace recipe)
 - No claim of new plaintext
 
 ## Primary sources

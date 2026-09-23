@@ -86,6 +86,12 @@ File: `data/workspaces/<workspace_id>/workspace.json`
 
 Loaders MUST reject unknown `kind` values.
 
+For **unsolved LP2** research workspaces, prefer `workspace_file` under
+`inputs/` and MUST NOT assume fixture plaintext exists. See the operator recipe
+in [`search-handbook.md`](../architecture/search-handbook.md) § LP2 workspace
+recipe. `fixture_ciphertext` remains appropriate for solved/draft drills (e.g.
+committed `_example` → `a-warning`).
+
 ## HypothesisRecord — `parcae.hypothesis.v0`
 
 File: `data/workspaces/<workspace_id>/hypotheses/<hypothesis_id>.json`

@@ -156,7 +156,9 @@ MUST NOT expand TheorySweep grids).
    [`tokens.md`](tokens.md) / [`fixtures.md`](fixtures.md)).
 
 MUST NOT read fixture **plaintext** when building search inputs for unsolved
-research workspaces.
+research workspaces. Operator recipe for LP2-style trees (`inputs/` +
+`workspace_file`): [`search-handbook.md`](../architecture/search-handbook.md)
+§ LP2 workspace recipe.
 
 ---
 
