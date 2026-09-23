@@ -236,6 +236,22 @@ parcae-search-cycle \
   --data-dir data
 ```
 
+**Windows Terminal smoke (manual):** in an interactive Windows Terminal session,
+run a short cycle **without** `--quiet` / `--plain-progress` (default `auto`).
+Expect a live panel (VT). On older consoles where VT enable fails, the CLI falls
+back to append-only lines automatically (covered by
+`[cli][dashboard]` “panel falls back to lines when VT fails”). Pipe or redirect
+stderr to force lines without relying on TTY detection:
+
+```bash
+parcae-search-cycle --workspace my-ws --family caesar --k 3 --seed 1 \
+  --backend cpu --json --data-dir data 2> progress.log
+```
+
+Digest invariance (progress on vs `--quiet`) is locked by
+`parcae_tests "[tool][search_cycle][progress][determinism]"` and the library
+`[search][scheduler][loop][progress]` case.
+
 Normative contract: [`search-loop.md`](../spec/search-loop.md) § Console progress
 contract. Flags: [`tools.md`](../spec/tools.md) § `parcae-search-cycle`.
 
@@ -435,6 +451,7 @@ Details: [`agent-tools.md`](../spec/agent-tools.md) § `search_cycle` vs
 | BatchArtifact limits + ordering fuzz | `parcae_tests "[search][batch][limits]"` / `"[search][batch][fuzz]"` |
 | CLI status smoke | `ctest -R cli_search_cycle_status_json` |
 | Catch2 search + CLI | `parcae_tests "[search]"` / `"[tool][search_cycle]"` |
+| Progress digest invariance | `parcae_tests "[tool][search_cycle][progress][determinism]"` |
 | Scheduler subset | `parcae_tests "[search][scheduler]"` (see [`cuda-build.md`](cuda-build.md) § Catch2 tags) |
 | JSON goldens | `parcae_tests "[tool][golden][cli][search_cycle]"` |
 | AgentPolicy path | `parcae_tests "[tool][policy][cli][search_cycle]"` |

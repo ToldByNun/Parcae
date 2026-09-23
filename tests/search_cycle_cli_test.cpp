@@ -401,4 +401,81 @@ TEST_CASE(
     std::filesystem::remove_all(root, ec);
 }
 
+TEST_CASE(
+    "parcae-search-cycle digests match with --plain-progress vs --quiet",
+    "[tool][search_cycle][progress][determinism]") {
+    auto run_once = [](std::string_view sandbox,
+                       std::string_view workspace_id,
+                       bool plain_progress) {
+        const auto root = make_sandbox(sandbox);
+        StatusOr<WorkspaceManifest> ws =
+            make_fixture_workspace(workspace_id, "2026-09-23T18:00:00Z");
+        REQUIRE(ws.ok());
+        REQUIRE(ws.value().store(root).ok());
+
+        std::vector<std::string> args = {
+            "--workspace",
+            std::string(workspace_id),
+            "--family",
+            "caesar",
+            "--k",
+            "3",
+            "--seed",
+            "7",
+            "--iterations",
+            "1",
+            "--backend",
+            "cpu",
+            "--created-utc",
+            "2026-09-23T18:00:01Z",
+            "--json",
+            "--omit-timing",
+            "--data-dir",
+            root.string(),
+        };
+        if (plain_progress) {
+            args.push_back("--plain-progress");
+        } else {
+            args.push_back("--quiet");
+        }
+
+        const CliRunResult run = run_cli(PARCAE_CLI_SEARCH_CYCLE, args);
+        REQUIRE(run.exit_code == 0);
+        const nlohmann::json envelope = nlohmann::json::parse(run.stdout_text);
+        REQUIRE(envelope.at("ok").get<bool>());
+        const nlohmann::json& result = envelope.at("result");
+
+        const std::string batch_id = result.at("batches")[0].at("batch_id").get<std::string>();
+        StatusOr<BatchArtifact> batch = BatchArtifact::load(root, workspace_id, batch_id);
+        REQUIRE(batch.ok());
+
+        nlohmann::json snapshot{
+            {"job_digest", batch.value().job_digest_sha256()},
+            {"prior_digest", batch.value().prior_digest_sha256()},
+            {"batch_id", batch_id},
+            {"candidate_ids", nlohmann::json::array()},
+            {"had_progress", stderr_looks_like_progress(run.stderr_text)},
+        };
+        for (const nlohmann::json& row : batch.value().candidates()) {
+            snapshot["candidate_ids"].push_back(row.at("candidate_id"));
+        }
+
+        std::error_code ec;
+        std::filesystem::remove_all(root, ec);
+        return snapshot;
+    };
+
+    const nlohmann::json live =
+        run_once("parcae_search_cycle_progress_inv_live", "h-progress-inv", true);
+    const nlohmann::json quiet =
+        run_once("parcae_search_cycle_progress_inv_quiet", "h-progress-inv", false);
+
+    REQUIRE(live.at("had_progress").get<bool>());
+    REQUIRE_FALSE(quiet.at("had_progress").get<bool>());
+    REQUIRE(live.at("job_digest") == quiet.at("job_digest"));
+    REQUIRE(live.at("prior_digest") == quiet.at("prior_digest"));
+    REQUIRE(live.at("batch_id") == quiet.at("batch_id"));
+    REQUIRE(live.at("candidate_ids") == quiet.at("candidate_ids"));
+}
+
 #endif  // PARCAE_HAS_CLI_GOLDENS
