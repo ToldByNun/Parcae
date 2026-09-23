@@ -105,6 +105,7 @@ add_executable(parcae_tests
   search_run_test.cpp
   console_progress_mode_test.cpp
   console_ansi_test.cpp
+  console_dashboard_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE
