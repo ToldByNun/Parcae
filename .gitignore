@@ -7,6 +7,11 @@ cmake-build-*/
 out/
 .cache/
 
+# Local release outputs (CI publishes; keep README only)
+/release/*
+!/release/README.md
+!/release/.gitignore
+
 # Compiled Object files
 *.slo
 *.lo

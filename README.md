@@ -70,7 +70,15 @@ ciphertext / runes
 
 ## Quick start (beginner)
 
-### 1. Build the C++ toolkit
+### Installer (Windows / Linux packages)
+
+Tagged releases publish installers and archives (cpu / cuda / full) plus
+`SHA256SUMS` — see the GitHub **Releases** page and
+[`docs/architecture/release.md`](docs/architecture/release.md). The Windows
+`.exe` checks for MSVC, CMake, Python (and CUDA when needed) via winget, then
+installs CLIs, `data/`, sources, PATH, and shortcuts.
+
+### 1. Build the C++ toolkit from source
 
 Needs a C++20 compiler, CMake ≥ 3.25, and network on the **first** configure
 (FetchContent pulls Catch2 `v3.7.1` and nlohmann/json `v3.11.3`).

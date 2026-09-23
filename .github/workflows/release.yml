@@ -1,0 +1,356 @@
+name: Release
+
+# Produces the release/ artifact matrix. Does NOT run on ordinary commits/PRs.
+on:
+  push:
+    tags:
+      - "v[0-9]+.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to package (e.g. v0.7.0-search-engine). Leave empty to use the pushed tag."
+        required: false
+        type: string
+      include_cuda:
+        description: "Build CUDA flavors on self-hosted runners (windows+linux labeled cuda)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Filenames use SemVer from CMakeLists.txt; tag may be v0.7.0-search-engine.
+  CMAKE_BUILD_PARALLEL_LEVEL: 4
+
+jobs:
+  meta:
+    name: resolve-version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      include_cuda: ${{ steps.ver.outputs.include_cuda }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Resolve version + tag
+        id: ver
+        shell: bash
+        run: |
+          chmod +x packaging/version.sh
+          VERSION="$(packaging/version.sh)"
+          if [[ -n "${{ inputs.tag }}" ]]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          INCLUDE_CUDA=false
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.include_cuda }}" == "true" ]]; then
+            INCLUDE_CUDA=true
+          elif [[ "${{ vars.PARCAE_HAVE_CUDA_RUNNER }}" == "true" ]]; then
+            INCLUDE_CUDA=true
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "include_cuda=${INCLUDE_CUDA}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version=${VERSION} tag=${TAG} include_cuda=${INCLUDE_CUDA}"
+
+  source:
+    name: source-tarball
+    needs: meta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Build source archive
+        shell: bash
+        run: |
+          chmod +x packaging/build_source.sh packaging/version.sh
+          mkdir -p release
+          packaging/build_source.sh --out release --version "${{ needs.meta.outputs.version }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-source
+          path: release/*.tar.gz
+          if-no-files-found: error
+
+  windows-cpu:
+    name: windows-cpu
+    needs: meta
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+
+      - name: Configure (CPU)
+        run: >
+          cmake -S . -B build -A x64
+          -DPARCAE_BUILD_TESTS=OFF
+          -DPARCAE_BUILD_TOOLS=ON
+          -DPARCAE_BUILD_CUDA=OFF
+
+      - name: Build tools
+        run: cmake --build build --config Release --target ALL_BUILD
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Stage + build installers (cpu + unflavored-as-cpu)
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packaging/*.sh packaging/windows/*.sh
+          VERSION="${{ needs.meta.outputs.version }}"
+          TOOLS="build/tools/Release"
+          mkdir -p release stage-cpu stage-full
+          packaging/stage_payload.sh --out stage-cpu --flavor cpu --bin-cpu "${TOOLS}"
+          # Unflavored Windows installer uses cpu payload until CUDA self-hosted merge.
+          packaging/stage_payload.sh --out stage-full --flavor cpu --bin-cpu "${TOOLS}"
+          echo "full-as-cpu" > stage-full/FLAVOR
+          export ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          packaging/windows/build_installer.sh --flavor cpu --stage stage-cpu --out release --version "${VERSION}"
+          packaging/windows/build_installer.sh --flavor full --stage stage-full --out release --version "${VERSION}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-cpu
+          path: release/*.exe
+          if-no-files-found: error
+
+  linux-cpu:
+    name: linux-cpu
+    needs: meta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+
+      - name: Install toolchain + packaging deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build g++ cmake libfuse2 rpm
+          sudo gem install --no-document fpm
+
+      - name: Configure + build (CPU)
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DPARCAE_BUILD_TESTS=OFF -DPARCAE_BUILD_TOOLS=ON -DPARCAE_BUILD_CUDA=OFF
+          cmake --build build
+
+      - name: Download appimagetool
+        run: |
+          curl -fsSL -o appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ./appimagetool --appimage-extract
+          echo "$PWD/squashfs-root/usr/bin" >> "$GITHUB_PATH"
+          echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
+
+      - name: Stage + package cpu and unflavored (cpu content until CUDA job)
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packaging/*.sh packaging/linux/*.sh
+          VERSION="${{ needs.meta.outputs.version }}"
+          TOOLS=build/tools
+          mkdir -p release
+          packaging/stage_payload.sh --out stage-cpu --flavor cpu --bin-cpu "${TOOLS}"
+          packaging/linux/build_tarball.sh --flavor cpu --stage stage-cpu --out release --version "${VERSION}"
+          packaging/linux/build_packages.sh --flavor cpu --stage stage-cpu --out release --version "${VERSION}" --formats deb,rpm
+
+          # Unflavored = same cpu payload until a CUDA+full merge is available.
+          packaging/stage_payload.sh --out stage-full --flavor cpu --bin-cpu "${TOOLS}"
+          echo "full-as-cpu" > stage-full/FLAVOR
+          packaging/linux/build_tarball.sh --flavor full --stage stage-full --out release --version "${VERSION}"
+          packaging/linux/build_packages.sh --flavor full --stage stage-full --out release --version "${VERSION}" --formats deb,rpm
+
+          packaging/linux/build_appimage.sh --flavor cpu --stage stage-cpu --out release --version "${VERSION}"
+          packaging/linux/build_appimage.sh --flavor full --stage stage-full --out release --version "${VERSION}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-cpu
+          path: |
+            release/*.tar.gz
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
+          if-no-files-found: error
+
+  windows-cuda:
+    name: windows-cuda (self-hosted)
+    needs: meta
+    if: needs.meta.outputs.include_cuda == 'true'
+    runs-on: [self-hosted, windows, cuda]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+
+      - name: Configure CUDA
+        run: >
+          cmake -S . -B build-cuda -A x64
+          -DPARCAE_BUILD_TESTS=OFF
+          -DPARCAE_BUILD_TOOLS=ON
+          -DPARCAE_BUILD_CUDA=ON
+
+      - name: Build CUDA tools
+        run: cmake --build build-cuda --config Release
+
+      - name: Configure CPU (for full)
+        run: >
+          cmake -S . -B build-cpu -A x64
+          -DPARCAE_BUILD_TESTS=OFF
+          -DPARCAE_BUILD_TOOLS=ON
+          -DPARCAE_BUILD_CUDA=OFF
+
+      - name: Build CPU tools
+        run: cmake --build build-cpu --config Release
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Stage + installers (cuda + full)
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packaging/*.sh packaging/windows/*.sh
+          VERSION="${{ needs.meta.outputs.version }}"
+          mkdir -p release
+          packaging/stage_payload.sh --out stage-cuda --flavor cuda --bin-cuda build-cuda/tools/Release
+          packaging/stage_payload.sh --out stage-full --flavor full \
+            --bin-cpu build-cpu/tools/Release --bin-cuda build-cuda/tools/Release
+          export ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          packaging/windows/build_installer.sh --flavor cuda --stage stage-cuda --out release --version "${VERSION}"
+          packaging/windows/build_installer.sh --flavor full --stage stage-full --out release --version "${VERSION}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-cuda
+          path: release/*.exe
+          if-no-files-found: warn
+
+  linux-cuda:
+    name: linux-cuda (self-hosted)
+    needs: meta
+    if: needs.meta.outputs.include_cuda == 'true'
+    runs-on: [self-hosted, linux, cuda]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+
+      - name: Configure + build CUDA
+        run: |
+          cmake -S . -B build-cuda -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DPARCAE_BUILD_TESTS=OFF -DPARCAE_BUILD_TOOLS=ON -DPARCAE_BUILD_CUDA=ON
+          cmake --build build-cuda
+
+      - name: Package CUDA flavors
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packaging/*.sh packaging/linux/*.sh
+          VERSION="${{ needs.meta.outputs.version }}"
+          mkdir -p release
+          packaging/stage_payload.sh --out stage-cuda --flavor cuda --bin-cuda build-cuda/tools
+          packaging/linux/build_tarball.sh --flavor cuda --stage stage-cuda --out release --version "${VERSION}"
+          packaging/linux/build_packages.sh --flavor cuda --stage stage-cuda --out release --version "${VERSION}" --formats deb,rpm
+          if command -v appimagetool >/dev/null 2>&1; then
+            packaging/linux/build_appimage.sh --flavor cuda --stage stage-cuda --out release --version "${VERSION}"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-cuda
+          path: |
+            release/*.tar.gz
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
+          if-no-files-found: warn
+
+  assemble:
+    name: assemble-release
+    needs: [meta, source, windows-cpu, linux-cpu, windows-cuda, linux-cuda]
+    if: |
+      always() &&
+      needs.meta.result == 'success' &&
+      needs.source.result == 'success' &&
+      needs.windows-cpu.result == 'success' &&
+      needs.linux-cpu.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false
+
+      - name: Assemble release/ + SHA256SUMS
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packaging/sha256sums.sh
+          mkdir -p release
+          # Copy order: cpu/source first, then cuda (overwrites unflavored stand-ins).
+          for dir in \
+            artifacts/release-source \
+            artifacts/release-windows-cpu \
+            artifacts/release-linux-cpu \
+            artifacts/release-windows-cuda \
+            artifacts/release-linux-cuda
+          do
+            [[ -d "${dir}" ]] || continue
+            find "${dir}" -type f \( \
+              -name '*.exe' -o -name '*.tar.gz' -o -name '*.AppImage' -o \
+              -name '*.deb' -o -name '*.rpm' \
+            \) -exec cp -a {} release/ \;
+          done
+          ls -la release/
+          packaging/sha256sums.sh release
+          if ! compgen -G 'release/*cuda*' > /dev/null; then
+            printf '%s\n' \
+              'CUDA-flavored artifacts were not produced in this run.' \
+              'Re-run workflow_dispatch with include_cuda=true on self-hosted runners' \
+              'labeled [self-hosted, windows|linux, cuda], or set repository variable' \
+              'PARCAE_HAVE_CUDA_RUNNER=true.' \
+              > release/CUDA_ARTIFACTS.txt
+          fi
+
+      - name: Upload release/ tree artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-folder
+          path: release/
+
+      - name: Publish GitHub Release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.meta.outputs.tag }}
+          name: Parcae ${{ needs.meta.outputs.version }}
+          generate_release_notes: true
+          files: release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
