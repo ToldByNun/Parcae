@@ -35,7 +35,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | G–H — Scheduler + CLI | 23–30 | pending |
 | I — Agent wiring | 31–35 | **done** |
 | J–K — Extended families / research CLI docs | 36–42 | **done** |
-| L–M — CI + exit | 43–52 | **L done** (43–46); M pending |
+| L–M — CI + exit | 43–52 | **L done**; M47 **done**; M48–52 release cut pending |
 
 ---
 
@@ -151,7 +151,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 
 | # | Commit |
 |---|--------|
-| 47 | docs: search-engine exit checklist green |
+| 47 | docs: search-engine exit checklist green | **done** |
 | 48 | docs: README roadmap — search loop done (`v0.7.0-search-engine`) |
 | 49 | docs: agent-tooling / handbook point here (closed-loop owned by search) |
 | 50 | chore: version bump 0.7.0 |

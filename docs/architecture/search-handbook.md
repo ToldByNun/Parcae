@@ -395,7 +395,7 @@ Headers / tags: [`include/parcae/search/README.md`](../../include/parcae/search/
 | Doc | Why |
 |-----|-----|
 | [`search-loop.md`](../spec/search-loop.md) | Schemas, scheduler semantics, result shape |
-| [`search-engine.md`](search-engine.md) | Plan freeze + exit criteria |
+| [`search-engine.md`](search-engine.md) | Plan freeze + exit checklist (engineering green) |
 | [`search-roadmap.md`](search-roadmap.md) | Commit list 1–52 |
 | [`tools.md`](../spec/tools.md) | CLI flag reference |
 | [`agent-handbook.md`](agent-handbook.md) | Running `parcae-agent` |

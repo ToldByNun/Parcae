@@ -492,7 +492,7 @@ Default deny-list unchanged for `parcae-search-run`, `parcae-throughput-tiers`,
 
 ---
 
-## Conformance (preview)
+## Conformance
 
 A search-loop implementation conforms when:
 
@@ -504,6 +504,10 @@ A search-loop implementation conforms when:
    fixture under documented score rules.
 4. `--json --omit-timing` emits no timing fields.
 5. Fixture directories are never written by the scheduler or bridge.
+
+**Exit checklist (engineering green; release cut pending):**
+[`search-engine.md`](../architecture/search-engine.md) § Exit criteria →
+`v0.7.0-search-engine`.
 
 ## Related
 

@@ -1,6 +1,7 @@
 # Search engine plan freeze
 
-**Status:** Frozen start of Liber Primus **search engine** (closed loop)  
+**Status:** Engineering exit **green** (checklist below); release cut
+`v0.7.0-search-engine` pending M48–M52  
 **Upstream:** CUDA parity (`v0.3.0-cuda-parity`) + Theory DSL (`v0.5.0-theory-dsl`) +
 CMD agent tooling ([`agent-tooling.md`](agent-tooling.md), planned exit
 `v0.6.0-agent-tools`)  
@@ -206,18 +207,75 @@ lists — CPU remains source of truth for small-N agent generate/rank.
 
 ## Exit criteria → `v0.7.0-search-engine`
 
-- [`search-loop.md`](../spec/search-loop.md) + this freeze green
-- CI: one workspace **CPU** cycle — job → artifact → hypotheses → prior → second
-  iteration, deterministic
-- CUDA (local/optional): top-k contract vs CPU on a locked Tier-A fixture
-  (e.g. `a-warning`)
-- `parcae-search-cycle --json` + agent allow-list mock test
-- Root README roadmap marks search loop done with the exit tag
-- Toolkit version bump to **0.7.0**
+Declare the search-engine loop complete (then cut `v0.7.0-search-engine` in
+commits **M48–M52**) when the checklist below is green. Architecture narrative:
+this document + [`search-handbook.md`](search-handbook.md). Normative schemas:
+[`search-loop.md`](../spec/search-loop.md).
 
 **Version ordering:** cut `v0.6.0-agent-tools` before or immediately before this
-exit tag (0.5 DSL → 0.6 agent → 0.7 search). Implementation may start now against
-the in-tree agent stack (generate / rank / hypothesis / `AgentLoop`).
+exit tag (0.5 DSL → 0.6 agent → 0.7 search). Implementation landed against the
+in-tree agent stack (`generate` / `rank` / `hypothesis` / `AgentLoop` +
+`search_cycle`).
+
+### Specs & types
+
+- [x] [`search-engine.md`](search-engine.md) plan freeze (locked decisions)
+- [x] [`search-loop.md`](../spec/search-loop.md) normative schemas v0
+- [x] [`search-roadmap.md`](search-roadmap.md) commit list 1–52
+- [x] `SearchJob` / `SearchPrior` / `BatchArtifact` / `WorkspaceCipher`
+- [x] Agent-tools allow/deny: `search_cycle` allow-listed; `search-run` /
+      `blind-crack` / `throughput-tiers` deny-listed
+
+### Scheduler & export
+
+- [x] `CpuCandidateExport` + `GpuCandidateExport` (families through compose;
+      opt-in beaufort / totient / theory URI)
+- [x] `HypothesisBridge` ingest with idempotent ids + `source.batch_id`
+- [x] `SearchScheduler::run_once` / `run_loop` + prior feedback (seeds /
+      exclusions)
+- [x] Two-iteration fixed-seed CPU determinism
+      (`[search][scheduler][loop][determinism]`)
+- [x] `parcae-search-cycle` CLI (`--status` / `--json` / `--omit-timing` /
+      AgentPolicy)
+
+### Agent wiring
+
+- [x] Python allow-list + tool schemas for `search_cycle`
+- [x] System prompt: prefer `search_cycle` for family grids
+- [x] Mock LLM CI contract (`pytest -m ci`) includes `search_cycle`
+- [x] Operator guide: [`search-handbook.md`](search-handbook.md) (incl. LP2
+      `inputs/` recipe)
+
+### Gates & abuse resistance
+
+- [x] Hosted CI matrix `Gate [search]` (`.github/workflows/ci.yml`) —
+      `PARCAE_BUILD_CUDA=OFF`
+- [x] Adversarial job JSON / path escape / `max_candidates` caps
+      (`[search][adversarial]`)
+- [x] `BatchArtifact` line-size / count caps + best-first order
+      (`[search][batch][limits]` / `[fuzz]`)
+- [x] Catch2 tag map in [`cuda-build.md`](cuda-build.md)
+      § Catch2 tags (search engine / scheduler)
+- [x] CUDA export parity on Tier-A (e.g. `a-warning`) — device skip without
+      Toolkit (`[search][export][parity]`)
+
+### Docs (engineering complete)
+
+- [x] Research CLIs stay separate: `search-run` = metrics; `blind-crack` =
+      foothold bench (not the workspace loop)
+- [x] Header map: [`include/parcae/search/README.md`](../../include/parcae/search/README.md)
+
+### Release cut (remaining — M48–M52)
+
+- [ ] Root README roadmap marks search loop **done** with exit tag
+- [ ] [`agent-tooling.md`](agent-tooling.md) / handbooks point here (closed-loop
+      owned by search)
+- [ ] Toolkit version bump to **0.7.0**
+- [ ] Smoke: `Version` + `parcae-search-cycle --status`
+- [ ] Annotated tag `v0.7.0-search-engine`
+
+**Engineering exit (this checklist through Gates & Docs): green.** Release cut
+items stay open until M48–M52.
 
 ---
 
@@ -336,7 +394,7 @@ Numbering is **local to this search-engine roadmap**. Detailed mirror:
 
 | # | Commit |
 |---|--------|
-| 47 | docs: search-engine exit checklist green |
+| 47 | docs: search-engine exit checklist green — **done** |
 | 48 | docs: README roadmap — search loop done (`v0.7.0-search-engine`) |
 | 49 | docs: agent-tooling / handbook point here (closed-loop owned by search) |
 | 50 | chore: version bump 0.7.0 |

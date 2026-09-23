@@ -18,7 +18,7 @@ theory DSL compiles into that stack.
 | [agent-provider-smoke.md](agent-provider-smoke.md) | Optional live Ollama / OpenRouter smoke (CI skips) |
 | [python-transpiler.md](python-transpiler.md) | **Theory DSL compiler** — AST-JSON → IR → verify → CPU/CUDA emit → artifacts |
 | [dsl-stubs.md](dsl-stubs.md) | Stubs vs compiler — only `parcae-compile` verifies |
-| [search-engine.md](search-engine.md) | **Frozen** search engine plan — GPU ↔ candidates ↔ hypotheses loop |
+| [search-engine.md](search-engine.md) | **Frozen** search engine plan — GPU ↔ candidates ↔ hypotheses loop; exit checklist |
 | [search-roadmap.md](search-roadmap.md) | **Frozen** search-engine commit list (1–52) |
 | [search-handbook.md](search-handbook.md) | Operator guide for `parcae-search-cycle` / `search_cycle` (incl. LP2 `inputs/` recipe) |
 
