@@ -6,6 +6,9 @@
 #include "parcae/batch/batch_ordering.hpp"
 #include "parcae/batch/batch_result.hpp"
 #include "parcae/batch/batch_runner.hpp"
+#include "parcae/cli/console_progress_clock.hpp"
+#include "parcae/cli/console_progress_sink.hpp"
+#include "parcae/cli/console_progress_snapshot.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/generate/transform_candidate.hpp"
@@ -39,6 +42,11 @@
 /// (`BatchOrdering`: score → `candidate_id` → `source_index`).
 /// `backend=cuda` scores already-materialized `output_indices` via `CudaScore`
 /// then the same host `BatchOrdering` reduction (CPU remains the small-N oracle).
+///
+/// Optional `BatchRunner::Progress` is observe-only and forwarded into
+/// `BatchRunner` (CPU) or emitted per CUDA lane. Ranking is unchanged when
+/// `progress.sink` is null or non-null. When `progress.rune_count == 0`, it is
+/// filled from `candidates[0].output_indices().size()`.
 class RankCandidates {
 public:
     /// Rank already-generated candidates. When `ctx` is non-null and `score_id`
@@ -55,7 +63,8 @@ public:
         const nlohmann::json& params = nlohmann::json::object(),
         std::string_view score_version = "v0",
         BatchExecution execution = BatchExecution::Serial,
-        parcae::tool::Backend backend = parcae::tool::Backend::Cpu) {
+        parcae::tool::Backend backend = parcae::tool::Backend::Cpu,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         if (candidates.empty()) {
             return Status::error("rank_candidates: candidates must be non-empty");
         }
@@ -66,6 +75,10 @@ public:
         Status usable = parcae::tool::BackendUtil::ensure_usable(backend);
         if (!usable.ok()) {
             return usable;
+        }
+
+        if (progress.rune_count == 0) {
+            progress.rune_count = candidates.front().output_indices().size();
         }
 
         std::optional<ExpectedFrequencyTable> owned_table;
@@ -86,10 +99,18 @@ public:
 
         if (backend == parcae::tool::Backend::Cpu) {
             return BatchRunner::run(
-                candidates, score_id, k, request, execution, score_version, params);
+                candidates,
+                score_id,
+                k,
+                request,
+                execution,
+                score_version,
+                params,
+                progress);
         }
 
-        return run_cuda(candidates, score_id, k, request, params, score_version);
+        return run_cuda(
+            candidates, score_id, k, request, params, score_version, progress);
     }
 
     /// JSON for one hit; optionally attach the source candidate envelope + latin.
@@ -168,13 +189,44 @@ public:
 private:
     RankCandidates() = delete;
 
+    [[nodiscard]] static bool score_is_better(
+        double candidate,
+        double incumbent,
+        ScoreOrder order) noexcept {
+        if (order == ScoreOrder::Asc) {
+            return candidate < incumbent;
+        }
+        return candidate > incumbent;
+    }
+
+    static void emit_cuda_progress(
+        ConsoleProgressSink* sink,
+        ConsoleProgressSnapshot snap,
+        std::size_t done,
+        const ConsoleProgressClock& clock,
+        const std::optional<double>& best_score,
+        const std::string& best_label) {
+        if (sink == nullptr) {
+            return;
+        }
+        snap.set_candidates_done(done);
+        snap.set_elapsed_seconds(clock.elapsed_seconds());
+        snap.refresh_rates();
+        if (best_score.has_value()) {
+            snap.set_best_score(best_score);
+            snap.set_best_label(best_label);
+        }
+        sink->on_progress(snap);
+    }
+
     [[nodiscard]] static StatusOr<BatchResult> run_cuda(
         std::span<const TransformCandidate> candidates,
         std::string_view score_id,
         std::size_t k,
         const ScoreRequest& request,
         const nlohmann::json& params,
-        std::string_view score_version) {
+        std::string_view score_version,
+        BatchRunner::Progress progress) {
 #if defined(PARCAE_HAS_CUDA)
         if (!CudaScore::available()) {
             return Status::error("rank_candidates: CUDA backend requested but CUDA is not available");
@@ -184,6 +236,18 @@ private:
         if (!order.ok()) {
             return order.status();
         }
+
+        ConsoleProgressClock clock;
+        ConsoleProgressSnapshot base;
+        base.set_stage("score");
+        base.set_candidates_total(candidates.size());
+        base.set_rune_count(progress.rune_count);
+        if (progress.sink != nullptr) {
+            progress.sink->on_stage("score", base);
+        }
+
+        std::optional<double> best_score;
+        std::string best_label;
 
         std::vector<BatchHit> hits;
         hits.reserve(candidates.size());
@@ -198,6 +262,18 @@ private:
                 return value.status();
             }
             hits.emplace_back(candidates[i].candidate_id(), value.value(), i);
+            if (!best_score.has_value() ||
+                score_is_better(value.value(), best_score.value(), order.value())) {
+                best_score = value.value();
+                best_label = candidates[i].candidate_id();
+            }
+            emit_cuda_progress(
+                progress.sink,
+                base,
+                hits.size(),
+                clock,
+                best_score,
+                best_label);
         }
 
         std::sort(hits.begin(), hits.end(), BatchOrdering::BestFirst{order.value()});
@@ -218,6 +294,7 @@ private:
         (void)request;
         (void)params;
         (void)score_version;
+        (void)progress;
         return Status::error(
             "rank_candidates: CUDA backend requested but Parcae was built without "
             "CUDA (PARCAE_BUILD_CUDA)");

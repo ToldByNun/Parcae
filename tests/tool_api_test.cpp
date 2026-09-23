@@ -1,5 +1,7 @@
 #include <parcae/gematria/rune_codec.hpp>
 #include <parcae/batch/batch_execution.hpp>
+#include <parcae/batch/batch_runner.hpp>
+#include <parcae/cli/console_progress_sink.hpp>
 #include <parcae/tool/api.hpp>
 #include <parcae/tool/context.hpp>
 #include <parcae/tool/generate_candidates.hpp>
@@ -20,6 +22,8 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -435,4 +439,97 @@ TEST_CASE(
     const std::string latin =
         payload.value().at("hits").at(0).at("latin").get<std::string>();
     REQUIRE(latin.rfind("AWARNING", 0) == 0);
+}
+
+class RankProgressRecordingSink : public ConsoleProgressSink {
+public:
+    void on_progress(const ConsoleProgressSnapshot& snapshot) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        ++progress_count;
+        max_done = std::max(max_done, snapshot.candidates_done());
+        last_rune_count = snapshot.rune_count();
+        if (snapshot.best_score().has_value()) {
+            last_best_label = snapshot.best_label();
+        }
+    }
+
+    void on_stage(
+        std::string_view stage,
+        const ConsoleProgressSnapshot& snapshot) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        stages.emplace_back(stage);
+        stage_total = snapshot.candidates_total();
+    }
+
+    std::mutex mutex_;
+    std::size_t progress_count = 0;
+    std::size_t max_done = 0;
+    std::size_t last_rune_count = 0;
+    std::string last_best_label;
+    std::vector<std::string> stages;
+    std::optional<std::size_t> stage_total;
+};
+
+TEST_CASE("RankCandidates forwards progress sink; top-k unchanged", "[tool][rank][progress]") {
+    const auto ctx = test_ctx();
+
+    const std::vector<Index29> plain = {I(0), I(1), I(2), I(3)};
+    StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
+        plain,
+        nlohmann::json{{"shift", 7}},
+        TransformDirection::Encrypt);
+    REQUIRE(cipher.ok());
+
+    StatusOr<std::vector<TransformCandidate>> candidates =
+        GenerateCandidates::from_indices("gen_caesar", cipher.value());
+    REQUIRE(candidates.ok());
+
+    ScoreRequest request;
+    request.reference = std::span<const Index29>(plain);
+
+    RankProgressRecordingSink sink;
+    BatchRunner::Progress progress;
+    progress.sink = &sink;
+    // rune_count left 0 → RankCandidates fills from candidate length (4).
+
+    StatusOr<BatchResult> with_sink = RankCandidates::run(
+        candidates.value(),
+        "exact_match",
+        /*k=*/3,
+        &ctx,
+        request,
+        nlohmann::json::object(),
+        "v0",
+        BatchExecution::Serial,
+        parcae::tool::Backend::Cpu,
+        progress);
+    REQUIRE(with_sink.ok());
+
+    StatusOr<BatchResult> without = RankCandidates::run(
+        candidates.value(),
+        "exact_match",
+        /*k=*/3,
+        &ctx,
+        request);
+    REQUIRE(without.ok());
+
+    REQUIRE(with_sink.value().top().size() == without.value().top().size());
+    for (std::size_t i = 0; i < without.value().top().size(); ++i) {
+        REQUIRE(
+            with_sink.value().top()[i].candidate_id() ==
+            without.value().top()[i].candidate_id());
+        REQUIRE(with_sink.value().top()[i].score() == without.value().top()[i].score());
+        REQUIRE(
+            with_sink.value().top()[i].source_index() ==
+            without.value().top()[i].source_index());
+    }
+
+    REQUIRE(sink.stages.size() == 1);
+    REQUIRE(sink.stages[0] == "score");
+    REQUIRE(sink.stage_total.has_value());
+    REQUIRE(sink.stage_total.value() == 29);
+    REQUIRE(sink.progress_count == 29);
+    REQUIRE(sink.max_done == 29);
+    REQUIRE(sink.last_rune_count == plain.size());
+    REQUIRE(sink.last_best_label == "caesar:shift=7");
 }
