@@ -143,7 +143,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | # | Commit |
 |---|--------|
 | 43 | ci: gate `[search]` CPU scheduler tests on matrix | **done** |
-| 44 | test(search): adversarial job JSON / path escape / caps |
+| 44 | test(search): adversarial job JSON / path escape / caps | **done** |
 | 45 | test(search): BatchArtifact limits + stable ordering fuzz |
 | 46 | docs: `cuda-build.md` Catch2 tags `[search][scheduler]` |
 
