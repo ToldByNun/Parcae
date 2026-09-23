@@ -13,6 +13,9 @@ public:
     static constexpr std::string_view E030_interrupt_policy = "E030";
     static constexpr std::string_view E031_forbidden_construct = "E031";
     static constexpr std::string_view E032_primitive_body = "E032";
+    static constexpr std::string_view E033_divergent_branch = "E033";
+    static constexpr std::string_view E034_hotloop_control = "E034";
+    static constexpr std::string_view E035_host_loop_unbounded = "E035";
     static constexpr std::string_view E040_param_domain = "E040";
     static constexpr std::string_view E050_verify_failed = "E050";
 

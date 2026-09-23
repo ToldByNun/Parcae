@@ -2,26 +2,44 @@
 #define DSL_SEMANTIC_GATE_HPP
 
 #include "parcae/core/status.hpp"
+#include "parcae/core/status_or.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
+#include "parcae/dsl/dsl_exec_scope.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
+#include "parcae/dsl/dsl_scope_analyzer.hpp"
 
 #include <optional>
 #include <string>
 #include <string_view>
 
 /// Post-ingest DSL whitelist gate (docs/spec/dsl.md, docs/spec/dsl-ast-json.md).
+///
 /// Rejects forbidden node kinds, non-whitelist imports, nested ClassDef in
 /// functions, starred args / **kwargs, and illegal op/ctx strings.
+/// Scope-aware control flow (`If` / `For` / `While` / `Break` / `Continue`):
+/// OuterControl allowed; HotLoop loops/`break`/`continue` → **E034**.
+/// HotLoop divergent `if` is **E033** (handled by `DslDivergenceGate`, not here —
+/// HotLoop `If` is accepted at this gate).
 /// Does not build IR (that is DslBuildIr) or check verify/tier claims.
 class DslSemanticGate {
 public:
     [[nodiscard]] static Status check(const DslAstDocument& doc) {
         if (!doc.module()) {
-            return fail(DslRuleId::E031_forbidden_construct, "document has no module AST", doc.source_path());
+            return fail(
+                DslRuleId::E031_forbidden_construct,
+                "document has no module AST",
+                doc.source_path());
         }
+
+        StatusOr<DslScopeMap> scopes = DslScopeAnalyzer::analyze(doc);
+        if (!scopes.ok()) {
+            return scopes.status();
+        }
+
         GateState state;
         state.source_path = doc.source_path();
+        state.scopes = &scopes.value();
         return walk_node(*doc.module(), state, /*function_depth=*/0);
     }
 
@@ -33,7 +51,8 @@ private:
 
     struct GateState {
         std::string source_path;
-        Loc nearest; // nearest ancestor location for nodes lacking lineno
+        Loc nearest;  // nearest ancestor location for nodes lacking lineno
+        const DslScopeMap* scopes = nullptr;
     };
 
     DslSemanticGate() = delete;
@@ -51,6 +70,16 @@ private:
             return Loc{node.lineno(), node.col_offset()};
         }
         return state.nearest;
+    }
+
+    [[nodiscard]] static DslExecScope scope_of(const DslAstNode& node, const GateState& state) {
+        if (state.scopes != nullptr) {
+            const std::optional<DslExecScope> found = state.scopes->get(&node);
+            if (found.has_value()) {
+                return found.value();
+            }
+        }
+        return DslExecScope{DslExecScope::Kind::OuterControl};
     }
 
     [[nodiscard]] static bool is_allowed_import_module(std::string_view module) {
@@ -87,12 +116,28 @@ private:
                is_cmpop_kind(kind) || is_ctx_kind(kind);
     }
 
-    /// DSL-facing node whitelist from dsl-ast-json.md § Allowed kind values.
+    /// Scope-conditioned control-flow kinds (not globally forbidden).
+    [[nodiscard]] static bool is_scope_control_kind(std::string_view kind) noexcept {
+        return kind == "If" || kind == "For" || kind == "While" || kind == "Break" ||
+               kind == "Continue";
+    }
+
+    /// Always-illegal async loop form (never OuterControl-legal).
+    [[nodiscard]] static bool is_always_forbidden_async_loop(std::string_view kind) noexcept {
+        return kind == "AsyncFor";
+    }
+
+    /// DSL-facing node whitelist from dsl-ast-json.md § Allowed kind values,
+    /// plus scope-aware control-flow kinds validated separately.
     [[nodiscard]] static bool is_allowed_kind(std::string_view kind) {
         // Structural
         if (kind == "Module" || kind == "ClassDef" || kind == "FunctionDef" || kind == "arguments" ||
             kind == "arg" || kind == "Return" || kind == "Expr" || kind == "Assign" ||
             kind == "AnnAssign" || kind == "Pass" || kind == "Raise") {
+            return true;
+        }
+        // Scope-aware control flow (further checked in check_scope_control)
+        if (is_scope_control_kind(kind)) {
             return true;
         }
         // Imports
@@ -111,6 +156,50 @@ private:
             return true;
         }
         return false;
+    }
+
+    [[nodiscard]] static Status check_scope_control(
+        const DslAstNode& node,
+        const GateState& state,
+        Loc loc) {
+        const std::string& kind = node.kind();
+        const DslExecScope scope = scope_of(node, state);
+
+        if (kind == "If") {
+            // HotLoop divergent-if → E033 in DslDivergenceGate (follow-on).
+            return Status::success();
+        }
+
+        if (kind == "For" || kind == "While") {
+            if (scope.is_hot_loop()) {
+                return fail(
+                    DslRuleId::E034_hotloop_control,
+                    std::string(kind) + " not allowed in HotLoop",
+                    state.source_path,
+                    loc);
+            }
+            return Status::success();
+        }
+
+        if (kind == "Break" || kind == "Continue") {
+            if (scope.is_hot_loop()) {
+                return fail(
+                    DslRuleId::E034_hotloop_control,
+                    std::string(kind) + " not allowed in HotLoop",
+                    state.source_path,
+                    loc);
+            }
+            if (!scope.in_loop()) {
+                return fail(
+                    DslRuleId::E031_forbidden_construct,
+                    std::string(kind) + " outside a loop",
+                    state.source_path,
+                    loc);
+            }
+            return Status::success();
+        }
+
+        return Status::success();
     }
 
     [[nodiscard]] static Status check_op_string(
@@ -269,7 +358,10 @@ private:
         return Status::success();
     }
 
-    [[nodiscard]] static Status walk_node(const DslAstNode& node, GateState& state, int function_depth) {
+    [[nodiscard]] static Status walk_node(
+        const DslAstNode& node,
+        GateState& state,
+        int function_depth) {
         GateState child_state = state;
         if (node.lineno().has_value()) {
             child_state.nearest = Loc{node.lineno(), node.col_offset()};
@@ -286,12 +378,27 @@ private:
                 loc);
         }
 
+        if (is_always_forbidden_async_loop(kind)) {
+            return fail(
+                DslRuleId::E031_forbidden_construct,
+                "forbidden construct '" + kind + "'",
+                child_state.source_path,
+                loc);
+        }
+
         if (!is_allowed_kind(kind)) {
             return fail(
                 DslRuleId::E031_forbidden_construct,
                 "forbidden construct '" + kind + "'",
                 child_state.source_path,
                 loc);
+        }
+
+        if (is_scope_control_kind(kind)) {
+            Status control = check_scope_control(node, child_state, loc);
+            if (!control.ok()) {
+                return control;
+            }
         }
 
         if (kind == "Starred") {

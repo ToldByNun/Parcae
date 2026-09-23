@@ -178,9 +178,8 @@ non-deterministic host helpers remain forbidden. OuterControl exists for
 
 Rule ids **E033** (divergent HotLoop branch), **E034** (HotLoop loop/control),
 and **E035** (unbounded OuterControl `while`) are reserved for these diagnostics
-(see § Diagnostics). Implementations that have not yet shipped the scope-aware
-gate **MUST** document the interim behavior; once shipped, they **MUST** match
-this table.
+(see § Diagnostics). `DslSemanticGate` is scope-aware for **E034**; **E033** /
+**E035** land with DivergenceGate / HostGlue follow-ons.
 
 ### Primitive / HotLoop body subset
 

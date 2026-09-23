@@ -171,7 +171,8 @@ than full Python.
 ### Structural
 
 `Module`, `ClassDef`, `FunctionDef`, `arguments`, `arg`, `Return`, `Expr`,
-`Assign`, `AnnAssign`, `Pass`, `Raise`
+`Assign`, `AnnAssign`, `Pass`, `Raise`, `If`, `For`, `While`, `Break`,
+`Continue` (scope-conditioned — see [dsl.md](dsl.md) § Execution scopes)
 
 ### Imports
 
@@ -211,9 +212,14 @@ Represented as `decorator_list`: array of expression nodes (`Call`, `Name`,
 
 Gate **MUST** reject at least: `AsyncFunctionDef`, `Await`, `Yield`,
 `YieldFrom`, `Lambda`, `ListComp`, `SetComp`, `DictComp`, `GeneratorExp`,
-`With`, `AsyncWith`, `Try`, `ExceptHandler`, `For`, `While`, `AsyncFor`,
+`With`, `AsyncWith`, `Try`, `ExceptHandler`, `AsyncFor`,
 `Global`, `Nonlocal`, `Delete`, `Assert`, `ClassDef` nested inside functions
 (v0: classes only at module level), `Import` (non-`ImportFrom`).
+
+Scope-conditioned (not globally forbidden — see [dsl.md](dsl.md) § Execution
+scopes): `If`, `For`, `While`, `Break`, `Continue`. OuterControl may use them
+under host rules; HotLoop `for` / `while` / `break` / `continue` → **E034**.
+HotLoop divergent `if` → **E033** (`DslDivergenceGate`).
 
 ---
 

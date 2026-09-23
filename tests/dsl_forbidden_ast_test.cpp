@@ -66,10 +66,6 @@ TEST_CASE("forbidden statement kinds → stable E031", "[dsl][gate][forbidden]")
                           "kw_defaults":[],"defaults":[]},
                   "body":[{"kind":"Pass","lineno":8,"col_offset":4}],
                   "decorator_list":[],"returns":null})"},
-             {"While",
-              R"({"kind":"While","lineno":7,"col_offset":0,
-                  "test":{"kind":"Constant","value":true,"lineno":7,"col_offset":6},
-                  "body":[{"kind":"Pass","lineno":8,"col_offset":4}],"orelse":[]})"},
              {"AsyncFor",
               R"({"kind":"AsyncFor","lineno":7,"col_offset":0,
                   "target":{"kind":"Name","id":"i","ctx":"Store","lineno":7,"col_offset":10},
@@ -98,12 +94,7 @@ TEST_CASE("forbidden statement kinds → stable E031", "[dsl][gate][forbidden]")
              {"Assert",
               R"({"kind":"Assert","lineno":7,"col_offset":0,
                   "test":{"kind":"Constant","value":true,"lineno":7,"col_offset":7},
-                  "msg":null})"},
-             {"For",
-              R"({"kind":"For","lineno":7,"col_offset":0,
-                  "target":{"kind":"Name","id":"i","ctx":"Store","lineno":7,"col_offset":4},
-                  "iter":{"kind":"Name","id":"xs","ctx":"Load","lineno":7,"col_offset":9},
-                  "body":[{"kind":"Pass","lineno":8,"col_offset":4}],"orelse":[]})"}}));
+                  "msg":null})"}}));
 
     const std::string& kind = std::get<0>(row);
     const std::string& stmt = std::get<1>(row);

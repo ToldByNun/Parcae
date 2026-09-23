@@ -102,7 +102,7 @@ TEST_CASE("DslSemanticGate rejects bare Import with E031", "[dsl][gate]") {
     REQUIRE(st.message().find("Import") != std::string::npos);
 }
 
-TEST_CASE("DslSemanticGate rejects For with E031", "[dsl][gate]") {
+TEST_CASE("DslSemanticGate accepts OuterControl For", "[dsl][gate][scope]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"For","lineno":5,"col_offset":0,
@@ -114,9 +114,157 @@ TEST_CASE("DslSemanticGate rejects For with E031", "[dsl][gate]") {
       "type_ignores":[]
     })");
     const Status st = DslSemanticGate::check(doc);
+    REQUIRE(st.ok());
+}
+
+TEST_CASE("DslSemanticGate accepts OuterControl If and While", "[dsl][gate][scope]") {
+    const DslAstDocument doc = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[
+        {
+          "kind":"If","lineno":2,"col_offset":0,
+          "test":{"kind":"Constant","value":true,"lineno":2,"col_offset":3},
+          "body":[{"kind":"Pass","lineno":3,"col_offset":4}],
+          "orelse":[]
+        },
+        {
+          "kind":"While","lineno":5,"col_offset":0,
+          "test":{"kind":"Constant","value":true,"lineno":5,"col_offset":6},
+          "body":[{"kind":"Pass","lineno":6,"col_offset":4}],
+          "orelse":[]
+        }
+      ],
+      "type_ignores":[]
+    })");
+    REQUIRE(DslSemanticGate::check(doc).ok());
+}
+
+TEST_CASE(
+    "DslSemanticGate rejects HotLoop For with E034",
+    "[dsl][gate][scope]") {
+    const DslAstDocument doc = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"FunctionDef","name":"poly","lineno":3,"col_offset":0,
+        "args":{"kind":"arguments","posonlyargs":[],"args":[],"kwonlyargs":[],
+                "kw_defaults":[],"defaults":[]},
+        "body":[{
+          "kind":"For","lineno":4,"col_offset":4,
+          "target":{"kind":"Name","id":"i","ctx":"Store","lineno":4,"col_offset":8},
+          "iter":{"kind":"Name","id":"xs","ctx":"Load","lineno":4,"col_offset":13},
+          "body":[{"kind":"Pass","lineno":5,"col_offset":8}],
+          "orelse":[]
+        }],
+        "decorator_list":[{
+          "kind":"Name","id":"define_primitive","ctx":"Load","lineno":2,"col_offset":1
+        }],
+        "returns":null
+      }],
+      "type_ignores":[]
+    })");
+    const Status st = DslSemanticGate::check(doc);
     REQUIRE_FALSE(st.ok());
-    REQUIRE(st.message().find("E031") != std::string::npos);
+    REQUIRE(st.message().find(DslRuleId::E034_hotloop_control) != std::string::npos);
     REQUIRE(st.message().find("For") != std::string::npos);
+    REQUIRE(st.message().find("HotLoop") != std::string::npos);
+}
+
+TEST_CASE(
+    "DslSemanticGate rejects HotLoop While with E034",
+    "[dsl][gate][scope]") {
+    const DslAstDocument doc = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"FunctionDef","name":"poly","lineno":3,"col_offset":0,
+        "args":{"kind":"arguments","posonlyargs":[],"args":[],"kwonlyargs":[],
+                "kw_defaults":[],"defaults":[]},
+        "body":[{
+          "kind":"While","lineno":4,"col_offset":4,
+          "test":{"kind":"Constant","value":true,"lineno":4,"col_offset":10},
+          "body":[{"kind":"Pass","lineno":5,"col_offset":8}],
+          "orelse":[]
+        }],
+        "decorator_list":[{
+          "kind":"Call","lineno":2,"col_offset":1,
+          "func":{"kind":"Name","id":"define_primitive","ctx":"Load","lineno":2,"col_offset":1},
+          "args":[],"keywords":[]
+        }],
+        "returns":null
+      }],
+      "type_ignores":[]
+    })");
+    const Status st = DslSemanticGate::check(doc);
+    REQUIRE_FALSE(st.ok());
+    REQUIRE(st.message().find("E034") != std::string::npos);
+    REQUIRE(st.message().find("While") != std::string::npos);
+}
+
+TEST_CASE(
+    "DslSemanticGate accepts HotLoop If (divergence is E033 later)",
+    "[dsl][gate][scope]") {
+    const DslAstDocument doc = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"FunctionDef","name":"poly","lineno":3,"col_offset":0,
+        "args":{"kind":"arguments","posonlyargs":[],"args":[],"kwonlyargs":[],
+                "kw_defaults":[],"defaults":[]},
+        "body":[{
+          "kind":"If","lineno":4,"col_offset":4,
+          "test":{"kind":"Name","id":"x","ctx":"Load","lineno":4,"col_offset":7},
+          "body":[{
+            "kind":"Return","lineno":5,"col_offset":8,
+            "value":{"kind":"Name","id":"x","ctx":"Load","lineno":5,"col_offset":15}
+          }],
+          "orelse":[]
+        }],
+        "decorator_list":[{
+          "kind":"Name","id":"define_primitive","ctx":"Load","lineno":2,"col_offset":1
+        }],
+        "returns":null
+      }],
+      "type_ignores":[]
+    })");
+    REQUIRE(DslSemanticGate::check(doc).ok());
+}
+
+TEST_CASE(
+    "DslSemanticGate rejects HotLoop Break with E034",
+    "[dsl][gate][scope]") {
+    const DslAstDocument doc = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"FunctionDef","name":"poly","lineno":3,"col_offset":0,
+        "args":{"kind":"arguments","posonlyargs":[],"args":[],"kwonlyargs":[],
+                "kw_defaults":[],"defaults":[]},
+        "body":[{
+          "kind":"For","lineno":4,"col_offset":4,
+          "target":{"kind":"Name","id":"i","ctx":"Store","lineno":4,"col_offset":8},
+          "iter":{"kind":"Name","id":"xs","ctx":"Load","lineno":4,"col_offset":13},
+          "body":[{"kind":"Break","lineno":5,"col_offset":8}],
+          "orelse":[]
+        }],
+        "decorator_list":[{
+          "kind":"Name","id":"define_primitive","ctx":"Load","lineno":2,"col_offset":1
+        }],
+        "returns":null
+      }],
+      "type_ignores":[]
+    })");
+    // HotLoop For fails first with E034 — Break never reached, or same rule.
+    const Status st = DslSemanticGate::check(doc);
+    REQUIRE_FALSE(st.ok());
+    REQUIRE(st.message().find("E034") != std::string::npos);
+}
+
+TEST_CASE(
+    "DslSemanticGate accepts OuterControl Break inside For",
+    "[dsl][gate][scope]") {
+    const DslAstDocument doc = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"For","lineno":2,"col_offset":0,
+        "target":{"kind":"Name","id":"i","ctx":"Store","lineno":2,"col_offset":4},
+        "iter":{"kind":"Name","id":"xs","ctx":"Load","lineno":2,"col_offset":9},
+        "body":[{"kind":"Break","lineno":3,"col_offset":4}],
+        "orelse":[]
+      }],
+      "type_ignores":[]
+    })");
+    REQUIRE(DslSemanticGate::check(doc).ok());
 }
 
 TEST_CASE("DslSemanticGate rejects Lambda with E031", "[dsl][gate]") {

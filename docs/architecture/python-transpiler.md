@@ -171,14 +171,14 @@ flowchart TB
 |-------|------|
 | `DslExecScope` | Scope kind + loop depth |
 | `DslScopeAnalyzer` | Walk AST JSON → scope map |
-| `DslDivergenceGate` | HotLoop predicate class → E033 / W011 |
+| `DslSemanticGate` | Whitelist + scope-aware `If`/`For`/`While`/`Break`/`Continue` (HotLoop loops → **E034**) |
+| `DslDivergenceGate` | HotLoop predicate class → E033 / W011 (follow-on) |
 | `DslDirectiveTable` | `#ignore DSL_FLAG:…` binding (follow-on) |
 | `DslHostGlue` / host IR | OuterControl loop/if lowering (follow-on) |
 
-**Interim tooling:** until the scope-aware gate ships, `DslSemanticGate` may still
-reject all `If` / `For` / `While` with **E031**. Authors should treat
-[dsl.md](../spec/dsl.md) § Execution scopes as the binding end state; CI examples
-remain on the expression-only HotLoop subset until the gate lands.
+`DslSemanticGate` runs `DslScopeAnalyzer` first, then applies the control-flow
+table in [dsl.md](../spec/dsl.md) § Execution scopes. HotLoop divergent `if`
+remains deferred to `DslDivergenceGate` (**E033**).
 
 **`DslFuse` reminder:** fuse only inlines `ComposedTheory` chains and chooses
 fused vs staged emit. It does **not** own Python control-flow policy — that sits
