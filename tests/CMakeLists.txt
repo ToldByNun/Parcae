@@ -103,6 +103,7 @@ add_executable(parcae_tests
   cuda_batch_rank1_test.cpp
   cuda_caesar_chi2_batch_test.cpp
   search_run_test.cpp
+  console_progress_mode_test.cpp
 )
 
 target_link_libraries(parcae_tests PRIVATE

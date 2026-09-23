@@ -92,3 +92,4 @@ python/build/
 
 agents/configs/lmstudio.local.yaml
 *.log
+scripts/research/periodic_key_switch_lp2.py
