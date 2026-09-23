@@ -71,7 +71,7 @@ The agent MUST NOT expose these as tools by default:
 | `parcae-blind-crack` | Research bench on locked fixtures (additive family battery + χ²); **not** the workspace search loop — use `search_cycle` instead. Stays deny-listed. |
 | `parcae-throughput-tiers` | Benchmarking; non-deterministic timing |
 | `parcae-parity` / `parcae-parity-gen` | Dev / golden maintenance |
-| `parcae-search-run` | Metrics / fused sweep dashboard — **not** the workspace loop; use `search_cycle` instead |
+| `parcae-search-run` | Metrics / fused-sweep **dashboard** (`SearchRun`); **not** the workspace loop — use `search_cycle` instead. Stays deny-listed. |
 | Arbitrary shell (`cmd`, `bash`, `powershell`, `python -c`, …) | Escape hatch |
 | Writing under `data/fixtures/` | Locked corpus integrity |
 | Path traversal outside `data_dir` / workspace | Sandbox |
@@ -80,6 +80,23 @@ The agent MUST NOT expose these as tools by default:
 An operator MAY add a deny-listed binary to a **custom** allow-list only via
 explicit local config (never implied by the Liber Primus system prompt). Default
 `parcae-agent` configs MUST keep the deny-list above.
+
+### `search_cycle` vs `parcae-search-run`
+
+| | `search_cycle` (`parcae-search-cycle`) | `parcae-search-run` |
+|--|---------------------------------------|---------------------|
+| Agent default | **Allow-listed** | **Deny-listed** (MUST stay off the default tool list) |
+| Input | Workspace `parcae.workspace.v0` ciphertext | Synthetic / fixture streams for throughput + sweep + eval |
+| Output | `BatchArtifact` + `HypothesisRecord`s under the workspace | Metrics console / JSON (`tok_per_sec`, sweep `steps[]`, fixture eval); no hypotheses |
+| Purpose | Closed-loop research on a workspace (LP2 `inputs/` or drills) | Human metrics dashboard + optional CPU↔CUDA score parity smoke |
+| Writes | `workspaces/<id>/batches/`, `hypotheses/` | None (metrics only; optional non-agent report files) |
+
+`SearchRun` remains the **metrics** CLI from the CUDA fused path — it does **not**
+export top-k candidates, write `BatchArtifact`, or replace `search_cycle`.
+Operators MAY run `parcae-search-run` from a shell; agents MUST NOT be given it
+by default ([`tools.md`](tools.md) § `parcae-search-run`,
+[`search-handbook.md`](../architecture/search-handbook.md),
+[`search-engine.md`](../architecture/search-engine.md) § Agent integration).
 
 ### `search_cycle` vs `parcae-blind-crack`
 

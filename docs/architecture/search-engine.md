@@ -178,9 +178,10 @@ lists — CPU remains source of truth for small-N agent generate/rank.
 
 - Allow-list: `search_cycle` → `parcae-search-cycle`.
 - Deny-list unchanged for `search-run`, `throughput-tiers`, `blind-crack`
-  (`blind-crack` = locked-fixture foothold bench, not the workspace loop —
-  [`agent-tools.md`](../spec/agent-tools.md) § `search_cycle` vs
-  `parcae-blind-crack`).
+  (`search-run` = metrics / fused-sweep dashboard via `SearchRun`, not candidate
+  export — [`agent-tools.md`](../spec/agent-tools.md) § `search_cycle` vs
+  `parcae-search-run`; `blind-crack` = locked-fixture foothold bench, not the
+  workspace loop — § `search_cycle` vs `parcae-blind-crack`).
 - Mirror in [`agents/parcae_agent/allowlist.py`](../../agents/parcae_agent/allowlist.py),
   `tool_schemas.py`, and C++ `AgentPolicy`.
 - Prompt guidance: prefer `search_cycle` for large grids; keep `generate` + `rank`
@@ -320,7 +321,7 @@ Numbering is **local to this search-engine roadmap**. Detailed mirror:
 | # | Commit |
 |---|--------|
 | 41 | docs: clarify `blind-crack` vs `search-cycle` (still deny-listed) — **done** |
-| 42 | chore: `search-run` remains metrics CLI; cross-link in `tools.md` |
+| 42 | chore: `search-run` remains metrics CLI; cross-link in `tools.md` — **done** |
 
 ### L — CI & quality
 

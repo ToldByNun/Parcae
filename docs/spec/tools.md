@@ -312,8 +312,11 @@ parcae-search-run [--backend cpu|cuda] [--family caesar]
                   [--data-dir <path>]
 ```
 
-AI-style search dashboard: **throughput** (runes/s over transform+score),
-**sweep scores** (parameter axis), and **locked-fixture eval** (scorer sanity).
+AI-style **metrics** dashboard (not the workspace search loop): **throughput**
+(runes/s over transform+score), **sweep scores** (parameter axis), and
+**locked-fixture eval** (scorer sanity). Backed by `SearchRun` /
+`SearchRunCuda` fused χ² — returns console metrics and sweep steps, **not**
+`TransformCandidate` batches or `HypothesisRecord`s.
 `tok_per_sec` is intentionally non-deterministic; with `--json --omit-timing` it is
 omitted so agent output is replayable. Each `steps[]` entry includes replayable
 `params` (plus `param_hash`). `--json` uses `parcae.tool_response.v0`.
@@ -322,10 +325,18 @@ With `--backend cuda`, also reports CPU↔CUDA score parity unless `--no-compare
 Exit **1** if fixture eval is not all-pass or CUDA parity fails;
 exit **2** if CUDA is requested but not built.
 
-Workspace closed-loop cycles (job → batch artifact → hypotheses) are **not**
+| vs | Role |
+|----|------|
+| `parcae-search-cycle` | Workspace closed loop → batches / hypotheses (agent **allow**-list) |
+| `parcae-search-run` | Throughput / sweep / fixture-eval **metrics** CLI (agent **deny**-list by default) |
+
+Workspace closed-loop cycles (job → `BatchArtifact` → hypotheses) are **not**
 this tool — see `parcae-search-cycle` / [`search-loop.md`](search-loop.md) and
 [`search-engine.md`](../architecture/search-engine.md). Agents MUST use
-`search_cycle` (allow-list) rather than `search-run` (deny-list by default).
+`search_cycle` (allow-list) rather than `search-run` (deny-list by default)
+([`agent-tools.md`](agent-tools.md) § Deny-list / `search_cycle` vs
+`parcae-search-run`). Human operators MAY run it from a shell for dashboards
+and CUDA parity smoke.
 
 ### `parcae-blind-crack`
 

@@ -34,7 +34,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | D–F — Export, rank CUDA, hypothesis bridge | 11–22 | **11–13 done**; next **14** |
 | G–H — Scheduler + CLI | 23–30 | pending |
 | I — Agent wiring | 31–35 | **done** |
-| J–K — Extended families / research CLI docs | 36–42 | pending |
+| J–K — Extended families / research CLI docs | 36–42 | **done** |
 | L–M — CI + exit | 43–52 | pending |
 
 ---
@@ -136,7 +136,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | # | Commit |
 |---|--------|
 | 41 | docs: clarify `blind-crack` vs `search-cycle` (still deny-listed) | **done** |
-| 42 | chore: `search-run` remains metrics CLI; cross-link in `tools.md` |
+| 42 | chore: `search-run` remains metrics CLI; cross-link in `tools.md` | **done** |
 
 ## L — CI & quality
 

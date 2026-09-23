@@ -345,11 +345,14 @@ Offline CI contract (no network, no real CLI): `cd agents && pytest -m ci -q`
 | Throughput / sweep dashboard / fixture eval rates | `parcae-search-run` | Deny-listed |
 | Locked-fixture additive-family foothold bench (χ² + oracle) | `parcae-blind-crack` | Deny-listed |
 
-`parcae-blind-crack` is a **human research CLI**: it does not write workspace
-hypotheses and MUST stay off the default agent allow-list. Prefer
-`search_cycle` for Liber Primus workspace research (`inputs/` ciphertext).
+`parcae-search-run` remains the **metrics** CLI (`SearchRun` throughput /
+sweep / fixture eval) — it does not write workspace hypotheses and MUST stay
+off the default agent allow-list. `parcae-blind-crack` is a **human research
+CLI** (locked-fixture foothold bench): same deny rule. Prefer `search_cycle`
+for Liber Primus workspace research (`inputs/` ciphertext).
 Details: [`agent-tools.md`](../spec/agent-tools.md) § `search_cycle` vs
-`parcae-blind-crack`, [`tools.md`](../spec/tools.md) § `parcae-blind-crack`.
+`parcae-search-run` / § `search_cycle` vs `parcae-blind-crack`,
+[`tools.md`](../spec/tools.md) § `parcae-search-run` / § `parcae-blind-crack`.
 
 ## Safety checklist
 
