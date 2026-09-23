@@ -1,3 +1,4 @@
+#include <parcae/core/version.hpp>
 #include <parcae/hypothesis/workspace_manifest.hpp>
 #include <parcae/search/batch_artifact.hpp>
 #include <parcae/search/search_scheduler.hpp>
@@ -125,8 +126,8 @@ namespace {
 #if defined(PARCAE_HAS_CLI_GOLDENS)
 
 TEST_CASE(
-    "parcae-search-cycle --status --json reports run_ready",
-    "[tool][search_cycle][status]") {
+    "parcae-search-cycle --status --json reports run_ready and toolkit_version",
+    "[tool][search_cycle][status][smoke][version]") {
     const auto [code, out] = run_cli(
         PARCAE_CLI_SEARCH_CYCLE,
         {"--status", "--json", "--data-dir", std::string(PARCAE_TEST_DATA_DIR)});
@@ -134,6 +135,9 @@ TEST_CASE(
     const nlohmann::json envelope = nlohmann::json::parse(out);
     REQUIRE(envelope.at("ok").get<bool>());
     REQUIRE(envelope.at("tool").get<std::string>() == "search_cycle");
+    REQUIRE(envelope.at("result").at("toolkit_version").get<std::string>() ==
+            PARCAE_VERSION_STRING);
+    REQUIRE(envelope.at("result").at("toolkit_version").get<std::string>() == "0.7.0");
     REQUIRE(envelope.at("result").at("run_ready").get<bool>());
     REQUIRE(envelope.at("result").at("scheduler_ready").get<bool>());
     REQUIRE(
