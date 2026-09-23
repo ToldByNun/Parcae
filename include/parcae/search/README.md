@@ -39,3 +39,5 @@ cycle run + goldens + AgentPolicy allow path + adversarial job/path/caps +
 BatchArtifact limits / ordering fuzz.
 CLI smoke: `ctest -R cli_search_cycle_status_json`.
 Hosted CI matrix gate: `parcae_tests "[search]"` (`.github/workflows/ci.yml`).
+Tag table (CPU vs CUDA): [`docs/architecture/cuda-build.md`](../../../docs/architecture/cuda-build.md)
+§ Catch2 tags (search engine / scheduler).

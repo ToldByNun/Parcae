@@ -35,7 +35,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | G–H — Scheduler + CLI | 23–30 | pending |
 | I — Agent wiring | 31–35 | **done** |
 | J–K — Extended families / research CLI docs | 36–42 | **done** |
-| L–M — CI + exit | 43–52 | pending |
+| L–M — CI + exit | 43–52 | **L done** (43–46); M pending |
 
 ---
 
@@ -145,7 +145,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | 43 | ci: gate `[search]` CPU scheduler tests on matrix | **done** |
 | 44 | test(search): adversarial job JSON / path escape / caps | **done** |
 | 45 | test(search): BatchArtifact limits + stable ordering fuzz | **done** |
-| 46 | docs: `cuda-build.md` Catch2 tags `[search][scheduler]` |
+| 46 | docs: `cuda-build.md` Catch2 tags `[search][scheduler]` | **done** |
 
 ## M — Exit
 

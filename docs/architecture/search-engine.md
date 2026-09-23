@@ -330,7 +330,7 @@ Numbering is **local to this search-engine roadmap**. Detailed mirror:
 | 43 | ci: gate `[search]` CPU scheduler tests on matrix — **done** |
 | 44 | test(search): adversarial job JSON / path escape / caps — **done** |
 | 45 | test(search): BatchArtifact limits + stable ordering fuzz — **done** |
-| 46 | docs: `cuda-build.md` Catch2 tags `[search][scheduler]` |
+| 46 | docs: `cuda-build.md` Catch2 tags `[search][scheduler]` — **done** |
 
 ### M — Exit
 

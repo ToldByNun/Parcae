@@ -372,6 +372,7 @@ Details: [`agent-tools.md`](../spec/agent-tools.md) § `search_cycle` vs
 | BatchArtifact limits + ordering fuzz | `parcae_tests "[search][batch][limits]"` / `"[search][batch][fuzz]"` |
 | CLI status smoke | `ctest -R cli_search_cycle_status_json` |
 | Catch2 search + CLI | `parcae_tests "[search]"` / `"[tool][search_cycle]"` |
+| Scheduler subset | `parcae_tests "[search][scheduler]"` (see [`cuda-build.md`](cuda-build.md) § Catch2 tags) |
 | JSON goldens | `parcae_tests "[tool][golden][cli][search_cycle]"` |
 | AgentPolicy path | `parcae_tests "[tool][policy][cli][search_cycle]"` |
 | Agent mock CI | `cd agents && pytest -m ci -q` |

@@ -75,7 +75,6 @@ Targets:
 | `[cuda][parity][beaufort]` | Skip / SUCCEED marker | `BeaufortKeyKernel` vs CPU (involution + skips) |
 | `[cuda][parity][totient]` | Skip / SUCCEED marker | `TotientPrimeStreamKernel` vs CPU (host shifts) |
 | `[cuda][parity][compose]` | Skip / SUCCEED marker | `ComposeDriver` vs CPU (Koan-1 / ping-pong) |
-| `[search][export][compose][parity]` | CPU compose smoke always | CPU vs fused Atbash∘Caesar / ComposeDriver top-k (`[cuda]` when linked) |
 | `[cuda][parity][golden]` | CPU locks `data/parity/` hashes; CUDA apply skipped | `CudaBackend` vs golden `output_sha256` (manifest) |
 | `[cuda][parity][solved]` | CPU apply on locked fixture consumables | `CudaBackend` vs CPU `output_sha256` per solved page |
 | `[cuda][score][exact]` | Skip / SUCCEED marker | `ExactMatchScore` vs CPU `ExactMatch` |
@@ -89,14 +88,52 @@ Targets:
 | `[cuda][batch][rank1]` | Skip / SUCCEED marker | CUDA batch apply + exact_match recovers known params |
 | `[cuda][batch][chi2][fuse]` | Skip / SUCCEED marker | Fused Caesar χ² vs CPU `ScoreRegistry` |
 | `[cuda][property]` | Skip / SUCCEED marker | Encrypt↔decrypt round-trips + CPU byte match via `CudaBackend` |
-| `[run][search]` | Always (CPU path) | SearchRun throughput / fixture eval; CUDA family parity when built |
+
+### Catch2 tags (search engine / scheduler)
+
+Closed-loop search (`include/parcae/search/`, `parcae-search-cycle`). Hosted CI
+gates the full filter `[search]` (see [CI policy](#ci-policy)). CUDA-linked export
+parity cases skip or stub when `PARCAE_BUILD_CUDA=OFF`.
+
+| Tag | Without Toolkit (`PARCAE_BUILD_CUDA=OFF`) | With CUDA ON + GPU |
+|-----|-------------------------------------------|--------------------|
+| `[search]` | **CI matrix gate** — full CPU search suite | Same + device export/parity cases run |
+| `[search][job]` | Always | `SearchJob` parse / bounds / digests |
+| `[search][prior]` | Always | `SearchPrior` from workspace / JSON |
+| `[search][batch]` | Always | `BatchArtifact` store/load / rank contract |
+| `[search][batch][limits]` | Always | Line-size / `k` caps + best-first reject |
+| `[search][batch][fuzz]` | Always | `BatchOrdering` shuffle+sort determinism |
+| `[search][cipher]` / `[search][cipher][resolve]` | Always | `WorkspaceCipher` fixture / `workspace_file` / path escape |
+| `[search][export]` / `[search][export][cpu]` | Always (CPU export) | + fused/`[cuda]` export when linked |
+| `[search][export][parity]` | CPU top-k ids always | CPU↔CUDA top-k on Tier-A (`[cuda]` / `[a-warning]`) |
+| `[search][export][compose][parity]` | CPU compose smoke always | CPU vs fused Atbash∘Caesar / ComposeDriver (`[cuda]` when linked) |
+| `[search][bridge]` / `[search][bridge][score]` | Always | `HypothesisBridge` ingest / score / status |
+| `[search][scheduler]` | Always (CPU `run_once`) | CUDA backend rejected unless built+allowed |
+| `[search][scheduler][loop]` | Always | `run_loop` budgets / stop reasons |
+| `[search][scheduler][prior]` | Always | Promoted seeds + rejected exclusions on next job |
+| `[search][scheduler][loop][determinism]` | Always | Two-iteration fixed-seed digest stability |
+| `[search][adversarial]` | Always | Job JSON / path escape / `max_candidates` caps |
+| `[search][roundtrip]` | Always | Job + prior + batch end-to-end |
+| `[tool][search_cycle]` | Always (needs built CLI) | `parcae-search-cycle` status / run / omit-timing |
+| `[tool][golden][cli][search_cycle]` | Always | JSON golden envelopes |
+| `[tool][policy][cli][search_cycle]` | Always | AgentPolicy allow path for cycle CLI |
+| `[run][search]` | Always (CPU metrics path) | SearchRun throughput / fixture eval; CUDA family parity when built |
+
+Operator / contributor tag map also lives in
+[`include/parcae/search/README.md`](../../include/parcae/search/README.md) and
+[`search-handbook.md`](search-handbook.md).
 
 ```bash
 # CPU CI path — smoke/buffer markers must still pass
-build/tests/Release/parcae_tests.exe "[cuda]" 
+build/tests/Release/parcae_tests.exe "[cuda]"
+
+# Search-engine gate (hosted CI matrix — no GPU required)
+build/tests/Release/parcae_tests.exe "[search]"
+build/tests/Release/parcae_tests.exe "[search][scheduler]"
 
 # Real device smoke (CUDA build)
 build-cuda/tests/Release/parcae_tests.exe "[cuda][smoke]" -s
+build-cuda/tests/Release/parcae_tests.exe "[search][export][parity]" -s
 build-cuda/tools/Release/parcae-search-run.exe --backend cuda --family caesar
 ```
 
@@ -124,9 +161,11 @@ Rules:
 ```text
 Parcae/Parcae/cuda/     canonical .cu / CUDA headers (VS + optional CMake)
 include/parcae/         CPU reference (header-only) — unchanged
+include/parcae/search/  closed-loop SearchScheduler / BatchArtifact / export
 include/parcae/run/     SearchRun metrics / console / CUDA sweeps
 ```
 
 ABI: [cuda-abi.md](cuda-abi.md) · Twins: [cuda-handoff.md](cuda-handoff.md) ·
 Reference: [cuda-reference.md](cuda-reference.md) · Throughput: [cuda-throughput.md](cuda-throughput.md) ·
-Roadmap: [cuda-roadmap.md](cuda-roadmap.md)
+Roadmap: [cuda-roadmap.md](cuda-roadmap.md) · Search: [search-engine.md](search-engine.md) /
+[search-handbook.md](search-handbook.md)
