@@ -7,7 +7,7 @@ twins, a theory DSL, and an LLM agent that only calls allow-listed CLIs.
 | | |
 |---|---|
 | **License** | [MIT](LICENSE) |
-| **Toolkit version** | **0.5.0** (`v0.5.0-theory-dsl`) |
+| **Toolkit version** | **0.7.0** (`v0.7.0-search-engine`) |
 | **Language (core)** | C++20 (header-first library + CLIs) |
 | **GPU** | Optional CUDA twins (CI stays CPU-only) |
 | **Python** | IDE stubs + AST dump + optional CMD agent — **not** the crypto core |
@@ -37,7 +37,7 @@ Parcae’s job is not to ship vibes. It is to:
 | **29** | Alphabet size. Every rune maps to an index `0…28` (`Index29`). All crypto math is mod 29. |
 | **0…28** | Valid `Index29` values. Latin “letters” are a *view* of those indices, not a second alphabet. |
 | **LP2 `0`–`55`** | Still-unsolved Liber Primus image range the toolkit aims to push forward. |
-| **0.5.0** | Current toolkit version (theory DSL compiler complete). |
+| **0.7.0** | Current toolkit version (search-engine loop complete). |
 | **CMake ≥ 3.25** | Build requirement. |
 | **Python ≥ 3.11** | Only for DSL stubs / `ast_dump` / optional `parcae-agent`. |
 

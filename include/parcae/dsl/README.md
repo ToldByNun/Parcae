@@ -85,7 +85,7 @@ Tests: `[cuda][dsl][smoke]` DslEmitCuda text + `DslSmokeCaesarKernel` (device wh
 
 ## Status
 
-Toolkit **0.5.0** (`v0.5.0-theory-dsl`). CI gates:
+Toolkit **0.7.0** (`v0.7.0-search-engine`; DSL exit was `v0.5.0-theory-dsl`). CI gates:
 `[dsl][examples]`, `[dsl][registry][stale]`, plus `dsl-examples-cli` /
 `dsl-stubs-pytest` jobs in `.github/workflows/ci.yml`.
 

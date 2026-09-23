@@ -1,14 +1,13 @@
 # Search engine plan freeze
 
-**Status:** Engineering exit **green**; README + agent docs mark loop **done** /
-owned by search (`v0.7.0-search-engine`); version / annotated tag pending
-M50–M52  
+**Status:** Toolkit **0.7.0**; engineering exit **green**; annotated git tag
+pending M51–M52  
 **Upstream:** CUDA parity (`v0.3.0-cuda-parity`) + Theory DSL (`v0.5.0-theory-dsl`) +
 CMD agent tooling ([`agent-tooling.md`](agent-tooling.md), planned exit
 `v0.6.0-agent-tools`)  
 **Product:** `SearchScheduler` (C++20) + `parcae-search-cycle` CLI — workspace-driven
 GPU/CPU candidate cycles with hypothesis feedback  
-**Exit tag (planned):** `v0.7.0-search-engine`  
+**Exit tag:** `v0.7.0-search-engine`  
 **Normative schema:** [`docs/spec/search-loop.md`](../spec/search-loop.md)
 
 North star:
@@ -266,18 +265,17 @@ in-tree agent stack (`generate` / `rank` / `hypothesis` / `AgentLoop` +
       foothold bench (not the workspace loop)
 - [x] Header map: [`include/parcae/search/README.md`](../../include/parcae/search/README.md)
 
-### Release cut (remaining — M50–M52)
+### Release cut (remaining — M51–M52)
 
 - [x] Root README roadmap marks search loop **done** with exit tag
 - [x] [`agent-tooling.md`](agent-tooling.md) / handbooks point here (closed-loop
       owned by search)
-- [ ] Toolkit version bump to **0.7.0**
+- [x] Toolkit version bump to **0.7.0**
 - [ ] Smoke: `Version` + `parcae-search-cycle --status`
 - [ ] Annotated tag `v0.7.0-search-engine`
 
-**Engineering exit (this checklist through Gates & Docs): green.** README +
-agent docs point at search as closed-loop owner. Remaining release-cut items:
-M50–M52.
+**Engineering exit green.** Toolkit is **0.7.0**. Remaining: M51 smoke + M52
+annotated tag.
 
 ---
 
@@ -399,7 +397,7 @@ Numbering is **local to this search-engine roadmap**. Detailed mirror:
 | 47 | docs: search-engine exit checklist green — **done** |
 | 48 | docs: README roadmap — search loop done (`v0.7.0-search-engine`) — **done** |
 | 49 | docs: agent-tooling / handbook point here (closed-loop owned by search) — **done** |
-| 50 | chore: version bump 0.7.0 |
+| 50 | chore: version bump 0.7.0 — **done** |
 | 51 | test: smoke Version + `parcae-search-cycle --status` |
 | 52 | chore: annotated tag `v0.7.0-search-engine` |
 
