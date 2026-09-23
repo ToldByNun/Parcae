@@ -135,7 +135,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 
 | # | Commit |
 |---|--------|
-| 41 | docs: clarify `blind-crack` vs `search-cycle` (still deny-listed) |
+| 41 | docs: clarify `blind-crack` vs `search-cycle` (still deny-listed) | **done** |
 | 42 | chore: `search-run` remains metrics CLI; cross-link in `tools.md` |
 
 ## L — CI & quality

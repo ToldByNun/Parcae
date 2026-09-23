@@ -172,6 +172,15 @@ The model only sees tools from [`agent-tools.md`](../spec/agent-tools.md):
 Deny-listed by default: `parcae-blind-crack`, `parcae-throughput-tiers`,
 `parcae-parity` / `parity-gen`, `parcae-search-run`, arbitrary shell.
 
+Do **not** confuse `search_cycle` with `parcae-blind-crack`:
+
+- **`search_cycle`** — workspace job → batch → hypotheses (allow-listed).
+- **`parcae-blind-crack`** — locked-fixture additive-family bench + oracle report;
+  deny-listed; operators MAY run it from a shell for research, not via the agent.
+
+See [`agent-tools.md`](../spec/agent-tools.md) § `search_cycle` vs
+`parcae-blind-crack` and [`search-handbook.md`](search-handbook.md).
+
 ## Workspaces, transcripts, hypotheses
 
 Layout (see hypothesis-workspace spec):

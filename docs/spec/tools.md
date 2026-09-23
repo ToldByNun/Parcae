@@ -327,6 +327,27 @@ this tool — see `parcae-search-cycle` / [`search-loop.md`](search-loop.md) and
 [`search-engine.md`](../architecture/search-engine.md). Agents MUST use
 `search_cycle` (allow-list) rather than `search-run` (deny-list by default).
 
+### `parcae-blind-crack`
+
+```text
+parcae-blind-crack [--data-dir <path>] [-h|--help]
+```
+
+Research **foothold bench** on locked Tier-A fixtures: enumerate an additive
+family battery (identity / atbash / caesar / atbash_caesar / affine), rank by
+`chi2_english_gp_v0` on **ciphertext only**, then oracle-check against known
+plaintext. No unsolved LP2 transcripts ship in-repo — this exercises
+Liber-Primus-length streams that *do* have locked plaintext for the check.
+
+| vs | Role |
+|----|------|
+| `parcae-search-cycle` | Workspace closed loop → batches / hypotheses (agent **allow**-list) |
+| `parcae-blind-crack` | Fixture battery + oracle report (agent **deny**-list by default) |
+
+Agents MUST NOT receive `parcae-blind-crack` as a tool by default
+([`agent-tools.md`](agent-tools.md) § Deny-list / `search_cycle` vs
+`parcae-blind-crack`). Human operators MAY run it from a shell.
+
 ### `parcae-search-cycle`
 
 ```text

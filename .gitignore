@@ -84,3 +84,4 @@ python/build/
 
 .venv/
 .pytest_cache/
+agents/configs/lmstudio.local.yaml

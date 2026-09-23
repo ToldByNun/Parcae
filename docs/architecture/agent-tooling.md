@@ -53,8 +53,8 @@ runnable agent + deterministic tool bridge only.
 | Cloud APIs | OpenRouter and compatible gateways via `base_url` + API key env + `model` |
 | Agent language | Python 3.11+ under `agents/parcae_agent/` — **explicit exception** to “no Python orchestration” for the LLM loop only |
 | Crypto / scores / transforms | Remain in C++20 CLIs; agent never reimplements them |
-| Tool allow-list | tokenize, decode, score, validate, catalog, generate, rank, hypothesis_* |
-| Tool deny-list (default) | blind-crack, throughput-tiers, parity-gen, arbitrary shell |
+| Tool allow-list | tokenize, decode, score, validate, catalog, generate, rank, hypothesis_*, search_cycle |
+| Tool deny-list (default) | blind-crack, throughput-tiers, parity-gen, search-run, arbitrary shell (`parcae-blind-crack` = fixture foothold bench, not `search_cycle`; see [`agent-tools.md`](../spec/agent-tools.md)) |
 | JSON contract | `parcae.tool_response.v0` on all agent-facing CLIs (success **and** failure) |
 | Workspace | `data/workspaces/<id>/` for hypotheses + transcripts; `data/fixtures/` read-only |
 | Budgets | max steps, max tool calls, max wall time — hard stop |

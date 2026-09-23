@@ -68,7 +68,7 @@ The agent MUST NOT expose these as tools by default:
 
 | Binary / capability | Reason |
 |---------------------|--------|
-| `parcae-blind-crack` | Heavy / research CLI; not a stable agent primitive |
+| `parcae-blind-crack` | Research bench on locked fixtures (additive family battery + χ²); **not** the workspace search loop — use `search_cycle` instead. Stays deny-listed. |
 | `parcae-throughput-tiers` | Benchmarking; non-deterministic timing |
 | `parcae-parity` / `parcae-parity-gen` | Dev / golden maintenance |
 | `parcae-search-run` | Metrics / fused sweep dashboard — **not** the workspace loop; use `search_cycle` instead |
@@ -80,6 +80,23 @@ The agent MUST NOT expose these as tools by default:
 An operator MAY add a deny-listed binary to a **custom** allow-list only via
 explicit local config (never implied by the Liber Primus system prompt). Default
 `parcae-agent` configs MUST keep the deny-list above.
+
+### `search_cycle` vs `parcae-blind-crack`
+
+| | `search_cycle` (`parcae-search-cycle`) | `parcae-blind-crack` |
+|--|---------------------------------------|----------------------|
+| Agent default | **Allow-listed** | **Deny-listed** (MUST stay off the default tool list) |
+| Input | Workspace `parcae.workspace.v0` ciphertext | Locked Tier-A fixtures under `data/fixtures/` |
+| Output | `BatchArtifact` + `HypothesisRecord`s under the workspace | Human console report (cracked / rates); no workspace hypotheses |
+| Purpose | Closed-loop research on a workspace (LP2 `inputs/` or drills) | Offline foothold bench: enumerate additive families, χ²-rank, oracle-check plaintext **after** scoring |
+| Writes | `workspaces/<id>/batches/`, `hypotheses/` | None (read-only fixtures) |
+
+`BlindCrack` scores **ciphertext only**; plaintext is used solely as an oracle
+check on locked fixtures. It does **not** ingest hypotheses, apply
+`SearchPrior`, or replace `search_cycle`. Operators MAY run
+`parcae-blind-crack` from a shell for research; agents MUST NOT be given it by
+default ([`tools.md`](tools.md) § `parcae-blind-crack`,
+[`search-handbook.md`](../architecture/search-handbook.md)).
 
 ## AgentPolicy (C++ guard)
 

@@ -34,7 +34,7 @@ and which `family` / `job` / budgets to pass.
 |-------|-------------|
 | Metrics / fused-sweep dashboard | `parcae-search-run` (**deny-listed** for agents) |
 | Tiny explicit candidate lists | `generate` + `rank` |
-| Heavy research crackers | `parcae-blind-crack` (**deny-listed**) |
+| Locked-fixture foothold bench (χ² + oracle) | `parcae-blind-crack` (**deny-listed**; human shell only) |
 | Writing under `data/fixtures/` | Never — AgentPolicy blocks it |
 | Unbounded dictionary search | Out of scope for v0 |
 
@@ -336,13 +336,20 @@ python -m parcae_agent run -c configs/ollama.example.yaml -v --prompt \
 Offline CI contract (no network, no real CLI): `cd agents && pytest -m ci -q`
 (includes mock `search_cycle` argv + envelope checks).
 
-## `search_cycle` vs `generate`+`rank` vs `search-run`
+## `search_cycle` vs `generate`+`rank` vs `search-run` vs `blind-crack`
 
-| Goal | Tool |
-|------|------|
-| Broad family sweep → batch → hypotheses | **`search_cycle`** |
-| Score a small hand-built candidate JSON | `generate` + `rank` |
-| Throughput / sweep dashboard / fixture eval rates | `parcae-search-run` (human/metrics; not agent) |
+| Goal | Tool | Agent default |
+|------|------|---------------|
+| Broad family sweep → batch → hypotheses | **`search_cycle`** | Allow-listed |
+| Score a small hand-built candidate JSON | `generate` + `rank` | Allow-listed |
+| Throughput / sweep dashboard / fixture eval rates | `parcae-search-run` | Deny-listed |
+| Locked-fixture additive-family foothold bench (χ² + oracle) | `parcae-blind-crack` | Deny-listed |
+
+`parcae-blind-crack` is a **human research CLI**: it does not write workspace
+hypotheses and MUST stay off the default agent allow-list. Prefer
+`search_cycle` for Liber Primus workspace research (`inputs/` ciphertext).
+Details: [`agent-tools.md`](../spec/agent-tools.md) § `search_cycle` vs
+`parcae-blind-crack`, [`tools.md`](../spec/tools.md) § `parcae-blind-crack`.
 
 ## Safety checklist
 

@@ -446,6 +446,12 @@ Success and failure of the CLI MUST still wrap in `parcae.tool_response.v0`
 `parcae-search-run` remains a **metrics / sweep dashboard** CLI and MUST stay
 deny-listed for agents by default. It is not a substitute for `search-cycle`.
 
+`parcae-blind-crack` remains a **locked-fixture foothold bench** (ciphertext-only
+χ² ranking + plaintext oracle check) and MUST stay deny-listed for agents by
+default. It does not write workspace hypotheses and is not a substitute for
+`search-cycle`. See [`agent-tools.md`](agent-tools.md) § `search_cycle` vs
+`parcae-blind-crack`.
+
 ---
 
 ## Agent surface (normative intent)
@@ -455,8 +461,7 @@ deny-listed for agents by default. It is not a substitute for `search-cycle`.
 | `search_cycle` | `parcae-search-cycle` | Run one/N workspace search cycles |
 
 Default deny-list unchanged for `parcae-search-run`, `parcae-throughput-tiers`,
-`parcae-blind-crack`. Full allow-list table update: [`agent-tools.md`](agent-tools.md)
-(search-engine commit 4).
+`parcae-blind-crack`. Full allow-list table: [`agent-tools.md`](agent-tools.md).
 
 ---
 
