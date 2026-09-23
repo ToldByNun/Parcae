@@ -1,10 +1,14 @@
 #ifndef BATCH_ARTIFACT_HPP
 #define BATCH_ARTIFACT_HPP
 
+#include "parcae/batch/batch_hit.hpp"
+#include "parcae/batch/batch_ordering.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/generate/transform_candidate.hpp"
 #include "parcae/hypothesis/workspace_paths.hpp"
+#include "parcae/score/score_id.hpp"
+#include "parcae/score/score_order.hpp"
 #include "parcae/search/search_job.hpp"
 #include "parcae/tool/tool_backend.hpp"
 #include "parcae/tool/transform_envelope.hpp"
@@ -32,6 +36,11 @@ public:
     static constexpr std::string_view ordering_id = "batch_ordering_v0";
     static constexpr std::string_view default_candidates_file = "candidates.jsonl";
     static constexpr std::string_view default_report_file = "report.json";
+
+    /// Absolute ceiling on `candidates.jsonl` lines (in addition to `count <= k`).
+    static constexpr std::size_t kMaxCandidatesPerBatch = 65536;
+    /// Max UTF-8 bytes per JSONL line (search-loop.md § Limits).
+    static constexpr std::size_t kMaxCandidateLineBytes = 256 * 1024;
 
     BatchArtifact() = default;
 
@@ -171,6 +180,11 @@ public:
         }
         if (candidates.size() > k) {
             return Status::error("BatchArtifact.candidate_count must be <= k");
+        }
+        if (candidates.size() > kMaxCandidatesPerBatch) {
+            return Status::error(
+                "BatchArtifact.candidate_count exceeds kMaxCandidatesPerBatch (" +
+                std::to_string(kMaxCandidatesPerBatch) + ")");
         }
         if (report.has_value()) {
             Status report_ok = validate_report(*report);
@@ -596,11 +610,26 @@ private:
         parcae::tool::Backend expected_backend) {
         std::unordered_set<std::string> seen_ids;
         seen_ids.reserve(candidates.size());
+
+        ScoreOrder score_order = ScoreOrder::Asc;
+        StatusOr<ScoreId> score_id = ScoreId::from_string(expected_score_id);
+        if (score_id.ok()) {
+            score_order = ScoreOrderUtil::for_score_id(score_id.value());
+        }
+
+        std::optional<BatchHit> prev_hit;
         for (std::size_t i = 0; i < candidates.size(); ++i) {
             const nlohmann::json& row = candidates[i];
             if (!row.is_object()) {
                 return Status::error(
                     "BatchArtifact candidates[" + std::to_string(i) + "] must be an object");
+            }
+            const std::string dumped = row.dump();
+            if (dumped.size() > kMaxCandidateLineBytes) {
+                return Status::error(
+                    "BatchArtifact candidates[" + std::to_string(i) +
+                    "] line exceeds kMaxCandidateLineBytes (" +
+                    std::to_string(kMaxCandidateLineBytes) + ")");
             }
             if (!row.contains("candidate_id") || !row.at("candidate_id").is_string()) {
                 return Status::error(
@@ -694,6 +723,15 @@ private:
                     "BatchArtifact candidates[" + std::to_string(i) +
                     "].rank must equal line index (best-first)");
             }
+
+            const double value = score.at("value").get<double>();
+            const BatchHit hit{cid, value, i};
+            if (prev_hit.has_value() && BatchOrdering::better(hit, *prev_hit, score_order)) {
+                return Status::error(
+                    "BatchArtifact candidates[" + std::to_string(i) +
+                    "] is not best-first under batch_ordering_v0 (score/id/index)");
+            }
+            prev_hit = hit;
         }
         return Status::success();
     }
@@ -718,6 +756,17 @@ private:
             }
             if (line.empty()) {
                 continue;
+            }
+            if (line.size() > kMaxCandidateLineBytes) {
+                return Status::error(
+                    "candidates.jsonl line " + std::to_string(line_no) +
+                    " exceeds kMaxCandidateLineBytes (" +
+                    std::to_string(kMaxCandidateLineBytes) + ")");
+            }
+            if (out.size() >= kMaxCandidatesPerBatch) {
+                return Status::error(
+                    "candidates.jsonl exceeds kMaxCandidatesPerBatch (" +
+                    std::to_string(kMaxCandidatesPerBatch) + ")");
             }
             try {
                 out.push_back(nlohmann::json::parse(line));

@@ -75,7 +75,10 @@ data/workspaces/<workspace_id>/
 | `batch_id` | `[a-z_][a-z0-9_-]{0,63}` — MUST match directory name |
 | Paths | All relative paths MUST resolve under the workspace root (no `..`, no absolute escapes) |
 | Encoding | UTF-8; LF preferred for JSONL |
-| Size | Implementations MUST enforce a documented cap on `candidates.jsonl` lines (see `max_candidates`) |
+| Size | Implementations MUST enforce caps: `candidate_count` ≤ `k`,
+  absolute `BatchArtifact::kMaxCandidatesPerBatch` (65536), and per-line
+  UTF-8 size ≤ `BatchArtifact::kMaxCandidateLineBytes` (256 KiB). Oversized
+  JSONL lines MUST fail loudly on load/validate. |
 
 ---
 
@@ -470,9 +473,11 @@ Default deny-list unchanged for `parcae-search-run`, `parcae-throughput-tiers`,
 | Limit | v0 expectation |
 |-------|----------------|
 | `max_candidates` | MUST be enforced; reject with error if expansion would exceed |
-| JSONL line size | MUST reject oversized candidate lines |
+| JSONL line size | MUST reject lines above `BatchArtifact::kMaxCandidateLineBytes` (256 KiB) |
+| Batch line count | MUST reject more than `BatchArtifact::kMaxCandidatesPerBatch` (65536) and more than job `k` |
 | Path escape | MUST reject `..` / absolute paths in workspace-relative fields |
 | Unknown schema / family | MUST fail loudly (non-zero exit / tool error envelope) |
+| Best-first order | MUST reject candidates that invert `batch_ordering_v0` (score → `candidate_id` → source index) |
 
 ---
 

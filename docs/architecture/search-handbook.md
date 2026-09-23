@@ -369,6 +369,7 @@ Details: [`agent-tools.md`](../spec/agent-tools.md) § `search_cycle` vs
 |------|---------|
 | CI matrix gate | `.github/workflows/ci.yml` → `Gate [search]` (`parcae_tests "[search]"`) |
 | Adversarial job / path / caps | `parcae_tests "[search][adversarial]"` |
+| BatchArtifact limits + ordering fuzz | `parcae_tests "[search][batch][limits]"` / `"[search][batch][fuzz]"` |
 | CLI status smoke | `ctest -R cli_search_cycle_status_json` |
 | Catch2 search + CLI | `parcae_tests "[search]"` / `"[tool][search_cycle]"` |
 | JSON goldens | `parcae_tests "[tool][golden][cli][search_cycle]"` |

@@ -32,8 +32,10 @@ Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtri
 `[search][scheduler][prior]`, `[search][scheduler][loop][determinism]`,
 `[search][adversarial]`, `[search][adversarial][job]`,
 `[search][adversarial][path]`, `[search][adversarial][caps]`,
+`[search][batch][limits]`, `[search][batch][fuzz]`,
 `[tool][search_cycle]`, `[tool][golden][cli][search_cycle]`,
 `[tool][policy][cli][search_cycle]` — types + export + ingest + scheduler + CLI
-cycle run + goldens + AgentPolicy allow path + adversarial job/path/caps.
+cycle run + goldens + AgentPolicy allow path + adversarial job/path/caps +
+BatchArtifact limits / ordering fuzz.
 CLI smoke: `ctest -R cli_search_cycle_status_json`.
 Hosted CI matrix gate: `parcae_tests "[search]"` (`.github/workflows/ci.yml`).

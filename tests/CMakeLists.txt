@@ -57,6 +57,7 @@ add_executable(parcae_tests
   search_adversarial_test.cpp
   search_prior_test.cpp
   batch_artifact_test.cpp
+  batch_artifact_limits_test.cpp
   hypothesis_bridge_test.cpp
   hypothesis_bridge_score_test.cpp
   search_roundtrip_test.cpp
