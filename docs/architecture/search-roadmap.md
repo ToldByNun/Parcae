@@ -35,7 +35,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | G–H — Scheduler + CLI | 23–30 | pending |
 | I — Agent wiring | 31–35 | **done** |
 | J–K — Extended families / research CLI docs | 36–42 | **done** |
-| L–M — CI + exit | 43–52 | **L done**; M47–M48 **done**; M49–52 release cut pending |
+| L–M — CI + exit | 43–52 | **L done**; M47–M49 **done**; M50–52 release cut pending |
 
 ---
 
@@ -153,7 +153,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 |---|--------|
 | 47 | docs: search-engine exit checklist green | **done** |
 | 48 | docs: README roadmap — search loop done (`v0.7.0-search-engine`) | **done** |
-| 49 | docs: agent-tooling / handbook point here (closed-loop owned by search) |
+| 49 | docs: agent-tooling / handbook point here (closed-loop owned by search) | **done** |
 | 50 | chore: version bump 0.7.0 |
 | 51 | test: smoke Version + `parcae-search-cycle --status` |
 | 52 | chore: annotated tag `v0.7.0-search-engine` |

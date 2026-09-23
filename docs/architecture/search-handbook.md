@@ -398,6 +398,7 @@ Headers / tags: [`include/parcae/search/README.md`](../../include/parcae/search/
 | [`search-engine.md`](search-engine.md) | Plan freeze + exit checklist (engineering green) |
 | [`search-roadmap.md`](search-roadmap.md) | Commit list 1–52 |
 | [`tools.md`](../spec/tools.md) | CLI flag reference |
-| [`agent-handbook.md`](agent-handbook.md) | Running `parcae-agent` |
+| [`agent-handbook.md`](agent-handbook.md) | Running `parcae-agent` (tool bridge; does **not** own the scheduler) |
+| [`agent-tooling.md`](agent-tooling.md) | Agent plan freeze — points here for closed-loop ownership |
 | [`agent-tools.md`](../spec/agent-tools.md) | Allow/deny + envelope |
 | [`cuda-score-reduction.md`](cuda-score-reduction.md) | CUDA top-k score contract |

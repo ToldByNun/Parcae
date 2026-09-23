@@ -27,9 +27,11 @@ reimplement \(\mathbb{Z}_{29}\) math or invent catalog ids.
 ## What it is not
 
 - Not a Cursor Skill / MCP host (optional later; not required for agent-tools exit)
-- Not a GPU search scheduler by itself — closed-loop cycles are
-  [`search-engine.md`](search-engine.md) / tool `search_cycle`
-  (`parcae-search-cycle`)
+- Not the closed-loop search **owner** — `SearchScheduler` + schemas live in the
+  search-engine workstream ([`search-engine.md`](search-engine.md), exit
+  `v0.7.0-search-engine`). Operators run cycles via tool `search_cycle` /
+  CLI `parcae-search-cycle`; how-to:
+  [`search-handbook.md`](search-handbook.md)
 - Not a free-form shell agent — deny-listed binaries and raw shell are blocked
 - Not allowed to write under `data/fixtures/`
 
@@ -222,7 +224,9 @@ invoke them). Prefer fixture ids for `validate`.
 ### C — Workspace family sweep (`search_cycle`)
 
 Prefer this over generate+rank when sweeping a full family grid into the
-workspace. Details: [`search-handbook.md`](search-handbook.md).
+workspace. **Closed-loop ownership** (scheduler, batch artifacts, priors):
+[`search-engine.md`](search-engine.md). Operator details:
+[`search-handbook.md`](search-handbook.md).
 
 ```bash
 python -m parcae_agent run -c configs/ollama.example.yaml -v --prompt \
@@ -286,6 +290,7 @@ Hosted CI must not set `PARCAE_AGENT_LIVE`. Details:
 | [`agent-tools.md`](../spec/agent-tools.md) | Envelope, allow/deny lists, config schema, loop contract |
 | [`hypothesis-workspace.md`](../spec/hypothesis-workspace.md) | HypothesisRecord + transcripts |
 | [`tools.md`](../spec/tools.md) | C++ library / CLI contracts |
-| [`agent-tooling.md`](agent-tooling.md) | Commit roadmap / exit tag |
+| [`agent-tooling.md`](agent-tooling.md) | Commit roadmap / exit tag (tool bridge only) |
+| [`search-engine.md`](search-engine.md) | Closed-loop **owner** (`SearchScheduler`, exit checklist) |
 | [`search-handbook.md`](search-handbook.md) | Closed-loop `search_cycle` operator guide |
 | [`agents/README.md`](../../agents/README.md) | Short package README |

@@ -10,6 +10,9 @@ Also:
 
 - Plan freeze: [`docs/architecture/agent-tooling.md`](../docs/architecture/agent-tooling.md)
 - Tool surface: [`docs/spec/agent-tools.md`](../docs/spec/agent-tools.md)
+- Closed-loop search (owns `SearchScheduler`; agent calls `search_cycle`):
+  [`docs/architecture/search-handbook.md`](../docs/architecture/search-handbook.md) ·
+  [`docs/architecture/search-engine.md`](../docs/architecture/search-engine.md)
 - Live provider smoke: [`docs/architecture/agent-provider-smoke.md`](../docs/architecture/agent-provider-smoke.md)
 - Config examples: [`configs/`](configs/)
 

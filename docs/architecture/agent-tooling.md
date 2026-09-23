@@ -37,10 +37,14 @@ flowchart TB
   Agent -->|"HypothesisRecord"| WS
 ```
 
-Closed-loop search (GPU → candidates → agents → hypotheses → GPU) is
-**owned by the search-engine workstream** — see [`search-engine.md`](search-engine.md)
-(planned exit `v0.7.0-search-engine`). This agent-tooling workstream delivers the
-runnable agent + deterministic tool bridge only.
+Closed-loop search (workspace → GPU/CPU candidates → `BatchArtifact` →
+hypotheses → `SearchPrior` → next cycle) is **owned by the search-engine
+workstream** — landed under exit label `v0.7.0-search-engine`
+([`search-engine.md`](search-engine.md) exit checklist engineering-green;
+operator guide [`search-handbook.md`](search-handbook.md)). This agent-tooling
+workstream delivers the runnable agent + deterministic tool bridge only; the
+agent **calls** allow-listed `search_cycle` (`parcae-search-cycle`) but does
+**not** implement `SearchScheduler`.
 
 ## Locked decisions
 
@@ -166,24 +170,30 @@ Secrets via environment variables named in config — never committed.
 
 ## Non-goals (this workstream)
 
-- Closed-loop GPU search scheduler — see [`search-engine.md`](search-engine.md)
+- Owning the closed-loop search scheduler — **done elsewhere:**
+  [`search-engine.md`](search-engine.md) / [`search-handbook.md`](search-handbook.md)
+  (`SearchScheduler` + `parcae-search-cycle`; agent only invokes `search_cycle`)
 - Multi-agent debate / beam search over hypotheses
 - Shipping unsolved LP2 `0`–`55` transcript corpus
 - Cursor Skill / MCP as exit requirements
 - Live API keys or local GPU models in hosted CI
-- Putting `parcae-blind-crack` / `parcae-throughput-tiers` on the default agent allow-list
+- Putting `parcae-blind-crack` / `parcae-throughput-tiers` /
+  `parcae-search-run` on the default agent allow-list
 
 ## Exit criteria (preview)
 
 - Agent-facing CLIs emit `parcae.tool_response.v0` (including failures)
-- `catalog` / `generate` / `rank` / `hypothesis` + CPU tests green
+- `catalog` / `generate` / `rank` / `hypothesis` / `search_cycle` + CPU tests green
 - AgentPolicy blocks fixture mutation and path escape
-- `parcae-agent run` works against a **mock LLM** in CI
+- `parcae-agent run` works against a **mock LLM** in CI (incl. `search_cycle`)
 - Documented live paths: local OpenAI-compatible **and** OpenRouter
 - Tag `v0.6.0-agent-tools`
 
 ## Related
 
-- Tool contracts: [`docs/spec/tools.md`](../spec/tools.md)
+- Tool contracts: [`docs/spec/tools.md`](../spec/tools.md),
+  [`docs/spec/agent-tools.md`](../spec/agent-tools.md)
+- Closed-loop search (owns scheduler): [`search-engine.md`](search-engine.md),
+  [`search-handbook.md`](search-handbook.md), [`search-loop.md`](../spec/search-loop.md)
 - CUDA roadmap: [`cuda-roadmap.md`](cuda-roadmap.md)
 - Throughput reference (not an agent tool): [`cuda-throughput.md`](cuda-throughput.md)
