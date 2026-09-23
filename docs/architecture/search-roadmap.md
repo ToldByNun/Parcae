@@ -128,7 +128,7 @@ C++ / CUDA style (HARD): **no `namespace`s** — top-level `class Name` +
 | 36 | feat(search): optional beaufort/totient families (explicit opt-in) | **done** |
 | 37 | feat(search): optional theory-URI job step (top candidates only) | **done** |
 | 38 | feat(search): compose recipe jobs (AtbashCaesar / ComposeDriver export) | **done** |
-| 39 | test(search): compose job CPU/CUDA mirror smoke |
+| 39 | test(search): compose job CPU/CUDA mirror smoke | **done** |
 | 40 | docs: LP2 workspace recipe (`inputs/`, no fixture plaintext assumption) |
 
 ## K — Research CLIs stay separate

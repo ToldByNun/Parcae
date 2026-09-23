@@ -27,9 +27,10 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,
 `[search][cipher]`, `[search][cipher][resolve]`, `[search][export]`,
-`[search][export][parity]`, `[search][bridge]`, `[search][bridge][score]`,
-`[search][scheduler]`, `[search][scheduler][loop]`, `[search][scheduler][prior]`,
-`[search][scheduler][loop][determinism]`, `[tool][search_cycle]`,
-`[tool][golden][cli][search_cycle]`, `[tool][policy][cli][search_cycle]` — types +
-export + ingest + scheduler + CLI cycle run + goldens + AgentPolicy allow path.
+`[search][export][parity]`, `[search][export][compose][parity]`, `[search][bridge]`,
+`[search][bridge][score]`, `[search][scheduler]`, `[search][scheduler][loop]`,
+`[search][scheduler][prior]`, `[search][scheduler][loop][determinism]`,
+`[tool][search_cycle]`, `[tool][golden][cli][search_cycle]`,
+`[tool][policy][cli][search_cycle]` — types + export + ingest + scheduler + CLI
+cycle run + goldens + AgentPolicy allow path.
 CLI smoke: `ctest -R cli_search_cycle_status_json`.
