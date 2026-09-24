@@ -25,6 +25,7 @@ are binding for conforming implementations.
 | [dsl.md](dsl.md) | Theory DSL language, `dsl_spec_version`, verify gates |
 | [dsl-ast-json.md](dsl-ast-json.md) | `parcae.dsl_ast_json.v0` CPython→C++ AST wire format |
 | [theory-artifact.md](theory-artifact.md) | `parcae.theory_artifact.v0`, URIs, registry invalidate rules |
+| [bench-probe.md](bench-probe.md) | External bench probe JSON 1.0.0 (`--suite probe`) |
 | [checklist.md](checklist.md) | Spec completeness checklist |
 
 ## Normative language

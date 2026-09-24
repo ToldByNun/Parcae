@@ -119,6 +119,15 @@ if(PARCAE_BUILD_TESTS)
   endif()
 
   add_test(
+    NAME cli_bench_probe_requires_cmd
+    COMMAND $<TARGET_FILE:parcae-bench>
+      --suite probe
+      --json
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+  )
+  set_tests_properties(cli_bench_probe_requires_cmd PROPERTIES WILL_FAIL TRUE)
+
+  add_test(
     NAME cli_search_cycle_status_json
     COMMAND $<TARGET_FILE:parcae-search-cycle>
       --status

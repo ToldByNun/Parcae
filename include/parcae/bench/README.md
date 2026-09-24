@@ -31,7 +31,12 @@ private:
 | `bench_slo_suite.hpp` | `BenchSloSuite` | Done — T1–T3 (+ optional F.*/C.*) via ThroughputTiers |
 | `bench_accuracy_suite.hpp` | `BenchAccuracySuite` | Done — fixture_eval / chi2 / oracle / CUDA planted |
 | `bench_hardware_suite.hpp` | `BenchHardwareSuite` | Done — T1–T3 CPU vs CUDA; skip / require-cuda |
-| CLI `parcae-bench` | — | `--status`, `--suite slo|accuracy|hardware` |
+| `bench_config.hpp` | `BenchConfig` | Done — probe cmd / tiers / timeout / compare |
+| `bench_probe_protocol.hpp` | `BenchProbeProtocol` | Done — probe_schema_version 1.0.0 parse |
+| `bench_probe_runner.hpp` | `BenchProbeRunner` | Done — `{tier}` spawn + timeout → report |
+| CLI `parcae-bench` | — | `--status`, `--suite slo|accuracy|hardware|probe|all` |
+
+Normative probe wire format: [`docs/spec/bench-probe.md`](../../../docs/spec/bench-probe.md).
 
 ## Sync rule
 
