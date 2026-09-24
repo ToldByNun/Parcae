@@ -14,6 +14,7 @@
 ///   - DslSemanticGate
 ///   - DslExecScope / DslScopeAnalyzer (OuterControl vs HotLoop)
 ///   - DslDivergenceGate (HotLoop If → E033 / W011)
+///   - DslHostGlue / HostGlueIr (OuterControl for/while → E035)
 ///   - Z29Expr
 ///   - ParamIr / PrimitiveIr / TheoryIr / ComposeIr
 ///   - DslIrApplicator
@@ -48,6 +49,8 @@
 #include "parcae/dsl/dsl_emit_cuda.hpp"
 #include "parcae/dsl/dsl_exec_scope.hpp"
 #include "parcae/dsl/dsl_fuse.hpp"
+#include "parcae/dsl/dsl_host_glue.hpp"
+#include "parcae/dsl/host_glue_ir.hpp"
 #include "parcae/dsl/dsl_ir_applicator.hpp"
 #include "parcae/dsl/dsl_launch_plan.hpp"
 #include "parcae/dsl/dsl_optimize.hpp"

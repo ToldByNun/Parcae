@@ -53,6 +53,7 @@ parcae-compile (C++20)
     DslAstJsonIngest     (limits, UTF-8, strict schema)
     DslSemanticGate      (dsl.md whitelist; scope-aware control flow — see below)
     DslDivergenceGate    (HotLoop If → E033 / W011)
+    DslHostGlue          (OuterControl for/while → HostGlueIr / E035)
     DslBuildIr           (Z29Expr / PrimitiveIr / TheoryIr / ComposeIr)
     DslVerifier          (exhaustive | fuzz; hard fail)
     DslOptimize          (const-fold, inv hoist, LaunchPlan, peak sanity)
@@ -168,8 +169,8 @@ flowchart TB
 | **HotLoop** | Primitive bodies; encrypt/decrypt/keystream steps | Branch-free / uniform `if` only; no loops by default |
 
 **Landed:** `DslExecScope`, `DslScopeAnalyzer`, scope-aware `DslSemanticGate` (E034),
-`DslDivergenceGate` (E033 / W011), `Z29Expr::Select` + applicator eval +
-`DslOptimize` dead-arm fold.
+`DslDivergenceGate` (E033 / W011), `DslHostGlue` / `HostGlueIr` (E035),
+`Z29Expr::Select` + applicator eval + `DslOptimize` dead-arm fold.
 
 **Planned classes** (not all landed yet; names are stable targets):
 
@@ -179,8 +180,8 @@ flowchart TB
 | `DslScopeAnalyzer` | Walk AST JSON → scope map |
 | `DslSemanticGate` | Whitelist + scope-aware `If`/`For`/`While`/`Break`/`Continue` (HotLoop loops → **E034**) |
 | `DslDivergenceGate` | HotLoop predicate class → **E033** / **W011** |
+| `DslHostGlue` / `HostGlueIr` | OuterControl `for`/`while`/`if` → host IR; unbounded → **E035** |
 | `DslDirectiveTable` | `#ignore DSL_FLAG:…` binding (follow-on) |
-| `DslHostGlue` / host IR | OuterControl loop/if lowering (follow-on) |
 
 `DslSemanticGate` runs `DslScopeAnalyzer` first, then applies the control-flow
 table in [dsl.md](../spec/dsl.md) § Execution scopes. `DslDivergenceGate` classifies

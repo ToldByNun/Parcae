@@ -15,6 +15,7 @@ add_executable(parcae_tests
   dsl_scope_analyzer_test.cpp
   dsl_divergence_gate_test.cpp
   dsl_build_select_test.cpp
+  dsl_host_glue_test.cpp
   dsl_z29_expr_test.cpp
   dsl_ir_test.cpp
   dsl_forbidden_ast_test.cpp

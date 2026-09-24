@@ -11,6 +11,7 @@
 #include "parcae/dsl/dsl_emit_cpu.hpp"
 #include "parcae/dsl/dsl_emit_cuda.hpp"
 #include "parcae/dsl/dsl_fuse.hpp"
+#include "parcae/dsl/dsl_host_glue.hpp"
 #include "parcae/dsl/dsl_semantic_gate.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
 #include "parcae/dsl/dsl_verifier.hpp"
@@ -159,6 +160,10 @@ public:
         Status divergence = DslDivergenceGate::check_errors_only(doc.value());
         if (!divergence.ok()) {
             return divergence;
+        }
+        Status host = DslHostGlue::check_errors_only(doc.value());
+        if (!host.ok()) {
+            return host;
         }
         StatusOr<DslBuildIr::Unit> unit = DslBuildIr::build(doc.value());
         if (!unit.ok()) {

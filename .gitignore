@@ -90,6 +90,9 @@ python/build/
 .venv/
 .pytest_cache/
 
+# Local agent build/test tee logs (never commit)
+/log/
+
 agents/configs/lmstudio.local.yaml
 *.log
 scripts/research/periodic_key_switch_lp2.py
