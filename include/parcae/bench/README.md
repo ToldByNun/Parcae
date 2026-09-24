@@ -26,6 +26,8 @@ private:
 | `bench_tier_spec.hpp` | `BenchTierSpec` | Done — canonical T1–T3 C/T/reps + peak/SLO tables |
 | `bench_metric.hpp` | `BenchMetric` | Done — runes/s, keys/s, median-of-3 |
 | `bench_timer.hpp` | `BenchTimer` | Done — CPU steady_clock + CUDA cudaEvent protocol |
+| `bench_report.hpp` | `BenchReport` | Done — unified rows + JSON `--omit-timing` |
+| `bench_formatter.hpp` | `BenchFormatter` | Done — human tables (ConsoleDashboard vocab) |
 
 ## Sync rule
 
