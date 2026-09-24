@@ -10,9 +10,10 @@ installers. Releases run only when you cut a real version tag.
 
 ## Artifact names
 
-Filenames use SemVer `X.Y.Z` from CMake (e.g. `0.7.0`). The git tag may carry a
-milestone suffix (`v0.7.0-search-engine`); that suffix is **not** in artifact
-names.
+Filenames use SemVer `X.Y.Z` from CMake (e.g. `0.8.0`). The git tag may carry a
+milestone suffix (`v0.8.0-dsl-console`); that suffix is **not** in artifact
+names. Human-readable notes:
+[`release/RELEASE_NOTES.md`](../../release/RELEASE_NOTES.md).
 
 | Kind | Pattern |
 |------|---------|
@@ -62,9 +63,9 @@ flavors). AppImages are portable (no system PATH mutation).
    `PARCAE_VERSION_*` fallbacks in `include/parcae/core/version.hpp` if you keep
    them in sync).
 2. Land docs/tests for the milestone; keep [`ci.yml`](../../.github/workflows/ci.yml) green.
-3. Create an **annotated** tag, e.g. `v0.7.0-search-engine` (already used for
-   the search-engine exit).
-4. **Push the tag** to GitHub (`git push origin v0.7.0-search-engine`). The
+3. Create an **annotated** tag, e.g. `v0.8.0-dsl-console` (smart DSL + console
+   exit; prior search-engine cut was `v0.7.0-search-engine`).
+4. **Push the tag** to GitHub (`git push origin v0.8.0-dsl-console`). The
    Release workflow starts on `v[0-9]+.*` only — not on ordinary commits.
 5. Wait for the workflow; confirm assets on the GitHub Release and verify
    `SHA256SUMS`.
@@ -75,11 +76,12 @@ flavors). AppImages are portable (no system PATH mutation).
 Manual re-cut of an existing tag:
 
 ```text
-Actions → Release → Run workflow → tag = v0.7.0-search-engine
+Actions → Release → Run workflow → tag = v0.8.0-dsl-console
 ```
 
 ## Local packaging (developers)
 
 See [`packaging/README.md`](../../packaging/README.md). Hosted CI artifacts land
 in the workflow’s `release-folder` artifact and on the GitHub Release; the
-tracked [`release/`](../../release/) tree only keeps a README + gitignore.
+tracked [`release/`](../../release/) tree keeps `README.md`, `.gitignore`, and
+[`RELEASE_NOTES.md`](../../release/RELEASE_NOTES.md).

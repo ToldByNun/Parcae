@@ -84,7 +84,7 @@ out of the cut on purpose.
       `"[cli][dashboard],[tool][search_cycle][progress]"`;
       documented in [`cuda-build.md`](cuda-build.md) § Catch2 tags)
 - [x] Root README roadmap marks **dsl-console** done with exit tag
-- [ ] [`RELEASE_NOTES.md`](../../release/RELEASE_NOTES.md) for 0.8.0
+- [x] [`RELEASE_NOTES.md`](../../release/RELEASE_NOTES.md) for 0.8.0
 - [ ] Toolkit version **0.8.0** (CMake + `version.hpp` + smoke asserts)
 - [ ] Smoke: `Version` + `parcae-search-cycle --status` /
       `parcae-compile --status` → toolkit **0.8.0**
