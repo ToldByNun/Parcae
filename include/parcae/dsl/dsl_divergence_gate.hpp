@@ -5,6 +5,7 @@
 #include "parcae/core/status_or.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
+#include "parcae/dsl/dsl_directive_table.hpp"
 #include "parcae/dsl/dsl_exec_scope.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/dsl_scope_analyzer.hpp"
@@ -69,7 +70,7 @@ private:
 /// Post-semantic HotLoop branch gate: ThreadVarying `If` → **E033**;
 /// accepted const/Param/`HostFlag` predicates → **W011** (warnings only).
 /// OuterControl `If` is ignored here (host glue / later HostGlue).
-/// Ignore-directive suppression (`divergent_branch`) is a follow-on.
+/// `divergent_branch` via `DslDirectiveTable` suppresses **E033** (+ **W010**).
 class DslDivergenceGate {
 public:
     class Report {
@@ -94,6 +95,13 @@ public:
     [[nodiscard]] static StatusOr<Report> check(
         const DslAstDocument& doc,
         std::string_view default_cipher_var = "x") {
+        return check(doc, default_cipher_var, nullptr);
+    }
+
+    [[nodiscard]] static StatusOr<Report> check(
+        const DslAstDocument& doc,
+        std::string_view default_cipher_var,
+        DslDirectiveTable* directives) {
         if (!doc.module()) {
             return DslDiag::make(
                        DslRuleId::E031_forbidden_construct,
@@ -118,6 +126,7 @@ public:
         state.source_path = doc.source_path();
         state.scopes = &scopes.value();
         state.cipher_var = std::string(default_cipher_var);
+        state.directives = directives;
         Status st = walk_node(*doc.module(), state);
         if (!st.ok()) {
             return st;
@@ -129,7 +138,14 @@ public:
     [[nodiscard]] static Status check_errors_only(
         const DslAstDocument& doc,
         std::string_view default_cipher_var = "x") {
-        StatusOr<Report> r = check(doc, default_cipher_var);
+        return check_errors_only(doc, default_cipher_var, nullptr);
+    }
+
+    [[nodiscard]] static Status check_errors_only(
+        const DslAstDocument& doc,
+        std::string_view default_cipher_var,
+        DslDirectiveTable* directives) {
+        StatusOr<Report> r = check(doc, default_cipher_var, directives);
         if (!r.ok()) {
             return r.status();
         }
@@ -149,6 +165,7 @@ private:
         const DslScopeMap* scopes = nullptr;
         std::string cipher_var;
         std::vector<DslDiag> warnings;
+        DslDirectiveTable* directives = nullptr;
     };
 
     DslDivergenceGate() = delete;
@@ -378,6 +395,13 @@ private:
         const DslExecScope scope = scope_of(if_node, state);
 
         if (pred.is_thread_varying()) {
+            if (state.directives != nullptr &&
+                state.directives->honor(
+                    DslDirectiveTable::flag_divergent_branch,
+                    if_node,
+                    DslRuleId::E033_divergent_branch)) {
+                return Status::success();
+            }
             std::string msg =
                 "HotLoop if depends on rune-varying data; use const/Param flag or Select";
             if (!pred.evidence().empty()) {
@@ -434,6 +458,20 @@ private:
         const DslExecScope scope = scope_of(ifexp, state);
 
         if (pred.is_thread_varying()) {
+            const bool honored =
+                state.directives != nullptr &&
+                (state.directives->honor(
+                     DslDirectiveTable::flag_divergent_branch,
+                     ifexp,
+                     DslRuleId::E033_divergent_branch) ||
+                 (lineno_of(ifexp).has_value() &&
+                  state.directives->honor_at_line(
+                      DslDirectiveTable::flag_divergent_branch,
+                      *lineno_of(ifexp),
+                      DslRuleId::E033_divergent_branch)));
+            if (honored) {
+                return Status::success();
+            }
             std::string msg =
                 "HotLoop if-expression depends on rune-varying data; use const/Param flag or Select";
             if (!pred.evidence().empty()) {

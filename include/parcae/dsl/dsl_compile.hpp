@@ -7,6 +7,8 @@
 #include "parcae/dsl/dsl_ast_json_ingest.hpp"
 #include "parcae/dsl/dsl_build_ir.hpp"
 #include "parcae/dsl/dsl_catalog_builtins.hpp"
+#include "parcae/dsl/dsl_diag.hpp"
+#include "parcae/dsl/dsl_directive_table.hpp"
 #include "parcae/dsl/dsl_divergence_gate.hpp"
 #include "parcae/dsl/dsl_emit_cpu.hpp"
 #include "parcae/dsl/dsl_emit_cuda.hpp"
@@ -74,6 +76,11 @@ public:
             return *this;
         }
 
+        [[nodiscard]] Options& set_allow_dsl_ignores(bool allow) {
+            allow_dsl_ignores_ = allow;
+            return *this;
+        }
+
         [[nodiscard]] const std::string& python_exe() const noexcept {
             return python_exe_;
         }
@@ -86,10 +93,15 @@ public:
             return artifact_version_;
         }
 
+        [[nodiscard]] bool allow_dsl_ignores() const noexcept {
+            return allow_dsl_ignores_;
+        }
+
     private:
         std::string python_exe_ = "python";
         std::string python_path_;
         std::uint32_t artifact_version_ = 1;
+        bool allow_dsl_ignores_ = false;
     };
 
     class Result {
@@ -104,10 +116,20 @@ public:
             return source_sha256_;
         }
 
+        [[nodiscard]] const std::vector<DslDiag>& warnings() const noexcept {
+            return warnings_;
+        }
+
+        [[nodiscard]] const std::vector<std::string>& dsl_ignores_applied() const noexcept {
+            return dsl_ignores_applied_;
+        }
+
     private:
         friend class DslCompile;
         std::vector<TheoryArtifact> artifacts_;
         std::string source_sha256_;
+        std::vector<DslDiag> warnings_;
+        std::vector<std::string> dsl_ignores_applied_;
     };
 
     [[nodiscard]] static bool pipeline_ready() {
@@ -153,15 +175,24 @@ public:
         if (!doc.ok()) {
             return doc.status();
         }
-        Status gate = DslSemanticGate::check(doc.value());
+
+        DslDirectiveTable::Options dir_opts;
+        (void)dir_opts.set_allow_dsl_ignores(options.allow_dsl_ignores());
+        StatusOr<DslDirectiveTable> directives = DslDirectiveTable::build(doc.value(), dir_opts);
+        if (!directives.ok()) {
+            return directives.status();
+        }
+
+        Status gate = DslSemanticGate::check(doc.value(), &directives.value());
         if (!gate.ok()) {
             return gate;
         }
-        Status divergence = DslDivergenceGate::check_errors_only(doc.value());
+        StatusOr<DslDivergenceGate::Report> divergence =
+            DslDivergenceGate::check(doc.value(), "x", &directives.value());
         if (!divergence.ok()) {
-            return divergence;
+            return divergence.status();
         }
-        Status host = DslHostGlue::check_errors_only(doc.value());
+        Status host = DslHostGlue::check_errors_only(doc.value(), &directives.value());
         if (!host.ok()) {
             return host;
         }
@@ -172,6 +203,13 @@ public:
 
         Result result;
         result.source_sha256_ = unit.value().source_sha256();
+        for (const DslDiag& w : divergence.value().warnings()) {
+            result.warnings_.push_back(w);
+        }
+        for (const DslDiag& w : directives.value().warnings()) {
+            result.warnings_.push_back(w);
+        }
+        result.dsl_ignores_applied_ = directives.value().flags_applied();
 
         for (const PrimitiveIr& prim : unit.value().primitives()) {
             StatusOr<DslVerifier::Report> vr = DslVerifier::verify_primitive(prim);
@@ -248,6 +286,7 @@ public:
             if (!artifact.ok()) {
                 return artifact.status();
             }
+            artifact.value().set_dsl_ignores_applied(result.dsl_ignores_applied_);
 
             Status stored = artifact.value().store(theories_root);
             if (!stored.ok()) {
@@ -355,6 +394,7 @@ public:
             if (!artifact.ok()) {
                 return artifact.status();
             }
+            artifact.value().set_dsl_ignores_applied(result.dsl_ignores_applied_);
 
             Status stored = artifact.value().store(theories_root);
             if (!stored.ok()) {

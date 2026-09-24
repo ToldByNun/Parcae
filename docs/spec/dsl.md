@@ -186,7 +186,10 @@ Authors may annotate source with `#ignore DSL_FLAG:…` comments (grammar in
 [dsl-ast-json.md](dsl-ast-json.md) § Directives). The syntax frontend emits them
 as `directives[]` on `parcae.dsl_ast_json.v0` (`dsl_ast_json_version` ≥ `1.1.0`).
 Binding those flags to statements, **W010**, and `--allow-dsl-ignores` is owned
-by `DslDirectiveTable` (compile-time; not part of the wire format alone).
+by `DslDirectiveTable`. Without `--allow-dsl-ignores`, any `#ignore DSL_FLAG` is
+**E031**. When the flag is honored, the suppressed rule is skipped and **W010**
+is emitted (warnings never alone fail compile). Artifact manifests may record
+`dsl_ignores_applied` for review.
 
 ### Primitive / HotLoop body subset
 
@@ -401,6 +404,7 @@ Reserved scope-aware rule ids (see § Execution scopes):
 | `E033` | Divergent / thread-varying branch in HotLoop |
 | `E034` | Illegal loop or `break`/`continue` in HotLoop |
 | `E035` | OuterControl `while` without provable finite bound |
+| `W010` | `#ignore DSL_FLAG` honored (suppressed E033/E034/E035) |
 | `W011` | Informational: HotLoop `if` accepted as uniform / const / Param |
 
 ---

@@ -183,7 +183,7 @@ flowchart TB
 | `DslSemanticGate` | Whitelist + scope-aware `If`/`For`/`While`/`Break`/`Continue` (HotLoop loops → **E034**) |
 | `DslDivergenceGate` | HotLoop predicate class → **E033** / **W011** |
 | `DslHostGlue` / `HostGlueIr` | OuterControl `for`/`while`/`if` → host IR; unbounded → **E035** |
-| `DslDirectiveTable` | `#ignore DSL_FLAG:…` binding (follow-on) |
+| `DslDirectiveTable` | `#ignore DSL_FLAG:…` binding; **W010**; requires `--allow-dsl-ignores` |
 
 `DslSemanticGate` runs `DslScopeAnalyzer` first, then applies the control-flow
 table in [dsl.md](../spec/dsl.md) § Execution scopes. `DslDivergenceGate` classifies

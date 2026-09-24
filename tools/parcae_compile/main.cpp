@@ -34,16 +34,18 @@ constexpr std::string_view kTool = "compile";
 void print_help() {
     std::cerr
         << "Usage: parcae-compile --status [--json] [--data-dir <path>]\n"
-        << "       parcae-compile <theory.py> [--json] [--data-dir <path>]\n"
+        << "       parcae-compile <theory.py> [--json] [--data-dir <path>] "
+           "[--allow-dsl-ignores]\n"
         << "\n"
         << "Compile a theory DSL source into a versioned artifact under data/theories/.\n"
         << "Pipeline: ast_dump → ingest → gate → IR → verify → emit → TheoryArtifact.\n"
         << "Normative: docs/spec/dsl.md, docs/spec/theory-artifact.md\n"
         << "\n"
-        << "  --status       Report toolchain / DSL versions (no compile)\n"
-        << "  --json         JSON envelope on stdout (parcae.tool_response.v0)\n"
-        << "  --data-dir     Parcae data/ root (theories land under <data>/theories/)\n"
-        << "  -h, --help     Show this help\n";
+        << "  --status             Report toolchain / DSL versions (no compile)\n"
+        << "  --json               JSON envelope on stdout (parcae.tool_response.v0)\n"
+        << "  --data-dir           Parcae data/ root (theories land under <data>/theories/)\n"
+        << "  --allow-dsl-ignores  Honor #ignore DSL_FLAG (emits W010; off by default)\n"
+        << "  -h, --help           Show this help\n";
 }
 
 [[nodiscard]] int fail(
@@ -59,15 +61,16 @@ void print_help() {
     return plain_exit;
 }
 
-[[nodiscard]] DslCompile::Options make_compile_options() {
+[[nodiscard]] DslCompile::Options make_compile_options(bool allow_dsl_ignores) {
     DslCompile::Options opt;
     (void)opt.set_python_exe(PARCAE_PYTHON_EXE);
     (void)opt.set_python_path(PARCAE_PYTHON_DIR);
+    (void)opt.set_allow_dsl_ignores(allow_dsl_ignores);
     return opt;
 }
 
 [[nodiscard]] nlohmann::json status_result(const std::filesystem::path& data_root) {
-    const DslCompile::Options opt = make_compile_options();
+    const DslCompile::Options opt = make_compile_options(false);
     const bool ready = DslCompile::pipeline_ready(opt);
     return nlohmann::json{
         {"stub", false},
@@ -91,7 +94,8 @@ void print_help() {
     std::vector<std::string> out;
     for (std::size_t i = 0; i < args.size(); ++i) {
         const std::string& a = args[i];
-        if (a == "--json" || a == "--status" || a == "-h" || a == "--help") {
+        if (a == "--json" || a == "--status" || a == "-h" || a == "--help" ||
+            a == "--allow-dsl-ignores") {
             continue;
         }
         if (a == "--data-dir") {
@@ -121,12 +125,14 @@ int main(int argc, char** argv) {
 
     const bool json_mode = has_flag(args, "--json");
     const bool want_status = has_flag(args, "--status");
+    const bool allow_dsl_ignores = has_flag(args, "--allow-dsl-ignores");
     const std::string data_dir = optional_option(args, "--data-dir");
     const std::vector<std::string> positionals = positional_args(args);
 
     for (std::size_t i = 0; i < args.size(); ++i) {
         const std::string& a = args[i];
-        if (a == "--json" || a == "--status" || a == "-h" || a == "--help" || a == "--data-dir") {
+        if (a == "--json" || a == "--status" || a == "-h" || a == "--help" || a == "--data-dir" ||
+            a == "--allow-dsl-ignores") {
             if (a == "--data-dir" && i + 1 < args.size()) {
                 ++i;
             }
@@ -200,7 +206,7 @@ int main(int argc, char** argv) {
             nlohmann::json{{"path", theory_path.string()}});
     }
 
-    const DslCompile::Options opt = make_compile_options();
+    const DslCompile::Options opt = make_compile_options(allow_dsl_ignores);
     if (!DslCompile::pipeline_ready(opt)) {
         return fail(
             json_mode,
@@ -228,9 +234,27 @@ int main(int argc, char** argv) {
             });
     }
 
+    for (const DslDiag& w : compiled.value().warnings()) {
+        std::cerr << w.format() << '\n';
+    }
+
     nlohmann::json uris = nlohmann::json::array();
     for (const TheoryArtifact& a : compiled.value().artifacts()) {
         uris.push_back(a.uri().to_string());
+    }
+    nlohmann::json warnings_json = nlohmann::json::array();
+    for (const DslDiag& w : compiled.value().warnings()) {
+        nlohmann::json entry{
+            {"rule", w.rule_id()},
+            {"message", w.message()},
+        };
+        if (w.lineno().has_value()) {
+            entry["lineno"] = *w.lineno();
+        }
+        if (w.col().has_value()) {
+            entry["col"] = *w.col();
+        }
+        warnings_json.push_back(std::move(entry));
     }
     nlohmann::json result{
         {"uris", std::move(uris)},
@@ -239,6 +263,9 @@ int main(int argc, char** argv) {
         {"dsl_spec_version", std::string(DslSpecVersion::current_string)},
         {"theories_dir", (data_root / "theories").string()},
         {"path", theory_path.string()},
+        {"warnings", std::move(warnings_json)},
+        {"dsl_ignores_applied", compiled.value().dsl_ignores_applied()},
+        {"allow_dsl_ignores", allow_dsl_ignores},
     };
 
     if (json_mode) {

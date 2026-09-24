@@ -138,6 +138,7 @@ File: `data/theories/<name>/<version>/manifest.json`
 | Field | Rule |
 |-------|------|
 | `source_path` | Repo-relative path of the `.py` input when known |
+| `dsl_ignores_applied` | Optional array of honored `#ignore DSL_FLAG` names (review / digest) |
 | `structural_claim` | **Required** in manifest when `tier` is `B` or `C` (non-empty string) |
 | `sweep` | `null` or a sweep config object (see below) |
 | `interrupts` | Documents interrupt mode: `policy_method` \| `none_by_design` \| `elementwise_default` |

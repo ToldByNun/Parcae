@@ -5,6 +5,7 @@
 #include "parcae/core/status_or.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
+#include "parcae/dsl/dsl_directive_table.hpp"
 #include "parcae/dsl/dsl_exec_scope.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/dsl_scope_analyzer.hpp"
@@ -18,13 +19,18 @@
 /// Rejects forbidden node kinds, non-whitelist imports, nested ClassDef in
 /// functions, starred args / **kwargs, and illegal op/ctx strings.
 /// Scope-aware control flow (`If` / `For` / `While` / `Break` / `Continue`):
-/// OuterControl allowed; HotLoop loops/`break`/`continue` → **E034**.
+/// OuterControl allowed; HotLoop loops/`break`/`continue` → **E034**
+/// (suppressible via `DslDirectiveTable` + `hotloop_restriction`).
 /// HotLoop divergent `if` is **E033** (handled by `DslDivergenceGate`, not here —
 /// HotLoop `If` is accepted at this gate).
 /// Does not build IR (that is DslBuildIr) or check verify/tier claims.
 class DslSemanticGate {
 public:
     [[nodiscard]] static Status check(const DslAstDocument& doc) {
+        return check(doc, nullptr);
+    }
+
+    [[nodiscard]] static Status check(const DslAstDocument& doc, DslDirectiveTable* directives) {
         if (!doc.module()) {
             return fail(
                 DslRuleId::E031_forbidden_construct,
@@ -40,6 +46,7 @@ public:
         GateState state;
         state.source_path = doc.source_path();
         state.scopes = &scopes.value();
+        state.directives = directives;
         return walk_node(*doc.module(), state, /*function_depth=*/0);
     }
 
@@ -53,6 +60,7 @@ private:
         std::string source_path;
         Loc nearest;  // nearest ancestor location for nodes lacking lineno
         const DslScopeMap* scopes = nullptr;
+        DslDirectiveTable* directives = nullptr;
     };
 
     DslSemanticGate() = delete;
@@ -172,6 +180,13 @@ private:
 
         if (kind == "For" || kind == "While") {
             if (scope.is_hot_loop()) {
+                if (state.directives != nullptr &&
+                    state.directives->honor(
+                        DslDirectiveTable::flag_hotloop_restriction,
+                        node,
+                        DslRuleId::E034_hotloop_control)) {
+                    return Status::success();
+                }
                 return fail(
                     DslRuleId::E034_hotloop_control,
                     std::string(kind) + " not allowed in HotLoop",
@@ -183,6 +198,13 @@ private:
 
         if (kind == "Break" || kind == "Continue") {
             if (scope.is_hot_loop()) {
+                if (state.directives != nullptr &&
+                    state.directives->honor(
+                        DslDirectiveTable::flag_hotloop_restriction,
+                        node,
+                        DslRuleId::E034_hotloop_control)) {
+                    return Status::success();
+                }
                 return fail(
                     DslRuleId::E034_hotloop_control,
                     std::string(kind) + " not allowed in HotLoop",

@@ -36,6 +36,7 @@ private:
 | `dsl_ast_json_ingest.hpp` | `DslAstJsonIngest` | Done (strict + limits + `directives[]`) |
 | `dsl_semantic_gate.hpp` | `DslSemanticGate` | Done (whitelist + scope-aware CF / E034) |
 | `dsl_divergence_gate.hpp` | `DslDivergenceGate` / `DslPredicateClass` | Done (HotLoop If → E033 / W011) |
+| `dsl_directive_table.hpp` | `DslDirectiveTable` | Done (bind `#ignore` → W010; `--allow-dsl-ignores`) |
 | `host_glue_ir.hpp` | `HostGlueIr` | Done (OuterControl host IR nodes) |
 | `dsl_host_glue.hpp` | `DslHostGlue` | Done (for/while → HostGlueIr / E035) |
 | `dsl_exec_scope.hpp` | `DslExecScope` | Done (OuterControl / HotLoop + loop depth) |
@@ -68,6 +69,7 @@ private:
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md always-forbidden kinds → stable `E031`/`E021`.
 Tests: `[dsl][gate][scope]` OuterControl If/For/While OK; HotLoop For/While → E034.
 Tests: `[dsl][divergence]` HotLoop If ThreadVarying → E033; Param/const → W011.
+Tests: `[dsl][directives]` `#ignore` binding; W010; E031 without `--allow-dsl-ignores`.
 Tests: `[dsl][hostglue]` OuterControl range-for / bounded while; E035 negatives.
 Tests: `[dsl][build][select]` HotLoop If/IfExp → Z29Expr Select + fold.
 Tests: `[dsl][scope]` DslExecScope + DslScopeAnalyzer OuterControl vs HotLoop.

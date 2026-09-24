@@ -5,6 +5,7 @@
 #include "parcae/core/status_or.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
+#include "parcae/dsl/dsl_directive_table.hpp"
 #include "parcae/dsl/dsl_exec_scope.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/dsl_scope_analyzer.hpp"
@@ -58,6 +59,12 @@ public:
 
     /// Walk OuterControl regions; fail-loud on E035; return host glue program.
     [[nodiscard]] static StatusOr<Program> build(const DslAstDocument& doc) {
+        return build(doc, nullptr);
+    }
+
+    [[nodiscard]] static StatusOr<Program> build(
+        const DslAstDocument& doc,
+        DslDirectiveTable* directives) {
         if (!doc.module()) {
             return DslDiag::make(
                        DslRuleId::E031_forbidden_construct,
@@ -74,6 +81,7 @@ public:
         State state;
         state.source_path = doc.source_path();
         state.scopes = &scopes.value();
+        state.directives = directives;
         StatusOr<HostGlueIr::Ptr> root = lower_stmt_list(
             doc.module()->find_field("body"), state, /*require_outer=*/true);
         if (!root.ok()) {
@@ -86,7 +94,13 @@ public:
 
     /// Errors only (compile pipeline).
     [[nodiscard]] static Status check_errors_only(const DslAstDocument& doc) {
-        StatusOr<Program> p = build(doc);
+        return check_errors_only(doc, nullptr);
+    }
+
+    [[nodiscard]] static Status check_errors_only(
+        const DslAstDocument& doc,
+        DslDirectiveTable* directives) {
+        StatusOr<Program> p = build(doc, directives);
         if (!p.ok()) {
             return p.status();
         }
@@ -97,6 +111,7 @@ private:
     struct State {
         std::string source_path;
         const DslScopeMap* scopes = nullptr;
+        DslDirectiveTable* directives = nullptr;
         std::size_t for_count = 0;
         std::size_t while_count = 0;
     };
@@ -492,14 +507,24 @@ private:
 
         // Provably finite: while i < N with N const → max_iters = N (conservative).
         std::optional<std::int64_t> max_iters = prove_while_max_iters(test);
+        HostGlueIr::BoundKind bound = HostGlueIr::BoundKind::ConstUnroll;
         if (!max_iters.has_value()) {
-            return fail(
-                DslRuleId::E035_host_loop_unbounded,
-                "OuterControl while without provable finite bound",
-                state,
-                stmt,
-                "Use a const upper bound (while i < N) or for-range; "
-                "#ignore DSL_FLAG:host_loop_bound is a follow-on");
+            if (state.directives != nullptr &&
+                state.directives->honor(
+                    DslDirectiveTable::flag_host_loop_bound,
+                    stmt,
+                    DslRuleId::E035_host_loop_unbounded)) {
+                max_iters = DslDirectiveTable::host_loop_bound_asserted_max;
+                bound = HostGlueIr::BoundKind::HostKnown;
+            } else {
+                return fail(
+                    DslRuleId::E035_host_loop_unbounded,
+                    "OuterControl while without provable finite bound",
+                    state,
+                    stmt,
+                    "Use a const upper bound (while i < N) or for-range; "
+                    "or #ignore DSL_FLAG:host_loop_bound with --allow-dsl-ignores");
+            }
         }
 
         StatusOr<HostGlueIr::Ptr> cond = lower_expr_value(test, state, stmt);
@@ -517,7 +542,7 @@ private:
             std::move(cond.value()),
             std::move(body.value()),
             *max_iters,
-            HostGlueIr::BoundKind::ConstUnroll);
+            bound);
         node->set_location(stmt.lineno(), stmt.col_offset());
         return node;
     }

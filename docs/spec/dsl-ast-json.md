@@ -125,7 +125,7 @@ Non-matching comments **MUST** be ignored (not emitted). Each emitted object
 
 Binding of flags to AST statements and `--allow-dsl-ignores` / **W010** is
 specified in [dsl.md](dsl.md) § Execution scopes and implemented by
-`DslDirectiveTable` (follow-on to ingest of this array).
+`DslDirectiveTable`.
 
 ---
 

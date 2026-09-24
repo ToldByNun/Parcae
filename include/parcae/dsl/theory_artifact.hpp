@@ -375,6 +375,14 @@ public:
         return source_path_;
     }
 
+    void set_dsl_ignores_applied(std::vector<std::string> flags) {
+        dsl_ignores_applied_ = std::move(flags);
+    }
+
+    [[nodiscard]] const std::vector<std::string>& dsl_ignores_applied() const noexcept {
+        return dsl_ignores_applied_;
+    }
+
     [[nodiscard]] const std::vector<Param>& params() const noexcept {
         return params_;
     }
@@ -435,6 +443,9 @@ public:
         }
         if (structural_claim_.has_value()) {
             root["structural_claim"] = *structural_claim_;
+        }
+        if (!dsl_ignores_applied_.empty()) {
+            root["dsl_ignores_applied"] = dsl_ignores_applied_;
         }
         return root;
     }
@@ -555,6 +566,19 @@ public:
         a.interrupts_ = interrupts.value();
         a.paths_ = std::move(paths.value());
         a.sweep_ = std::move(sweep);
+
+        if (root.contains("dsl_ignores_applied")) {
+            if (!root.at("dsl_ignores_applied").is_array()) {
+                return Status::error("TheoryArtifact.dsl_ignores_applied must be an array");
+            }
+            for (const auto& item : root.at("dsl_ignores_applied")) {
+                if (!item.is_string()) {
+                    return Status::error(
+                        "TheoryArtifact.dsl_ignores_applied entries must be strings");
+                }
+                a.dsl_ignores_applied_.push_back(item.get<std::string>());
+            }
+        }
 
         if ((a.tier_ == TheoryIr::Tier::B || a.tier_ == TheoryIr::Tier::C) &&
             (!a.structural_claim_.has_value() || a.structural_claim_->empty())) {
@@ -881,6 +905,7 @@ private:
     TheoryIr::Family family_ = TheoryIr::Family::Elementwise;
     std::optional<std::string> structural_claim_;
     std::optional<std::string> source_path_;
+    std::vector<std::string> dsl_ignores_applied_;
     std::vector<Param> params_;
     std::vector<std::string> primitives_;
     Verification verification_{
