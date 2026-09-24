@@ -44,11 +44,38 @@ parcae_add_cli(parcae-parity parcae_parity/main.cpp)
 parcae_add_cli(parcae-search-run parcae_search_run/main.cpp)
 parcae_add_cli(parcae-search-cycle parcae_search_cycle/main.cpp)
 parcae_add_cli(parcae-blind-crack parcae_blind_crack/main.cpp)
+parcae_add_cli(parcae-bench parcae_bench/main.cpp)
 if(PARCAE_HAS_CUDA_BUILD)
   parcae_add_cli(parcae-throughput-tiers parcae_throughput_tiers/main.cpp)
 endif()
 
 if(PARCAE_BUILD_TESTS)
+  add_test(
+    NAME cli_bench_status_json
+    COMMAND $<TARGET_FILE:parcae-bench>
+      --status
+      --json
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+  )
+
+  add_test(
+    NAME cli_bench_omit_timing_requires_json
+    COMMAND $<TARGET_FILE:parcae-bench>
+      --suite slo
+      --omit-timing
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+  )
+  set_tests_properties(cli_bench_omit_timing_requires_json PROPERTIES WILL_FAIL TRUE)
+
+  add_test(
+    NAME cli_bench_slo_requires_allow_cuda
+    COMMAND $<TARGET_FILE:parcae-bench>
+      --suite slo
+      --json
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+  )
+  set_tests_properties(cli_bench_slo_requires_allow_cuda PROPERTIES WILL_FAIL TRUE)
+
   add_test(
     NAME cli_search_cycle_status_json
     COMMAND $<TARGET_FILE:parcae-search-cycle>
