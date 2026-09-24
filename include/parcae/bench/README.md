@@ -24,6 +24,8 @@ private:
 | Header | Class | Status |
 |--------|-------|--------|
 | `bench_tier_spec.hpp` | `BenchTierSpec` | Done — canonical T1–T3 C/T/reps + peak/SLO tables |
+| `bench_metric.hpp` | `BenchMetric` | Done — runes/s, keys/s, median-of-3 |
+| `bench_timer.hpp` | `BenchTimer` | Done — CPU steady_clock + CUDA cudaEvent protocol |
 
 ## Sync rule
 
