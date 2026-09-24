@@ -17,6 +17,7 @@ theory DSL compiles into that stack.
 | [agent-handbook.md](agent-handbook.md) | CMD operator handbook for `parcae-agent` |
 | [agent-provider-smoke.md](agent-provider-smoke.md) | Optional live Ollama / OpenRouter smoke (CI skips) |
 | [python-transpiler.md](python-transpiler.md) | **Theory DSL compiler** — AST-JSON → IR → verify → CPU/CUDA emit → artifacts |
+| [dsl-console-exit.md](dsl-console-exit.md) | **0.8.0 exit freeze** — smart DSL + `ConsoleDashboard` (`v0.8.0-dsl-console`) |
 | [dsl-stubs.md](dsl-stubs.md) | Stubs vs compiler — only `parcae-compile` verifies |
 | [search-engine.md](search-engine.md) | **Frozen** search engine plan — GPU ↔ candidates ↔ hypotheses loop; exit checklist |
 | [search-roadmap.md](search-roadmap.md) | **Frozen** search-engine commit list (1–52) |
@@ -62,5 +63,8 @@ theories/examples/*.py
 
 Related CLIs: `parcae-compile`, `parcae-validate --theory`, `parcae-sweep`,
 `parcae-catalog --theories` — contracts in [`docs/spec/tools.md`](../spec/tools.md).
+
+Exit freeze (smart compiler + console progress):
+[`dsl-console-exit.md`](dsl-console-exit.md).
 
 CUDA DSL emit smoke: Catch2 tag `[cuda][dsl][smoke]` — see [`cuda-build.md`](cuda-build.md).

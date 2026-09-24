@@ -258,6 +258,8 @@ Digest invariance (progress on vs `--quiet`) is locked by
 
 Normative contract: [`search-loop.md`](../spec/search-loop.md) § Console progress
 contract. Flags: [`tools.md`](../spec/tools.md) § `parcae-search-cycle`.
+Toolkit exit checklist (smart DSL + console):
+[`dsl-console-exit.md`](dsl-console-exit.md) (`v0.8.0-dsl-console`).
 
 ### Multi-iteration loop
 

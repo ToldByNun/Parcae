@@ -354,8 +354,9 @@ scopes above and examples under [`theories/examples/`](../../theories/examples/)
 (`param_select_example.py`, `ignore_divergent_example.py`). A Python
 `parcae.corpus.load_page` helper for LP2 workspaces is **deferred**.
 
-**Exit:** theory-DSL workstream complete at toolkit 0.5.0; smart-compiler language
-surface lands toward toolkit **0.8.0** (`dsl-console` cut).
+**Exit:** theory-DSL workstream complete at toolkit 0.5.0. Combined smart-compiler
++ console-dashboard cut: toolkit **0.8.0** / tag `v0.8.0-dsl-console` — freeze
+checklist [`dsl-console-exit.md`](dsl-console-exit.md).
 
 ---
 
