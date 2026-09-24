@@ -77,6 +77,15 @@ if(PARCAE_BUILD_TESTS)
   set_tests_properties(cli_bench_slo_requires_allow_cuda PROPERTIES WILL_FAIL TRUE)
 
   add_test(
+    NAME cli_bench_accuracy_json
+    COMMAND $<TARGET_FILE:parcae-bench>
+      --suite accuracy
+      --json
+      --omit-timing
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+  )
+
+  add_test(
     NAME cli_search_cycle_status_json
     COMMAND $<TARGET_FILE:parcae-search-cycle>
       --status

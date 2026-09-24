@@ -16,15 +16,18 @@ public:
     static void print_help() {
         std::cerr
             << "Usage: parcae-bench --status [--json] [--data-dir <path>]\n"
-            << "       parcae-bench [--suite slo] [--extended] [--allow-cuda]\n"
+            << "       parcae-bench --suite slo [--extended] --allow-cuda\n"
+            << "                    [--json] [--omit-timing] [--data-dir <path>]\n"
+            << "       parcae-bench --suite accuracy [--allow-cuda]\n"
             << "                    [--json] [--omit-timing] [--data-dir <path>]\n"
             << "\n"
             << "Benchmark & diagnostics umbrella (toolkit bench target).\n"
             << "\n"
             << "  --status         Toolkit / suite / CUDA readiness (no measurement)\n"
             << "  --suite slo      Fused CUDA SLO tiers T1–T3 (default when not --status)\n"
+            << "  --suite accuracy Statistical validation (CPU; CUDA extras with --allow-cuda)\n"
             << "  --extended       Also run F.* and C.* rows (with --suite slo)\n"
-            << "  --allow-cuda     Required for --suite slo (CUDA opt-in)\n"
+            << "  --allow-cuda     Required for --suite slo; optional CUDA checks for accuracy\n"
             << "  --json           Emit parcae.tool_response.v0 on stdout\n"
             << "  --omit-timing    Drop rate/wall fields (requires --json)\n"
             << "  --data-dir PATH  Parcae data root (profiles / fixtures)\n"
@@ -32,7 +35,7 @@ public:
             << "Compat: `parcae-throughput-tiers` runs the same suite as\n"
             << "  --suite slo --extended --allow-cuda (no allow-cuda flag on that binary).\n"
             << "\n"
-            << "Suites accuracy|hardware|probe|all are reserved for follow-up work.\n";
+            << "Suites hardware|probe|all are reserved for follow-up work.\n";
     }
 
     [[nodiscard]] static nlohmann::json status_result(std::string_view data_dir) {
@@ -42,14 +45,14 @@ public:
             {"suites",
              nlohmann::json{
                  {"slo", true},
-                 {"accuracy", false},
+                 {"accuracy", true},
                  {"hardware", false},
                  {"probe", false},
                  {"all", false},
              }},
             {"data_dir", std::string(data_dir)},
             {"message",
-             "parcae-bench ready: --status or --suite slo [--extended] --allow-cuda"},
+             "parcae-bench ready: --status | --suite slo --allow-cuda | --suite accuracy"},
         };
     }
 

@@ -156,6 +156,92 @@ public:
         return metrics;
     }
 
+    struct EvalResult {
+        std::size_t passed = 0;
+        std::size_t total = 0;
+    };
+
+    [[nodiscard]] static StatusOr<EvalResult> run_fixture_eval(
+        const parcae::tool::Context& ctx,
+        std::string_view score_id,
+        const ExpectedFrequencyTable& freqs,
+        std::uint32_t seed) {
+        StatusOr<GematriaProfile> profile = ctx.load_gematria();
+        if (!profile.ok()) {
+            return profile.status();
+        }
+        const LatinCodec codec(profile.value());
+        const PlaintextNormalizer normalizer(codec);
+
+        const std::filesystem::path solved = ctx.data_root() / "fixtures" / "solved";
+        if (!std::filesystem::is_directory(solved)) {
+            return Status::error("SearchRun: fixtures/solved missing");
+        }
+
+        ScoreRequest request;
+        request.expected_frequencies = &freqs;
+
+        EvalResult eval;
+        for (const std::filesystem::directory_entry& entry :
+             std::filesystem::directory_iterator(solved)) {
+            if (!entry.is_directory()) {
+                continue;
+            }
+            StatusOr<Fixture> fixture = FixtureLoader::load_directory(entry.path().string());
+            if (!fixture.ok()) {
+                continue;
+            }
+            if (fixture.value().verification_status() != "locked") {
+                continue;
+            }
+
+            StatusOr<std::string> normalized = normalizer.normalize(fixture.value().plaintext());
+            if (!normalized.ok()) {
+                return normalized.status();
+            }
+            StatusOr<std::vector<Index29>> plain = codec.delatinize(normalized.value());
+            if (!plain.ok()) {
+                return plain.status();
+            }
+            if (plain.value().empty()) {
+                continue;
+            }
+
+            const std::vector<Index29> noise =
+                lcg_indices(plain.value().size(), seed ^ (0x9E3779B9u + eval.total));
+
+            StatusOr<double> plain_score = ScoreRegistry::score(
+                score_id, plain.value(), "v0", nlohmann::json::object(), request);
+            if (!plain_score.ok()) {
+                return plain_score.status();
+            }
+            StatusOr<double> noise_score = ScoreRegistry::score(
+                score_id, noise, "v0", nlohmann::json::object(), request);
+            if (!noise_score.ok()) {
+                return noise_score.status();
+            }
+
+            StatusOr<ScoreOrder> order = ScoreRegistry::order_of(score_id);
+            if (!order.ok()) {
+                return order.status();
+            }
+
+            ++eval.total;
+            const bool better =
+                order.value() == ScoreOrder::Asc
+                    ? (plain_score.value() < noise_score.value())
+                    : (plain_score.value() > noise_score.value());
+            if (better) {
+                ++eval.passed;
+            }
+        }
+
+        if (eval.total == 0) {
+            return Status::error("SearchRun: no locked fixtures found for eval");
+        }
+        return eval;
+    }
+
 private:
     SearchRun() = delete;
 
@@ -166,11 +252,6 @@ private:
         std::string transform_id;
         std::string parameters_label;
         std::vector<SearchRunStep> steps;
-    };
-
-    struct EvalResult {
-        std::size_t passed = 0;
-        std::size_t total = 0;
     };
 
     [[nodiscard]] static std::vector<Index29> lcg_indices(std::size_t n, std::uint64_t seed) {
@@ -424,87 +505,6 @@ private:
         return Status::error("SearchRun: CUDA not built");
     }
 #endif
-
-    [[nodiscard]] static StatusOr<EvalResult> run_fixture_eval(
-        const parcae::tool::Context& ctx,
-        std::string_view score_id,
-        const ExpectedFrequencyTable& freqs,
-        std::uint32_t seed) {
-        StatusOr<GematriaProfile> profile = ctx.load_gematria();
-        if (!profile.ok()) {
-            return profile.status();
-        }
-        const LatinCodec codec(profile.value());
-        const PlaintextNormalizer normalizer(codec);
-
-        const std::filesystem::path solved = ctx.data_root() / "fixtures" / "solved";
-        if (!std::filesystem::is_directory(solved)) {
-            return Status::error("SearchRun: fixtures/solved missing");
-        }
-
-        ScoreRequest request;
-        request.expected_frequencies = &freqs;
-
-        EvalResult eval;
-        for (const std::filesystem::directory_entry& entry :
-             std::filesystem::directory_iterator(solved)) {
-            if (!entry.is_directory()) {
-                continue;
-            }
-            StatusOr<Fixture> fixture = FixtureLoader::load_directory(entry.path().string());
-            if (!fixture.ok()) {
-                continue;
-            }
-            if (fixture.value().verification_status() != "locked") {
-                continue;
-            }
-
-            StatusOr<std::string> normalized = normalizer.normalize(fixture.value().plaintext());
-            if (!normalized.ok()) {
-                return normalized.status();
-            }
-            StatusOr<std::vector<Index29>> plain = codec.delatinize(normalized.value());
-            if (!plain.ok()) {
-                return plain.status();
-            }
-            if (plain.value().empty()) {
-                continue;
-            }
-
-            const std::vector<Index29> noise =
-                lcg_indices(plain.value().size(), seed ^ (0x9E3779B9u + eval.total));
-
-            StatusOr<double> plain_score = ScoreRegistry::score(
-                score_id, plain.value(), "v0", nlohmann::json::object(), request);
-            if (!plain_score.ok()) {
-                return plain_score.status();
-            }
-            StatusOr<double> noise_score = ScoreRegistry::score(
-                score_id, noise, "v0", nlohmann::json::object(), request);
-            if (!noise_score.ok()) {
-                return noise_score.status();
-            }
-
-            StatusOr<ScoreOrder> order = ScoreRegistry::order_of(score_id);
-            if (!order.ok()) {
-                return order.status();
-            }
-
-            ++eval.total;
-            const bool better =
-                order.value() == ScoreOrder::Asc
-                    ? (plain_score.value() < noise_score.value())
-                    : (plain_score.value() > noise_score.value());
-            if (better) {
-                ++eval.passed;
-            }
-        }
-
-        if (eval.total == 0) {
-            return Status::error("SearchRun: no locked fixtures found for eval");
-        }
-        return eval;
-    }
 };
 
 #endif // SEARCH_RUN_HPP

@@ -29,7 +29,8 @@ private:
 | `bench_report.hpp` | `BenchReport` | Done — unified rows + JSON `--omit-timing` |
 | `bench_formatter.hpp` | `BenchFormatter` | Done — human tables (ConsoleDashboard vocab) |
 | `bench_slo_suite.hpp` | `BenchSloSuite` | Done — T1–T3 (+ optional F.*/C.*) via ThroughputTiers |
-| CLI `parcae-bench` | — | Skeleton: `--status`, `--suite slo` |
+| `bench_accuracy_suite.hpp` | `BenchAccuracySuite` | Done — fixture_eval / chi2 / oracle / CUDA planted |
+| CLI `parcae-bench` | — | `--status`, `--suite slo|accuracy` |
 
 ## Sync rule
 

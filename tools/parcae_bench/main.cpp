@@ -2,6 +2,7 @@
 #include "cli_io.hpp"
 #include "tool_cli_json.hpp"
 
+#include "parcae/bench/bench_accuracy_suite.hpp"
 #include "parcae/bench/bench_formatter.hpp"
 #include "parcae/bench/bench_slo_suite.hpp"
 #include "parcae/core/version.hpp"
@@ -39,6 +40,18 @@ constexpr std::string_view kTool = "bench";
 [[nodiscard]] bool is_known_suite(std::string_view suite) {
     return suite == "slo" || suite == "accuracy" || suite == "hardware" || suite == "probe" ||
            suite == "all";
+}
+
+[[nodiscard]] int emit_doc(
+    bool json_mode,
+    bool omit_timing,
+    const std::optional<std::string>& backend,
+    const BenchReport::Document& doc) {
+    if (json_mode) {
+        return ToolCliJson::ok(kTool, backend, doc.to_json(omit_timing));
+    }
+    std::cout << BenchFormatter::format(doc);
+    return doc.all_pass() ? parcae::cli::kExitOk : parcae::cli::kExitFail;
 }
 
 }  // namespace
@@ -89,9 +102,10 @@ int main(int argc, char** argv) {
         std::cout << "parcae-bench status\n"
                   << "  toolkit_version: " << result.at("toolkit_version").get<std::string>()
                   << '\n'
-                  << "  cuda_built:      " << (result.at("cuda_built").get<bool>() ? "true" : "false")
-                  << '\n'
+                  << "  cuda_built:      "
+                  << (result.at("cuda_built").get<bool>() ? "true" : "false") << '\n'
                   << "  suites.slo:      ready\n"
+                  << "  suites.accuracy: ready\n"
                   << "  data_dir:        " << result.at("data_dir").get<std::string>() << '\n'
                   << "  " << result.at("message").get<std::string>() << '\n';
         return kExitOk;
@@ -107,12 +121,37 @@ int main(int argc, char** argv) {
             kExitUsage);
     }
 
+    if (suite == "accuracy") {
+        if (has_flag(args, "--extended")) {
+            return fail(
+                json_mode,
+                std::nullopt,
+                ToolErrorCode::Usage,
+                "--extended applies only to --suite slo",
+                kExitUsage);
+        }
+        BenchAccuracySuite::Options opts;
+        opts.set_allow_cuda(has_flag(args, "--allow-cuda"));
+        StatusOr<BenchReport::Document> doc = BenchAccuracySuite::run(ctx.value(), opts);
+        if (!doc.ok()) {
+            return fail(
+                json_mode,
+                std::nullopt,
+                ToolErrorCode::Internal,
+                doc.status().message(),
+                kExitFail);
+        }
+        std::optional<std::string> backend = opts.allow_cuda() ? std::optional<std::string>("cuda")
+                                                               : std::optional<std::string>("cpu");
+        return emit_doc(json_mode, omit_timing, backend, doc.value());
+    }
+
     if (suite != "slo") {
         return fail(
             json_mode,
             std::nullopt,
             ToolErrorCode::Usage,
-            "suite '" + suite + "' is not implemented yet (skeleton supports --suite slo)",
+            "suite '" + suite + "' is not implemented yet (supports slo|accuracy)",
             kExitUsage);
     }
 
@@ -156,11 +195,5 @@ int main(int argc, char** argv) {
             doc.status().message(),
             kExitFail);
     }
-
-    if (json_mode) {
-        return ToolCliJson::ok(
-            kTool, std::string("cuda"), doc.value().to_json(omit_timing));
-    }
-    std::cout << BenchFormatter::format(doc.value());
-    return doc.value().all_pass() ? kExitOk : kExitFail;
+    return emit_doc(json_mode, omit_timing, std::string("cuda"), doc.value());
 }
