@@ -135,7 +135,7 @@ TEST_CASE("DslDirectiveTable rejects unknown flag", "[dsl][directives][E031]") {
 
 TEST_CASE(
     "divergent_branch suppresses E033 and emits W010",
-    "[dsl][directives][W010][E033]") {
+    "[dsl][directives][directive][W010][E033]") {
     const DslAstDocument doc = ingest_or_fail(
         hotloop_if_module(),
         R"([{"lineno":4,"flag":"divergent_branch","raw":"#ignore DSL_FLAG:divergent_branch"}])");

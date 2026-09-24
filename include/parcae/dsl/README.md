@@ -69,7 +69,8 @@ private:
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md always-forbidden kinds → stable `E031`/`E021`.
 Tests: `[dsl][gate][scope]` OuterControl If/For/While OK; HotLoop For/While → E034.
 Tests: `[dsl][divergence]` HotLoop If ThreadVarying → E033; Param/const → W011.
-Tests: `[dsl][directives]` `#ignore` binding; W010; E031 without `--allow-dsl-ignores`.
+Tests: `[dsl][directives]` / `[dsl][directive]` `#ignore` binding; W010; E031 without `--allow-dsl-ignores`.
+Tests: `[dsl][golden]` smart-compiler acceptance matrix (scope / divergence / ignore / compile).
 Tests: `[dsl][hostglue]` OuterControl range-for / bounded while; E035 negatives.
 Tests: `[dsl][build][select]` HotLoop If/IfExp → Z29Expr Select + fold.
 Tests: `[dsl][emit][select]` CPU/CUDA Select mux + `prefer_branch` conditional.

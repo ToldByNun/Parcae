@@ -184,3 +184,53 @@ TEST_CASE(
     REQUIRE(pred.is_thread_varying());
     REQUIRE(pred.evidence() == "x");
 }
+
+TEST_CASE(
+    "DslDivergenceGate skips self when resolving method cipher_var",
+    "[dsl][divergence][golden]") {
+    const DslAstDocument doc = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"ClassDef","name":"T","lineno":2,"col_offset":0,
+        "bases":[],"keywords":[],"decorator_list":[{
+          "kind":"Call","lineno":1,"col_offset":1,
+          "func":{"kind":"Name","id":"Theory","ctx":"Load","lineno":1},
+          "args":[],"keywords":[
+            {"kind":"keyword","arg":"name","value":{"kind":"Constant","value":"t","lineno":1}},
+            {"kind":"keyword","arg":"family","value":{"kind":"Constant","value":"elementwise","lineno":1}},
+            {"kind":"keyword","arg":"tier","value":{"kind":"Constant","value":"A","lineno":1}}
+          ]
+        }],
+        "body":[{
+          "kind":"FunctionDef","name":"encrypt_step","lineno":4,"col_offset":4,
+          "args":{"kind":"arguments","posonlyargs":[],"args":[
+            {"kind":"arg","arg":"self","lineno":4,"col_offset":22},
+            {"kind":"arg","arg":"x","lineno":4,"col_offset":28}
+          ],"kwonlyargs":[],"kw_defaults":[],"defaults":[]},
+          "body":[{
+            "kind":"If","lineno":5,"col_offset":8,
+            "test":{"kind":"Compare","lineno":5,"col_offset":11,
+              "left":{"kind":"Attribute","lineno":5,"col_offset":11,
+                "value":{"kind":"Name","id":"self","ctx":"Load","lineno":5,"col_offset":11},
+                "attr":"mode","ctx":"Load"},
+              "ops":["Eq"],
+              "comparators":[{"kind":"Constant","value":1,"lineno":5,"col_offset":24}]},
+            "body":[{
+              "kind":"Return","lineno":6,"col_offset":12,
+              "value":{"kind":"Name","id":"x","ctx":"Load","lineno":6,"col_offset":19}
+            }],
+            "orelse":[{
+              "kind":"Return","lineno":8,"col_offset":12,
+              "value":{"kind":"Name","id":"x","ctx":"Load","lineno":8,"col_offset":19}
+            }]
+          }],
+          "decorator_list":[],"returns":null
+        }]
+      }],
+      "type_ignores":[]
+    })");
+
+    const StatusOr<DslDivergenceGate::Report> r = DslDivergenceGate::check(doc);
+    REQUIRE(r.ok());
+    REQUIRE_FALSE(r.value().empty());
+    REQUIRE(r.value().warnings().front().rule_id() == "W011");
+}

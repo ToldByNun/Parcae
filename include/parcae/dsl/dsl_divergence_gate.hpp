@@ -355,6 +355,7 @@ private:
         return acc;
     }
 
+    /// First hot-loop cipher-like positional: skip leading `self` on methods.
     [[nodiscard]] static std::optional<std::string> first_positional_arg_name(
         const DslAstNode& fn) {
         const DslAstValue* args = fn.find_field("args");
@@ -366,15 +367,21 @@ private:
         if (!pos || pos->type() != DslAstValue::Type::Array || pos->as_array().empty()) {
             return std::nullopt;
         }
-        const DslAstValue& first = pos->as_array().front();
-        if (first.type() != DslAstValue::Type::Node || !first.as_node()) {
-            return std::nullopt;
+        for (const DslAstValue& item : pos->as_array()) {
+            if (item.type() != DslAstValue::Type::Node || !item.as_node()) {
+                continue;
+            }
+            const DslAstValue* name = item.as_node()->find_field("arg");
+            if (!name || name->type() != DslAstValue::Type::String) {
+                continue;
+            }
+            const std::string& id = name->as_string();
+            if (id == "self" || id.empty()) {
+                continue;
+            }
+            return id;
         }
-        const DslAstValue* name = first.as_node()->find_field("arg");
-        if (!name || name->type() != DslAstValue::Type::String) {
-            return std::nullopt;
-        }
-        return name->as_string();
+        return std::nullopt;
     }
 
     [[nodiscard]] static Status check_hotloop_if(
