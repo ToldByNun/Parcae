@@ -503,9 +503,40 @@ private:
             if (n == "z29_bool_not") {
                 return as_unary(Kind::BoolNot);
             }
+            if (n == "z29_select") {
+                if (args.size() != 3 || !args[0] || !args[1] || !args[2]) {
+                    return fail(DslRuleId::E032_primitive_body, "z29_select arity for CUDA emit");
+                }
+                return emit_expr_rec(
+                    *Z29Expr::make_select(args[0], args[1], args[2]), cipher_var, cipher_cpp);
+            }
             return fail(
                 DslRuleId::E032_primitive_body,
                 "cannot CUDA-emit unknown primitive call '" + n + "'");
+        }
+        case Kind::Select: {
+            if (!expr.cond() || !expr.if_true() || !expr.if_false()) {
+                return fail(DslRuleId::E032_primitive_body, "Select missing operands");
+            }
+            StatusOr<std::string> c = emit_expr_rec(*expr.cond(), cipher_var, cipher_cpp);
+            if (!c.ok()) {
+                return c.status();
+            }
+            StatusOr<std::string> t = emit_expr_rec(*expr.if_true(), cipher_var, cipher_cpp);
+            if (!t.ok()) {
+                return t.status();
+            }
+            StatusOr<std::string> f = emit_expr_rec(*expr.if_false(), cipher_var, cipher_cpp);
+            if (!f.ok()) {
+                return f.status();
+            }
+            if (expr.prefer_branch()) {
+                // Honored divergent_branch: predicated/real if (warp-divergence risk).
+                return std::string("((") + c.value() + " != 0u) ? (" + t.value() + ") : (" +
+                       f.value() + "))";
+            }
+            return std::string("Z29Device::select(") + c.value() + ", " + t.value() + ", " +
+                   f.value() + ")";
         }
         default:
             break;

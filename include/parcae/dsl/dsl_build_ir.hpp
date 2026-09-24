@@ -6,6 +6,7 @@
 #include "parcae/dsl/compose_ir.hpp"
 #include "parcae/dsl/dsl_ast.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
+#include "parcae/dsl/dsl_divergence_gate.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/param_ir.hpp"
 #include "parcae/dsl/primitive_ir.hpp"
@@ -836,6 +837,15 @@ private:
 
             Z29Expr::Ptr sel = Z29Expr::make_select(
                 std::move(cond.value()), std::move(if_true.value()), std::move(if_false.value()));
+            // ThreadVarying predicates only reach BuildIr when E033 was suppressed
+            // (#ignore divergent_branch) → emit may use a real conditional.
+            {
+                const DslPredicateClass pred =
+                    DslDivergenceGate::classify_expr(*test->as_node(), "x");
+                if (pred.is_thread_varying()) {
+                    sel->set_prefer_branch(true);
+                }
+            }
             sel->set_location(source_path, if_node.lineno(), if_node.col_offset());
             return sel;
         }
@@ -897,6 +907,13 @@ private:
                     std::move(cond.value()),
                     std::move(if_true.value()),
                     std::move(if_false.value()));
+                {
+                    const DslPredicateClass pred =
+                        DslDivergenceGate::classify_expr(*test->as_node(), "x");
+                    if (pred.is_thread_varying()) {
+                        sel->set_prefer_branch(true);
+                    }
+                }
                 sel->set_location(source_path, node.lineno(), node.col_offset());
                 return sel;
             }
@@ -1408,7 +1425,10 @@ private:
                     return f.status();
                 }
                 return Z29Expr::make_select(
-                    std::move(c.value()), std::move(t.value()), std::move(f.value()));
+                    std::move(c.value()),
+                    std::move(t.value()),
+                    std::move(f.value()),
+                    node->prefer_branch());
             }
             default:
                 break;

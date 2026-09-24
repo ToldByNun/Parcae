@@ -101,6 +101,31 @@ TEST_CASE("DslEmitCuda emit_expr atbash via Z29Device::sub", "[dsl][emit][cuda]"
         cpp.value() == "Z29Device::sub(static_cast<std::uint8_t>(28), in[i])");
 }
 
+TEST_CASE("DslEmitCuda emit_expr lowers Select via Z29Device::select", "[dsl][emit][cuda][select]") {
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        Z29Expr::eq(Z29Expr::var("a"), Z29Expr::constant(1).value()),
+        Z29Expr::var("x"),
+        Z29Expr::constant(7).value());
+    const StatusOr<std::string> cpp = DslEmitCuda::emit_expr(expr, "x", "in[i]");
+    REQUIRE(cpp.ok());
+    REQUIRE(cpp.value().find("Z29Device::select(") != std::string::npos);
+    REQUIRE(cpp.value().find("Z29Device::eq(") != std::string::npos);
+}
+
+TEST_CASE(
+    "DslEmitCuda prefer_branch Select emits divergent conditional",
+    "[dsl][emit][cuda][select]") {
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        Z29Expr::eq(Z29Expr::var("x"), Z29Expr::constant(0).value()),
+        Z29Expr::constant(1).value(),
+        Z29Expr::constant(2).value(),
+        true);
+    const StatusOr<std::string> cpp = DslEmitCuda::emit_expr(expr, "x", "in[i]");
+    REQUIRE(cpp.ok());
+    REQUIRE(cpp.value().find("?") != std::string::npos);
+    REQUIRE(cpp.value().find("Z29Device::select(") == std::string::npos);
+}
+
 TEST_CASE("DslEmitCuda rejects theory without steps", "[dsl][emit][cuda]") {
     const StatusOr<TheoryIr> theory = TheoryIr::make(
         "no_steps",

@@ -204,8 +204,15 @@ public:
     }
 
     /// `select(cond, t, f)` — nonzero `cond` yields `t`, else `f` (branch-free mux).
-    [[nodiscard]] static Ptr select(Ptr cond, Ptr if_true, Ptr if_false) {
-        return make_select(std::move(cond), std::move(if_true), std::move(if_false));
+    /// When `prefer_branch` is true (honored `#ignore DSL_FLAG:divergent_branch`),
+    /// CPU/CUDA emit may use a C++/CUDA conditional that can warp-diverge.
+    [[nodiscard]] static Ptr select(
+        Ptr cond,
+        Ptr if_true,
+        Ptr if_false,
+        bool prefer_branch = false) {
+        return make_select(
+            std::move(cond), std::move(if_true), std::move(if_false), prefer_branch);
     }
 
     [[nodiscard]] static Ptr call(std::string primitive, std::vector<Ptr> args) {
@@ -224,11 +231,16 @@ public:
         return make_unary(kind, std::move(arg));
     }
 
-    [[nodiscard]] static Ptr make_select(Ptr cond, Ptr if_true, Ptr if_false) {
+    [[nodiscard]] static Ptr make_select(
+        Ptr cond,
+        Ptr if_true,
+        Ptr if_false,
+        bool prefer_branch = false) {
         auto node = std::shared_ptr<Z29Expr>(new Z29Expr(Kind::Select));
         node->left_ = std::move(cond);
         node->right_ = std::move(if_true);
         node->alt_ = std::move(if_false);
+        node->prefer_branch_ = prefer_branch;
         return node;
     }
 
@@ -269,6 +281,15 @@ public:
     /// Select: arm taken when `cond == 0`.
     [[nodiscard]] const Ptr& if_false() const noexcept {
         return alt_;
+    }
+
+    /// When true, emit may use a real conditional (ignored divergent HotLoop if).
+    [[nodiscard]] bool prefer_branch() const noexcept {
+        return prefer_branch_;
+    }
+
+    void set_prefer_branch(bool prefer) noexcept {
+        prefer_branch_ = prefer;
     }
 
     [[nodiscard]] const std::vector<Ptr>& args() const noexcept {
@@ -410,9 +431,14 @@ public:
             }
             return call(name_, std::move(mapped));
         }
-        case Kind::Select:
-            return make_select(
-                left_->remap(mapping), right_->remap(mapping), alt_->remap(mapping));
+        case Kind::Select: {
+            auto out = make_select(
+                left_->remap(mapping),
+                right_->remap(mapping),
+                alt_->remap(mapping),
+                prefer_branch_);
+            return out;
+        }
         default:
             break;
         }
@@ -804,6 +830,7 @@ private:
     Ptr left_;
     Ptr right_;
     Ptr alt_;  // Select false-arm only
+    bool prefer_branch_ = false;
     std::vector<Ptr> args_;
     std::string source_path_;
     std::optional<int> lineno_;

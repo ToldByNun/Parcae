@@ -117,3 +117,30 @@ TEST_CASE("DslEmitCpu emit_expr lowers builtin call", "[dsl][emit]") {
     REQUIRE(cpp.ok());
     REQUIRE(cpp.value() == "Z29::atbash(input[i])");
 }
+
+TEST_CASE("DslEmitCpu emit_expr lowers Select via Z29::select", "[dsl][emit][select]") {
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        Z29Expr::eq(Z29Expr::var("a"), Z29Expr::constant(1).value()),
+        Z29Expr::var("x"),
+        Z29Expr::constant(0).value());
+    const StatusOr<std::string> cpp = DslEmitCpu::emit_expr(expr, "x", "input[i]");
+    REQUIRE(cpp.ok());
+    REQUIRE(cpp.value().find("Z29::select(") != std::string::npos);
+    REQUIRE(cpp.value().find("Z29::eq(") != std::string::npos);
+    REQUIRE(cpp.value().find("input[i]") != std::string::npos);
+    REQUIRE(cpp.value().find("?") == std::string::npos);
+}
+
+TEST_CASE(
+    "DslEmitCpu emit_expr prefer_branch Select uses C++ conditional",
+    "[dsl][emit][select]") {
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        Z29Expr::eq(Z29Expr::var("x"), Z29Expr::constant(0).value()),
+        Z29Expr::constant(1).value(),
+        Z29Expr::constant(2).value(),
+        /*prefer_branch=*/true);
+    const StatusOr<std::string> cpp = DslEmitCpu::emit_expr(expr, "x", "input[i]");
+    REQUIRE(cpp.ok());
+    REQUIRE(cpp.value().find("?") != std::string::npos);
+    REQUIRE(cpp.value().find("Z29::select(") == std::string::npos);
+}

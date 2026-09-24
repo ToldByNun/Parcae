@@ -451,11 +451,15 @@ private:
             if (!f.ok()) {
                 return f.status();
             }
-            return nlohmann::json{
+            nlohmann::json out{
                 {"kind", kind.value()},
                 {"cond", std::move(c.value())},
                 {"if_true", std::move(t.value())},
                 {"if_false", std::move(f.value())}};
+            if (node->prefer_branch()) {
+                out["prefer_branch"] = true;
+            }
+            return out;
         }
         if (Z29Expr::is_unary(node->kind())) {
             StatusOr<nlohmann::json> arg = expr_to_json(node->arg());
@@ -537,7 +541,10 @@ private:
                 return f.status();
             }
             return Z29Expr::make_select(
-                std::move(c.value()), std::move(t.value()), std::move(f.value()));
+                std::move(c.value()),
+                std::move(t.value()),
+                std::move(f.value()),
+                root.value("prefer_branch", false));
         }
         if (Z29Expr::is_unary(kind.value())) {
             if (!root.contains("arg")) {

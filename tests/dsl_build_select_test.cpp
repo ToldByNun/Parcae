@@ -2,6 +2,8 @@
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_build_ir.hpp>
 #include <parcae/dsl/dsl_divergence_gate.hpp>
+#include <parcae/dsl/dsl_emit_cpu.hpp>
+#include <parcae/dsl/dsl_emit_cuda.hpp>
 #include <parcae/dsl/dsl_optimize.hpp>
 #include <parcae/dsl/dsl_semantic_gate.hpp>
 #include <parcae/dsl/z29_expr.hpp>
@@ -213,4 +215,44 @@ TEST_CASE(
     REQUIRE(body->eval(env).value().value() == 2);
     env["a"] = Index29{2};
     REQUIRE(body->eval(env).value().value() == 3);
+}
+
+TEST_CASE(
+    "ThreadVarying HotLoop If → Select prefer_branch for emit",
+    "[dsl][build][select][emit]") {
+    // Gate would E033 without ignore; BuildIr still lowers when called directly
+    // (compile path honors ignore first). prefer_branch marks divergent emit.
+    const DslAstDocument doc = ingest_or_fail(primitive_module(R"([{
+      "kind":"If","lineno":4,"col_offset":4,
+      "test":{"kind":"Compare","lineno":4,"col_offset":7,
+        "left":{"kind":"Name","id":"x","ctx":"Load","lineno":4,"col_offset":7},
+        "ops":["Eq"],
+        "comparators":[{"kind":"Constant","value":0,"lineno":4,"col_offset":12}]},
+      "body":[{
+        "kind":"Return","lineno":5,"col_offset":8,
+        "value":{"kind":"Constant","value":1,"lineno":5,"col_offset":15}
+      }],
+      "orelse":[{
+        "kind":"Return","lineno":7,"col_offset":8,
+        "value":{"kind":"Name","id":"x","ctx":"Load","lineno":7,"col_offset":15}
+      }]
+    }])"));
+
+    REQUIRE_FALSE(DslDivergenceGate::check_errors_only(doc).ok());
+
+    const StatusOr<DslBuildIr::Unit> unit = DslBuildIr::build(doc);
+    REQUIRE(unit.ok());
+    const Z29Expr::Ptr& body = unit.value().primitives().front().body();
+    REQUIRE(body->kind() == Z29Expr::Kind::Select);
+    REQUIRE(body->prefer_branch());
+
+    const StatusOr<std::string> cpu = DslEmitCpu::emit_expr(body, "x", "input[i]");
+    REQUIRE(cpu.ok());
+    REQUIRE(cpu.value().find("?") != std::string::npos);
+    REQUIRE(cpu.value().find("Z29::select(") == std::string::npos);
+
+    const StatusOr<std::string> cuda = DslEmitCuda::emit_expr(body, "x", "in[i]");
+    REQUIRE(cuda.ok());
+    REQUIRE(cuda.value().find("?") != std::string::npos);
+    REQUIRE(cuda.value().find("Z29Device::select(") == std::string::npos);
 }

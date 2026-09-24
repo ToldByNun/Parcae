@@ -242,7 +242,9 @@ representatives. `**` is modular exponentiation (`0**0` → `1`). `~x` is
 arithmetic in the stub package (stubs fail-loud). `MatMult` (`@`) and
 identity/container compares (`is` / `in`) **MUST** be rejected. HotLoop relaxed
 `if` lowers to `Select` (see § Execution scopes); raw divergent CUDA `if` is
-not the default lowering.
+not the default lowering. When `#ignore DSL_FLAG:divergent_branch` is honored,
+BuildIr sets `Select.prefer_branch` and emit may use a real C++/CUDA conditional
+(performance / warp-divergence risk).
 
 ---
 

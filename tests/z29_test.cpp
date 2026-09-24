@@ -56,3 +56,9 @@ TEST_CASE("Z29 ops are usable in constant expressions", "[z29]") {
     STATIC_REQUIRE(reflected.value() == 25);
     STATIC_REQUIRE(Z29::mul(Index29{2}, inv2).value() == 1);
 }
+
+TEST_CASE("Z29 select mux", "[z29][select]") {
+    REQUIRE(Z29::select(Index29{0}, Index29{5}, Index29{9}).value() == 9);
+    REQUIRE(Z29::select(Index29{1}, Index29{5}, Index29{9}).value() == 5);
+    REQUIRE(Z29::select(Index29{7}, Index29{3}, Index29{4}).value() == 3);
+}

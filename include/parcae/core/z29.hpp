@@ -141,6 +141,11 @@ public:
         return Index29::unchecked(x.value() == 0 ? 1u : 0u);
     }
 
+    /// Mux: nonzero `cond` → `t`, else `f` (matches Z29Expr::Select / eval).
+    [[nodiscard]] static constexpr Index29 select(Index29 cond, Index29 t, Index29 f) noexcept {
+        return Index29::unchecked(cond.value() != 0 ? t.value() : f.value());
+    }
+
 private:
     static constexpr std::array<std::uint8_t, Index29::modulus> inv_table = []() {
         std::array<std::uint8_t, Index29::modulus> table{};

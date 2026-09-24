@@ -130,6 +130,14 @@ public:
         return x == 0 ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
     }
 
+    /// Mux: nonzero `cond` → `t`, else `f` (matches Z29Expr::Select).
+    [[nodiscard]] PARCAE_HD static std::uint8_t select(
+        std::uint8_t cond,
+        std::uint8_t t,
+        std::uint8_t f) noexcept {
+        return cond != 0 ? t : f;
+    }
+
 private:
     Z29Device() = delete;
 };

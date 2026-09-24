@@ -355,7 +355,8 @@ private:
                 ++folds;
                 return t.value();
             }
-            return Z29Expr::make_select(c.value(), t.value(), f.value());
+            return Z29Expr::make_select(
+                c.value(), t.value(), f.value(), expr.prefer_branch());
         }
         default:
             break;
@@ -502,7 +503,8 @@ private:
             if (!f.ok()) {
                 return f.status();
             }
-            return Z29Expr::make_select(c.value(), t.value(), f.value());
+            return Z29Expr::make_select(
+                c.value(), t.value(), f.value(), expr.prefer_branch());
         }
         default:
             break;

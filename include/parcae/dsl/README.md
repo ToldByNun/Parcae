@@ -47,8 +47,8 @@ private:
 | `theory_ir.hpp` | `TheoryIr` | Done |
 | `compose_ir.hpp` | `ComposeIr` | Done |
 | `dsl_ir_applicator.hpp` | `DslIrApplicator` | Done (CPU apply_into) |
-| `dsl_emit_cpu.hpp` | `DslEmitCpu` | Done (Transform-shaped source text) |
-| `dsl_emit_cuda.hpp` | `DslEmitCuda` | Done (Z29Device + Kernel façade) |
+| `dsl_emit_cpu.hpp` | `DslEmitCpu` | Done (Transform-shaped; `Select` → `Z29::select` / branch) |
+| `dsl_emit_cuda.hpp` | `DslEmitCuda` | Done (Z29Device; `Select` → `Z29Device::select` / branch) |
 | `dsl_verifier.hpp` | `DslVerifier` | Done (exhaustive ≤4 + fuzz + CPU↔CUDA mirror) |
 | `dsl_fuse.hpp` | `DslFuse` | Done (inline + emit + CPU bench gate) |
 | `dsl_optimize.hpp` | `DslOptimize` | Done (const-fold + Select dead-arm + `inv` hoist) |
@@ -72,6 +72,7 @@ Tests: `[dsl][divergence]` HotLoop If ThreadVarying → E033; Param/const → W0
 Tests: `[dsl][directives]` `#ignore` binding; W010; E031 without `--allow-dsl-ignores`.
 Tests: `[dsl][hostglue]` OuterControl range-for / bounded while; E035 negatives.
 Tests: `[dsl][build][select]` HotLoop If/IfExp → Z29Expr Select + fold.
+Tests: `[dsl][emit][select]` CPU/CUDA Select mux + `prefer_branch` conditional.
 Tests: `[dsl][scope]` DslExecScope + DslScopeAnalyzer OuterControl vs HotLoop.
 Tests: `[dsl][ingest][fuzz]` adversarial mutations + limit rejects (no crash).
 Tests: `[dsl][applicator]` IR → Index29 stream apply_into.
