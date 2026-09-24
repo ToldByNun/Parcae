@@ -86,6 +86,9 @@ Ceilings match `BenchTierSpec::estimated_peak`. Typical healthy runs sit around
 ## Related
 
 - Canonical specs: [`include/parcae/bench/bench_tier_spec.hpp`](../../include/parcae/bench/bench_tier_spec.hpp)
+- Suite map / headers: [`include/parcae/bench/README.md`](../../include/parcae/bench/README.md)
+- CLI contract: [`docs/spec/tools.md`](../spec/tools.md) § `parcae-bench`
+- Agent deny-list: [`docs/spec/agent-tools.md`](../spec/agent-tools.md) (`parcae-bench` / `parcae-throughput-tiers`)
 - Implementation (runner): [`include/parcae/run/throughput_tiers.hpp`](../../include/parcae/run/throughput_tiers.hpp)
 - DSL compile-time mirror (no CUDA): [`include/parcae/dsl/dsl_peak_sanity.hpp`](../../include/parcae/dsl/dsl_peak_sanity.hpp)
 - Kernels: [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (`hist_fast.hpp`, `*_chi2_batch.cu`)

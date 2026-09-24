@@ -242,8 +242,8 @@ Normative contracts: [`docs/spec/tools.md`](docs/spec/tools.md). Agent allow/den
 | `parcae-search-run` | Fused search / throughput-style sweeps |
 | `parcae-parity` / `parcae-parity-gen` | CPU↔CUDA parity records |
 | `parcae-blind-crack` | Research battery on locked fixtures |
-| `parcae-bench` | Benchmark & diagnostics (`--status`, `--suite slo`) |
-| `parcae-throughput-tiers` | CUDA SLO tiers (GPU build; compat path) |
+| `parcae-bench` | Benchmark & diagnostics (`slo` / `accuracy` / `hardware` / `probe` / `all`; **deny-listed** for agents) |
+| `parcae-throughput-tiers` | CUDA SLO compat ≡ `parcae-bench --suite slo --extended --allow-cuda` (**deny-listed**) |
 
 ### More decode / score examples
 

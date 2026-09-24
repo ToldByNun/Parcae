@@ -47,6 +47,8 @@ def test_allowlist_covers_spec_tools() -> None:
     assert "hypothesis_set_status" in ALLOWED_TOOLS
     assert "search_cycle" in ALLOWED_TOOLS
     assert "parcae-blind-crack" in DENIED_BINARIES
+    assert "parcae-bench" in DENIED_BINARIES
+    assert "bench" in DENIED_BINARIES
     assert "parcae-search-run" in DENIED_BINARIES
     assert "search-run" in DENIED_BINARIES
 

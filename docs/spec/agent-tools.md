@@ -69,7 +69,8 @@ The agent MUST NOT expose these as tools by default:
 | Binary / capability | Reason |
 |---------------------|--------|
 | `parcae-blind-crack` | Research bench on locked fixtures (additive family battery + χ²); **not** the workspace search loop — use `search_cycle` instead. Stays deny-listed. |
-| `parcae-throughput-tiers` | Benchmarking; non-deterministic timing |
+| `parcae-bench` | Benchmark & diagnostics umbrella (SLO / accuracy / hardware / external probes); non-deterministic timing SLOs and operator-only CUDA/hardware legs. Stays deny-listed — use `search_cycle` for workspace research. |
+| `parcae-throughput-tiers` | Benchmarking; non-deterministic timing (compat wrapper of `parcae-bench --suite slo --extended --allow-cuda`) |
 | `parcae-parity` / `parcae-parity-gen` | Dev / golden maintenance |
 | `parcae-search-run` | Metrics / fused-sweep **dashboard** (`SearchRun`); **not** the workspace loop — use `search_cycle` instead. Stays deny-listed. |
 | Arbitrary shell (`cmd`, `bash`, `powershell`, `python -c`, …) | Escape hatch |

@@ -62,6 +62,8 @@ public:
         static const std::vector<std::string_view> kDeny = {
             "blind-crack",
             "parcae-blind-crack",
+            "bench",
+            "parcae-bench",
             "throughput-tiers",
             "parcae-throughput-tiers",
             "parity",

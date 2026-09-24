@@ -4,7 +4,8 @@
 **Headers (planned):** `parcae/tool/api.hpp`  
 **Binaries:** `parcae-tokenize`, `parcae-decode`, `parcae-score`, `parcae-validate`,
 `parcae-catalog`, `parcae-compile`, `parcae-sweep`, `parcae-generate`, `parcae-rank`,
-`parcae-hypothesis`, `parcae-parity`, `parcae-parity-gen`, `parcae-search-run`
+`parcae-hypothesis`, `parcae-parity`, `parcae-parity-gen`, `parcae-search-run`,
+`parcae-bench`, `parcae-throughput-tiers` (compat)
 
 ## Principles
 
@@ -367,6 +368,62 @@ Liber-Primus-length streams that *do* have locked plaintext for the check.
 Agents MUST NOT receive `parcae-blind-crack` as a tool by default
 ([`agent-tools.md`](agent-tools.md) § Deny-list / `search_cycle` vs
 `parcae-blind-crack`). Human operators MAY run it from a shell.
+
+### `parcae-bench`
+
+```text
+parcae-bench --status [--json] [--data-dir <path>]
+parcae-bench --suite slo [--extended] --allow-cuda
+             [--json] [--omit-timing] [--data-dir <path>]
+parcae-bench --suite accuracy [--allow-cuda]
+             [--json] [--omit-timing] [--data-dir <path>]
+parcae-bench --suite hardware [--backend cpu|cuda|both]
+             [--allow-cuda|--require-cuda] [--allow-skip] [--cpu-full]
+             [--json] [--omit-timing] [--data-dir <path>]
+parcae-bench --suite probe --probe-cmd <cmd>
+             [--probe-tiers T1,T2,T3] [--probe-timeout-ms N]
+             [--compare-builtin] [--json] [--omit-timing] [--data-dir <path>]
+parcae-bench --suite all [flags for each leg…]
+```
+
+Umbrella **benchmark & diagnostics** CLI (toolkit 0.9.0 target). Headers live
+under [`include/parcae/bench/`](../../include/parcae/bench/README.md). Canonical
+SLO constants: `BenchTierSpec`. External probe wire format:
+[`bench-probe.md`](bench-probe.md). Operator throughput notes:
+[`cuda-throughput.md`](../architecture/cuda-throughput.md).
+
+| Suite | Purpose |
+|-------|---------|
+| `slo` | Fused CUDA T1–T3 SLO (optional `--extended` → F.* / C.*). Requires `--allow-cuda` + usable device. |
+| `accuracy` | Statistical validation (CPU always; CUDA planted/parity with `--allow-cuda`). |
+| `hardware` | CPU vs CUDA side-by-side for T1–T3; scaled CPU smoke by default (`--cpu-full` for full C/T/reps). CUDA skip → `skipped_not_built`; `--require-cuda` fails; `--allow-skip` OK. |
+| `probe` | Spawn external JSON probes (`--probe-cmd` with `{tier}`); timeout default 120000 ms. |
+| `all` | Order: accuracy → slo → hardware → probe. Probe runs **only** if `--probe-cmd` is set. SLO runs only with `--allow-cuda` when CUDA is usable. |
+
+Shared flags: `--json` → `parcae.tool_response.v0` (`tool: "bench"`);
+`--omit-timing` requires `--json` and drops rate/wall fields for stable digests.
+Exit codes: **0** all rows pass, **1** fail, **2** usage/policy.
+
+| vs | Role |
+|----|------|
+| `parcae-bench` | Canonical umbrella (agent **deny**-list by default) |
+| `parcae-throughput-tiers` | Thin compat wrapper ≡ `--suite slo --extended --allow-cuda` (also deny-listed) |
+
+Agents MUST NOT receive `parcae-bench` / `parcae-throughput-tiers` as tools by
+default ([`agent-tools.md`](agent-tools.md) § Deny-list). Absolute runes/s are
+**not** a hosted-CI gate (non-deterministic); operators MAY run suites from a
+shell. Prefer `search_cycle` for workspace research.
+
+### `parcae-throughput-tiers`
+
+```text
+parcae-throughput-tiers [--data-dir <path>] [-h|--help]
+```
+
+Compatibility binary (CUDA builds only). Equivalent to
+`parcae-bench --suite slo --extended --allow-cuda`. Prefer `parcae-bench` for
+new scripts (`--json` / `--omit-timing` / `--status`). Agent **deny**-list by
+default (same reason as `parcae-bench`).
 
 ### `parcae-search-cycle`
 

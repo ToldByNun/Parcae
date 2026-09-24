@@ -26,6 +26,8 @@ DENIED_BINARIES: frozenset[str] = frozenset(
     {
         "blind-crack",
         "parcae-blind-crack",
+        "bench",
+        "parcae-bench",
         "throughput-tiers",
         "parcae-throughput-tiers",
         "parity",
