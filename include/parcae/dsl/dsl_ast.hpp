@@ -11,6 +11,33 @@
 
 class DslAstNode;
 
+/// One `#ignore DSL_FLAG:…` entry from ast_dump tokenize sidecar
+/// (docs/spec/dsl-ast-json.md § Directives). Binding/suppress is DslDirectiveTable.
+class DslAstDirective {
+public:
+    DslAstDirective() = default;
+
+    DslAstDirective(int lineno, std::string flag, std::string raw)
+        : lineno_(lineno), flag_(std::move(flag)), raw_(std::move(raw)) {}
+
+    [[nodiscard]] int lineno() const noexcept {
+        return lineno_;
+    }
+
+    [[nodiscard]] const std::string& flag() const noexcept {
+        return flag_;
+    }
+
+    [[nodiscard]] const std::string& raw() const noexcept {
+        return raw_;
+    }
+
+private:
+    int lineno_ = 0;
+    std::string flag_;
+    std::string raw_;
+};
+
 /// Recursive value carried under DslAstNode fields (JSON child after ingest).
 class DslAstValue {
 public:
@@ -206,6 +233,10 @@ public:
         module_ = std::move(module);
     }
 
+    void set_directives(std::vector<DslAstDirective> directives) {
+        directives_ = std::move(directives);
+    }
+
     [[nodiscard]] const std::string& source_path() const noexcept {
         return source_path_;
     }
@@ -226,12 +257,17 @@ public:
         return module_;
     }
 
+    [[nodiscard]] const std::vector<DslAstDirective>& directives() const noexcept {
+        return directives_;
+    }
+
 private:
     std::string source_path_;
     std::string source_sha256_;
     std::string python_version_;
     std::string dsl_ast_json_version_;
     std::shared_ptr<DslAstNode> module_;
+    std::vector<DslAstDirective> directives_;
 };
 
 #endif // DSL_AST_HPP

@@ -9,14 +9,17 @@ from __future__ import annotations
 import argparse
 import ast
 import hashlib
+import io
 import json
+import re
 import sys
+import tokenize
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 SCHEMA_ID = "parcae.dsl_ast_json.v0"
-DSL_AST_JSON_VERSION = "1.0.0"
+DSL_AST_JSON_VERSION = "1.1.0"
 
 # Normative v0 ceilings (docs/spec/dsl-ast-json.md).
 MAX_SOURCE_BYTES = 1_048_576
@@ -25,6 +28,18 @@ MAX_NODE_COUNT = 50_000
 MAX_TREE_DEPTH = 64
 MAX_STRING_BYTES = 16_384
 MAX_LIST_LENGTH = 4_096
+
+# docs/spec/dsl-ast-json.md § Directives — COMMENT := '#' [ \t]* 'ignore' …
+_DIRECTIVE_RE = re.compile(r"^#[ \t]*ignore[ \t]+DSL_FLAG:([a-z][a-z0-9_]*)[ \t]*$")
+
+# Recognized flags (v0); unknown grammar-valid flags are still emitted for tooling.
+KNOWN_DSL_FLAGS = frozenset(
+    {
+        "divergent_branch",
+        "hotloop_restriction",
+        "host_loop_bound",
+    }
+)
 
 _COMPACT_NODE_TYPES = (
     ast.operator,
@@ -187,6 +202,33 @@ def _serialize(node: Any, state: _SerializeState, depth: int) -> Any:
     )
 
 
+def extract_directives(source: str) -> list[dict[str, Any]]:
+    """Collect `#ignore DSL_FLAG:…` comments via tokenize (ast drops comments).
+
+    Non-matching comments are ignored. Grammar is strict (see dsl-ast-json.md).
+    """
+    out: list[dict[str, Any]] = []
+    readline = io.StringIO(source).readline
+    try:
+        for tok in tokenize.generate_tokens(readline):
+            if tok.type != tokenize.COMMENT:
+                continue
+            match = _DIRECTIVE_RE.match(tok.string)
+            if match is None:
+                continue
+            out.append(
+                {
+                    "lineno": tok.start[0],
+                    "flag": match.group(1),
+                    "raw": tok.string,
+                }
+            )
+    except tokenize.TokenError:
+        # Incomplete tokenize; ast.parse already validated syntax for success path.
+        return out
+    return out
+
+
 def dump_source_bytes(raw: bytes, source_path: str) -> dict[str, Any]:
     """Parse UTF-8 source bytes and return a success or failure document."""
     if len(raw) > MAX_SOURCE_BYTES:
@@ -241,6 +283,8 @@ def dump_source_bytes(raw: bytes, source_path: str) -> dict[str, Any]:
     # Spec Module example includes type_ignores; ensure key exists.
     module_json.setdefault("type_ignores", [])
 
+    directives = extract_directives(text)
+
     doc: dict[str, Any] = {
         "schema": SCHEMA_ID,
         "dsl_ast_json_version": DSL_AST_JSON_VERSION,
@@ -248,6 +292,7 @@ def dump_source_bytes(raw: bytes, source_path: str) -> dict[str, Any]:
         "source_sha256": digest,
         "python_version": _python_version_string(),
         "module": module_json,
+        "directives": directives,
         "ok": True,
     }
 

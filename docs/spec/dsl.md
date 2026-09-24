@@ -182,6 +182,12 @@ and **E035** (unbounded OuterControl `while`) are reserved for these diagnostics
 `DslDivergenceGate` emits **E033** / **W011**; `DslHostGlue` emits **E035** for
 unbounded OuterControl loops and lowers finite `for`/`while` to `HostGlueIr`.
 
+Authors may annotate source with `#ignore DSL_FLAG:…` comments (grammar in
+[dsl-ast-json.md](dsl-ast-json.md) § Directives). The syntax frontend emits them
+as `directives[]` on `parcae.dsl_ast_json.v0` (`dsl_ast_json_version` ≥ `1.1.0`).
+Binding those flags to statements, **W010**, and `--allow-dsl-ignores` is owned
+by `DslDirectiveTable` (compile-time; not part of the wire format alone).
+
 ### Primitive / HotLoop body subset
 
 

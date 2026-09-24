@@ -58,13 +58,19 @@ TEST_CASE("DslSpecVersion compatibility policy", "[dsl][spec_version]") {
 }
 
 TEST_CASE("DslAstJsonVersion current and schema id", "[dsl][ast_json_version]") {
-    REQUIRE(DslAstJsonVersion::current_string == "1.0.0");
+    REQUIRE(DslAstJsonVersion::current_string == "1.1.0");
+    REQUIRE(DslAstJsonVersion::current_minor == 1);
     REQUIRE(DslAstJsonVersion::schema_id == "parcae.dsl_ast_json.v0");
     REQUIRE(DslAstJsonVersion::current().check_compatible_with_current().ok());
 
-    const StatusOr<DslAstJsonVersion> parsed = DslAstJsonVersion::parse("1.0.0");
+    const StatusOr<DslAstJsonVersion> parsed = DslAstJsonVersion::parse("1.1.0");
     REQUIRE(parsed.ok());
     REQUIRE(parsed.value() == DslAstJsonVersion::current());
+
+    // Older minor documents remain compatible.
+    const StatusOr<DslAstJsonVersion> older = DslAstJsonVersion::parse("1.0.0");
+    REQUIRE(older.ok());
+    REQUIRE(older.value().check_compatible_with_current().ok());
 
     const StatusOr<DslAstJsonVersion> major2 = DslAstJsonVersion::parse("2.0.0");
     REQUIRE(major2.ok());

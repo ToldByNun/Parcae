@@ -13,9 +13,9 @@
 class DslAstJsonVersion {
 public:
     static constexpr int current_major = 1;
-    static constexpr int current_minor = 0;
+    static constexpr int current_minor = 1;
     static constexpr int current_patch = 0;
-    static constexpr std::string_view current_string = "1.0.0";
+    static constexpr std::string_view current_string = "1.1.0";
     static constexpr std::string_view schema_id = "parcae.dsl_ast_json.v0";
 
     [[nodiscard]] static DslAstJsonVersion current() noexcept {

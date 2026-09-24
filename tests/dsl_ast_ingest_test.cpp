@@ -145,6 +145,35 @@ TEST_CASE("DslAstJsonIngest rejects wrong schema version major", "[dsl][ingest]"
     REQUIRE(doc.status().message().find("E100") != std::string::npos);
 }
 
+TEST_CASE("DslAstJsonIngest accepts directives array (1.1.0)", "[dsl][ingest][directives]") {
+    std::string text = minimal_success_doc(
+        R"({"kind":"Module","lineno":1,"col_offset":0,"body":[],"type_ignores":[]})");
+    const auto insert_at = text.rfind('}');
+    REQUIRE(insert_at != std::string::npos);
+    text.insert(
+        insert_at,
+        R"(,"directives":[{"lineno":3,"flag":"divergent_branch","raw":"#ignore DSL_FLAG:divergent_branch"}])");
+    const StatusOr<DslAstDocument> doc = DslAstJsonIngest::parse_text(text);
+    REQUIRE(doc.ok());
+    REQUIRE(doc.value().directives().size() == 1);
+    REQUIRE(doc.value().directives()[0].lineno() == 3);
+    REQUIRE(doc.value().directives()[0].flag() == "divergent_branch");
+    REQUIRE(
+        doc.value().directives()[0].raw() == "#ignore DSL_FLAG:divergent_branch");
+}
+
+TEST_CASE("DslAstJsonIngest rejects bad directives flag", "[dsl][ingest][directives]") {
+    std::string text = minimal_success_doc(
+        R"({"kind":"Module","lineno":1,"col_offset":0,"body":[],"type_ignores":[]})");
+    const auto insert_at = text.rfind('}');
+    text.insert(
+        insert_at,
+        R"(,"directives":[{"lineno":1,"flag":"BadFlag","raw":"#ignore DSL_FLAG:BadFlag"}])");
+    const StatusOr<DslAstDocument> doc = DslAstJsonIngest::parse_text(text);
+    REQUIRE_FALSE(doc.ok());
+    REQUIRE(doc.status().message().find("E100") != std::string::npos);
+}
+
 TEST_CASE("DslAstJsonIngest rejects JSON larger than limit", "[dsl][ingest]") {
     std::string text(DslAstLimits::max_json_bytes + 1, ' ');
     text[0] = '{';

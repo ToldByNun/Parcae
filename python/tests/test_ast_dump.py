@@ -148,3 +148,41 @@ def test_decorator_and_param_shape(tmp_path: Path) -> None:
     assert classes[0]["name"] == "T"
     assert classes[0]["decorator_list"]
     assert classes[0]["decorator_list"][0]["kind"] == "Call"
+
+
+@pytest.mark.ci
+def test_directives_extracted_and_garbage_ignored(tmp_path: Path) -> None:
+    src = tmp_path / "ign.py"
+    src.write_text(
+        "\n".join(
+            [
+                "# just a normal comment",
+                "#ignore DSL_FLAG:divergent_branch",
+                "x = 1",
+                "#ignore DSL_FLAG:hotloop_restriction",
+                "#ignore DSL_FLAG:NotValid",  # uppercase — not grammar-valid
+                "# ignore DSL_FLAG:host_loop_bound",  # space after # still ok
+                "#ignore DSL_FLAG:divergent_branch trailing",  # junk → ignored
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    doc = dump_path(src)
+    assert document_is_success(doc)
+    assert doc["dsl_ast_json_version"] == "1.1.0"
+    assert "directives" in doc
+    flags = [d["flag"] for d in doc["directives"]]
+    assert flags == ["divergent_branch", "hotloop_restriction", "host_loop_bound"]
+    assert doc["directives"][0]["lineno"] == 2
+    assert doc["directives"][0]["raw"] == "#ignore DSL_FLAG:divergent_branch"
+
+
+@pytest.mark.ci
+def test_extract_directives_helper() -> None:
+    from parcae.dsl.ast_dump import extract_directives
+
+    text = "#ignore DSL_FLAG:divergent_branch\nx=1\n"
+    dirs = extract_directives(text)
+    assert len(dirs) == 1
+    assert dirs[0]["flag"] == "divergent_branch"

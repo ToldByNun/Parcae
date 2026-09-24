@@ -102,8 +102,10 @@ flowchart TB
 ### CPython is syntax-only
 
 `ast.parse` handles real Python grammar (indentation, strings, decorators,
-`Param[int]`). The dump is `parcae.dsl_ast_json.v0`. After that, the process is
-pure C++.
+`Param[int]`). The dump is `parcae.dsl_ast_json.v0` (`dsl_ast_json_version`
+**1.1.0**). `#ignore DSL_FLAG:…` comments are collected via `tokenize` into a
+top-level `directives[]` array (see [dsl-ast-json.md](../spec/dsl-ast-json.md)).
+After that, the process is pure C++.
 
 ### Stubs are not a compiler
 

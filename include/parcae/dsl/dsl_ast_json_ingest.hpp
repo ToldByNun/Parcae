@@ -10,6 +10,7 @@
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 
+#include <cstdint>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -77,7 +78,7 @@ public:
             const std::string& key = it.key();
             if (key != "schema" && key != "dsl_ast_json_version" && key != "source_path" &&
                 key != "source_sha256" && key != "python_version" && key != "module" &&
-                key != "ok") {
+                key != "ok" && key != "directives") {
                 return fail(
                     DslRuleId::E100_json_schema,
                     "unknown top-level key '" + key + "' (strict schema mode)");
@@ -144,6 +145,15 @@ public:
             doc.set_python_version(root.at("python_version").get<std::string>());
         }
         doc.set_module(std::move(module.value()));
+
+        if (root.contains("directives")) {
+            StatusOr<std::vector<DslAstDirective>> dirs = parse_directives(root.at("directives"));
+            if (!dirs.ok()) {
+                return dirs.status();
+            }
+            doc.set_directives(std::move(dirs.value()));
+        }
+
         return doc;
     }
 
@@ -156,6 +166,72 @@ private:
 
     [[nodiscard]] static Status fail(std::string_view rule_id, std::string message) {
         return DslDiag::make(rule_id, std::move(message)).to_status();
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<DslAstDirective>> parse_directives(
+        const nlohmann::json& arr) {
+        if (!arr.is_array()) {
+            return fail(DslRuleId::E100_json_schema, "directives must be a JSON array");
+        }
+        if (arr.size() > DslAstLimits::max_list_length) {
+            return fail(
+                DslRuleId::E106_list_length,
+                "directives length exceeds " + std::to_string(DslAstLimits::max_list_length));
+        }
+        std::vector<DslAstDirective> out;
+        out.reserve(arr.size());
+        for (const nlohmann::json& item : arr) {
+            if (!item.is_object()) {
+                return fail(DslRuleId::E100_json_schema, "directives[] entries must be objects");
+            }
+            for (auto it = item.begin(); it != item.end(); ++it) {
+                const std::string& key = it.key();
+                if (key != "lineno" && key != "flag" && key != "raw") {
+                    return fail(
+                        DslRuleId::E100_json_schema,
+                        "unknown directives[] key '" + key + "'");
+                }
+            }
+            if (!item.contains("lineno") || !item.at("lineno").is_number_integer()) {
+                return fail(DslRuleId::E100_json_schema, "directives[].lineno must be an integer");
+            }
+            if (!item.contains("flag") || !item.at("flag").is_string()) {
+                return fail(DslRuleId::E100_json_schema, "directives[].flag must be a string");
+            }
+            if (!item.contains("raw") || !item.at("raw").is_string()) {
+                return fail(DslRuleId::E100_json_schema, "directives[].raw must be a string");
+            }
+            const std::string flag = item.at("flag").get<std::string>();
+            const std::string raw = item.at("raw").get<std::string>();
+            Status flag_len = check_string(flag);
+            if (!flag_len.ok()) {
+                return flag_len;
+            }
+            Status raw_len = check_string(raw);
+            if (!raw_len.ok()) {
+                return raw_len;
+            }
+            // Grammar: FLAG_NAME := [a-z][a-z0-9_]*
+            if (flag.empty() || flag[0] < 'a' || flag[0] > 'z') {
+                return fail(
+                    DslRuleId::E100_json_schema,
+                    "directives[].flag must match [a-z][a-z0-9_]*");
+            }
+            for (char c : flag) {
+                const bool ok = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
+                if (!ok) {
+                    return fail(
+                        DslRuleId::E100_json_schema,
+                        "directives[].flag must match [a-z][a-z0-9_]*");
+                }
+            }
+            const std::int64_t lineno = item.at("lineno").get<std::int64_t>();
+            if (lineno < 1 || lineno > 2'000'000'000) {
+                return fail(DslRuleId::E100_json_schema, "directives[].lineno out of range");
+            }
+            out.emplace_back(static_cast<int>(lineno), flag, raw);
+        }
+        return out;
     }
 
     [[nodiscard]] static Status fail_at(

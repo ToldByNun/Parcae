@@ -28,12 +28,12 @@ private:
 | Header | Class | Status |
 |--------|-------|--------|
 | `dsl_spec_version.hpp` | `DslSpecVersion` | Done (`1.0.0`) |
-| `dsl_ast_json_version.hpp` | `DslAstJsonVersion` | Done (`1.0.0`) |
+| `dsl_ast_json_version.hpp` | `DslAstJsonVersion` | Done (`1.1.0`, directives additive) |
 | `dsl_rule_id.hpp` | `DslRuleId` | Done (stable E0xx / E1xx) |
 | `dsl_diag.hpp` | `DslDiag` | Done (`path:line:col: RULE message`) |
 | `dsl_ast_limits.hpp` | `DslAstLimits` | Done (v0 ceilings) |
-| `dsl_ast.hpp` | `DslAstNode` / `DslAstDocument` | Done |
-| `dsl_ast_json_ingest.hpp` | `DslAstJsonIngest` | Done (strict + limits) |
+| `dsl_ast.hpp` | `DslAstNode` / `DslAstDocument` / `DslAstDirective` | Done |
+| `dsl_ast_json_ingest.hpp` | `DslAstJsonIngest` | Done (strict + limits + `directives[]`) |
 | `dsl_semantic_gate.hpp` | `DslSemanticGate` | Done (whitelist + scope-aware CF / E034) |
 | `dsl_divergence_gate.hpp` | `DslDivergenceGate` / `DslPredicateClass` | Done (HotLoop If → E033 / W011) |
 | `host_glue_ir.hpp` | `HostGlueIr` | Done (OuterControl host IR nodes) |

@@ -2,7 +2,7 @@
 
 **Status:** Normative  
 **Schema id:** `parcae.dsl_ast_json.v0`  
-**`dsl_ast_json_version`:** `1.0.0`  
+**`dsl_ast_json_version`:** `1.1.0`  
 **Related:** [dsl.md](dsl.md), [theory-artifact.md](theory-artifact.md)
 
 This document freezes the **one-shot CPython → C++ handoff**: a theory `.py`
@@ -33,7 +33,7 @@ Syntax errors from CPython **MUST** become a structured frontend failure (see
 | Field | Meaning |
 |-------|---------|
 | `schema` | Always `parcae.dsl_ast_json.v0` for this document’s shape |
-| `dsl_ast_json_version` | SemVer of this protocol (`1.0.0` here) |
+| `dsl_ast_json_version` | SemVer of this protocol (`1.1.0` here) |
 
 Breaking changes to required keys or node shapes **MUST** bump **MAJOR** of
 `dsl_ast_json_version` (and typically the `schema` id suffix). Ingestors **MUST**
@@ -51,11 +51,12 @@ Top-level object:
 ```json
 {
   "schema": "parcae.dsl_ast_json.v0",
-  "dsl_ast_json_version": "1.0.0",
+  "dsl_ast_json_version": "1.1.0",
   "source_path": "theories/examples/new_math_example.py",
   "source_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "python_version": "3.12.0",
-  "module": { "...": "Module node — see Node model" }
+  "module": { "...": "Module node — see Node model" },
+  "directives": []
 }
 ```
 
@@ -74,9 +75,57 @@ Top-level object:
 | Field | Rule |
 |-------|------|
 | `python_version` | `sys.version_info` formatted string; SHOULD be present |
+| `ok` | `true` on success documents when present |
+| `directives` | Array of `#ignore DSL_FLAG:…` entries (see § Directives); **MUST** be present on documents produced by toolchain ≥ `1.1.0` (may be empty). Older `1.0.x` documents omit it. |
 
 Extra unknown top-level keys: conforming ingest **MUST** reject in **strict**
 mode (default for `parcae-compile`).
+
+---
+
+## Directives (`#ignore DSL_FLAG`)
+
+CPython `ast` drops `#` comments. The frontend **MUST** collect directives with
+the `tokenize` module alongside `ast.parse` and emit them as a top-level
+`directives` array (additive in `dsl_ast_json_version` **1.1.0**).
+
+```json
+"directives": [
+  {
+    "lineno": 42,
+    "flag": "divergent_branch",
+    "raw": "#ignore DSL_FLAG:divergent_branch"
+  }
+]
+```
+
+### Grammar (strict)
+
+```text
+COMMENT := '#' [ \t]* 'ignore' [ \t]+ 'DSL_FLAG:' FLAG_NAME [ \t]*
+FLAG_NAME := [a-z][a-z0-9_]*
+```
+
+Non-matching comments **MUST** be ignored (not emitted). Each emitted object
+**MUST** include:
+
+| Field | Rule |
+|-------|------|
+| `lineno` | 1-based source line of the comment token |
+| `flag` | `FLAG_NAME` |
+| `raw` | Exact comment token string |
+
+### Recognized flags (v0)
+
+| Flag | Suppresses (when honored — see DirectiveTable / compile) |
+|------|----------------------------------------------------------|
+| `divergent_branch` | **E033** on the bound HotLoop `if` / `IfExp` |
+| `hotloop_restriction` | **E034** for `for`/`while` in HotLoop |
+| `host_loop_bound` | **E035** when author asserts a finite OuterControl `while` |
+
+Binding of flags to AST statements and `--allow-dsl-ignores` / **W010** is
+specified in [dsl.md](dsl.md) § Execution scopes and implemented by
+`DslDirectiveTable` (follow-on to ingest of this array).
 
 ---
 
