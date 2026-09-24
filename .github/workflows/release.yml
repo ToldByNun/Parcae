@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to package (e.g. v0.7.0-search-engine). Leave empty to use the pushed tag."
+        description: "Existing tag to package (e.g. v0.8.0-dsl-console). Leave empty to use the pushed tag."
         required: false
         type: string
       include_cuda:
@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Filenames use SemVer from CMakeLists.txt; tag may be v0.7.0-search-engine.
+  # Filenames use SemVer from CMakeLists.txt; tag may be v0.8.0-dsl-console.
   CMAKE_BUILD_PARALLEL_LEVEL: 4
 
 jobs:

@@ -9,8 +9,8 @@
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
 #include "parcae_cli_paths.h"
-#if !defined(PARCAE_CLI_SEARCH_CYCLE)
-#error "PARCAE_CLI_SEARCH_CYCLE required"
+#if !defined(PARCAE_CLI_SEARCH_CYCLE) || !defined(PARCAE_CLI_COMPILE)
+#error "PARCAE_CLI_SEARCH_CYCLE and PARCAE_CLI_COMPILE required"
 #endif
 
 #include <cstdlib>
@@ -27,11 +27,11 @@ TEST_CASE("parcae_core version macros are wired", "[smoke][version]") {
     REQUIRE(Version::patch == PARCAE_VERSION_PATCH);
 }
 
-TEST_CASE("toolkit Version is 0.7.0 (search-engine exit)", "[smoke][version][search]") {
+TEST_CASE("toolkit Version is 0.8.0 (dsl-console exit)", "[smoke][version][search]") {
     REQUIRE(Version::major == 0);
-    REQUIRE(Version::minor == 7);
+    REQUIRE(Version::minor == 8);
     REQUIRE(Version::patch == 0);
-    REQUIRE(std::string(PARCAE_VERSION_STRING) == "0.7.0");
+    REQUIRE(std::string(PARCAE_VERSION_STRING) == "0.8.0");
 }
 
 TEST_CASE("nlohmann_json is available through parcae::core", "[smoke]") {
@@ -49,11 +49,12 @@ namespace {
 
 [[nodiscard]] std::pair<int, std::string> run_cli(
     const std::filesystem::path& exe,
-    const std::vector<std::string>& args) {
+    const std::vector<std::string>& args,
+    const std::string& tmp_tag) {
     const auto tmp = std::filesystem::temp_directory_path();
-    const std::filesystem::path out_path = tmp / "parcae_m51_status_out.json";
-    const std::filesystem::path err_path = tmp / "parcae_m51_status_err.txt";
-    const std::filesystem::path script_path = tmp / "parcae_m51_status_run.cmd";
+    const std::filesystem::path out_path = tmp / ("parcae_smoke_" + tmp_tag + "_out.json");
+    const std::filesystem::path err_path = tmp / ("parcae_smoke_" + tmp_tag + "_err.txt");
+    const std::filesystem::path script_path = tmp / ("parcae_smoke_" + tmp_tag + "_run.cmd");
 
     {
         std::ofstream script(script_path, std::ios::binary);
@@ -89,25 +90,49 @@ namespace {
 }  // namespace
 
 TEST_CASE(
-    "parcae-search-cycle --status reports toolkit_version 0.7.0",
+    "parcae-search-cycle --status reports toolkit_version 0.8.0",
     "[smoke][version][search][tool][search_cycle][status]") {
 #ifndef PARCAE_TEST_DATA_DIR
 #error "PARCAE_TEST_DATA_DIR must be defined"
 #endif
-    REQUIRE(std::string(PARCAE_VERSION_STRING) == "0.7.0");
+    REQUIRE(std::string(PARCAE_VERSION_STRING) == "0.8.0");
 
     const auto [code, out] = run_cli(
         PARCAE_CLI_SEARCH_CYCLE,
-        {"--status", "--json", "--data-dir", std::string(PARCAE_TEST_DATA_DIR)});
+        {"--status", "--json", "--data-dir", std::string(PARCAE_TEST_DATA_DIR)},
+        "search_cycle_status");
     REQUIRE(code == 0);
     const nlohmann::json envelope = nlohmann::json::parse(out);
     REQUIRE(envelope.at("ok").get<bool>());
     REQUIRE(envelope.at("tool").get<std::string>() == "search_cycle");
-    REQUIRE(envelope.at("result").at("toolkit_version").get<std::string>() == "0.7.0");
+    REQUIRE(envelope.at("result").at("toolkit_version").get<std::string>() == "0.8.0");
     REQUIRE(envelope.at("result").at("toolkit_version").get<std::string>() ==
             PARCAE_VERSION_STRING);
     REQUIRE(envelope.at("result").at("run_ready").get<bool>());
     REQUIRE(envelope.at("result").at("scheduler_ready").get<bool>());
+}
+
+TEST_CASE(
+    "parcae-compile --status reports toolkit_version 0.8.0",
+    "[smoke][version][dsl][tool][compile][status]") {
+#ifndef PARCAE_TEST_DATA_DIR
+#error "PARCAE_TEST_DATA_DIR must be defined"
+#endif
+    REQUIRE(std::string(PARCAE_VERSION_STRING) == "0.8.0");
+
+    const auto [code, out] = run_cli(
+        PARCAE_CLI_COMPILE,
+        {"--status", "--json", "--data-dir", std::string(PARCAE_TEST_DATA_DIR)},
+        "compile_status");
+    REQUIRE(code == 0);
+    const nlohmann::json envelope = nlohmann::json::parse(out);
+    REQUIRE(envelope.at("ok").get<bool>());
+    REQUIRE(envelope.at("tool").get<std::string>() == "compile");
+    REQUIRE(envelope.at("result").at("toolkit_version").get<std::string>() == "0.8.0");
+    REQUIRE(envelope.at("result").at("toolkit_version").get<std::string>() ==
+            PARCAE_VERSION_STRING);
+    REQUIRE(envelope.at("result").contains("pipeline_ready"));
+    REQUIRE(envelope.at("result").at("dsl_spec_version").get<std::string>().size() > 0);
 }
 
 #endif  // PARCAE_HAS_CLI_GOLDENS

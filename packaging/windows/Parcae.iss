@@ -5,7 +5,7 @@
 ; Optional (set by build_installer.sh): ParcaeSuffix, ParcaeAppName, ParcaeAppIdGuid
 
 #ifndef ParcaeVersion
-  #define ParcaeVersion "0.7.0"
+  #define ParcaeVersion "0.8.0"
 #endif
 #ifndef ParcaeFlavor
   #define ParcaeFlavor "cpu"

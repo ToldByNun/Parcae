@@ -151,11 +151,12 @@ if(TARGET parcae-tokenize)
     parcae-generate
     parcae-rank
     parcae-hypothesis
+    parcae-compile
   )
   set(_parcae_cli_paths_dir "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>")
   file(GENERATE
     OUTPUT "${_parcae_cli_paths_dir}/parcae_cli_paths.h"
-    CONTENT "#pragma once\n#define PARCAE_CLI_TOKENIZE R\"($<TARGET_FILE:parcae-tokenize>)\"\n#define PARCAE_CLI_DECODE R\"($<TARGET_FILE:parcae-decode>)\"\n#define PARCAE_CLI_SCORE R\"($<TARGET_FILE:parcae-score>)\"\n#define PARCAE_CLI_VALIDATE R\"($<TARGET_FILE:parcae-validate>)\"\n#define PARCAE_CLI_SEARCH_RUN R\"($<TARGET_FILE:parcae-search-run>)\"\n#define PARCAE_CLI_SEARCH_CYCLE R\"($<TARGET_FILE:parcae-search-cycle>)\"\n#define PARCAE_CLI_GENERATE R\"($<TARGET_FILE:parcae-generate>)\"\n#define PARCAE_CLI_RANK R\"($<TARGET_FILE:parcae-rank>)\"\n#define PARCAE_CLI_HYPOTHESIS R\"($<TARGET_FILE:parcae-hypothesis>)\"\n"
+    CONTENT "#pragma once\n#define PARCAE_CLI_TOKENIZE R\"($<TARGET_FILE:parcae-tokenize>)\"\n#define PARCAE_CLI_DECODE R\"($<TARGET_FILE:parcae-decode>)\"\n#define PARCAE_CLI_SCORE R\"($<TARGET_FILE:parcae-score>)\"\n#define PARCAE_CLI_VALIDATE R\"($<TARGET_FILE:parcae-validate>)\"\n#define PARCAE_CLI_SEARCH_RUN R\"($<TARGET_FILE:parcae-search-run>)\"\n#define PARCAE_CLI_SEARCH_CYCLE R\"($<TARGET_FILE:parcae-search-cycle>)\"\n#define PARCAE_CLI_GENERATE R\"($<TARGET_FILE:parcae-generate>)\"\n#define PARCAE_CLI_RANK R\"($<TARGET_FILE:parcae-rank>)\"\n#define PARCAE_CLI_HYPOTHESIS R\"($<TARGET_FILE:parcae-hypothesis>)\"\n#define PARCAE_CLI_COMPILE R\"($<TARGET_FILE:parcae-compile>)\"\n"
   )
   target_include_directories(parcae_tests PRIVATE "${_parcae_cli_paths_dir}")
   target_compile_definitions(parcae_tests PRIVATE PARCAE_HAS_CLI_GOLDENS=1)

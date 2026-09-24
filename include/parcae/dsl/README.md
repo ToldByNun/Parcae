@@ -106,11 +106,12 @@ Authoring examples (also CI via `scripts/check-dsl-examples.sh`):
 
 ## Status
 
-Toolkit **0.7.0** (`v0.7.0-search-engine`; DSL exit was `v0.5.0-theory-dsl`).
-Smart-compiler + console cut: toolkit **0.8.0** / `v0.8.0-dsl-console` —
+Toolkit **0.8.0** (`v0.8.0-dsl-console`; prior search-engine exit
+`v0.7.0-search-engine`; DSL exit `v0.5.0-theory-dsl`). Freeze checklist:
 [`dsl-console-exit.md`](../../../docs/architecture/dsl-console-exit.md).
-CI gates: `[dsl][examples]`, `[dsl][registry][stale]`, plus `dsl-examples-cli` /
-`dsl-stubs-pytest` jobs in `.github/workflows/ci.yml`.
+CI gates: `[dsl-smart]`, `[cli-progress]`, `[dsl][examples]`,
+`[dsl][registry][stale]`, plus `dsl-examples-cli` / `dsl-stubs-pytest` jobs in
+`.github/workflows/ci.yml`.
 
 Headers are part of the header-only `parcae::core` INTERFACE include tree
 (`include/` via root `CMakeLists.txt`).
