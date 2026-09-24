@@ -7,7 +7,7 @@ twins, a theory DSL, and an LLM agent that only calls allow-listed CLIs.
 | | |
 |---|---|
 | **License** | [MIT](LICENSE) |
-| **Toolkit version** | **0.7.0** (`v0.7.0-search-engine`) |
+| **Toolkit version** | **0.8.0** (`v0.8.0-dsl-console`) |
 | **Language (core)** | C++20 (header-first library + CLIs) |
 | **GPU** | Optional CUDA twins (CI stays CPU-only) |
 | **Python** | IDE stubs + AST dump + optional CMD agent — **not** the crypto core |
@@ -37,7 +37,7 @@ Parcae’s job is not to ship vibes. It is to:
 | **29** | Alphabet size. Every rune maps to an index `0…28` (`Index29`). All crypto math is mod 29. |
 | **0…28** | Valid `Index29` values. Latin “letters” are a *view* of those indices, not a second alphabet. |
 | **LP2 `0`–`55`** | Still-unsolved Liber Primus image range the toolkit aims to push forward. |
-| **0.7.0** | Current toolkit version (search-engine loop complete). |
+| **0.8.0** | Current toolkit version (smart DSL + console progress). |
 | **CMake ≥ 3.25** | Build requirement. |
 | **Python ≥ 3.11** | Only for DSL stubs / `ast_dump` / optional `parcae-agent`. |
 
@@ -307,6 +307,7 @@ CUDA parity           →  Parcae/Parcae/cuda/ twins          done — v0.3.0-cu
 Theory DSL compiler   →  theories/ + include/parcae/dsl/    done — v0.5.0-theory-dsl
 CMD agent tooling     →  agents/ + agent-facing CLIs        in progress — v0.6.0-agent-tools
 Search engine loop    →  GPU ↔ candidates ↔ hypotheses      done — v0.7.0-search-engine
+Smart DSL + console   →  scopes/Select/#ignore + dashboard  done — v0.8.0-dsl-console
 Open-source polish    →  packaging, contribution docs       later
 ```
 
@@ -316,7 +317,11 @@ Search engine: [`docs/architecture/search-engine.md`](docs/architecture/search-e
 (exit checklist engineering-green) ·
 commit list [`docs/architecture/search-roadmap.md`](docs/architecture/search-roadmap.md) ·
 operator guide [`docs/architecture/search-handbook.md`](docs/architecture/search-handbook.md) ·
-spec [`docs/spec/search-loop.md`](docs/spec/search-loop.md).
+spec [`docs/spec/search-loop.md`](docs/spec/search-loop.md).  
+Smart DSL + console exit: [`docs/architecture/dsl-console-exit.md`](docs/architecture/dsl-console-exit.md)
+(`v0.8.0-dsl-console`) · compiler guide
+[`docs/architecture/python-transpiler.md`](docs/architecture/python-transpiler.md) ·
+console progress in [`docs/architecture/search-handbook.md`](docs/architecture/search-handbook.md).
 
 ### Goals
 
@@ -349,8 +354,9 @@ Full notes (flags, Catch2 tags, skip behavior when Toolkit is absent):
 [`docs/architecture/cuda-build.md`](docs/architecture/cuda-build.md).
 
 Hosted CI (`.github/workflows/ci.yml`) stays **CPU-default** (`PARCAE_BUILD_CUDA=OFF`).
-It also gates theory examples (`[dsl][examples]`), stale-spec rejection
-(`[dsl][registry][stale]`), stub pytest, and `scripts/check-dsl-examples.sh`.
+It also gates smart DSL (`[dsl-smart]`), console progress (`[cli-progress]`),
+theory examples (`[dsl][examples]`), stale-spec rejection (`[dsl][registry][stale]`),
+stub pytest, and `scripts/check-dsl-examples.sh`.
 
 ---
 

@@ -1,6 +1,7 @@
 # Toolkit exit: smart DSL + console progress
 
-**Status:** Toolkit **0.7.0**; exit **in progress** toward **0.8.0**  
+**Status:** Toolkit **0.8.0** cut in progress (README / CI gates landed; SemVer
+bump + annotated tag still pending)  
 **Exit tag (locked):** `v0.8.0-dsl-console`  
 **Toolkit SemVer (locked):** `0.8.0`
 
@@ -82,7 +83,7 @@ out of the cut on purpose.
       `Gate [cli-progress]` →
       `"[cli][dashboard],[tool][search_cycle][progress]"`;
       documented in [`cuda-build.md`](cuda-build.md) § Catch2 tags)
-- [ ] Root README roadmap marks **dsl-console** done with exit tag
+- [x] Root README roadmap marks **dsl-console** done with exit tag
 - [ ] [`RELEASE_NOTES.md`](../../release/RELEASE_NOTES.md) for 0.8.0
 - [ ] Toolkit version **0.8.0** (CMake + `version.hpp` + smoke asserts)
 - [ ] Smoke: `Version` + `parcae-search-cycle --status` /
