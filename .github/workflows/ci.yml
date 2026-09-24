@@ -107,6 +107,21 @@ jobs:
       - name: Gate [cuda] host stubs
         run: ${{ matrix.test_bin }} "[cuda]" --reporter console
 
+      - name: Gate [dsl-smart]
+        # Scope / divergence / #ignore directives (smart compiler).
+        # [dsl][directives] covers the table suite; [dsl][directive] is on goldens.
+        run: >-
+          ${{ matrix.test_bin }}
+          "[dsl][scope],[dsl][divergence],[dsl][directive],[dsl][directives]"
+          --reporter console
+
+      - name: Gate [cli-progress]
+        # ConsoleDashboard + search-cycle progress digest invariance.
+        run: >-
+          ${{ matrix.test_bin }}
+          "[cli][dashboard],[tool][search_cycle][progress]"
+          --reporter console
+
       - name: Gate [dsl][examples] (compile theories/examples)
         run: ${{ matrix.test_bin }} "[dsl][examples]" --reporter console
 

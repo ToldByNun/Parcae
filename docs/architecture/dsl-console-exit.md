@@ -76,9 +76,12 @@ out of the cut on purpose.
 
 ### Gates & release cut
 
-- [ ] Hosted CI gates for smart-dsl + cli-progress tags
-      (planned filters: `"[dsl][scope],[dsl][divergence],[dsl][directive]"` and
-      `"[cli][dashboard],[tool][search_cycle][progress]"`)
+- [x] Hosted CI gates for smart-dsl + cli-progress tags
+      (`Gate [dsl-smart]` →
+      `"[dsl][scope],[dsl][divergence],[dsl][directive],[dsl][directives]"`;
+      `Gate [cli-progress]` →
+      `"[cli][dashboard],[tool][search_cycle][progress]"`;
+      documented in [`cuda-build.md`](cuda-build.md) § Catch2 tags)
 - [ ] Root README roadmap marks **dsl-console** done with exit tag
 - [ ] [`RELEASE_NOTES.md`](../../release/RELEASE_NOTES.md) for 0.8.0
 - [ ] Toolkit version **0.8.0** (CMake + `version.hpp` + smoke asserts)

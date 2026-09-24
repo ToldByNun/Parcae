@@ -89,6 +89,41 @@ Targets:
 | `[cuda][batch][chi2][fuse]` | Skip / SUCCEED marker | Fused Caesar χ² vs CPU `ScoreRegistry` |
 | `[cuda][property]` | Skip / SUCCEED marker | Encrypt↔decrypt round-trips + CPU byte match via `CudaBackend` |
 
+### Catch2 tags (smart DSL compiler)
+
+Scope-aware HotLoop / OuterControl compiler (`include/parcae/dsl/`). Hosted CI
+adds an explicit **`Gate [dsl-smart]`** filter (see [CI policy](#ci-policy));
+existing `[dsl][examples]` / `[dsl][registry][stale]` gates stay. Device emit
+smoke remains under `[cuda][dsl][smoke]` above.
+
+| Tag | Without Toolkit (`PARCAE_BUILD_CUDA=OFF`) | Notes |
+|-----|-------------------------------------------|-------|
+| `[dsl][scope]` | Always — **part of Gate [dsl-smart]** | `DslExecScope` / `DslScopeAnalyzer`; also `[dsl][gate][scope]` |
+| `[dsl][divergence]` | Always — **part of Gate [dsl-smart]** | `DslDivergenceGate` E033 / W011 |
+| `[dsl][directive]` / `[dsl][directives]` | Always — **part of Gate [dsl-smart]** | `DslDirectiveTable` W010 / E031; `--allow-dsl-ignores` |
+| `[dsl][golden]` | Always (overlaps smart filter via subtags) | Smart-compiler acceptance matrix |
+| `[dsl][hostglue]` | Always | OuterControl for/while → HostGlueIr / E035 |
+| `[dsl][build][select]` / `[dsl][emit][select]` | Always | HotLoop If → Select; CPU/CUDA emit |
+| `[dsl][examples]` | Always — **separate CI gate** | Compile `theories/examples` |
+| `[dsl][registry][stale]` | Always — **separate CI gate** | Reject stale `dsl_spec_version` fixture |
+
+Exit freeze: [`dsl-console-exit.md`](dsl-console-exit.md). Authoring guide:
+[`python-transpiler.md`](python-transpiler.md).
+
+### Catch2 tags (console progress / dashboard)
+
+Human stderr progress (`ConsoleDashboard`) shared by `parcae-search-cycle`,
+`SearchRunConsole`, and BlindCrack. Hosted CI **`Gate [cli-progress]`** OR-filter
+below. Digests / `--json` stdout must stay invariant under `--quiet`.
+
+| Tag | Without Toolkit (`PARCAE_BUILD_CUDA=OFF`) | Notes |
+|-----|-------------------------------------------|-------|
+| `[cli][dashboard]` | Always — **part of Gate [cli-progress]** | Panel / lines / off; VT → lines fallback |
+| `[tool][search_cycle][progress]` | Always — **part of Gate [cli-progress]** | Quiet / plain / digest determinism |
+| `[search][scheduler][loop][progress]` | Always (also under `[search]` gate) | Library progress sink wiring |
+
+Operator notes: [`search-handbook.md`](search-handbook.md) § Console progress.
+
 ### Catch2 tags (search engine / scheduler)
 
 Closed-loop search (`include/parcae/search/`, `parcae-search-cycle`). Hosted CI
@@ -131,6 +166,10 @@ build/tests/Release/parcae_tests.exe "[cuda]"
 build/tests/Release/parcae_tests.exe "[search]"
 build/tests/Release/parcae_tests.exe "[search][scheduler]"
 
+# Smart DSL + console progress (hosted CI matrix — Gate [dsl-smart] / [cli-progress])
+build/tests/Release/parcae_tests.exe "[dsl][scope],[dsl][divergence],[dsl][directive],[dsl][directives]"
+build/tests/Release/parcae_tests.exe "[cli][dashboard],[tool][search_cycle][progress]"
+
 # Real device smoke (CUDA build)
 build-cuda/tests/Release/parcae_tests.exe "[cuda][smoke]" -s
 build-cuda/tests/Release/parcae_tests.exe "[search][export][parity]" -s
@@ -145,7 +184,7 @@ CPU-default workflows under [`.github/workflows/`](../../.github/workflows/):
 
 | Workflow | Role |
 |----------|------|
-| [`ci.yml`](../../.github/workflows/ci.yml) | Matrix: Ubuntu GCC/Clang, macOS, Windows — full `ctest` + `[solved]` / `[parity]` / `[search]` / `[cuda]` host gates; ASan+UBSan job; `parity-goldens` regen+byte-compare; optional self-hosted CUDA via `workflow_dispatch` |
+| [`ci.yml`](../../.github/workflows/ci.yml) | Matrix: Ubuntu GCC/Clang, macOS, Windows — full `ctest` + `[solved]` / `[parity]` / `[search]` / `[cuda]` host gates + **`[dsl-smart]`** / **`[cli-progress]`** + `[dsl][examples]` / `[dsl][registry][stale]`; ASan+UBSan job; `parity-goldens` regen+byte-compare; optional self-hosted CUDA via `workflow_dispatch` |
 | [`clang-format.yml`](../../.github/workflows/clang-format.yml) | `clang-format --dry-run --Werror` on `include/`, `tests/`, `tools/`, `Parcae/Parcae/cuda/` |
 | [`codeql.yml`](../../.github/workflows/codeql.yml) | CodeQL C/C++ analysis (PR + weekly) |
 
