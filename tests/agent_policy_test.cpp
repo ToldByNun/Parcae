@@ -1,11 +1,9 @@
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <fstream>
 #include <parcae/tool/agent_policy.hpp>
 #include <parcae/tool/tool_backend.hpp>
 #include <parcae/tool/tool_response.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <filesystem>
-#include <fstream>
 #include <string>
 
 #ifndef PARCAE_TEST_DATA_DIR
@@ -31,7 +29,7 @@ namespace {
     return root;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("AgentPolicy allow-list and deny-list", "[tool][policy]") {
     const AgentPolicy policy(data_root());
@@ -61,9 +59,8 @@ TEST_CASE("AgentPolicy CUDA requires allow_cuda opt-in", "[tool][policy][backend
     AgentPolicy denied(data_root(), /*allow_cuda=*/false);
     REQUIRE(denied.allow_backend(Backend::Cpu).ok());
     REQUIRE_FALSE(denied.allow_backend(Backend::Cuda).ok());
-    REQUIRE(
-        AgentPolicy::error_code_for(denied.allow_backend(Backend::Cuda)) ==
-        ToolErrorCode::Policy);
+    REQUIRE(AgentPolicy::error_code_for(denied.allow_backend(Backend::Cuda)) ==
+            ToolErrorCode::Policy);
 
     StatusOr<Backend> checked = denied.check_backend_string("cuda");
     REQUIRE_FALSE(checked.ok());
@@ -82,11 +79,10 @@ TEST_CASE("AgentPolicy denies fixture writes and path escape", "[tool][policy][p
     const auto root = make_policy_root("parcae_agent_policy_paths");
     const AgentPolicy policy(root);
 
-    const auto fixture_write =
-        root / "fixtures" / "solved" / "a-warning" / "evil.json";
+    const auto fixture_write = root / "fixtures" / "solved" / "a-warning" / "evil.json";
     REQUIRE_FALSE(policy.allow_write(fixture_write).ok());
-    REQUIRE(
-        AgentPolicy::error_code_for(policy.allow_write(fixture_write)) == ToolErrorCode::Policy);
+    REQUIRE(AgentPolicy::error_code_for(policy.allow_write(fixture_write)) ==
+            ToolErrorCode::Policy);
 
     REQUIRE(policy.allow_read(root / "fixtures" / "solved" / "a-warning" / "ciphertext.txt").ok());
 
@@ -110,8 +106,7 @@ TEST_CASE("AgentPolicy workspace write under data_root succeeds", "[tool][policy
     Status allowed = policy.allow_workspace_write("ws-a", "hypotheses/h-ok.json");
     REQUIRE(allowed.ok());
 
-    const auto abs =
-        root / "workspaces" / "ws-a" / "hypotheses" / "h-ok.json";
+    const auto abs = root / "workspaces" / "ws-a" / "hypotheses" / "h-ok.json";
     REQUIRE(policy.allow_write(abs).ok());
 
     std::error_code ec;

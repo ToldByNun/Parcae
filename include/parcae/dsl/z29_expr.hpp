@@ -30,8 +30,8 @@ public:
         Add,
         Sub,
         Mul,
-        Div,       // modular: mul(x, inv(y))
-        FloorDiv,  // integer // on representatives
+        Div,      // modular: mul(x, inv(y))
+        FloorDiv, // integer // on representatives
         Mod,
         Pow,
         Neg,
@@ -41,7 +41,7 @@ public:
         BitAnd,
         BitOr,
         BitXor,
-        BitNot,  // (~x) mod 29 == 28-x
+        BitNot, // (~x) mod 29 == 28-x
         LShift,
         RShift,
         // Comparisons → 0/1
@@ -104,16 +104,13 @@ public:
         }
     }
 
-    [[nodiscard]] static bool is_select(Kind k) noexcept {
-        return k == Kind::Select;
-    }
+    [[nodiscard]] static bool is_select(Kind k) noexcept { return k == Kind::Select; }
 
     [[nodiscard]] static StatusOr<Ptr> constant(std::int64_t value) {
         if (value < 0 || value >= Index29::modulus) {
-            return DslDiag::make(
-                       DslRuleId::E040_param_domain,
-                       "constant " + std::to_string(value) +
-                           " is outside Index29 domain 0..28")
+            return DslDiag::make(DslRuleId::E040_param_domain,
+                                 "constant " + std::to_string(value) +
+                                     " is outside Index29 domain 0..28")
                 .to_status();
         }
         auto node = std::shared_ptr<Z29Expr>(new Z29Expr(Kind::Const));
@@ -148,15 +145,9 @@ public:
     [[nodiscard]] static Ptr pow(Ptr left, Ptr right) {
         return make_bin(Kind::Pow, std::move(left), std::move(right));
     }
-    [[nodiscard]] static Ptr neg(Ptr arg) {
-        return make_unary(Kind::Neg, std::move(arg));
-    }
-    [[nodiscard]] static Ptr inv(Ptr arg) {
-        return make_unary(Kind::Inv, std::move(arg));
-    }
-    [[nodiscard]] static Ptr atbash(Ptr arg) {
-        return make_unary(Kind::Atbash, std::move(arg));
-    }
+    [[nodiscard]] static Ptr neg(Ptr arg) { return make_unary(Kind::Neg, std::move(arg)); }
+    [[nodiscard]] static Ptr inv(Ptr arg) { return make_unary(Kind::Inv, std::move(arg)); }
+    [[nodiscard]] static Ptr atbash(Ptr arg) { return make_unary(Kind::Atbash, std::move(arg)); }
     [[nodiscard]] static Ptr bit_and(Ptr left, Ptr right) {
         return make_bin(Kind::BitAnd, std::move(left), std::move(right));
     }
@@ -166,9 +157,7 @@ public:
     [[nodiscard]] static Ptr bit_xor(Ptr left, Ptr right) {
         return make_bin(Kind::BitXor, std::move(left), std::move(right));
     }
-    [[nodiscard]] static Ptr bit_not(Ptr arg) {
-        return make_unary(Kind::BitNot, std::move(arg));
-    }
+    [[nodiscard]] static Ptr bit_not(Ptr arg) { return make_unary(Kind::BitNot, std::move(arg)); }
     [[nodiscard]] static Ptr lshift(Ptr left, Ptr right) {
         return make_bin(Kind::LShift, std::move(left), std::move(right));
     }
@@ -199,20 +188,14 @@ public:
     [[nodiscard]] static Ptr bool_or(Ptr left, Ptr right) {
         return make_bin(Kind::BoolOr, std::move(left), std::move(right));
     }
-    [[nodiscard]] static Ptr bool_not(Ptr arg) {
-        return make_unary(Kind::BoolNot, std::move(arg));
-    }
+    [[nodiscard]] static Ptr bool_not(Ptr arg) { return make_unary(Kind::BoolNot, std::move(arg)); }
 
     /// `select(cond, t, f)` — nonzero `cond` yields `t`, else `f` (branch-free mux).
     /// When `prefer_branch` is true (honored `#ignore DSL_FLAG:divergent_branch`),
     /// CPU/CUDA emit may use a C++/CUDA conditional that can warp-diverge.
-    [[nodiscard]] static Ptr select(
-        Ptr cond,
-        Ptr if_true,
-        Ptr if_false,
-        bool prefer_branch = false) {
-        return make_select(
-            std::move(cond), std::move(if_true), std::move(if_false), prefer_branch);
+    [[nodiscard]] static Ptr select(Ptr cond, Ptr if_true, Ptr if_false,
+                                    bool prefer_branch = false) {
+        return make_select(std::move(cond), std::move(if_true), std::move(if_false), prefer_branch);
     }
 
     [[nodiscard]] static Ptr call(std::string primitive, std::vector<Ptr> args) {
@@ -231,11 +214,8 @@ public:
         return make_unary(kind, std::move(arg));
     }
 
-    [[nodiscard]] static Ptr make_select(
-        Ptr cond,
-        Ptr if_true,
-        Ptr if_false,
-        bool prefer_branch = false) {
+    [[nodiscard]] static Ptr make_select(Ptr cond, Ptr if_true, Ptr if_false,
+                                         bool prefer_branch = false) {
         auto node = std::shared_ptr<Z29Expr>(new Z29Expr(Kind::Select));
         node->left_ = std::move(cond);
         node->right_ = std::move(if_true);
@@ -244,74 +224,42 @@ public:
         return node;
     }
 
-    [[nodiscard]] Kind kind() const noexcept {
-        return kind_;
-    }
+    [[nodiscard]] Kind kind() const noexcept { return kind_; }
 
-    [[nodiscard]] std::uint8_t const_value() const noexcept {
-        return const_value_;
-    }
+    [[nodiscard]] std::uint8_t const_value() const noexcept { return const_value_; }
 
-    [[nodiscard]] const std::string& name() const noexcept {
-        return name_;
-    }
+    [[nodiscard]] const std::string& name() const noexcept { return name_; }
 
-    [[nodiscard]] const Ptr& left() const noexcept {
-        return left_;
-    }
+    [[nodiscard]] const Ptr& left() const noexcept { return left_; }
 
-    [[nodiscard]] const Ptr& right() const noexcept {
-        return right_;
-    }
+    [[nodiscard]] const Ptr& right() const noexcept { return right_; }
 
-    [[nodiscard]] const Ptr& arg() const noexcept {
-        return left_;
-    }
+    [[nodiscard]] const Ptr& arg() const noexcept { return left_; }
 
     /// Select: condition (nonzero → true arm).
-    [[nodiscard]] const Ptr& cond() const noexcept {
-        return left_;
-    }
+    [[nodiscard]] const Ptr& cond() const noexcept { return left_; }
 
     /// Select: arm taken when `cond != 0`.
-    [[nodiscard]] const Ptr& if_true() const noexcept {
-        return right_;
-    }
+    [[nodiscard]] const Ptr& if_true() const noexcept { return right_; }
 
     /// Select: arm taken when `cond == 0`.
-    [[nodiscard]] const Ptr& if_false() const noexcept {
-        return alt_;
-    }
+    [[nodiscard]] const Ptr& if_false() const noexcept { return alt_; }
 
     /// When true, emit may use a real conditional (ignored divergent HotLoop if).
-    [[nodiscard]] bool prefer_branch() const noexcept {
-        return prefer_branch_;
-    }
+    [[nodiscard]] bool prefer_branch() const noexcept { return prefer_branch_; }
 
-    void set_prefer_branch(bool prefer) noexcept {
-        prefer_branch_ = prefer;
-    }
+    void set_prefer_branch(bool prefer) noexcept { prefer_branch_ = prefer; }
 
-    [[nodiscard]] const std::vector<Ptr>& args() const noexcept {
-        return args_;
-    }
+    [[nodiscard]] const std::vector<Ptr>& args() const noexcept { return args_; }
 
-    [[nodiscard]] const std::string& source_path() const noexcept {
-        return source_path_;
-    }
+    [[nodiscard]] const std::string& source_path() const noexcept { return source_path_; }
 
-    [[nodiscard]] std::optional<int> lineno() const noexcept {
-        return lineno_;
-    }
+    [[nodiscard]] std::optional<int> lineno() const noexcept { return lineno_; }
 
-    [[nodiscard]] std::optional<int> col_offset() const noexcept {
-        return col_offset_;
-    }
+    [[nodiscard]] std::optional<int> col_offset() const noexcept { return col_offset_; }
 
-    void set_location(
-        std::string path,
-        std::optional<int> lineno = std::nullopt,
-        std::optional<int> col = std::nullopt) {
+    void set_location(std::string path, std::optional<int> lineno = std::nullopt,
+                      std::optional<int> col = std::nullopt) {
         source_path_ = std::move(path);
         lineno_ = lineno;
         col_offset_ = col;
@@ -325,8 +273,8 @@ public:
         case Kind::Var: {
             const auto it = env.find(name_);
             if (it == env.end()) {
-                return diag_fail(
-                    DslRuleId::E032_primitive_body, "unbound variable '" + name_ + "'");
+                return diag_fail(DslRuleId::E032_primitive_body,
+                                 "unbound variable '" + name_ + "'");
             }
             return it->second;
         }
@@ -372,8 +320,8 @@ public:
         case Kind::Var: {
             const auto it = env.find(name_);
             if (it == env.end()) {
-                return diag_fail(
-                    DslRuleId::E032_primitive_body, "unbound variable '" + name_ + "'");
+                return diag_fail(DslRuleId::E032_primitive_body,
+                                 "unbound variable '" + name_ + "'");
             }
             return it->second;
         }
@@ -432,11 +380,8 @@ public:
             return call(name_, std::move(mapped));
         }
         case Kind::Select: {
-            auto out = make_select(
-                left_->remap(mapping),
-                right_->remap(mapping),
-                alt_->remap(mapping),
-                prefer_branch_);
+            auto out = make_select(left_->remap(mapping), right_->remap(mapping),
+                                   alt_->remap(mapping), prefer_branch_);
             return out;
         }
         default:
@@ -535,10 +480,8 @@ private:
     }
 
     /// Bit-identical to `Z29Device` (Parcae/Parcae/cuda/z29_device.hpp).
-    [[nodiscard]] StatusOr<Index29> eval_binary_device(
-        Kind k,
-        std::uint8_t l,
-        std::uint8_t r) const {
+    [[nodiscard]] StatusOr<Index29> eval_binary_device(Kind k, std::uint8_t l,
+                                                       std::uint8_t r) const {
         switch (k) {
         case Kind::Add:
             return Index29{device_add(l, r)};
@@ -576,8 +519,8 @@ private:
             if (r >= 64u) {
                 return Index29{0};
             }
-            return Index29{static_cast<std::uint8_t>(
-                (static_cast<unsigned long long>(l) << r) % Index29::modulus)};
+            return Index29{static_cast<std::uint8_t>((static_cast<unsigned long long>(l) << r) %
+                                                     Index29::modulus)};
         }
         case Kind::RShift: {
             if (r >= 8u) {
@@ -637,20 +580,19 @@ private:
     }
 
     [[nodiscard]] static std::uint8_t device_sub(std::uint8_t x, std::uint8_t y) noexcept {
-        const unsigned s =
-            static_cast<unsigned>(x) + Index29::modulus - static_cast<unsigned>(y);
+        const unsigned s = static_cast<unsigned>(x) + Index29::modulus - static_cast<unsigned>(y);
         return static_cast<std::uint8_t>(s >= Index29::modulus ? s - Index29::modulus : s);
     }
 
     [[nodiscard]] static std::uint8_t device_mul(std::uint8_t x, std::uint8_t y) noexcept {
-        return static_cast<std::uint8_t>(
-            (static_cast<unsigned>(x) * static_cast<unsigned>(y)) % Index29::modulus);
+        return static_cast<std::uint8_t>((static_cast<unsigned>(x) * static_cast<unsigned>(y)) %
+                                         Index29::modulus);
     }
 
     [[nodiscard]] static std::uint8_t device_inv(std::uint8_t a) noexcept {
-        constexpr std::uint8_t inv_table[Index29::modulus] = {
-            0,  1,  15, 10, 22, 6,  5,  25, 11, 13, 3,  8,  17, 9,  27,
-            2,  20, 12, 21, 26, 16, 18, 4,  24, 23, 7,  19, 14, 28};
+        constexpr std::uint8_t inv_table[Index29::modulus] = {0,  1,  15, 10, 22, 6, 5,  25, 11, 13,
+                                                              3,  8,  17, 9,  27, 2, 20, 12, 21, 26,
+                                                              16, 18, 4,  24, 23, 7, 19, 14, 28};
         return inv_table[a];
     }
 
@@ -712,8 +654,8 @@ private:
     [[nodiscard]] StatusOr<Index29> eval_call_dispatch(const Env& env, bool cuda_mirror) const {
         const auto as_bin = [&](Kind k) -> StatusOr<Index29> {
             if (args_.size() != 2 || !args_[0] || !args_[1]) {
-                return diag_fail(
-                    DslRuleId::E032_primitive_body, "call '" + name_ + "' expects 2 arguments");
+                return diag_fail(DslRuleId::E032_primitive_body,
+                                 "call '" + name_ + "' expects 2 arguments");
             }
             auto tmp = make_bin(k, args_[0], args_[1]);
             tmp->source_path_ = source_path_;
@@ -723,8 +665,8 @@ private:
         };
         const auto as_unary = [&](Kind k) -> StatusOr<Index29> {
             if (args_.size() != 1 || !args_[0]) {
-                return diag_fail(
-                    DslRuleId::E032_primitive_body, "call '" + name_ + "' expects 1 argument");
+                return diag_fail(DslRuleId::E032_primitive_body,
+                                 "call '" + name_ + "' expects 1 argument");
             }
             auto tmp = make_unary(k, args_[0]);
             tmp->source_path_ = source_path_;
@@ -810,8 +752,8 @@ private:
         }
         if (name_ == "z29_select") {
             if (args_.size() != 3 || !args_[0] || !args_[1] || !args_[2]) {
-                return diag_fail(
-                    DslRuleId::E032_primitive_body, "call 'z29_select' expects 3 arguments");
+                return diag_fail(DslRuleId::E032_primitive_body,
+                                 "call 'z29_select' expects 3 arguments");
             }
             auto tmp = make_select(args_[0], args_[1], args_[2]);
             tmp->source_path_ = source_path_;
@@ -819,9 +761,9 @@ private:
             tmp->col_offset_ = col_offset_;
             return cuda_mirror ? tmp->eval_cuda_mirror(env) : tmp->eval(env);
         }
-        return diag_fail(
-            DslRuleId::E032_primitive_body,
-            "unknown primitive call '" + name_ + "' (not a builtin; registry comes later)");
+        return diag_fail(DslRuleId::E032_primitive_body,
+                         "unknown primitive call '" + name_ +
+                             "' (not a builtin; registry comes later)");
     }
 
     Kind kind_ = Kind::Const;
@@ -829,7 +771,7 @@ private:
     std::string name_;
     Ptr left_;
     Ptr right_;
-    Ptr alt_;  // Select false-arm only
+    Ptr alt_; // Select false-arm only
     bool prefer_branch_ = false;
     std::vector<Ptr> args_;
     std::string source_path_;

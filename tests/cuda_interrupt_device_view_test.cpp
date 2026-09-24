@@ -1,9 +1,8 @@
-#include "interrupt_device_view.hpp"
-
 #include "parcae/interrupt/policy.hpp"
 
-#include <catch2/catch_test_macros.hpp>
+#include "interrupt_device_view.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -21,7 +20,7 @@ TEST_CASE("InterruptDeviceView prefers bitmask for T <= 4096", "[cuda][interrupt
     REQUIRE(view.value().sorted_skips().size() == 4);
 
     REQUIRE(view.value().bitmask_words()[0] == ((1u << 0) | (1u << 3) | (1u << 31)));
-    REQUIRE(view.value().bitmask_words()[1] == (1u << 0));  // index 32
+    REQUIRE(view.value().bitmask_words()[1] == (1u << 0)); // index 32
 
     for (std::size_t i = 0; i < 64; ++i) {
         REQUIRE(view.value().should_skip(i) == policy.value().should_skip(i));

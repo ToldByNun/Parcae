@@ -22,39 +22,24 @@ class TheoryRegistry {
 public:
     class CatalogEntry {
     public:
-        CatalogEntry(
-            TheoryUri uri,
-            std::string dsl_spec_version,
-            bool stale_spec,
-            bool ready,
-            std::string detail = {})
-            : uri_(std::move(uri)),
-              dsl_spec_version_(std::move(dsl_spec_version)),
-              stale_spec_(stale_spec),
-              ready_(ready),
-              detail_(std::move(detail)) {}
+        CatalogEntry(TheoryUri uri, std::string dsl_spec_version, bool stale_spec, bool ready,
+                     std::string detail = {})
+            : uri_(std::move(uri)), dsl_spec_version_(std::move(dsl_spec_version)),
+              stale_spec_(stale_spec), ready_(ready), detail_(std::move(detail)) {}
 
-        [[nodiscard]] const TheoryUri& uri() const noexcept {
-            return uri_;
-        }
+        [[nodiscard]] const TheoryUri& uri() const noexcept { return uri_; }
 
         [[nodiscard]] const std::string& dsl_spec_version() const noexcept {
             return dsl_spec_version_;
         }
 
         /// True when MAJOR differs from running `DslSpecVersion::current`.
-        [[nodiscard]] bool stale_spec() const noexcept {
-            return stale_spec_;
-        }
+        [[nodiscard]] bool stale_spec() const noexcept { return stale_spec_; }
 
         /// Ready-to-run: dsl_spec_version compatible with current toolchain.
-        [[nodiscard]] bool ready() const noexcept {
-            return ready_;
-        }
+        [[nodiscard]] bool ready() const noexcept { return ready_; }
 
-        [[nodiscard]] const std::string& detail() const noexcept {
-            return detail_;
-        }
+        [[nodiscard]] const std::string& detail() const noexcept { return detail_; }
 
         [[nodiscard]] nlohmann::json to_json() const {
             nlohmann::json out{
@@ -87,17 +72,16 @@ public:
     [[nodiscard]] static Status check_dsl_spec_string(std::string_view dsl_spec_version) {
         StatusOr<DslSpecVersion> parsed = DslSpecVersion::parse(dsl_spec_version);
         if (!parsed.ok()) {
-            return Status::error(
-                "DSL spec " + std::string(DslSpecVersion::current_string) +
-                " required; artifact dsl_spec_version '" + std::string(dsl_spec_version) +
-                "' is not valid SemVer — re-run parcae-compile");
+            return Status::error("DSL spec " + std::string(DslSpecVersion::current_string) +
+                                 " required; artifact dsl_spec_version '" +
+                                 std::string(dsl_spec_version) +
+                                 "' is not valid SemVer — re-run parcae-compile");
         }
         const Status compat = parsed.value().check_compatible_with_current();
         if (!compat.ok()) {
-            return Status::error(
-                "DSL spec " + std::string(DslSpecVersion::current_string) +
-                " required; artifact built for " + std::string(dsl_spec_version) +
-                " — re-run parcae-compile");
+            return Status::error("DSL spec " + std::string(DslSpecVersion::current_string) +
+                                 " required; artifact built for " + std::string(dsl_spec_version) +
+                                 " — re-run parcae-compile");
         }
         return Status::success();
     }
@@ -116,10 +100,8 @@ public:
     }
 
     /// Load manifest and enforce dsl_spec_version compatibility. Stale / newer → error.
-    [[nodiscard]] static StatusOr<TheoryArtifact> load(
-        const std::filesystem::path& theories_root,
-        std::string_view name,
-        std::uint32_t version) {
+    [[nodiscard]] static StatusOr<TheoryArtifact>
+    load(const std::filesystem::path& theories_root, std::string_view name, std::uint32_t version) {
         StatusOr<TheoryArtifact> artifact = TheoryArtifact::load(theories_root, name, version);
         if (!artifact.ok()) {
             return artifact.status();
@@ -131,9 +113,8 @@ public:
         return artifact;
     }
 
-    [[nodiscard]] static StatusOr<TheoryArtifact> load_uri(
-        const std::filesystem::path& theories_root,
-        std::string_view uri_text) {
+    [[nodiscard]] static StatusOr<TheoryArtifact>
+    load_uri(const std::filesystem::path& theories_root, std::string_view uri_text) {
         StatusOr<TheoryUri> uri = TheoryUri::parse(uri_text);
         if (!uri.ok()) {
             return uri.status();
@@ -141,32 +122,29 @@ public:
         return load(theories_root, uri.value().name(), uri.value().version());
     }
 
-    [[nodiscard]] static StatusOr<TheoryArtifact> load_uri(
-        const std::filesystem::path& theories_root,
-        const TheoryUri& uri) {
+    [[nodiscard]] static StatusOr<TheoryArtifact>
+    load_uri(const std::filesystem::path& theories_root, const TheoryUri& uri) {
         return load(theories_root, uri.name(), uri.version());
     }
 
     /// Scan `theories_root/<name>/<version>/manifest.json`. Stale-MAJOR entries
     /// are included with `stale_spec == true` (not ready-to-run).
-    [[nodiscard]] static StatusOr<std::vector<CatalogEntry>> list(
-        const std::filesystem::path& theories_root) {
+    [[nodiscard]] static StatusOr<std::vector<CatalogEntry>>
+    list(const std::filesystem::path& theories_root) {
         std::vector<CatalogEntry> out;
         std::error_code ec;
         if (!std::filesystem::exists(theories_root, ec) || ec) {
             return out;
         }
         if (!std::filesystem::is_directory(theories_root, ec) || ec) {
-            return Status::error(
-                "TheoryRegistry::list: theories_root is not a directory: " +
-                theories_root.string());
+            return Status::error("TheoryRegistry::list: theories_root is not a directory: " +
+                                 theories_root.string());
         }
 
-        for (const auto& name_entry :
-             std::filesystem::directory_iterator(theories_root, ec)) {
+        for (const auto& name_entry : std::filesystem::directory_iterator(theories_root, ec)) {
             if (ec) {
-                return Status::error(
-                    "TheoryRegistry::list: failed to iterate theories_root: " + ec.message());
+                return Status::error("TheoryRegistry::list: failed to iterate theories_root: " +
+                                     ec.message());
             }
             if (!name_entry.is_directory()) {
                 continue;
@@ -193,8 +171,7 @@ public:
                 if (!version.ok()) {
                     continue;
                 }
-                const std::filesystem::path manifest =
-                    ver_entry.path() / "manifest.json";
+                const std::filesystem::path manifest = ver_entry.path() / "manifest.json";
                 if (!std::filesystem::is_regular_file(manifest, ver_ec) || ver_ec) {
                     continue;
                 }
@@ -215,12 +192,7 @@ public:
                 if (!ready) {
                     detail = compat.message();
                 }
-                out.emplace_back(
-                    artifact.value().uri(),
-                    spec,
-                    stale,
-                    ready,
-                    std::move(detail));
+                out.emplace_back(artifact.value().uri(), spec, stale, ready, std::move(detail));
             }
         }
         return out;

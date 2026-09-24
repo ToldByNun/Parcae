@@ -4,7 +4,6 @@
 #include "parcae/core/status.hpp"
 
 #include <cuda_runtime_api.h>
-
 #include <string>
 #include <string_view>
 

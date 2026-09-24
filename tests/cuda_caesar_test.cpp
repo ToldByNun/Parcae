@@ -2,13 +2,13 @@
 
 #if defined(PARCAE_HAS_CUDA)
 
-#include "caesar_kernel.hpp"
-#include "parcae_cuda.hpp"
-#include "params.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/transform/caesar_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
+
+#include "caesar_kernel.hpp"
+#include "params.hpp"
+#include "parcae_cuda.hpp"
 
 #include <cstdint>
 #include <random>
@@ -34,17 +34,13 @@ namespace {
     return out;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("CUDA caesar parity vs CPU fixed encrypt decrypt", "[cuda][parity][caesar]") {
     REQUIRE(ParcaeCuda::available());
 
     const std::vector<Index29> input{
-        Index29{0},
-        Index29{1},
-        Index29{14},
-        Index29{27},
-        Index29{28},
+        Index29{0}, Index29{1}, Index29{14}, Index29{27}, Index29{28},
     };
     const Index29 shift{3};
 
@@ -79,9 +75,8 @@ TEST_CASE("CUDA caesar parity vs CPU random round-trip", "[cuda][parity][caesar]
     const std::uint8_t shift = static_cast<std::uint8_t>(dist(rng));
 
     std::vector<Index29> cpu_out(input.size());
-    REQUIRE(CaesarTransform::kernel(
-                input, cpu_out, Index29{shift}, TransformDirection::Encrypt)
-                .ok());
+    REQUIRE(
+        CaesarTransform::kernel(input, cpu_out, Index29{shift}, TransformDirection::Encrypt).ok());
 
     std::vector<std::uint8_t> host = to_bytes(input);
     std::vector<std::uint8_t> host_out(host.size());
@@ -97,7 +92,7 @@ TEST_CASE("CUDA caesar in-place on device", "[cuda][parity][caesar]") {
     REQUIRE(ParcaeCuda::available());
 
     std::vector<std::uint8_t> host{0, 5, 10, 28};
-    const std::vector<std::uint8_t> expected{27, 3, 8, 26};  // decrypt shift 2
+    const std::vector<std::uint8_t> expected{27, 3, 8, 26}; // decrypt shift 2
     REQUIRE(CaesarKernel::apply_host(host, host, 2, CudaDir::Decrypt).ok());
     REQUIRE(host == expected);
 }

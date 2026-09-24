@@ -1,5 +1,3 @@
-#include "cuda_score.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/corpus/fixture.hpp"
 #include "parcae/corpus/fixture_loader.hpp"
@@ -10,14 +8,14 @@
 #include "parcae/score/score_request.hpp"
 #include "parcae/validate/plaintext_normalizer.hpp"
 
+#include "cuda_score.hpp"
+
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
-
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #ifndef PARCAE_TEST_DATA_DIR
 #error "PARCAE_TEST_DATA_DIR must be defined"
@@ -79,9 +77,8 @@ TEST_CASE("CUDA score suite: CudaScore catalogs all Tier A ids", "[cuda][score][
 
 #if defined(PARCAE_HAS_CUDA)
 
-TEST_CASE(
-    "CUDA scores on plaintext vs random Index29 noise separate cleanly",
-    "[cuda][score][noise][suite]") {
+TEST_CASE("CUDA scores on plaintext vs random Index29 noise separate cleanly",
+          "[cuda][score][noise][suite]") {
     if (!CudaScore::available()) {
         SUCCEED("CUDA linked but device unavailable; skipping noise separation");
         return;
@@ -114,10 +111,10 @@ TEST_CASE(
     REQUIRE(exact_pp.value() == 1.0);
     REQUIRE(exact_np.value() == 0.0);
 
-    StatusOr<double> hamm_plain =
-        CudaScore::score("hamming_agreement", plain, "v0", nlohmann::json::object(), pairwise_plain);
-    StatusOr<double> hamm_noise =
-        CudaScore::score("hamming_agreement", noise, "v0", nlohmann::json::object(), pairwise_plain);
+    StatusOr<double> hamm_plain = CudaScore::score("hamming_agreement", plain, "v0",
+                                                   nlohmann::json::object(), pairwise_plain);
+    StatusOr<double> hamm_noise = CudaScore::score("hamming_agreement", noise, "v0",
+                                                   nlohmann::json::object(), pairwise_plain);
     REQUIRE(hamm_plain.ok());
     REQUIRE(hamm_noise.ok());
     REQUIRE(hamm_plain.value() == Catch::Approx(1.0).margin(0.0));
@@ -141,27 +138,23 @@ TEST_CASE(
     REQUIRE(chi_plain.value() < chi_noise.value());
 
     // Bit-identical to CPU ScoreRegistry on the same streams (suite gate).
-    REQUIRE(
-        CudaScore::score("ic_mod29", plain).value() ==
-        ScoreRegistry::score("ic_mod29", plain).value());
-    REQUIRE(
-        CudaScore::score("chi2_english_gp_v0", plain, "v0", nlohmann::json::object(), chi2_req)
-            .value() ==
-        ScoreRegistry::score("chi2_english_gp_v0", plain, "v0", nlohmann::json::object(), chi2_req)
-            .value());
+    REQUIRE(CudaScore::score("ic_mod29", plain).value() ==
+            ScoreRegistry::score("ic_mod29", plain).value());
+    REQUIRE(CudaScore::score("chi2_english_gp_v0", plain, "v0", nlohmann::json::object(), chi2_req)
+                .value() == ScoreRegistry::score("chi2_english_gp_v0", plain, "v0",
+                                                 nlohmann::json::object(), chi2_req)
+                                .value());
     REQUIRE(
         CudaScore::score("hamming_agreement", noise, "v0", nlohmann::json::object(), pairwise_plain)
-            .value() ==
-        ScoreRegistry::score(
-            "hamming_agreement", noise, "v0", nlohmann::json::object(), pairwise_plain)
-            .value());
+            .value() == ScoreRegistry::score("hamming_agreement", noise, "v0",
+                                             nlohmann::json::object(), pairwise_plain)
+                            .value());
 }
 
 #else
 
-TEST_CASE(
-    "CUDA score noise separation skipped (PARCAE_HAS_CUDA unset)",
-    "[cuda][score][noise][suite]") {
+TEST_CASE("CUDA score noise separation skipped (PARCAE_HAS_CUDA unset)",
+          "[cuda][score][noise][suite]") {
     SUCCEED("Build with PARCAE_BUILD_CUDA=ON to exercise CudaScore noise separation");
 }
 

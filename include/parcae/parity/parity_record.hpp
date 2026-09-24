@@ -12,13 +12,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// CPU↔CUDA parity transcript (`parcae.parity_record.v0`).
 ///
@@ -32,29 +31,19 @@ public:
 
     ParityRecord() = default;
 
-    [[nodiscard]] const std::string& transform_id() const noexcept {
-        return transform_id_;
-    }
+    [[nodiscard]] const std::string& transform_id() const noexcept { return transform_id_; }
 
     [[nodiscard]] const std::string& params_hash_sha256() const noexcept {
         return params_hash_sha256_;
     }
 
-    [[nodiscard]] const std::string& input_sha256() const noexcept {
-        return input_sha256_;
-    }
+    [[nodiscard]] const std::string& input_sha256() const noexcept { return input_sha256_; }
 
-    [[nodiscard]] const std::string& output_sha256() const noexcept {
-        return output_sha256_;
-    }
+    [[nodiscard]] const std::string& output_sha256() const noexcept { return output_sha256_; }
 
-    [[nodiscard]] const std::string& interrupt_sha256() const noexcept {
-        return interrupt_sha256_;
-    }
+    [[nodiscard]] const std::string& interrupt_sha256() const noexcept { return interrupt_sha256_; }
 
-    [[nodiscard]] const std::string& backend() const noexcept {
-        return backend_;
-    }
+    [[nodiscard]] const std::string& backend() const noexcept { return backend_; }
 
     [[nodiscard]] nlohmann::json to_json() const {
         return nlohmann::json{
@@ -76,13 +65,8 @@ public:
             root.at("parity_schema").get<std::string>() != schema_id) {
             return Status::error("unsupported or missing parity_schema");
         }
-        for (const char* key :
-             {"transform_id",
-              "params_hash_sha256",
-              "input_sha256",
-              "output_sha256",
-              "interrupt_sha256",
-              "backend"}) {
+        for (const char* key : {"transform_id", "params_hash_sha256", "input_sha256",
+                                "output_sha256", "interrupt_sha256", "backend"}) {
             if (!root.contains(key) || !root.at(key).is_string()) {
                 return Status::error(std::string("parity record missing string field: ") + key);
             }
@@ -98,13 +82,10 @@ public:
     }
 
     /// Build a record from already-computed buffers (no transform apply).
-    [[nodiscard]] static ParityRecord capture(
-        std::string_view transform_id,
-        const nlohmann::json& params,
-        const InterruptPolicy& interrupt,
-        std::span<const Index29> input,
-        std::span<const Index29> output,
-        std::string_view backend = "cpu") {
+    [[nodiscard]] static ParityRecord
+    capture(std::string_view transform_id, const nlohmann::json& params,
+            const InterruptPolicy& interrupt, std::span<const Index29> input,
+            std::span<const Index29> output, std::string_view backend = "cpu") {
         ParityRecord record;
         record.transform_id_ = std::string(transform_id);
         record.params_hash_sha256_ = hash_json(params);
@@ -116,20 +97,17 @@ public:
     }
 
     /// Apply a catalog transform, then capture the parity transcript.
-    [[nodiscard]] static StatusOr<std::pair<std::vector<Index29>, ParityRecord>> apply_and_capture(
-        const TransformId& id,
-        std::span<const Index29> input,
-        const nlohmann::json& params,
-        TransformDirection direction,
-        const InterruptPolicy& interrupt = InterruptPolicy::none(),
-        std::string_view backend = "cpu") {
+    [[nodiscard]] static StatusOr<std::pair<std::vector<Index29>, ParityRecord>>
+    apply_and_capture(const TransformId& id, std::span<const Index29> input,
+                      const nlohmann::json& params, TransformDirection direction,
+                      const InterruptPolicy& interrupt = InterruptPolicy::none(),
+                      std::string_view backend = "cpu") {
         StatusOr<std::vector<Index29>> output =
             ApplyTransform::apply(id, input, params, direction, interrupt);
         if (!output.ok()) {
             return output.status();
         }
-        ParityRecord record = capture(
-            id.str(), params, interrupt, input, output.value(), backend);
+        ParityRecord record = capture(id.str(), params, interrupt, input, output.value(), backend);
         return std::make_pair(std::move(output.value()), std::move(record));
     }
 

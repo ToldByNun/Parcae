@@ -1,7 +1,6 @@
-#include "vigenere_key_kernel.hpp"
-
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
+#include "vigenere_key_kernel.hpp"
 #include "z29_device.hpp"
 
 #include <cuda_runtime_api.h>
@@ -10,16 +9,13 @@ namespace {
 
 constexpr int kThreadsPerBlock = 256;
 
-[[nodiscard]] __device__ bool bitmask_should_skip(
-    const std::uint32_t* words,
-    std::size_t index) {
+[[nodiscard]] __device__ bool bitmask_should_skip(const std::uint32_t* words, std::size_t index) {
     return (words[index >> 5] & (1u << (index & 31u))) != 0u;
 }
 
 /// Non-skip count in `[0, index)` for bitmask encoding.
-[[nodiscard]] __device__ std::uint32_t bitmask_consumed_before(
-    const std::uint32_t* words,
-    std::size_t index) {
+[[nodiscard]] __device__ std::uint32_t bitmask_consumed_before(const std::uint32_t* words,
+                                                               std::size_t index) {
     std::uint32_t consumed = 0;
     const std::size_t full_words = index >> 5;
     for (std::size_t w = 0; w < full_words; ++w) {
@@ -33,10 +29,8 @@ constexpr int kThreadsPerBlock = 256;
     return consumed;
 }
 
-[[nodiscard]] __device__ std::uint32_t sorted_skips_before(
-    const std::uint32_t* skips,
-    std::uint32_t skip_count,
-    std::uint32_t index) {
+[[nodiscard]] __device__ std::uint32_t
+sorted_skips_before(const std::uint32_t* skips, std::uint32_t skip_count, std::uint32_t index) {
     std::uint32_t lo = 0;
     std::uint32_t hi = skip_count;
     while (lo < hi) {
@@ -50,10 +44,8 @@ constexpr int kThreadsPerBlock = 256;
     return lo;
 }
 
-[[nodiscard]] __device__ bool sorted_should_skip(
-    const std::uint32_t* skips,
-    std::uint32_t skip_count,
-    std::uint32_t index) {
+[[nodiscard]] __device__ bool sorted_should_skip(const std::uint32_t* skips,
+                                                 std::uint32_t skip_count, std::uint32_t index) {
     std::uint32_t lo = 0;
     std::uint32_t hi = skip_count;
     while (lo < hi) {
@@ -67,16 +59,10 @@ constexpr int kThreadsPerBlock = 256;
     return lo < skip_count && skips[lo] == index;
 }
 
-__global__ void vigenere_key_kernel(
-    const std::uint8_t* in,
-    std::uint8_t* out,
-    std::size_t count,
-    const std::uint8_t* key,
-    std::uint32_t key_len,
-    const std::uint32_t* interrupt_data,
-    std::uint32_t skip_count,
-    std::uint8_t use_bitmask,
-    std::uint8_t encrypt) {
+__global__ void vigenere_key_kernel(const std::uint8_t* in, std::uint8_t* out, std::size_t count,
+                                    const std::uint8_t* key, std::uint32_t key_len,
+                                    const std::uint32_t* interrupt_data, std::uint32_t skip_count,
+                                    std::uint8_t use_bitmask, std::uint8_t encrypt) {
     const std::size_t i =
         static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
         static_cast<std::size_t>(threadIdx.x);
@@ -108,17 +94,14 @@ __global__ void vigenere_key_kernel(
     }
 }
 
-}  // namespace
+} // namespace
 
-Status VigenereKeyKernel::launch_device(
-    const std::uint8_t* device_in,
-    std::uint8_t* device_out,
-    std::size_t count,
-    const std::uint8_t* device_key,
-    std::uint32_t key_len,
-    const InterruptDeviceView& interrupts,
-    const std::uint32_t* device_bitmask_or_skips,
-    CudaDir direction) {
+Status VigenereKeyKernel::launch_device(const std::uint8_t* device_in, std::uint8_t* device_out,
+                                        std::size_t count, const std::uint8_t* device_key,
+                                        std::uint32_t key_len,
+                                        const InterruptDeviceView& interrupts,
+                                        const std::uint32_t* device_bitmask_or_skips,
+                                        CudaDir direction) {
     if (key_len == 0) {
         return Status::error("VigenereKeyKernel: key must be non-empty");
     }
@@ -151,16 +134,9 @@ Status VigenereKeyKernel::launch_device(
 
     const int blocks = static_cast<int>((count + static_cast<std::size_t>(kThreadsPerBlock) - 1u) /
                                         static_cast<std::size_t>(kThreadsPerBlock));
-    vigenere_key_kernel<<<blocks, kThreadsPerBlock>>>(
-        device_in,
-        device_out,
-        count,
-        device_key,
-        key_len,
-        device_bitmask_or_skips,
-        skip_count,
-        use_bitmask,
-        encrypt);
+    vigenere_key_kernel<<<blocks, kThreadsPerBlock>>>(device_in, device_out, count, device_key,
+                                                      key_len, device_bitmask_or_skips, skip_count,
+                                                      use_bitmask, encrypt);
 
     Status launch = CudaError::to_status(cudaGetLastError(), "VigenereKeyKernel::launch_device");
     if (!launch.ok()) {
@@ -169,12 +145,10 @@ Status VigenereKeyKernel::launch_device(
     return CudaError::to_status(cudaDeviceSynchronize(), "VigenereKeyKernel::launch_device sync");
 }
 
-Status VigenereKeyKernel::apply_host(
-    std::span<const std::uint8_t> host_in,
-    std::span<std::uint8_t> host_out,
-    std::span<const std::uint8_t> host_key,
-    const InterruptDeviceView& interrupts,
-    CudaDir direction) {
+Status VigenereKeyKernel::apply_host(std::span<const std::uint8_t> host_in,
+                                     std::span<std::uint8_t> host_out,
+                                     std::span<const std::uint8_t> host_key,
+                                     const InterruptDeviceView& interrupts, CudaDir direction) {
     if (host_in.size() != host_out.size()) {
         return Status::error("VigenereKeyKernel::apply_host size mismatch");
     }
@@ -192,7 +166,8 @@ Status VigenereKeyKernel::apply_host(
     }
 
     // Upload interrupt encoding once; keep buffer alive across launch + D2H.
-    StatusOr<DeviceBuffer<std::uint32_t>> device_interrupt = [&]() -> StatusOr<DeviceBuffer<std::uint32_t>> {
+    StatusOr<DeviceBuffer<std::uint32_t>> device_interrupt =
+        [&]() -> StatusOr<DeviceBuffer<std::uint32_t>> {
         if (interrupts.encoding() == InterruptDeviceView::Encoding::Bitmask) {
             return DeviceBuffer<std::uint32_t>::from_host(interrupts.bitmask_words());
         }
@@ -211,14 +186,8 @@ Status VigenereKeyKernel::apply_host(
     auto run = [&](DeviceBuffer<std::uint8_t>& device_in,
                    DeviceBuffer<std::uint8_t>& device_out) -> Status {
         Status launched = launch_device(
-            device_in.data(),
-            device_out.data(),
-            host_in.size(),
-            device_key.value().data(),
-            static_cast<std::uint32_t>(host_key.size()),
-            interrupts,
-            interrupt_ptr,
-            direction);
+            device_in.data(), device_out.data(), host_in.size(), device_key.value().data(),
+            static_cast<std::uint32_t>(host_key.size()), interrupts, interrupt_ptr, direction);
         if (!launched.ok()) {
             return launched;
         }

@@ -2,11 +2,11 @@
 
 #if defined(PARCAE_HAS_CUDA)
 
-#include "atbash_kernel.hpp"
-#include "parcae_cuda.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/transform/atbash_transform.hpp"
+
+#include "atbash_kernel.hpp"
+#include "parcae_cuda.hpp"
 
 #include <cstdint>
 #include <random>
@@ -32,17 +32,13 @@ namespace {
     return out;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("CUDA atbash parity vs CPU fixed vector", "[cuda][parity][atbash]") {
     REQUIRE(ParcaeCuda::available());
 
     const std::vector<Index29> input{
-        Index29{0},
-        Index29{1},
-        Index29{14},
-        Index29{27},
-        Index29{28},
+        Index29{0}, Index29{1}, Index29{14}, Index29{27}, Index29{28},
     };
     std::vector<Index29> cpu_out(input.size());
     REQUIRE(AtbashTransform::kernel(input, cpu_out).ok());

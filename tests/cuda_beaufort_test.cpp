@@ -2,13 +2,13 @@
 
 #if defined(PARCAE_HAS_CUDA)
 
-#include "beaufort_key_kernel.hpp"
-#include "interrupt_device_view.hpp"
-#include "parcae_cuda.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/interrupt/policy.hpp"
 #include "parcae/transform/beaufort_key_transform.hpp"
+
+#include "beaufort_key_kernel.hpp"
+#include "interrupt_device_view.hpp"
+#include "parcae_cuda.hpp"
 
 #include <cstdint>
 #include <random>
@@ -34,14 +34,13 @@ namespace {
     return out;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("CUDA beaufort parity involution and interrupts", "[cuda][parity][beaufort]") {
     REQUIRE(ParcaeCuda::available());
 
     const std::vector<std::uint8_t> key{5, 7, 11};
-    const std::vector<Index29> plain{
-        Index29{0}, Index29{1}, Index29{10}, Index29{28}, Index29{14}};
+    const std::vector<Index29> plain{Index29{0}, Index29{1}, Index29{10}, Index29{28}, Index29{14}};
     const std::vector<std::uint8_t> host_in = to_bytes(plain);
 
     SECTION("involution no interrupts") {
@@ -71,8 +70,8 @@ TEST_CASE("CUDA beaufort parity involution and interrupts", "[cuda][parity][beau
         REQUIRE(view.ok());
 
         std::vector<Index29> cpu_out(plain.size());
-        REQUIRE(BeaufortKeyTransform::kernel(
-                    plain, cpu_out, from_bytes(key), policy.value().skip_indices())
+        REQUIRE(BeaufortKeyTransform::kernel(plain, cpu_out, from_bytes(key),
+                                             policy.value().skip_indices())
                     .ok());
 
         std::vector<std::uint8_t> host_out(host_in.size());
@@ -126,9 +125,9 @@ TEST_CASE("CUDA beaufort random and sorted-skips encoding", "[cuda][parity][beau
     REQUIRE(policy.ok());
 
     std::vector<Index29> cpu_out(plain.size());
-    REQUIRE(BeaufortKeyTransform::kernel(
-                plain, cpu_out, from_bytes(key), policy.value().skip_indices())
-                .ok());
+    REQUIRE(
+        BeaufortKeyTransform::kernel(plain, cpu_out, from_bytes(key), policy.value().skip_indices())
+            .ok());
 
     const std::vector<std::uint8_t> host_in = to_bytes(plain);
     StatusOr<InterruptDeviceView> view =
@@ -150,8 +149,8 @@ TEST_CASE("CUDA beaufort random and sorted-skips encoding", "[cuda][parity][beau
     REQUIRE(large_view.value().encoding() == InterruptDeviceView::Encoding::SortedSkips);
 
     std::vector<Index29> large_cpu(large_T);
-    REQUIRE(BeaufortKeyTransform::kernel(
-                large_plain, large_cpu, from_bytes(key), large_policy.value().skip_indices())
+    REQUIRE(BeaufortKeyTransform::kernel(large_plain, large_cpu, from_bytes(key),
+                                         large_policy.value().skip_indices())
                 .ok());
 
     const std::vector<std::uint8_t> large_in = to_bytes(large_plain);

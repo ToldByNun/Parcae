@@ -27,6 +27,7 @@
 
 #if defined(PARCAE_HAS_CUDA)
 #include "parcae/run/throughput_tiers.hpp"
+
 #include "parcae_cuda.hpp"
 #endif
 
@@ -50,17 +51,11 @@ public:
     public:
         Options() = default;
 
-        [[nodiscard]] bool allow_cuda() const noexcept {
-            return allow_cuda_;
-        }
+        [[nodiscard]] bool allow_cuda() const noexcept { return allow_cuda_; }
 
-        void set_allow_cuda(bool enabled) noexcept {
-            allow_cuda_ = enabled;
-        }
+        void set_allow_cuda(bool enabled) noexcept { allow_cuda_ = enabled; }
 
-        [[nodiscard]] bool require_cuda() const noexcept {
-            return require_cuda_;
-        }
+        [[nodiscard]] bool require_cuda() const noexcept { return require_cuda_; }
 
         void set_require_cuda(bool enabled) noexcept {
             require_cuda_ = enabled;
@@ -69,37 +64,21 @@ public:
             }
         }
 
-        [[nodiscard]] bool allow_skip() const noexcept {
-            return allow_skip_;
-        }
+        [[nodiscard]] bool allow_skip() const noexcept { return allow_skip_; }
 
-        void set_allow_skip(bool enabled) noexcept {
-            allow_skip_ = enabled;
-        }
+        void set_allow_skip(bool enabled) noexcept { allow_skip_ = enabled; }
 
-        [[nodiscard]] bool cpu_full() const noexcept {
-            return cpu_full_;
-        }
+        [[nodiscard]] bool cpu_full() const noexcept { return cpu_full_; }
 
-        void set_cpu_full(bool enabled) noexcept {
-            cpu_full_ = enabled;
-        }
+        void set_cpu_full(bool enabled) noexcept { cpu_full_ = enabled; }
 
-        [[nodiscard]] BackendSelect backend() const noexcept {
-            return backend_;
-        }
+        [[nodiscard]] BackendSelect backend() const noexcept { return backend_; }
 
-        void set_backend(BackendSelect backend) noexcept {
-            backend_ = backend;
-        }
+        void set_backend(BackendSelect backend) noexcept { backend_ = backend; }
 
-        [[nodiscard]] std::uint32_t seed() const noexcept {
-            return seed_;
-        }
+        [[nodiscard]] std::uint32_t seed() const noexcept { return seed_; }
 
-        void set_seed(std::uint32_t seed) noexcept {
-            seed_ = seed;
-        }
+        void set_seed(std::uint32_t seed) noexcept { seed_ = seed; }
 
     private:
         bool allow_cuda_ = false;
@@ -107,7 +86,7 @@ public:
         bool allow_skip_ = false;
         bool cpu_full_ = false;
         BackendSelect backend_ = BackendSelect::Both;
-        std::uint32_t seed_ = 0x48415244u;  // 'HARD'
+        std::uint32_t seed_ = 0x48415244u; // 'HARD'
     };
 
     [[nodiscard]] static StatusOr<BackendSelect> parse_backend(std::string_view text) {
@@ -120,38 +99,35 @@ public:
         if (text == "both" || text.empty()) {
             return BackendSelect::Both;
         }
-        return Status::error(
-            "BenchHardwareSuite: --backend must be cpu|cuda|both (got '" + std::string(text) +
-            "')");
+        return Status::error("BenchHardwareSuite: --backend must be cpu|cuda|both (got '" +
+                             std::string(text) + "')");
     }
 
-    [[nodiscard]] static StatusOr<BenchReport::Document> run(
-        const Context& ctx, const Options& options = Options{}) {
+    [[nodiscard]] static StatusOr<BenchReport::Document> run(const Context& ctx,
+                                                             const Options& options = Options{}) {
         StatusOr<ExpectedFrequencyTable> freqs = ctx.load_english_gp_expected();
         if (!freqs.ok()) {
             return freqs.status();
         }
 
-        const bool want_cpu = options.backend() == BackendSelect::Cpu ||
-                              options.backend() == BackendSelect::Both;
-        const bool want_cuda_leg = options.backend() == BackendSelect::Cuda ||
-                                   options.backend() == BackendSelect::Both;
+        const bool want_cpu =
+            options.backend() == BackendSelect::Cpu || options.backend() == BackendSelect::Both;
+        const bool want_cuda_leg =
+            options.backend() == BackendSelect::Cuda || options.backend() == BackendSelect::Both;
 
-        if (want_cuda_leg && options.backend() == BackendSelect::Cuda &&
-            !options.allow_cuda() && !options.require_cuda()) {
+        if (want_cuda_leg && options.backend() == BackendSelect::Cuda && !options.allow_cuda() &&
+            !options.require_cuda()) {
             return Status::error(
                 "BenchHardwareSuite: CUDA backend requires --allow-cuda or --require-cuda");
         }
 
         // Both without CUDA opt-in → CPU-only (CI-friendly).
-        const bool attempt_cuda =
-            want_cuda_leg && (options.allow_cuda() || options.require_cuda());
+        const bool attempt_cuda = want_cuda_leg && (options.allow_cuda() || options.require_cuda());
 
         bool cuda_usable = false;
         if (attempt_cuda) {
 #if defined(PARCAE_HAS_CUDA)
-            cuda_usable =
-                BackendUtil::cuda_built() && ParcaeCuda::available();
+            cuda_usable = BackendUtil::cuda_built() && ParcaeCuda::available();
 #else
             cuda_usable = false;
 #endif
@@ -210,11 +186,10 @@ public:
                         }
                     }
                     if (found == nullptr) {
-                        return Status::error(
-                            std::string("BenchHardwareSuite: missing CUDA tier ") + id);
+                        return Status::error(std::string("BenchHardwareSuite: missing CUDA tier ") +
+                                             id);
                     }
-                    doc.add_row(from_cuda_tier(
-                        *found, have_cpu[i] ? cpu_rps[i] : 0.0));
+                    doc.add_row(from_cuda_tier(*found, have_cpu[i] ? cpu_rps[i] : 0.0));
                 }
 #else
                 (void)cpu_rps;
@@ -242,8 +217,7 @@ private:
         bool partial_proxy = false;
     };
 
-    [[nodiscard]] static CpuScale scale_for(
-        const BenchTierSpec::Tier& tier, bool cpu_full) {
+    [[nodiscard]] static CpuScale scale_for(const BenchTierSpec::Tier& tier, bool cpu_full) {
         CpuScale scale;
         scale.partial_proxy = (std::string_view{tier.id} != "T1");
         if (cpu_full) {
@@ -259,17 +233,14 @@ private:
         scale.tokens = kSmokeTokens;
         scale.repeats = 1u;
         const double full = static_cast<double>(tier.candidates) *
-                            static_cast<double>(tier.tokens) *
-                            static_cast<double>(tier.repeats);
+                            static_cast<double>(tier.tokens) * static_cast<double>(tier.repeats);
         const double smoke = static_cast<double>(scale.candidates) *
-                             static_cast<double>(scale.tokens) *
-                             static_cast<double>(scale.repeats);
+                             static_cast<double>(scale.tokens) * static_cast<double>(scale.repeats);
         scale.scale_factor = full > 0.0 ? (smoke / full) : 0.0;
         return scale;
     }
 
-    [[nodiscard]] static std::vector<Index29> random_indices(
-        std::size_t n, std::uint32_t seed) {
+    [[nodiscard]] static std::vector<Index29> random_indices(std::size_t n, std::uint32_t seed) {
         std::mt19937 rng(seed);
         std::uniform_int_distribution<int> dist(0, Index29::modulus - 1);
         std::vector<Index29> out;
@@ -280,29 +251,16 @@ private:
         return out;
     }
 
-    [[nodiscard]] static BenchReport::Row make_skipped_cuda_row(
-        const BenchTierSpec::Tier& tier) {
+    [[nodiscard]] static BenchReport::Row make_skipped_cuda_row(const BenchTierSpec::Tier& tier) {
         return BenchReport::Row::make(
-            tier.id,
-            tier.workload,
-            BenchReport::Suite::Hardware,
-            BenchReport::Backend::Cuda,
-            BenchReport::RowStatus::Skipped,
-            0.0,
-            0.0,
-            0.0,
-            tier.slo_min,
-            tier.slo_max,
-            tier.estimated_peak,
-            tier.candidates,
-            tier.tokens,
-            tier.repeats,
-            "skipped_not_built");
+            tier.id, tier.workload, BenchReport::Suite::Hardware, BenchReport::Backend::Cuda,
+            BenchReport::RowStatus::Skipped, 0.0, 0.0, 0.0, tier.slo_min, tier.slo_max,
+            tier.estimated_peak, tier.candidates, tier.tokens, tier.repeats, "skipped_not_built");
     }
 
 #if defined(PARCAE_HAS_CUDA)
-    [[nodiscard]] static BenchReport::Row from_cuda_tier(
-        const ThroughputTiers::TierResult& tier, double cpu_runes_per_sec) {
+    [[nodiscard]] static BenchReport::Row from_cuda_tier(const ThroughputTiers::TierResult& tier,
+                                                         double cpu_runes_per_sec) {
         std::ostringstream detail;
         if (cpu_runes_per_sec > 0.0 && tier.runes_per_sec > 0.0) {
             const double ratio = tier.runes_per_sec / cpu_runes_per_sec;
@@ -319,30 +277,17 @@ private:
                       tier.runes_per_sec
                 : 0.0;
         // Measured CUDA row passes if timing succeeded (no hosted absolute SLO gate).
-        return BenchReport::Row::make(
-            tier.name,
-            tier.workload,
-            BenchReport::Suite::Hardware,
-            BenchReport::Backend::Cuda,
-            BenchReport::RowStatus::Pass,
-            tier.runes_per_sec,
-            keys,
-            wall,
-            tier.target_min,
-            tier.target_max,
-            BenchTierSpec::estimated_peak(tier.name),
-            tier.candidates,
-            tier.tokens,
-            tier.repeats,
-            detail.str());
+        return BenchReport::Row::make(tier.name, tier.workload, BenchReport::Suite::Hardware,
+                                      BenchReport::Backend::Cuda, BenchReport::RowStatus::Pass,
+                                      tier.runes_per_sec, keys, wall, tier.target_min,
+                                      tier.target_max, BenchTierSpec::estimated_peak(tier.name),
+                                      tier.candidates, tier.tokens, tier.repeats, detail.str());
     }
 #endif
 
-    [[nodiscard]] static StatusOr<BenchReport::Row> measure_cpu_tier(
-        const BenchTierSpec::Tier& tier,
-        const ExpectedFrequencyTable& freqs,
-        const Options& options,
-        std::size_t tier_index) {
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    measure_cpu_tier(const BenchTierSpec::Tier& tier, const ExpectedFrequencyTable& freqs,
+                     const Options& options, std::size_t tier_index) {
         const CpuScale scale = scale_for(tier, options.cpu_full());
         const std::uint32_t seed =
             options.seed() ^ static_cast<std::uint32_t>(0x100u * (tier_index + 1u));
@@ -351,16 +296,12 @@ private:
 
         volatile double sink = 0.0;
 
-        StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cpu(
-            scale.repeats,
-            scale.candidates,
-            scale.tokens,
-            [&]() -> Status {
+        StatusOr<BenchMetric::Sample> sample =
+            BenchTimer::time_cpu(scale.repeats, scale.candidates, scale.tokens, [&]() -> Status {
                 for (std::size_t c = 0; c < scale.candidates; ++c) {
-                    const Index29 shift{
-                        static_cast<std::uint8_t>(c % Index29::modulus)};
-                    Status dec = CaesarTransform::kernel(
-                        cipher, plain, shift, TransformDirection::Decrypt);
+                    const Index29 shift{static_cast<std::uint8_t>(c % Index29::modulus)};
+                    Status dec =
+                        CaesarTransform::kernel(cipher, plain, shift, TransformDirection::Decrypt);
                     if (!dec.ok()) {
                         return dec;
                     }
@@ -378,8 +319,7 @@ private:
         (void)sink;
 
         std::ostringstream detail;
-        detail << "scale_factor=" << std::scientific << std::setprecision(3)
-               << scale.scale_factor;
+        detail << "scale_factor=" << std::scientific << std::setprecision(3) << scale.scale_factor;
         if (scale.partial_proxy) {
             detail << "; cpu_partial: caesar_chi2_proxy";
         }
@@ -389,22 +329,11 @@ private:
             detail << "; cpu_full";
         }
 
-        return BenchReport::Row::make(
-            tier.id,
-            tier.workload,
-            BenchReport::Suite::Hardware,
-            BenchReport::Backend::Cpu,
-            BenchReport::RowStatus::Pass,
-            sample.value().runes_per_sec(),
-            sample.value().keys_per_sec(),
-            sample.value().wall_seconds(),
-            0.0,
-            0.0,
-            0.0,
-            scale.candidates,
-            scale.tokens,
-            scale.repeats,
-            detail.str());
+        return BenchReport::Row::make(tier.id, tier.workload, BenchReport::Suite::Hardware,
+                                      BenchReport::Backend::Cpu, BenchReport::RowStatus::Pass,
+                                      sample.value().runes_per_sec(), sample.value().keys_per_sec(),
+                                      sample.value().wall_seconds(), 0.0, 0.0, 0.0,
+                                      scale.candidates, scale.tokens, scale.repeats, detail.str());
     }
 };
 

@@ -1,10 +1,8 @@
+#include <catch2/catch_test_macros.hpp>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include <parcae/gematria/gematria_profile.hpp>
 #include <parcae/gematria/gematria_profile_loader.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-#include <nlohmann/json.hpp>
-
-#include <fstream>
 #include <sstream>
 #include <string>
 
@@ -26,7 +24,7 @@ std::string valid_profile_path() {
     return std::string(PARCAE_TEST_DATA_DIR) + "/profiles/gematria/gematria-primus-v0.json";
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("Load canonical gematria-primus-v0 profile", "[gematria]") {
     StatusOr<GematriaProfile> profile = GematriaProfileLoader::load_from_file(valid_profile_path());
@@ -65,7 +63,7 @@ TEST_CASE("Reject profile with wrong entry count", "[gematria]") {
 TEST_CASE("Reject profile with non-contiguous indices", "[gematria]") {
     std::string json = read_file(valid_profile_path());
     nlohmann::json root = nlohmann::json::parse(json);
-    root.at("entries").at(5).at("index") = 4;  // duplicate 4, missing 5
+    root.at("entries").at(5).at("index") = 4; // duplicate 4, missing 5
 
     StatusOr<GematriaProfile> profile = GematriaProfileLoader::load_from_string(root.dump());
     REQUIRE_FALSE(profile.ok());
@@ -74,7 +72,7 @@ TEST_CASE("Reject profile with non-contiguous indices", "[gematria]") {
 TEST_CASE("Reject profile with wrong prime for index", "[gematria]") {
     std::string json = read_file(valid_profile_path());
     nlohmann::json root = nlohmann::json::parse(json);
-    root.at("entries").at(0).at("prime") = 4;  // not prime / not first-29 table
+    root.at("entries").at(0).at("prime") = 4; // not prime / not first-29 table
 
     StatusOr<GematriaProfile> profile = GematriaProfileLoader::load_from_string(root.dump());
     REQUIRE_FALSE(profile.ok());

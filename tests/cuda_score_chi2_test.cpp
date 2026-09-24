@@ -1,15 +1,14 @@
-#include <catch2/catch_test_macros.hpp>
-
-#include <array>
-#include <cstdint>
-#include <random>
-#include <string>
-#include <vector>
-
 #include "parcae/core/index29.hpp"
 #include "parcae/score/chi2_english_gp.hpp"
 #include "parcae/score/expected_frequency_loader.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
+
+#include <array>
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
+#include <random>
+#include <string>
+#include <vector>
 
 #ifndef PARCAE_TEST_DATA_DIR
 #error "PARCAE_TEST_DATA_DIR must be defined"
@@ -57,8 +56,7 @@ TEST_CASE("CUDA chi2_english_gp_v0 matches CPU locked table", "[cuda][score][chi
     };
 
     StatusOr<double> cpu = Chi2EnglishGp::score(xs, table);
-    StatusOr<double> cuda =
-        Chi2EnglishGpScore::score_host(to_bytes(xs), table.probabilities());
+    StatusOr<double> cuda = Chi2EnglishGpScore::score_host(to_bytes(xs), table.probabilities());
     REQUIRE(cpu.ok());
     REQUIRE(cuda.ok());
     REQUIRE(cuda.value() == cpu.value());

@@ -1,3 +1,7 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cstddef>
+#include <cstdint>
+#include <nlohmann/json.hpp>
 #include <parcae/core/index29.hpp>
 #include <parcae/interrupt/policy.hpp>
 #include <parcae/transform/affine_transform.hpp>
@@ -9,13 +13,6 @@
 #include <parcae/transform/totient_prime_stream_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/vigenere_key_transform.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <nlohmann/json.hpp>
-
-#include <cstddef>
-#include <cstdint>
 #include <random>
 #include <vector>
 
@@ -57,11 +54,10 @@ namespace {
 }
 
 template <typename TransformT>
-void require_encrypt_decrypt_round_trip(
-    const TransformT& transform,
-    const std::vector<Index29>& plain,
-    const nlohmann::json& params,
-    const InterruptPolicy& interrupt) {
+void require_encrypt_decrypt_round_trip(const TransformT& transform,
+                                        const std::vector<Index29>& plain,
+                                        const nlohmann::json& params,
+                                        const InterruptPolicy& interrupt) {
     StatusOr<std::vector<Index29>> cipher =
         transform.apply(plain, params, TransformDirection::Encrypt, interrupt);
     REQUIRE(cipher.ok());
@@ -71,9 +67,10 @@ void require_encrypt_decrypt_round_trip(
     REQUIRE(recovered.value() == plain);
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE("Property: invertible families round-trip random Index29 streams", "[transform][property]") {
+TEST_CASE("Property: invertible families round-trip random Index29 streams",
+          "[transform][property]") {
     std::mt19937 rng(0xC1CADAu);
     constexpr int trials = 48;
 
@@ -83,8 +80,8 @@ TEST_CASE("Property: invertible families round-trip random Index29 streams", "[t
         const std::vector<Index29> plain = random_indices(rng, length);
         const InterruptPolicy interrupt = random_skips(rng, length);
 
-        require_encrypt_decrypt_round_trip(
-            IdentityTransform{}, plain, nlohmann::json::object(), interrupt);
+        require_encrypt_decrypt_round_trip(IdentityTransform{}, plain, nlohmann::json::object(),
+                                           interrupt);
 
         {
             AtbashTransform transform;
@@ -113,8 +110,7 @@ TEST_CASE("Property: invertible families round-trip random Index29 streams", "[t
         {
             std::uniform_int_distribution<std::size_t> key_len_dist(1, 12);
             const nlohmann::json params = random_key_params(rng, key_len_dist(rng));
-            require_encrypt_decrypt_round_trip(
-                VigenereKeyTransform{}, plain, params, interrupt);
+            require_encrypt_decrypt_round_trip(VigenereKeyTransform{}, plain, params, interrupt);
         }
 
         {
@@ -133,16 +129,16 @@ TEST_CASE("Property: invertible families round-trip random Index29 streams", "[t
         {
             std::uniform_int_distribution<int> start_dist(0, 20);
             const nlohmann::json params{{"prime_start_index", start_dist(rng)}};
-            require_encrypt_decrypt_round_trip(
-                TotientPrimeStreamTransform{}, plain, params, interrupt);
+            require_encrypt_decrypt_round_trip(TotientPrimeStreamTransform{}, plain, params,
+                                               interrupt);
         }
 
         {
             std::uniform_int_distribution<int> shift_dist(0, 28);
             const std::uint8_t shift = static_cast<std::uint8_t>(shift_dist(rng));
             const nlohmann::json params = ComposeTransform::atbash_then_caesar_params(shift);
-            require_encrypt_decrypt_round_trip(
-                ComposeTransform{}, plain, params, InterruptPolicy::none());
+            require_encrypt_decrypt_round_trip(ComposeTransform{}, plain, params,
+                                               InterruptPolicy::none());
         }
     }
 }

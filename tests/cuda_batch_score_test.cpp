@@ -2,12 +2,6 @@
 
 #if defined(PARCAE_HAS_CUDA)
 
-#include "caesar_batch_kernel.hpp"
-#include "candidate_batch_buffers.hpp"
-#include "cuda_batch_score.hpp"
-#include "parcae_cuda.hpp"
-#include "params.hpp"
-
 #include "parcae/batch/batch_execution.hpp"
 #include "parcae/batch/batch_runner.hpp"
 #include "parcae/core/index29.hpp"
@@ -16,11 +10,16 @@
 #include "parcae/transform/caesar_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
 
+#include "caesar_batch_kernel.hpp"
+#include "candidate_batch_buffers.hpp"
+#include "cuda_batch_score.hpp"
+#include "params.hpp"
+#include "parcae_cuda.hpp"
+
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 namespace {
 
@@ -37,11 +36,9 @@ namespace {
     return ids;
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "CUDA batch score + top-k matches BatchRunner on caesar sweep",
-    "[cuda][batch][score]") {
+TEST_CASE("CUDA batch score + top-k matches BatchRunner on caesar sweep", "[cuda][batch][score]") {
     REQUIRE(ParcaeCuda::available());
     REQUIRE(CudaBatchScore::available());
 
@@ -49,9 +46,7 @@ TEST_CASE(
     constexpr int kShift = 11;
 
     StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-        plain,
-        nlohmann::json{{"shift", kShift}},
-        TransformDirection::Encrypt);
+        plain, nlohmann::json{{"shift", kShift}}, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
 
     StatusOr<std::vector<TransformCandidate>> cpu_candidates =
@@ -61,12 +56,8 @@ TEST_CASE(
     ScoreRequest request;
     request.reference = std::span<const Index29>(plain);
 
-    StatusOr<BatchResult> cpu = BatchRunner::run(
-        cpu_candidates.value(),
-        "exact_match",
-        /*k=*/3,
-        request,
-        BatchExecution::Serial);
+    StatusOr<BatchResult> cpu = BatchRunner::run(cpu_candidates.value(), "exact_match",
+                                                 /*k=*/3, request, BatchExecution::Serial);
     REQUIRE(cpu.ok());
     REQUIRE(cpu.value().top().size() == 3);
     REQUIRE(cpu.value().top()[0].source_index() == static_cast<std::size_t>(kShift));
@@ -84,8 +75,8 @@ TEST_CASE(
     REQUIRE(CaesarBatchKernel::apply_host(buffers.value()).ok());
 
     const std::vector<std::string> ids = caesar_candidate_ids();
-    StatusOr<BatchResult> cuda = CudaBatchScore::score_and_top_k(
-        buffers.value(), ids, "exact_match", /*k=*/3, request);
+    StatusOr<BatchResult> cuda =
+        CudaBatchScore::score_and_top_k(buffers.value(), ids, "exact_match", /*k=*/3, request);
     REQUIRE(cuda.ok());
     REQUIRE(cuda.value().scored_count() == Index29::modulus);
     REQUIRE(cuda.value().top().size() == 3);

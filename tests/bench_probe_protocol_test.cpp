@@ -1,15 +1,13 @@
+#include <catch2/catch_test_macros.hpp>
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <limits>
 #include <parcae/bench/bench_config.hpp>
 #include <parcae/bench/bench_formatter.hpp>
 #include <parcae/bench/bench_probe_protocol.hpp>
 #include <parcae/bench/bench_probe_runner.hpp>
 #include <parcae/bench/bench_tier_spec.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <chrono>
-#include <filesystem>
-#include <fstream>
-#include <limits>
 #include <string>
 #include <vector>
 
@@ -26,14 +24,12 @@ namespace {
         {"keys_per_sec", 4.3e7},
         {"wall_seconds", 0.412},
         {"backend", "cpu"},
-        {"accuracy",
-         {{"oracle_cracked", true}, {"top_rank", 1}, {"notes", ""}}},
-        {"config",
-         {{"C", spec->candidates}, {"T", spec->tokens}, {"reps", spec->repeats}}},
+        {"accuracy", {{"oracle_cracked", true}, {"top_rank", 1}, {"notes", ""}}},
+        {"config", {{"C", spec->candidates}, {"T", spec->tokens}, {"reps", spec->repeats}}},
     };
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("BenchProbeProtocol accepts valid 1.0.0 payload", "[bench][probe]") {
     const std::string text = valid_probe_json("T1").dump();
@@ -63,9 +59,7 @@ TEST_CASE("BenchProbeProtocol rejects wrong version / missing / non-finite", "[b
         j["runes_per_sec"] = std::numeric_limits<double>::infinity();
         REQUIRE_FALSE(BenchProbeProtocol::parse(j.dump()).ok());
     }
-    {
-        REQUIRE_FALSE(BenchProbeProtocol::parse("not-json").ok());
-    }
+    { REQUIRE_FALSE(BenchProbeProtocol::parse("not-json").ok()); }
     {
         nlohmann::json j = valid_probe_json("T1");
         j["backend"] = "gpu";
@@ -74,8 +68,7 @@ TEST_CASE("BenchProbeProtocol rejects wrong version / missing / non-finite", "[b
 }
 
 TEST_CASE("BenchConfig parse_probe_tiers and timeout", "[bench][probe]") {
-    StatusOr<std::vector<std::string>> tiers =
-        BenchConfig::parse_probe_tiers(" T1 , T3 ");
+    StatusOr<std::vector<std::string>> tiers = BenchConfig::parse_probe_tiers(" T1 , T3 ");
     REQUIRE(tiers.ok());
     REQUIRE(tiers.value().size() == 2u);
     REQUIRE(tiers.value()[0] == "T1");
@@ -94,17 +87,14 @@ TEST_CASE("BenchConfig parse_probe_tiers and timeout", "[bench][probe]") {
 }
 
 TEST_CASE("BenchProbeRunner substitute_tier", "[bench][probe]") {
-    REQUIRE(
-        BenchProbeRunner::substitute_tier("tool --tier {tier} --json", "T2") ==
-        "tool --tier T2 --json");
-    REQUIRE(
-        BenchProbeRunner::substitute_tier("{tier}-{tier}", "T1") == "T1-T1");
+    REQUIRE(BenchProbeRunner::substitute_tier("tool --tier {tier} --json", "T2") ==
+            "tool --tier T2 --json");
+    REQUIRE(BenchProbeRunner::substitute_tier("{tier}-{tier}", "T1") == "T1-T1");
 }
 
 TEST_CASE("BenchProbeRunner spawn type/cat JSON file", "[bench][probe]") {
     const auto tmp = std::filesystem::temp_directory_path();
-    const auto stamp = std::to_string(
-        std::chrono::steady_clock::now().time_since_epoch().count());
+    const auto stamp = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
     const std::filesystem::path t1 = tmp / ("parcae_probe_" + stamp + "_T1.json");
     {
         std::ofstream out(t1, std::ios::binary);
@@ -133,8 +123,7 @@ TEST_CASE("BenchProbeRunner spawn type/cat JSON file", "[bench][probe]") {
     REQUIRE(doc.value().rows().size() == 1u);
     REQUIRE(doc.value().rows()[0].status() == BenchReport::RowStatus::Pass);
     REQUIRE(doc.value().rows()[0].name() == "T1");
-    REQUIRE(doc.value().rows()[0].detail().find("compare_builtin: config_ok") !=
-            std::string::npos);
+    REQUIRE(doc.value().rows()[0].detail().find("compare_builtin: config_ok") != std::string::npos);
     REQUIRE(doc.value().all_pass());
 
     const std::string human = BenchFormatter::format(doc.value());
@@ -147,8 +136,7 @@ TEST_CASE("BenchProbeRunner timeout kills long command", "[bench][probe]") {
 #else
     const std::string cmd = "sleep 8";
 #endif
-    StatusOr<BenchProbeRunner::Capture> cap =
-        BenchProbeRunner::spawn_with_timeout(cmd, 200);
+    StatusOr<BenchProbeRunner::Capture> cap = BenchProbeRunner::spawn_with_timeout(cmd, 200);
     REQUIRE(cap.ok());
     REQUIRE(cap.value().timed_out);
 }

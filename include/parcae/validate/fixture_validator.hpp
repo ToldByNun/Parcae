@@ -29,9 +29,8 @@ public:
     FixtureValidator(const GematriaProfile& profile, const SeparatorGrammar& grammar)
         : codec_(profile), normalizer_(codec_), tokenizer_(profile, grammar) {}
 
-    [[nodiscard]] ValidationReport validate_directory(
-        const std::string& fixture_dir,
-        bool require_locked = false) const {
+    [[nodiscard]] ValidationReport validate_directory(const std::string& fixture_dir,
+                                                      bool require_locked = false) const {
         ValidationReport report;
 
         StatusOr<Fixture> loaded = FixtureLoader::load_directory(fixture_dir);
@@ -46,10 +45,8 @@ public:
         report.add_check("manifest", true, "loaded");
 
         if (require_locked && fixture.verification_status() != "locked") {
-            report.add_check(
-                "locked",
-                false,
-                "require_locked=true but verification.status is not locked");
+            report.add_check("locked", false,
+                             "require_locked=true but verification.status is not locked");
             return report;
         }
         if (fixture.verification_status() == "locked") {
@@ -61,10 +58,8 @@ public:
             report.add_check("tokenize", false, stream.status().message());
             return report;
         }
-        report.add_check(
-            "tokenize",
-            true,
-            "consumable_runes=" + std::to_string(stream.value().consumable_count()));
+        report.add_check("tokenize", true,
+                         "consumable_runes=" + std::to_string(stream.value().consumable_count()));
 
         StatusOr<InterruptPolicy> interrupt =
             InterruptPolicy::from_skip_indices(fixture.skip_indices());
@@ -75,10 +70,8 @@ public:
         if (!fixture.skip_indices().empty()) {
             for (std::size_t skip : fixture.skip_indices()) {
                 if (skip >= stream.value().consumable_count()) {
-                    report.add_check(
-                        "interrupt",
-                        false,
-                        "skip_indices out of range for consumable rune count");
+                    report.add_check("interrupt", false,
+                                     "skip_indices out of range for consumable rune count");
                     return report;
                 }
             }
@@ -98,12 +91,9 @@ public:
         }
 
         const std::vector<Index29> cipher_indices = stream.value().consumable_indices();
-        StatusOr<std::vector<Index29>> plain_indices = ApplyTransform::apply(
-            transform_id.value(),
-            cipher_indices,
-            fixture.params(),
-            direction.value(),
-            interrupt.value());
+        StatusOr<std::vector<Index29>> plain_indices =
+            ApplyTransform::apply(transform_id.value(), cipher_indices, fixture.params(),
+                                  direction.value(), interrupt.value());
         if (!plain_indices.ok()) {
             report.add_check("transform", false, plain_indices.status().message());
             return report;
@@ -126,20 +116,16 @@ public:
         }
 
         Status literals = check_literal_files(fixture_dir, fixture);
-        report.add_check(
-            "literal_regions",
-            literals.ok(),
-            literals.ok() ? "declared files present" : literals.message());
+        report.add_check("literal_regions", literals.ok(),
+                         literals.ok() ? "declared files present" : literals.message());
 
         check_hashes(report, fixture, actual_latin);
         return report;
     }
 
 private:
-    void check_hashes(
-        ValidationReport& report,
-        const Fixture& fixture,
-        const std::string& normalized_latin) const {
+    void check_hashes(ValidationReport& report, const Fixture& fixture,
+                      const std::string& normalized_latin) const {
         const auto& hashes = fixture.hashes();
         const bool any_expected = hashes.ciphertext_sha256().has_value() ||
                                   hashes.plaintext_sha256().has_value() ||
@@ -193,9 +179,8 @@ private:
         }
     }
 
-    [[nodiscard]] static std::string make_diff_excerpt(
-        const std::string& actual,
-        const std::string& expected) {
+    [[nodiscard]] static std::string make_diff_excerpt(const std::string& actual,
+                                                       const std::string& expected) {
         std::size_t i = 0;
         while (i < actual.size() && i < expected.size() && actual[i] == expected[i]) {
             ++i;
@@ -208,9 +193,8 @@ private:
         return out.str();
     }
 
-    [[nodiscard]] static Status check_literal_files(
-        const std::string& fixture_dir,
-        const Fixture& fixture) {
+    [[nodiscard]] static Status check_literal_files(const std::string& fixture_dir,
+                                                    const Fixture& fixture) {
         for (const FixtureLiteralRegion& region : fixture.literal_regions()) {
             if (region.value_file().empty()) {
                 return Status::error("literal region missing value_file");

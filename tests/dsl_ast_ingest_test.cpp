@@ -1,25 +1,19 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_ast_limits.hpp>
 #include <parcae/dsl/dsl_rule_id.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
 
 namespace {
 
 [[nodiscard]] std::string minimal_success_doc(const std::string& module_json) {
-    return std::string("{") +
-           R"("schema":"parcae.dsl_ast_json.v0",)" +
-           R"("dsl_ast_json_version":"1.0.0",)" +
-           R"("source_path":"t.py",)" +
+    return std::string("{") + R"("schema":"parcae.dsl_ast_json.v0",)" +
+           R"("dsl_ast_json_version":"1.0.0",)" + R"("source_path":"t.py",)" +
            R"("source_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",)" +
-           R"("python_version":"3.12.0",)" +
-           R"("ok":true,)" +
-           R"("module":)" + module_json + "}";
+           R"("python_version":"3.12.0",)" + R"("ok":true,)" + R"("module":)" + module_json + "}";
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("DslAstJsonIngest accepts minimal Module document", "[dsl][ingest]") {
     const std::string text = minimal_success_doc(
@@ -99,7 +93,8 @@ TEST_CASE("DslAstJsonIngest rejects trailing garbage", "[dsl][ingest]") {
 TEST_CASE("DslAstJsonIngest rejects oversized string field", "[dsl][ingest]") {
     const std::string huge(DslAstLimits::max_string_bytes + 1, 'a');
     const std::string module =
-        std::string(R"({"kind":"Module","lineno":1,"col_offset":0,"body":[],"type_ignores":[],"note":")") +
+        std::string(
+            R"({"kind":"Module","lineno":1,"col_offset":0,"body":[],"type_ignores":[],"note":")") +
         huge + "\"}";
     const StatusOr<DslAstDocument> doc = DslAstJsonIngest::parse_text(minimal_success_doc(module));
     REQUIRE_FALSE(doc.ok());
@@ -127,8 +122,8 @@ TEST_CASE("DslAstJsonIngest rejects excessive depth", "[dsl][ingest]") {
     for (std::size_t i = 0; i < DslAstLimits::max_tree_depth + 2; ++i) {
         inner = std::string(R"({"kind":"Expr","lineno":1,"col_offset":0,"value":)") + inner + "}";
     }
-    const std::string module =
-        R"({"kind":"Module","lineno":1,"col_offset":0,"body":[)" + inner + R"(],"type_ignores":[]})";
+    const std::string module = R"({"kind":"Module","lineno":1,"col_offset":0,"body":[)" + inner +
+                               R"(],"type_ignores":[]})";
     const StatusOr<DslAstDocument> doc = DslAstJsonIngest::parse_text(minimal_success_doc(module));
     REQUIRE_FALSE(doc.ok());
     REQUIRE(doc.status().message().find("E104") != std::string::npos);
@@ -158,8 +153,7 @@ TEST_CASE("DslAstJsonIngest accepts directives array (1.1.0)", "[dsl][ingest][di
     REQUIRE(doc.value().directives().size() == 1);
     REQUIRE(doc.value().directives()[0].lineno() == 3);
     REQUIRE(doc.value().directives()[0].flag() == "divergent_branch");
-    REQUIRE(
-        doc.value().directives()[0].raw() == "#ignore DSL_FLAG:divergent_branch");
+    REQUIRE(doc.value().directives()[0].raw() == "#ignore DSL_FLAG:divergent_branch");
 }
 
 TEST_CASE("DslAstJsonIngest rejects bad directives flag", "[dsl][ingest][directives]") {

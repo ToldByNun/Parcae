@@ -43,9 +43,7 @@ public:
         return it->second;
     }
 
-    [[nodiscard]] std::size_t size() const noexcept {
-        return scopes_.size();
-    }
+    [[nodiscard]] std::size_t size() const noexcept { return scopes_.size(); }
 
 private:
     std::unordered_map<const DslAstNode*, DslExecScope> scopes_;
@@ -59,10 +57,8 @@ class DslScopeAnalyzer {
 public:
     [[nodiscard]] static StatusOr<DslScopeMap> analyze(const DslAstDocument& doc) {
         if (!doc.module()) {
-            return DslDiag::make(
-                       DslRuleId::E031_forbidden_construct,
-                       "document has no module AST",
-                       doc.source_path())
+            return DslDiag::make(DslRuleId::E031_forbidden_construct, "document has no module AST",
+                                 doc.source_path())
                 .to_status();
         }
         DslScopeMap map;
@@ -93,9 +89,8 @@ private:
         return name->as_string();
     }
 
-    [[nodiscard]] static bool decorator_list_has(
-        const DslAstNode& defn,
-        std::string_view deco_name) {
+    [[nodiscard]] static bool decorator_list_has(const DslAstNode& defn,
+                                                 std::string_view deco_name) {
         const DslAstValue* list = defn.find_field("decorator_list");
         if (!list || list->type() != DslAstValue::Type::Array) {
             return false;
@@ -125,8 +120,7 @@ private:
                 continue;
             }
             const DslAstValue* idv = f.find_field("id");
-            if (idv && idv->type() == DslAstValue::Type::String &&
-                idv->as_string() == deco_name) {
+            if (idv && idv->type() == DslAstValue::Type::String && idv->as_string() == deco_name) {
                 return true;
             }
         }
@@ -137,10 +131,7 @@ private:
         return decorator_list_has(cls, "Theory") || decorator_list_has(cls, "ComposedTheory");
     }
 
-    static void walk_value(
-        const DslAstValue& value,
-        const DslExecScope& scope,
-        DslScopeMap& map) {
+    static void walk_value(const DslAstValue& value, const DslExecScope& scope, DslScopeMap& map) {
         if (value.type() == DslAstValue::Type::Node && value.as_node()) {
             walk_node(*value.as_node(), scope, map);
             return;
@@ -152,19 +143,14 @@ private:
         }
     }
 
-    static void walk_fields(
-        const DslAstNode& node,
-        const DslExecScope& scope,
-        DslScopeMap& map) {
+    static void walk_fields(const DslAstNode& node, const DslExecScope& scope, DslScopeMap& map) {
         for (const auto& entry : node.fields()) {
             walk_value(entry.second, scope, map);
         }
     }
 
-    static void walk_stmt_list(
-        const DslAstValue* list,
-        const DslExecScope& scope,
-        DslScopeMap& map) {
+    static void walk_stmt_list(const DslAstValue* list, const DslExecScope& scope,
+                               DslScopeMap& map) {
         if (!list || list->type() != DslAstValue::Type::Array) {
             return;
         }
@@ -177,11 +163,8 @@ private:
 
     /// Walk a function body under `body_scope` (decorators/args stay OuterControl-ish
     /// of the caller — recorded with `header_scope`).
-    static void walk_function_def(
-        const DslAstNode& fn,
-        const DslExecScope& header_scope,
-        const DslExecScope& body_scope,
-        DslScopeMap& map) {
+    static void walk_function_def(const DslAstNode& fn, const DslExecScope& header_scope,
+                                  const DslExecScope& body_scope, DslScopeMap& map) {
         map.set(&fn, header_scope);
         for (const auto& entry : fn.fields()) {
             if (entry.first == "body") {
@@ -193,10 +176,7 @@ private:
         }
     }
 
-    static void walk_class_def(
-        const DslAstNode& cls,
-        const DslExecScope& outer,
-        DslScopeMap& map) {
+    static void walk_class_def(const DslAstNode& cls, const DslExecScope& outer, DslScopeMap& map) {
         map.set(&cls, outer);
         const bool theory = is_theory_class(cls);
         for (const auto& entry : cls.fields()) {
@@ -224,10 +204,7 @@ private:
         }
     }
 
-    static void walk_node(
-        const DslAstNode& node,
-        const DslExecScope& incoming,
-        DslScopeMap& map) {
+    static void walk_node(const DslAstNode& node, const DslExecScope& incoming, DslScopeMap& map) {
         const std::string& kind = node.kind();
 
         if (kind == "Module") {
@@ -246,11 +223,12 @@ private:
         if (kind == "FunctionDef" || kind == "AsyncFunctionDef") {
             // Module-level or nested function not handled via ClassDef path.
             const bool primitive = decorator_list_has(node, "define_primitive");
-            const DslExecScope body_scope =
-                primitive ? DslExecScope{DslExecScope::Kind::HotLoop}
-                          : DslExecScope{DslExecScope::Kind::OuterControl};
+            const DslExecScope body_scope = primitive
+                                                ? DslExecScope{DslExecScope::Kind::HotLoop}
+                                                : DslExecScope{DslExecScope::Kind::OuterControl};
             // Nested defs inherit OuterControl headers even under HotLoop callers.
-            walk_function_def(node, incoming.with_kind(DslExecScope::Kind::OuterControl), body_scope, map);
+            walk_function_def(node, incoming.with_kind(DslExecScope::Kind::OuterControl),
+                              body_scope, map);
             return;
         }
 

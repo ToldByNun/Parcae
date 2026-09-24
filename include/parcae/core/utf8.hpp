@@ -16,7 +16,8 @@ public:
         std::size_t size = 0;
     };
 
-    [[nodiscard]] static StatusOr<Codepoint> decode_at(const std::string& text, std::size_t offset) {
+    [[nodiscard]] static StatusOr<Codepoint> decode_at(const std::string& text,
+                                                       std::size_t offset) {
         if (offset >= text.size()) {
             return Status::error("UTF-8 decode past end of string");
         }
@@ -55,7 +56,8 @@ public:
             if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80) {
                 return Status::error("Invalid UTF-8 continuation byte");
             }
-            out.value = static_cast<char32_t>(((lead & 0x0F) << 12) | ((b1 & 0x3F) << 6) | (b2 & 0x3F));
+            out.value =
+                static_cast<char32_t>(((lead & 0x0F) << 12) | ((b1 & 0x3F) << 6) | (b2 & 0x3F));
             out.size = 3;
             if (out.value < 0x800) {
                 return Status::error("Overlong UTF-8 encoding");
@@ -73,8 +75,8 @@ public:
             if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80) {
                 return Status::error("Invalid UTF-8 continuation byte");
             }
-            out.value = static_cast<char32_t>(
-                ((lead & 0x07) << 18) | ((b1 & 0x3F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F));
+            out.value = static_cast<char32_t>(((lead & 0x07) << 18) | ((b1 & 0x3F) << 12) |
+                                              ((b2 & 0x3F) << 6) | (b3 & 0x3F));
             out.size = 4;
             if (out.value < 0x10000 || out.value > 0x10FFFF) {
                 return Status::error("Invalid Unicode codepoint");

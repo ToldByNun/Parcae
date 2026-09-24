@@ -1,18 +1,18 @@
-#include <catch2/catch_test_macros.hpp>
-
-#include "z29_device.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/core/z29.hpp"
 
-#if defined(PARCAE_HAS_CUDA)
+#include "z29_device.hpp"
 
-#include "affine_kernel.hpp"
-#include "parcae_cuda.hpp"
-#include "params.hpp"
+#include <catch2/catch_test_macros.hpp>
+
+#if defined(PARCAE_HAS_CUDA)
 
 #include "parcae/transform/affine_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
+
+#include "affine_kernel.hpp"
+#include "params.hpp"
+#include "parcae_cuda.hpp"
 
 #include <cstdint>
 #include <random>
@@ -38,7 +38,7 @@ namespace {
     return out;
 }
 
-}  // namespace
+} // namespace
 
 #endif
 
@@ -67,11 +67,7 @@ TEST_CASE("CUDA affine parity vs CPU fixed encrypt decrypt", "[cuda][parity][aff
     REQUIRE(ParcaeCuda::available());
 
     const std::vector<Index29> input{
-        Index29{0},
-        Index29{1},
-        Index29{14},
-        Index29{27},
-        Index29{28},
+        Index29{0}, Index29{1}, Index29{14}, Index29{27}, Index29{28},
     };
     const Index29 a{2};
     const Index29 b{5};
@@ -109,9 +105,9 @@ TEST_CASE("CUDA affine parity vs CPU random round-trip", "[cuda][parity][affine]
     const std::uint8_t b = static_cast<std::uint8_t>(index_dist(rng));
 
     std::vector<Index29> cpu_out(input.size());
-    REQUIRE(AffineTransform::kernel(
-                input, cpu_out, Index29{a}, Index29{b}, TransformDirection::Encrypt)
-                .ok());
+    REQUIRE(
+        AffineTransform::kernel(input, cpu_out, Index29{a}, Index29{b}, TransformDirection::Encrypt)
+            .ok());
 
     std::vector<std::uint8_t> host = to_bytes(input);
     std::vector<std::uint8_t> host_out(host.size());
@@ -129,8 +125,8 @@ TEST_CASE("CUDA affine in-place and validation", "[cuda][parity][affine]") {
     std::vector<std::uint8_t> host{0, 1, 2, 28};
     std::vector<Index29> cpu_in = from_bytes(host);
     std::vector<Index29> cpu_out(cpu_in.size());
-    REQUIRE(AffineTransform::kernel(
-                cpu_in, cpu_out, Index29{3}, Index29{7}, TransformDirection::Encrypt)
+    REQUIRE(AffineTransform::kernel(cpu_in, cpu_out, Index29{3}, Index29{7},
+                                    TransformDirection::Encrypt)
                 .ok());
 
     REQUIRE(AffineKernel::apply_host(host, host, 3, 7, CudaDir::Encrypt).ok());

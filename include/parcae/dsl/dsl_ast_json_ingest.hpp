@@ -12,13 +12,12 @@
 
 #include <cstdint>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Hardened JSON → DslAstDocument ingest (docs/spec/dsl-ast-json.md).
 /// Strict schema mode: unknown top-level keys rejected. Never throws to callers.
@@ -26,10 +25,9 @@ class DslAstJsonIngest {
 public:
     [[nodiscard]] static StatusOr<DslAstDocument> parse_text(std::string_view text) {
         if (text.size() > DslAstLimits::max_json_bytes) {
-            return fail(
-                DslRuleId::E102_json_size,
-                "JSON document exceeds " + std::to_string(DslAstLimits::max_json_bytes) +
-                    " bytes (" + std::to_string(text.size()) + ")");
+            return fail(DslRuleId::E102_json_size,
+                        "JSON document exceeds " + std::to_string(DslAstLimits::max_json_bytes) +
+                            " bytes (" + std::to_string(text.size()) + ")");
         }
 
         Status utf8 = validate_utf8(text);
@@ -47,9 +45,8 @@ public:
             stream >> std::ws;
             const int peek = stream.peek();
             if (peek != std::char_traits<char>::eof()) {
-                return fail(
-                    DslRuleId::E111_trailing_garbage,
-                    "JSON document has trailing non-whitespace garbage");
+                return fail(DslRuleId::E111_trailing_garbage,
+                            "JSON document has trailing non-whitespace garbage");
             }
         } catch (const nlohmann::json::exception& ex) {
             return fail(DslRuleId::E100_json_schema, std::string("invalid JSON: ") + ex.what());
@@ -64,10 +61,12 @@ public:
         }
 
         // Failure envelope from ast_dump — not an ingestable Module document.
-        if (root.contains("ok") && root.at("ok").is_boolean() && root.at("ok").get<bool>() == false) {
+        if (root.contains("ok") && root.at("ok").is_boolean() &&
+            root.at("ok").get<bool>() == false) {
             std::string msg = "received dsl_ast_json failure envelope (ok=false)";
             if (root.contains("error") && root.at("error").is_object() &&
-                root.at("error").contains("message") && root.at("error").at("message").is_string()) {
+                root.at("error").contains("message") &&
+                root.at("error").at("message").is_string()) {
                 msg += ": ";
                 msg += root.at("error").at("message").get<std::string>();
             }
@@ -79,20 +78,19 @@ public:
             if (key != "schema" && key != "dsl_ast_json_version" && key != "source_path" &&
                 key != "source_sha256" && key != "python_version" && key != "module" &&
                 key != "ok" && key != "directives") {
-                return fail(
-                    DslRuleId::E100_json_schema,
-                    "unknown top-level key '" + key + "' (strict schema mode)");
+                return fail(DslRuleId::E100_json_schema,
+                            "unknown top-level key '" + key + "' (strict schema mode)");
             }
         }
 
         if (!root.contains("schema") || !root.at("schema").is_string() ||
             root.at("schema").get<std::string>() != DslAstJsonVersion::schema_id) {
-            return fail(
-                DslRuleId::E100_json_schema,
-                std::string("schema must be ") + std::string(DslAstJsonVersion::schema_id));
+            return fail(DslRuleId::E100_json_schema,
+                        std::string("schema must be ") + std::string(DslAstJsonVersion::schema_id));
         }
 
-        if (!root.contains("dsl_ast_json_version") || !root.at("dsl_ast_json_version").is_string()) {
+        if (!root.contains("dsl_ast_json_version") ||
+            !root.at("dsl_ast_json_version").is_string()) {
             return fail(DslRuleId::E100_json_schema, "dsl_ast_json_version must be a string");
         }
         const std::string version_text = root.at("dsl_ast_json_version").get<std::string>();
@@ -115,8 +113,10 @@ public:
             return fail(DslRuleId::E100_json_schema, "module must be a JSON object");
         }
 
-        if (root.contains("ok") && root.at("ok").is_boolean() && root.at("ok").get<bool>() != true) {
-            return fail(DslRuleId::E100_json_schema, "ok must be true when present on success docs");
+        if (root.contains("ok") && root.at("ok").is_boolean() &&
+            root.at("ok").get<bool>() != true) {
+            return fail(DslRuleId::E100_json_schema,
+                        "ok must be true when present on success docs");
         }
 
         IngestState state;
@@ -126,12 +126,9 @@ public:
             return module.status();
         }
         if (module.value()->kind() != "Module") {
-            return fail_at(
-                DslRuleId::E100_json_schema,
-                "module.kind must be Module",
-                root.at("source_path").get<std::string>(),
-                module.value()->lineno(),
-                module.value()->col_offset());
+            return fail_at(DslRuleId::E100_json_schema, "module.kind must be Module",
+                           root.at("source_path").get<std::string>(), module.value()->lineno(),
+                           module.value()->col_offset());
         }
 
         DslAstDocument doc;
@@ -140,7 +137,8 @@ public:
         doc.set_dsl_ast_json_version(version_text);
         if (root.contains("python_version")) {
             if (!root.at("python_version").is_string()) {
-                return fail(DslRuleId::E100_json_schema, "python_version must be a string when present");
+                return fail(DslRuleId::E100_json_schema,
+                            "python_version must be a string when present");
             }
             doc.set_python_version(root.at("python_version").get<std::string>());
         }
@@ -168,15 +166,15 @@ private:
         return DslDiag::make(rule_id, std::move(message)).to_status();
     }
 
-    [[nodiscard]] static StatusOr<std::vector<DslAstDirective>> parse_directives(
-        const nlohmann::json& arr) {
+    [[nodiscard]] static StatusOr<std::vector<DslAstDirective>>
+    parse_directives(const nlohmann::json& arr) {
         if (!arr.is_array()) {
             return fail(DslRuleId::E100_json_schema, "directives must be a JSON array");
         }
         if (arr.size() > DslAstLimits::max_list_length) {
-            return fail(
-                DslRuleId::E106_list_length,
-                "directives length exceeds " + std::to_string(DslAstLimits::max_list_length));
+            return fail(DslRuleId::E106_list_length,
+                        "directives length exceeds " +
+                            std::to_string(DslAstLimits::max_list_length));
         }
         std::vector<DslAstDirective> out;
         out.reserve(arr.size());
@@ -187,9 +185,8 @@ private:
             for (auto it = item.begin(); it != item.end(); ++it) {
                 const std::string& key = it.key();
                 if (key != "lineno" && key != "flag" && key != "raw") {
-                    return fail(
-                        DslRuleId::E100_json_schema,
-                        "unknown directives[] key '" + key + "'");
+                    return fail(DslRuleId::E100_json_schema,
+                                "unknown directives[] key '" + key + "'");
                 }
             }
             if (!item.contains("lineno") || !item.at("lineno").is_number_integer()) {
@@ -213,16 +210,14 @@ private:
             }
             // Grammar: FLAG_NAME := [a-z][a-z0-9_]*
             if (flag.empty() || flag[0] < 'a' || flag[0] > 'z') {
-                return fail(
-                    DslRuleId::E100_json_schema,
-                    "directives[].flag must match [a-z][a-z0-9_]*");
+                return fail(DslRuleId::E100_json_schema,
+                            "directives[].flag must match [a-z][a-z0-9_]*");
             }
             for (char c : flag) {
                 const bool ok = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
                 if (!ok) {
-                    return fail(
-                        DslRuleId::E100_json_schema,
-                        "directives[].flag must match [a-z][a-z0-9_]*");
+                    return fail(DslRuleId::E100_json_schema,
+                                "directives[].flag must match [a-z][a-z0-9_]*");
                 }
             }
             const std::int64_t lineno = item.at("lineno").get<std::int64_t>();
@@ -234,12 +229,9 @@ private:
         return out;
     }
 
-    [[nodiscard]] static Status fail_at(
-        std::string_view rule_id,
-        std::string message,
-        std::string path,
-        std::optional<int> lineno,
-        std::optional<int> col) {
+    [[nodiscard]] static Status fail_at(std::string_view rule_id, std::string message,
+                                        std::string path, std::optional<int> lineno,
+                                        std::optional<int> col) {
         return DslDiag::make(rule_id, std::move(message), std::move(path), lineno, col).to_status();
     }
 
@@ -261,10 +253,9 @@ private:
         // Byte length of UTF-8 string content (already validated as UTF-8 at doc level;
         // individual JSON strings are UTF-8 by JSON rules when parsed from UTF-8 text).
         if (s.size() > DslAstLimits::max_string_bytes) {
-            return fail(
-                DslRuleId::E105_string_length,
-                "string field exceeds " + std::to_string(DslAstLimits::max_string_bytes) +
-                    " UTF-8 bytes (" + std::to_string(s.size()) + ")");
+            return fail(DslRuleId::E105_string_length,
+                        "string field exceeds " + std::to_string(DslAstLimits::max_string_bytes) +
+                            " UTF-8 bytes (" + std::to_string(s.size()) + ")");
         }
         return Status::success();
     }
@@ -279,11 +270,9 @@ private:
         return obj.at(key).get<int>();
     }
 
-    [[nodiscard]] static StatusOr<std::shared_ptr<DslAstNode>> convert_node(
-        const nlohmann::json& obj,
-        IngestState& state,
-        std::size_t depth,
-        const std::string& source_path) {
+    [[nodiscard]] static StatusOr<std::shared_ptr<DslAstNode>>
+    convert_node(const nlohmann::json& obj, IngestState& state, std::size_t depth,
+                 const std::string& source_path) {
         if (depth > DslAstLimits::max_tree_depth) {
             return fail(DslRuleId::E104_tree_depth, "AST depth exceeds limit");
         }
@@ -315,12 +304,9 @@ private:
                 continue;
             }
             if (!v.is_number_integer()) {
-                return fail_at(
-                    DslRuleId::E100_json_schema,
-                    std::string(key) + " must be integer or null",
-                    source_path,
-                    node->lineno(),
-                    node->col_offset());
+                return fail_at(DslRuleId::E100_json_schema,
+                               std::string(key) + " must be integer or null", source_path,
+                               node->lineno(), node->col_offset());
             }
         }
         node->set_lineno(opt_int(obj, "lineno"));
@@ -344,12 +330,10 @@ private:
         return node;
     }
 
-    [[nodiscard]] static StatusOr<DslAstValue> convert_value(
-        const nlohmann::json& value,
-        IngestState& state,
-        std::size_t depth,
-        const std::string& source_path,
-        const DslAstNode* parent) {
+    [[nodiscard]] static StatusOr<DslAstValue> convert_value(const nlohmann::json& value,
+                                                             IngestState& state, std::size_t depth,
+                                                             const std::string& source_path,
+                                                             const DslAstNode* parent) {
         if (value.is_null()) {
             return DslAstValue::null();
         }
@@ -373,9 +357,8 @@ private:
         }
         if (value.is_array()) {
             if (value.size() > DslAstLimits::max_list_length) {
-                return fail(
-                    DslRuleId::E106_list_length,
-                    "list length exceeds " + std::to_string(DslAstLimits::max_list_length));
+                return fail(DslRuleId::E106_list_length,
+                            "list length exceeds " + std::to_string(DslAstLimits::max_list_length));
             }
             std::vector<DslAstValue> items;
             items.reserve(value.size());

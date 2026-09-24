@@ -1,5 +1,4 @@
 #include "affine_kernel.hpp"
-
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
 #include "z29_device.hpp"
@@ -10,13 +9,8 @@ namespace {
 
 constexpr int kThreadsPerBlock = 256;
 
-__global__ void affine_kernel(
-    const std::uint8_t* in,
-    std::uint8_t* out,
-    std::size_t count,
-    std::uint8_t a,
-    std::uint8_t b,
-    std::uint8_t encrypt) {
+__global__ void affine_kernel(const std::uint8_t* in, std::uint8_t* out, std::size_t count,
+                              std::uint8_t a, std::uint8_t b, std::uint8_t encrypt) {
     const std::size_t i =
         static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
         static_cast<std::size_t>(threadIdx.x);
@@ -42,15 +36,11 @@ __global__ void affine_kernel(
     return Status::success();
 }
 
-}  // namespace
+} // namespace
 
-Status AffineKernel::launch_device(
-    const std::uint8_t* device_in,
-    std::uint8_t* device_out,
-    std::size_t count,
-    std::uint8_t a,
-    std::uint8_t b,
-    CudaDir direction) {
+Status AffineKernel::launch_device(const std::uint8_t* device_in, std::uint8_t* device_out,
+                                   std::size_t count, std::uint8_t a, std::uint8_t b,
+                                   CudaDir direction) {
     Status params_ok = validate_params(a, b);
     if (!params_ok.ok()) {
         return params_ok;
@@ -75,12 +65,9 @@ Status AffineKernel::launch_device(
     return CudaError::to_status(cudaDeviceSynchronize(), "AffineKernel::launch_device sync");
 }
 
-Status AffineKernel::apply_host(
-    std::span<const std::uint8_t> host_in,
-    std::span<std::uint8_t> host_out,
-    std::uint8_t a,
-    std::uint8_t b,
-    CudaDir direction) {
+Status AffineKernel::apply_host(std::span<const std::uint8_t> host_in,
+                                std::span<std::uint8_t> host_out, std::uint8_t a, std::uint8_t b,
+                                CudaDir direction) {
     if (host_in.size() != host_out.size()) {
         return Status::error("AffineKernel::apply_host size mismatch");
     }
@@ -91,8 +78,8 @@ Status AffineKernel::apply_host(
         if (!device.ok()) {
             return device.status();
         }
-        Status launched = launch_device(
-            device.value().data(), device.value().data(), host_in.size(), a, b, direction);
+        Status launched = launch_device(device.value().data(), device.value().data(),
+                                        host_in.size(), a, b, direction);
         if (!launched.ok()) {
             return launched;
         }
@@ -110,13 +97,8 @@ Status AffineKernel::apply_host(
         return device_out.status();
     }
 
-    Status launched = launch_device(
-        device_in.value().data(),
-        device_out.value().data(),
-        host_in.size(),
-        a,
-        b,
-        direction);
+    Status launched = launch_device(device_in.value().data(), device_out.value().data(),
+                                    host_in.size(), a, b, direction);
     if (!launched.ok()) {
         return launched;
     }

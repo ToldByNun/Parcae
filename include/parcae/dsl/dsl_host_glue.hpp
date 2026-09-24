@@ -34,17 +34,11 @@ public:
         explicit Program(HostGlueIr::Ptr root = HostGlueIr::make_seq({}))
             : root_(std::move(root)) {}
 
-        [[nodiscard]] const HostGlueIr::Ptr& root() const noexcept {
-            return root_;
-        }
+        [[nodiscard]] const HostGlueIr::Ptr& root() const noexcept { return root_; }
 
-        [[nodiscard]] std::size_t for_count() const noexcept {
-            return for_count_;
-        }
+        [[nodiscard]] std::size_t for_count() const noexcept { return for_count_; }
 
-        [[nodiscard]] std::size_t while_count() const noexcept {
-            return while_count_;
-        }
+        [[nodiscard]] std::size_t while_count() const noexcept { return while_count_; }
 
         void set_counts(std::size_t fors, std::size_t whiles) {
             for_count_ = fors;
@@ -62,14 +56,11 @@ public:
         return build(doc, nullptr);
     }
 
-    [[nodiscard]] static StatusOr<Program> build(
-        const DslAstDocument& doc,
-        DslDirectiveTable* directives) {
+    [[nodiscard]] static StatusOr<Program> build(const DslAstDocument& doc,
+                                                 DslDirectiveTable* directives) {
         if (!doc.module()) {
-            return DslDiag::make(
-                       DslRuleId::E031_forbidden_construct,
-                       "document has no module AST",
-                       doc.source_path())
+            return DslDiag::make(DslRuleId::E031_forbidden_construct, "document has no module AST",
+                                 doc.source_path())
                 .to_status();
         }
 
@@ -82,8 +73,8 @@ public:
         state.source_path = doc.source_path();
         state.scopes = &scopes.value();
         state.directives = directives;
-        StatusOr<HostGlueIr::Ptr> root = lower_stmt_list(
-            doc.module()->find_field("body"), state, /*require_outer=*/true);
+        StatusOr<HostGlueIr::Ptr> root =
+            lower_stmt_list(doc.module()->find_field("body"), state, /*require_outer=*/true);
         if (!root.ok()) {
             return root.status();
         }
@@ -97,9 +88,8 @@ public:
         return check_errors_only(doc, nullptr);
     }
 
-    [[nodiscard]] static Status check_errors_only(
-        const DslAstDocument& doc,
-        DslDirectiveTable* directives) {
+    [[nodiscard]] static Status check_errors_only(const DslAstDocument& doc,
+                                                  DslDirectiveTable* directives) {
         StatusOr<Program> p = build(doc, directives);
         if (!p.ok()) {
             return p.status();
@@ -128,26 +118,15 @@ private:
         return DslExecScope{DslExecScope::Kind::OuterControl};
     }
 
-    [[nodiscard]] static Status fail(
-        std::string_view rule,
-        std::string message,
-        const State& state,
-        const DslAstNode& node,
-        std::string hint = {}) {
-        return DslDiag::make(
-                   rule,
-                   std::move(message),
-                   state.source_path,
-                   node.lineno(),
-                   node.col_offset(),
-                   std::move(hint))
+    [[nodiscard]] static Status fail(std::string_view rule, std::string message, const State& state,
+                                     const DslAstNode& node, std::string hint = {}) {
+        return DslDiag::make(rule, std::move(message), state.source_path, node.lineno(),
+                             node.col_offset(), std::move(hint))
             .to_status();
     }
 
-    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_stmt_list(
-        const DslAstValue* list,
-        State& state,
-        bool require_outer) {
+    [[nodiscard]] static StatusOr<HostGlueIr::Ptr>
+    lower_stmt_list(const DslAstValue* list, State& state, bool require_outer) {
         std::vector<HostGlueIr::Ptr> stmts;
         if (!list || list->type() != DslAstValue::Type::Array) {
             return HostGlueIr::make_seq(std::move(stmts));
@@ -175,9 +154,8 @@ private:
         return HostGlueIr::make_seq(std::move(stmts));
     }
 
-    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_stmt(
-        const DslAstNode& stmt,
-        State& state) {
+    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_stmt(const DslAstNode& stmt,
+                                                              State& state) {
         const std::string& kind = stmt.kind();
         if (kind == "Pass") {
             return HostGlueIr::make_pass();
@@ -214,9 +192,8 @@ private:
         return HostGlueIr::make_pass();
     }
 
-    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_nested_def(
-        const DslAstNode& defn,
-        State& state) {
+    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_nested_def(const DslAstNode& defn,
+                                                                    State& state) {
         // ClassDef: walk member FunctionDefs that are OuterControl
         // (step_params, helpers). FunctionDef: walk body if OuterControl.
         if (defn.kind() == "ClassDef") {
@@ -263,9 +240,8 @@ private:
         return lower_stmt_list(defn.find_field("body"), state, /*require_outer=*/true);
     }
 
-    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_assign(
-        const DslAstNode& stmt,
-        State& state) {
+    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_assign(const DslAstNode& stmt,
+                                                                State& state) {
         std::string target;
         if (stmt.kind() == "AnnAssign") {
             const DslAstValue* t = stmt.find_field("target");
@@ -283,8 +259,7 @@ private:
                 targets->as_array().front().type() == DslAstValue::Type::Node &&
                 targets->as_array().front().as_node() &&
                 targets->as_array().front().as_node()->kind() == "Name") {
-                const DslAstValue* idv =
-                    targets->as_array().front().as_node()->find_field("id");
+                const DslAstValue* idv = targets->as_array().front().as_node()->find_field("id");
                 if (idv && idv->type() == DslAstValue::Type::String) {
                     target = idv->as_string();
                 }
@@ -303,9 +278,7 @@ private:
         return node;
     }
 
-    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_if(
-        const DslAstNode& stmt,
-        State& state) {
+    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_if(const DslAstNode& stmt, State& state) {
         const DslAstValue* test = stmt.find_field("test");
         StatusOr<HostGlueIr::Ptr> cond = lower_expr_value(test, state, stmt);
         if (!cond.ok()) {
@@ -321,17 +294,15 @@ private:
         if (!else_b.ok()) {
             return else_b.status();
         }
-        auto node = HostGlueIr::make_if(
-            std::move(cond.value()), std::move(then_b.value()), std::move(else_b.value()));
+        auto node = HostGlueIr::make_if(std::move(cond.value()), std::move(then_b.value()),
+                                        std::move(else_b.value()));
         node->set_location(stmt.lineno(), stmt.col_offset());
         return node;
     }
 
-    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_for(
-        const DslAstNode& stmt,
-        State& state) {
+    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_for(const DslAstNode& stmt, State& state) {
         if (scope_of(stmt, state).is_hot_loop()) {
-            return HostGlueIr::make_pass();  // E034 elsewhere
+            return HostGlueIr::make_pass(); // E034 elsewhere
         }
 
         const DslAstValue* target_v = stmt.find_field("target");
@@ -358,12 +329,8 @@ private:
 
         ++state.for_count;
         auto node = HostGlueIr::make_for_range(
-            std::move(target),
-            std::move(bounds.value().start),
-            std::move(bounds.value().stop),
-            std::move(bounds.value().step),
-            std::move(body.value()),
-            bounds.value().bound);
+            std::move(target), std::move(bounds.value().start), std::move(bounds.value().stop),
+            std::move(bounds.value().step), std::move(body.value()), bounds.value().bound);
         node->set_location(stmt.lineno(), stmt.col_offset());
         return node;
     }
@@ -375,49 +342,37 @@ private:
         HostGlueIr::BoundKind bound = HostGlueIr::BoundKind::ConstUnroll;
     };
 
-    [[nodiscard]] static StatusOr<RangeBounds> parse_range_call(
-        const DslAstValue* iter,
-        State& state,
-        const DslAstNode& for_stmt) {
+    [[nodiscard]] static StatusOr<RangeBounds>
+    parse_range_call(const DslAstValue* iter, State& state, const DslAstNode& for_stmt) {
         if (!iter || iter->type() != DslAstValue::Type::Node || !iter->as_node() ||
             iter->as_node()->kind() != "Call") {
-            return fail(
-                DslRuleId::E035_host_loop_unbounded,
-                "OuterControl for requires range(...) with a finite bound",
-                state,
-                for_stmt,
-                "Use for i in range(N) with const or Param N");
+            return fail(DslRuleId::E035_host_loop_unbounded,
+                        "OuterControl for requires range(...) with a finite bound", state, for_stmt,
+                        "Use for i in range(N) with const or Param N");
         }
         const DslAstNode& call = *iter->as_node();
         const DslAstValue* func = call.find_field("func");
         if (!func || func->type() != DslAstValue::Type::Node || !func->as_node() ||
             func->as_node()->kind() != "Name") {
-            return fail(
-                DslRuleId::E035_host_loop_unbounded,
-                "OuterControl for requires range(...)",
-                state,
-                for_stmt);
+            return fail(DslRuleId::E035_host_loop_unbounded, "OuterControl for requires range(...)",
+                        state, for_stmt);
         }
         const DslAstValue* fname = func->as_node()->find_field("id");
         if (!fname || fname->type() != DslAstValue::Type::String || fname->as_string() != "range") {
-            return fail(
-                DslRuleId::E035_host_loop_unbounded,
-                "OuterControl for iter must be range(...), got '" +
-                    (fname && fname->type() == DslAstValue::Type::String ? fname->as_string()
-                                                                        : std::string("?")) +
-                    "'",
-                state,
-                for_stmt);
+            return fail(DslRuleId::E035_host_loop_unbounded,
+                        "OuterControl for iter must be range(...), got '" +
+                            (fname && fname->type() == DslAstValue::Type::String
+                                 ? fname->as_string()
+                                 : std::string("?")) +
+                            "'",
+                        state, for_stmt);
         }
 
         const DslAstValue* args = call.find_field("args");
         if (!args || args->type() != DslAstValue::Type::Array || args->as_array().empty() ||
             args->as_array().size() > 3) {
-            return fail(
-                DslRuleId::E035_host_loop_unbounded,
-                "range() must have 1..3 arguments",
-                state,
-                for_stmt);
+            return fail(DslRuleId::E035_host_loop_unbounded, "range() must have 1..3 arguments",
+                        state, for_stmt);
         }
 
         const auto& argv = args->as_array();
@@ -426,8 +381,7 @@ private:
         HostGlueIr::Ptr step = HostGlueIr::make_const_int(1);
         HostGlueIr::BoundKind bound = HostGlueIr::BoundKind::ConstUnroll;
 
-        auto classify_arg = [&](const DslAstValue& a,
-                                HostGlueIr::Ptr& out) -> Status {
+        auto classify_arg = [&](const DslAstValue& a, HostGlueIr::Ptr& out) -> Status {
             StatusOr<HostGlueIr::Ptr> e = lower_expr_value(&a, state, for_stmt);
             if (!e.ok()) {
                 return e.status();
@@ -440,11 +394,9 @@ private:
                 bound = HostGlueIr::BoundKind::HostKnown;
                 return Status::success();
             }
-            return fail(
-                DslRuleId::E035_host_loop_unbounded,
-                "range() bound is not a compile-time constant or host Param name",
-                state,
-                for_stmt);
+            return fail(DslRuleId::E035_host_loop_unbounded,
+                        "range() bound is not a compile-time constant or host Param name", state,
+                        for_stmt);
         };
 
         if (argv.size() == 1) {
@@ -485,9 +437,8 @@ private:
         return RangeBounds{std::move(start), std::move(stop), std::move(step), bound};
     }
 
-    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_while(
-        const DslAstNode& stmt,
-        State& state) {
+    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_while(const DslAstNode& stmt,
+                                                               State& state) {
         if (scope_of(stmt, state).is_hot_loop()) {
             return HostGlueIr::make_pass();
         }
@@ -510,20 +461,15 @@ private:
         HostGlueIr::BoundKind bound = HostGlueIr::BoundKind::ConstUnroll;
         if (!max_iters.has_value()) {
             if (state.directives != nullptr &&
-                state.directives->honor(
-                    DslDirectiveTable::flag_host_loop_bound,
-                    stmt,
-                    DslRuleId::E035_host_loop_unbounded)) {
+                state.directives->honor(DslDirectiveTable::flag_host_loop_bound, stmt,
+                                        DslRuleId::E035_host_loop_unbounded)) {
                 max_iters = DslDirectiveTable::host_loop_bound_asserted_max;
                 bound = HostGlueIr::BoundKind::HostKnown;
             } else {
-                return fail(
-                    DslRuleId::E035_host_loop_unbounded,
-                    "OuterControl while without provable finite bound",
-                    state,
-                    stmt,
-                    "Use a const upper bound (while i < N) or for-range; "
-                    "or #ignore DSL_FLAG:host_loop_bound with --allow-dsl-ignores");
+                return fail(DslRuleId::E035_host_loop_unbounded,
+                            "OuterControl while without provable finite bound", state, stmt,
+                            "Use a const upper bound (while i < N) or for-range; "
+                            "or #ignore DSL_FLAG:host_loop_bound with --allow-dsl-ignores");
             }
         }
 
@@ -538,19 +484,16 @@ private:
         }
 
         ++state.while_count;
-        auto node = HostGlueIr::make_while_bounded(
-            std::move(cond.value()),
-            std::move(body.value()),
-            *max_iters,
-            bound);
+        auto node = HostGlueIr::make_while_bounded(std::move(cond.value()), std::move(body.value()),
+                                                   *max_iters, bound);
         node->set_location(stmt.lineno(), stmt.col_offset());
         return node;
     }
 
     /// Accept `while <Name> < Lt/LtE > <Constant int>` as finite with max=const
     /// (or const+1 for LtE). Everything else → nullopt → E035.
-    [[nodiscard]] static std::optional<std::int64_t> prove_while_max_iters(
-        const DslAstValue* test) {
+    [[nodiscard]] static std::optional<std::int64_t>
+    prove_while_max_iters(const DslAstValue* test) {
         if (!test || test->type() != DslAstValue::Type::Node || !test->as_node()) {
             return std::nullopt;
         }
@@ -570,8 +513,8 @@ private:
         std::string op;
         if (ops->as_array()[0].type() == DslAstValue::Type::String) {
             op = ops->as_array()[0].as_string();
-        } else if (
-            ops->as_array()[0].type() == DslAstValue::Type::Node && ops->as_array()[0].as_node()) {
+        } else if (ops->as_array()[0].type() == DslAstValue::Type::Node &&
+                   ops->as_array()[0].as_node()) {
             op = ops->as_array()[0].as_node()->kind();
         }
         if (op != "Lt" && op != "LtE") {
@@ -596,9 +539,8 @@ private:
         return n;
     }
 
-    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_call(
-        const DslAstNode& call,
-        State& state) {
+    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_call(const DslAstNode& call,
+                                                              State& state) {
         std::string callee = "call";
         const DslAstValue* func = call.find_field("func");
         if (func && func->type() == DslAstValue::Type::Node && func->as_node()) {
@@ -630,10 +572,8 @@ private:
         return node;
     }
 
-    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_expr_value(
-        const DslAstValue* value,
-        State& state,
-        const DslAstNode& loc) {
+    [[nodiscard]] static StatusOr<HostGlueIr::Ptr>
+    lower_expr_value(const DslAstValue* value, State& state, const DslAstNode& loc) {
         if (!value) {
             return HostGlueIr::make_const_int(0);
         }
@@ -651,9 +591,8 @@ private:
         return HostGlueIr::make_pass();
     }
 
-    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_expr(
-        const DslAstNode& node,
-        State& state) {
+    [[nodiscard]] static StatusOr<HostGlueIr::Ptr> lower_expr(const DslAstNode& node,
+                                                              State& state) {
         if (node.kind() == "Constant") {
             const DslAstValue* val = node.find_field("value");
             if (val && val->type() == DslAstValue::Type::Int) {

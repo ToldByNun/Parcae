@@ -1,9 +1,8 @@
-#include "candidate_batch_buffers.hpp"
-
 #include "parcae/core/index29.hpp"
 
-#include <catch2/catch_test_macros.hpp>
+#include "candidate_batch_buffers.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <vector>
 
@@ -13,7 +12,7 @@ namespace {
     return Index29{v};
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("CandidateBatchBuffers shared caesar SoA layout", "[cuda][batch][abi]") {
     CandidateBatchBuffers::AllocateOptions options;

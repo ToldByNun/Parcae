@@ -1,13 +1,11 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <parcae/core/index29.hpp>
 #include <parcae/hypothesis/hypothesis_record.hpp>
 #include <parcae/hypothesis/hypothesis_status.hpp>
 #include <parcae/hypothesis/workspace_paths.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <cstdint>
-#include <filesystem>
-#include <fstream>
 #include <string>
 
 #ifndef PARCAE_TEST_DATA_DIR
@@ -24,24 +22,24 @@ namespace {
     return Index29{v};
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("HypothesisStatus transitions v0", "[hypothesis][status]") {
-    REQUIRE(HypothesisStatusUtil::can_transition(
-        HypothesisStatus::Draft, HypothesisStatus::Proposed));
-    REQUIRE(HypothesisStatusUtil::can_transition(
-        HypothesisStatus::Proposed, HypothesisStatus::Scored));
-    REQUIRE(HypothesisStatusUtil::can_transition(
-        HypothesisStatus::Proposed, HypothesisStatus::Promoted));
-    REQUIRE(HypothesisStatusUtil::can_transition(
-        HypothesisStatus::Scored, HypothesisStatus::Rejected));
-    REQUIRE_FALSE(HypothesisStatusUtil::can_transition(
-        HypothesisStatus::Draft, HypothesisStatus::Scored));
-    REQUIRE_FALSE(HypothesisStatusUtil::can_transition(
-        HypothesisStatus::Rejected, HypothesisStatus::Proposed));
-    REQUIRE(HypothesisStatusUtil::require_transition(
-                HypothesisStatus::Draft, HypothesisStatus::Draft)
-                .ok());
+    REQUIRE(
+        HypothesisStatusUtil::can_transition(HypothesisStatus::Draft, HypothesisStatus::Proposed));
+    REQUIRE(
+        HypothesisStatusUtil::can_transition(HypothesisStatus::Proposed, HypothesisStatus::Scored));
+    REQUIRE(HypothesisStatusUtil::can_transition(HypothesisStatus::Proposed,
+                                                 HypothesisStatus::Promoted));
+    REQUIRE(
+        HypothesisStatusUtil::can_transition(HypothesisStatus::Scored, HypothesisStatus::Rejected));
+    REQUIRE_FALSE(
+        HypothesisStatusUtil::can_transition(HypothesisStatus::Draft, HypothesisStatus::Scored));
+    REQUIRE_FALSE(HypothesisStatusUtil::can_transition(HypothesisStatus::Rejected,
+                                                       HypothesisStatus::Proposed));
+    REQUIRE(
+        HypothesisStatusUtil::require_transition(HypothesisStatus::Draft, HypothesisStatus::Draft)
+            .ok());
 }
 
 TEST_CASE("WorkspacePaths validate id and reject traversal", "[hypothesis][paths]") {
@@ -51,8 +49,7 @@ TEST_CASE("WorkspacePaths validate id and reject traversal", "[hypothesis][paths
     REQUIRE_FALSE(WorkspacePaths::validate_id("BadId").ok());
     REQUIRE_FALSE(WorkspacePaths::validate_id("1leading").ok());
 
-    StatusOr<std::filesystem::path> ws =
-        WorkspacePaths::workspace_root(data_root(), "_example");
+    StatusOr<std::filesystem::path> ws = WorkspacePaths::workspace_root(data_root(), "_example");
     REQUIRE(ws.ok());
 
     REQUIRE_FALSE(WorkspacePaths::resolve_under(ws.value(), "../fixtures/solved").ok());
@@ -89,9 +86,8 @@ TEST_CASE("HypothesisRecord digest is key-order stable", "[hypothesis][digest]")
         {"transform_id", "caesar"},
     };
     REQUIRE(HypothesisRecord::method_sha256(a) == HypothesisRecord::method_sha256(b));
-    REQUIRE(
-        HypothesisRecord::output_indices_sha256(std::vector<Index29>{I(0), I(1), I(2)}) ==
-        HypothesisRecord::output_indices_sha256(std::vector<Index29>{I(0), I(1), I(2)}));
+    REQUIRE(HypothesisRecord::output_indices_sha256(std::vector<Index29>{I(0), I(1), I(2)}) ==
+            HypothesisRecord::output_indices_sha256(std::vector<Index29>{I(0), I(1), I(2)}));
 }
 
 TEST_CASE("HypothesisRecord store round-trip under temp workspace", "[hypothesis][store]") {
@@ -100,16 +96,13 @@ TEST_CASE("HypothesisRecord store round-trip under temp workspace", "[hypothesis
     std::filesystem::remove_all(tmp, ec);
     std::filesystem::create_directories(tmp / "workspaces", ec);
 
-    StatusOr<HypothesisRecord> draft = HypothesisRecord::make_draft(
-        "tmp-ws",
-        "h-draft-1",
-        "2026-09-19T21:00:00Z",
-        "temp draft",
-        nlohmann::json{
-            {"transform_id", "atbash"},
-            {"direction", "decrypt"},
-            {"params", nlohmann::json::object()},
-        });
+    StatusOr<HypothesisRecord> draft =
+        HypothesisRecord::make_draft("tmp-ws", "h-draft-1", "2026-09-19T21:00:00Z", "temp draft",
+                                     nlohmann::json{
+                                         {"transform_id", "atbash"},
+                                         {"direction", "decrypt"},
+                                         {"params", nlohmann::json::object()},
+                                     });
     REQUIRE(draft.ok());
     draft.value().recompute_method_digest();
     REQUIRE(draft.value().digests().at("method_sha256").is_string());
@@ -117,14 +110,12 @@ TEST_CASE("HypothesisRecord store round-trip under temp workspace", "[hypothesis
     Status stored = draft.value().store(tmp);
     REQUIRE(stored.ok());
 
-    StatusOr<HypothesisRecord> loaded =
-        HypothesisRecord::load(tmp, "tmp-ws", "h-draft-1");
+    StatusOr<HypothesisRecord> loaded = HypothesisRecord::load(tmp, "tmp-ws", "h-draft-1");
     REQUIRE(loaded.ok());
     REQUIRE(loaded.value().title() == "temp draft");
     REQUIRE(loaded.value().status() == HypothesisStatus::Draft);
-    REQUIRE(
-        loaded.value().digests().at("method_sha256").get<std::string>() ==
-        draft.value().digests().at("method_sha256").get<std::string>());
+    REQUIRE(loaded.value().digests().at("method_sha256").get<std::string>() ==
+            draft.value().digests().at("method_sha256").get<std::string>());
 
     REQUIRE(loaded.value().set_status(HypothesisStatus::Proposed).ok());
     REQUIRE_FALSE(loaded.value().set_status(HypothesisStatus::Draft).ok());
@@ -137,35 +128,28 @@ TEST_CASE("HypothesisRecord source validates extended provenance fields", "[hypo
     REQUIRE(HypothesisRecord::validate_source(HypothesisRecord::empty_source()).ok());
 
     nlohmann::json batch_source = {
-        {"generator_id", "gen_caesar"},
-        {"candidate_id", "caesar:shift=3"},
-        {"agent_run_id", nullptr},
-        {"batch_id", "b-caesar-0001"},
-        {"family", "caesar"},
-        {"rank", 0},
+        {"generator_id", "gen_caesar"}, {"candidate_id", "caesar:shift=3"},
+        {"agent_run_id", nullptr},      {"batch_id", "b-caesar-0001"},
+        {"family", "caesar"},           {"rank", 0},
     };
     REQUIRE(HypothesisRecord::validate_source(batch_source).ok());
 
-    REQUIRE_FALSE(HypothesisRecord::validate_source(
-                      nlohmann::json{{"generator_id", "gen_x"}, {"extra", 1}})
-                      .ok());
+    REQUIRE_FALSE(
+        HypothesisRecord::validate_source(nlohmann::json{{"generator_id", "gen_x"}, {"extra", 1}})
+            .ok());
     REQUIRE_FALSE(HypothesisRecord::validate_source(
                       nlohmann::json{{"batch_id", "BadId"}, {"candidate_id", "x"}})
                       .ok());
     REQUIRE_FALSE(HypothesisRecord::validate_source(
                       nlohmann::json{{"family", "rot13"}, {"candidate_id", "x"}})
                       .ok());
-    REQUIRE_FALSE(HypothesisRecord::validate_source(
-                      nlohmann::json{{"rank", -1}, {"candidate_id", "x"}})
-                      .ok());
-    REQUIRE_FALSE(HypothesisRecord::validate_source(
-                      nlohmann::json{{"candidate_id", ""}})
-                      .ok());
+    REQUIRE_FALSE(
+        HypothesisRecord::validate_source(nlohmann::json{{"rank", -1}, {"candidate_id", "x"}})
+            .ok());
+    REQUIRE_FALSE(HypothesisRecord::validate_source(nlohmann::json{{"candidate_id", ""}}).ok());
 
-    StatusOr<HypothesisRecord> draft = HypothesisRecord::make_draft(
-        "src-ws",
-        "h-src-1",
-        "2026-09-22T12:00:00Z");
+    StatusOr<HypothesisRecord> draft =
+        HypothesisRecord::make_draft("src-ws", "h-src-1", "2026-09-22T12:00:00Z");
     REQUIRE(draft.ok());
     REQUIRE(draft.value().source().contains("batch_id"));
     REQUIRE(draft.value().source().at("batch_id").is_null());
@@ -173,9 +157,8 @@ TEST_CASE("HypothesisRecord source validates extended provenance fields", "[hypo
     REQUIRE(draft.value().source().contains("rank"));
 
     REQUIRE(draft.value().set_source(batch_source).ok());
-    REQUIRE_FALSE(draft.value()
-                       .set_source(nlohmann::json{{"batch_id", "!!"}, {"candidate_id", "x"}})
-                       .ok());
+    REQUIRE_FALSE(
+        draft.value().set_source(nlohmann::json{{"batch_id", "!!"}, {"candidate_id", "x"}}).ok());
 
     // Round-trip with extended source.
     const auto tmp = std::filesystem::temp_directory_path() / "parcae_hypothesis_source_f21";
@@ -192,9 +175,8 @@ TEST_CASE("HypothesisRecord source validates extended provenance fields", "[hypo
 }
 
 TEST_CASE("HypothesisRecord load rejects id mismatch", "[hypothesis][load]") {
-    const auto path = data_root() / "workspaces" / "_example" / "hypotheses" / "h-atbash-example.json";
-    REQUIRE_FALSE(
-        HypothesisRecord::load_file(path, "_example", "wrong-id").ok());
-    REQUIRE_FALSE(
-        HypothesisRecord::load_file(path, "other-ws", "h-atbash-example").ok());
+    const auto path =
+        data_root() / "workspaces" / "_example" / "hypotheses" / "h-atbash-example.json";
+    REQUIRE_FALSE(HypothesisRecord::load_file(path, "_example", "wrong-id").ok());
+    REQUIRE_FALSE(HypothesisRecord::load_file(path, "other-ws", "h-atbash-example").ok());
 }

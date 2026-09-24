@@ -1,5 +1,3 @@
-#include "cli_io.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
@@ -10,16 +8,17 @@
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
 
+#include "cli_io.hpp"
+
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #if defined(PARCAE_HAS_CUDA)
 #include "backend.hpp"
@@ -51,8 +50,8 @@ void print_help() {
     if (!in) {
         return Status::error("Failed to open: " + path.string());
     }
-    return std::vector<std::uint8_t>(
-        std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    return std::vector<std::uint8_t>(std::istreambuf_iterator<char>(in),
+                                     std::istreambuf_iterator<char>());
 }
 
 [[nodiscard]] StatusOr<nlohmann::json> read_json(const std::filesystem::path& path) {
@@ -69,8 +68,8 @@ void print_help() {
     return root;
 }
 
-[[nodiscard]] StatusOr<std::vector<Index29>> indices_from_bytes(
-    const std::vector<std::uint8_t>& bytes) {
+[[nodiscard]] StatusOr<std::vector<Index29>>
+indices_from_bytes(const std::vector<std::uint8_t>& bytes) {
     std::vector<Index29> out;
     out.reserve(bytes.size());
     for (std::uint8_t value : bytes) {
@@ -92,9 +91,8 @@ struct LoadedCase {
     ParityRecord golden;
 };
 
-[[nodiscard]] StatusOr<LoadedCase> load_case(
-    const std::filesystem::path& parity_dir,
-    const std::string& name) {
+[[nodiscard]] StatusOr<LoadedCase> load_case(const std::filesystem::path& parity_dir,
+                                             const std::string& name) {
     StatusOr<nlohmann::json> case_json = read_json(parity_dir / (name + ".case.json"));
     if (!case_json.ok()) {
         return case_json.status();
@@ -149,8 +147,8 @@ struct LoadedCase {
     };
 }
 
-[[nodiscard]] StatusOr<std::vector<std::string>> load_manifest_names(
-    const std::filesystem::path& parity_dir) {
+[[nodiscard]] StatusOr<std::vector<std::string>>
+load_manifest_names(const std::filesystem::path& parity_dir) {
     StatusOr<nlohmann::json> manifest = read_json(parity_dir / "manifest.json");
     if (!manifest.ok()) {
         return manifest.status();
@@ -168,9 +166,8 @@ struct LoadedCase {
     return names;
 }
 
-[[nodiscard]] bool digests_match_except_backend(
-    const ParityRecord& expected,
-    const ParityRecord& actual) {
+[[nodiscard]] bool digests_match_except_backend(const ParityRecord& expected,
+                                                const ParityRecord& actual) {
     return expected.transform_id() == actual.transform_id() &&
            expected.params_hash_sha256() == actual.params_hash_sha256() &&
            expected.input_sha256() == actual.input_sha256() &&
@@ -178,34 +175,24 @@ struct LoadedCase {
            expected.interrupt_sha256() == actual.interrupt_sha256();
 }
 
-[[nodiscard]] StatusOr<std::pair<std::vector<Index29>, ParityRecord>> apply_and_capture(
-    const LoadedCase& loaded,
-    Backend backend) {
+[[nodiscard]] StatusOr<std::pair<std::vector<Index29>, ParityRecord>>
+apply_and_capture(const LoadedCase& loaded, Backend backend) {
     Status usable = BackendUtil::ensure_usable(backend);
     if (!usable.ok()) {
         return usable;
     }
 
     if (backend == Backend::Cpu) {
-        return ParityRecord::apply_and_capture(
-            loaded.id,
-            loaded.input,
-            loaded.params,
-            loaded.direction,
-            loaded.interrupt,
-            "cpu");
+        return ParityRecord::apply_and_capture(loaded.id, loaded.input, loaded.params,
+                                               loaded.direction, loaded.interrupt, "cpu");
     }
 
 #if defined(PARCAE_HAS_CUDA)
     if (!CudaBackend::available()) {
         return Status::error("CUDA backend requested but CUDA is not available");
     }
-    return CudaBackend::apply_and_capture(
-        loaded.id,
-        loaded.input,
-        loaded.params,
-        loaded.direction,
-        loaded.interrupt);
+    return CudaBackend::apply_and_capture(loaded.id, loaded.input, loaded.params, loaded.direction,
+                                          loaded.interrupt);
 #else
     return Status::error(
         "CUDA backend requested but Parcae was built without CUDA (PARCAE_BUILD_CUDA)");
@@ -215,14 +202,12 @@ struct LoadedCase {
 struct CheckResult {
     std::string name;
     bool cpu_ok = false;
-    bool cuda_ok = false;  // meaningful only when compare_cuda
+    bool cuda_ok = false; // meaningful only when compare_cuda
     std::string message;
 };
 
-[[nodiscard]] CheckResult check_one(
-    const std::filesystem::path& parity_dir,
-    const std::string& name,
-    bool compare_cuda) {
+[[nodiscard]] CheckResult check_one(const std::filesystem::path& parity_dir,
+                                    const std::string& name, bool compare_cuda) {
     CheckResult result;
     result.name = name;
 
@@ -270,7 +255,7 @@ struct CheckResult {
     return result;
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
@@ -295,7 +280,7 @@ int main(int argc, char** argv) {
                 std::cerr << "Missing value for " << arg << '\n';
                 return CliIo::kExitUsage;
             }
-            ++i;  // skip value
+            ++i; // skip value
             continue;
         }
         if (arg == "--all" || arg == "--json" || arg == "--compare-cuda" || arg == "-h" ||
@@ -338,8 +323,8 @@ int main(int argc, char** argv) {
             print_help();
             return CliIo::kExitUsage;
         }
-        StatusOr<Backend> backend = BackendUtil::from_string(
-            CliIo::optional_option(args, "--backend", "cpu"));
+        StatusOr<Backend> backend =
+            BackendUtil::from_string(CliIo::optional_option(args, "--backend", "cpu"));
         if (!backend.ok()) {
             std::cerr << backend.status().message() << '\n';
             return CliIo::kExitUsage;

@@ -7,12 +7,11 @@
 
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 class FixtureLoader {
 public:
@@ -65,13 +64,13 @@ public:
         }
 
         const std::string transform_id = root.at("method").at("transform_id").get<std::string>();
-        const std::string direction =
-            root.at("method").value("direction", std::string("decrypt"));
+        const std::string direction = root.at("method").value("direction", std::string("decrypt"));
 
         std::vector<std::size_t> skip_indices;
         if (root.at("method").contains("interrupt") &&
             root.at("method").at("interrupt").contains("skip_indices")) {
-            for (const nlohmann::json& item : root.at("method").at("interrupt").at("skip_indices")) {
+            for (const nlohmann::json& item :
+                 root.at("method").at("interrupt").at("skip_indices")) {
                 skip_indices.push_back(item.get<std::size_t>());
             }
         }
@@ -100,11 +99,10 @@ public:
 
         std::vector<FixtureLiteralRegion> literals;
         for (const nlohmann::json& item : root.at("non_rune_literal_regions")) {
-            literals.emplace_back(
-                item.value("kind", std::string{}),
-                item.value("role", std::string{}),
-                item.value("value_file", std::string{}),
-                item.value("compare", std::string{"exact"}));
+            literals.emplace_back(item.value("kind", std::string{}),
+                                  item.value("role", std::string{}),
+                                  item.value("value_file", std::string{}),
+                                  item.value("compare", std::string{"exact"}));
         }
 
         if (!root.contains("verification")) {
@@ -149,9 +147,8 @@ public:
 private:
     FixtureLoader() = delete;
 
-    [[nodiscard]] static StatusOr<std::optional<std::string>> parse_optional_hash(
-        const nlohmann::json& hashes,
-        const char* key) {
+    [[nodiscard]] static StatusOr<std::optional<std::string>>
+    parse_optional_hash(const nlohmann::json& hashes, const char* key) {
         if (!hashes.contains(key) || hashes.at(key).is_null()) {
             return std::optional<std::string>{};
         }

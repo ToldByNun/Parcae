@@ -1,3 +1,8 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
+#include <filesystem>
+#include <mutex>
+#include <optional>
 #include <parcae/batch/batch_runner.hpp>
 #include <parcae/cli/console_progress_sink.hpp>
 #include <parcae/core/index29.hpp>
@@ -19,13 +24,6 @@
 #include <parcae/transform/compose_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <cstdint>
-#include <filesystem>
-#include <mutex>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -57,8 +55,8 @@ namespace {
     for (std::uint8_t i = 0; i < 64; ++i) {
         plain.push_back(Index29{static_cast<std::uint8_t>(i % 29)});
     }
-    StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-        plain, nlohmann::json{{"shift", 7}}, TransformDirection::Encrypt);
+    StatusOr<std::vector<Index29>> cipher =
+        CaesarTransform{}.apply(plain, nlohmann::json{{"shift", 7}}, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
     return cipher.value();
 }
@@ -67,42 +65,34 @@ namespace {
     return Context{std::string(PARCAE_TEST_DATA_DIR)};
 }
 
-[[nodiscard]] std::vector<double> cpu_chi2_by_shift(
-    const std::vector<Index29>& cipher,
-    const ExpectedFrequencyTable& freqs) {
+[[nodiscard]] std::vector<double> cpu_chi2_by_shift(const std::vector<Index29>& cipher,
+                                                    const ExpectedFrequencyTable& freqs) {
     ScoreRequest request;
     request.expected_frequencies = &freqs;
     std::vector<double> scores(Index29::modulus, 0.0);
     for (std::uint8_t shift = 0; shift < Index29::modulus; ++shift) {
-        StatusOr<std::vector<Index29>> out = CaesarTransform{}.apply(
-            cipher,
-            nlohmann::json{{"shift", static_cast<int>(shift)}},
-            TransformDirection::Decrypt);
+        StatusOr<std::vector<Index29>> out =
+            CaesarTransform{}.apply(cipher, nlohmann::json{{"shift", static_cast<int>(shift)}},
+                                    TransformDirection::Decrypt);
         REQUIRE(out.ok());
-        StatusOr<double> score = ScoreRegistry::score(
-            "chi2_english_gp_v0", out.value(), "v0", nlohmann::json::object(), request);
+        StatusOr<double> score = ScoreRegistry::score("chi2_english_gp_v0", out.value(), "v0",
+                                                      nlohmann::json::object(), request);
         REQUIRE(score.ok());
         scores[shift] = score.value();
     }
     return scores;
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "CpuCandidateExport caesar top-k matches GpuCandidateExport host scores",
-    "[search][export][cpu][caesar]") {
+TEST_CASE("CpuCandidateExport caesar top-k matches GpuCandidateExport host scores",
+          "[search][export][cpu][caesar]") {
     const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
     constexpr std::size_t k = 5;
     StatusOr<CpuCandidateExport::Result> cpu = CpuCandidateExport::run(
-        cipher,
-        "caesar",
-        "chi2_english_gp_v0",
-        k,
-        ctx,
-        TransformDirection::Decrypt);
+        cipher, "caesar", "chi2_english_gp_v0", k, ctx, TransformDirection::Decrypt);
     REQUIRE(cpu.ok());
     REQUIRE(cpu.value().size() == k);
 
@@ -114,13 +104,11 @@ TEST_CASE(
     REQUIRE(gpu.ok());
 
     for (std::size_t i = 0; i < k; ++i) {
-        REQUIRE(
-            cpu.value().rows()[i].candidate().candidate_id() ==
-            gpu.value().rows()[i].candidate().candidate_id());
+        REQUIRE(cpu.value().rows()[i].candidate().candidate_id() ==
+                gpu.value().rows()[i].candidate().candidate_id());
         REQUIRE(cpu.value().rows()[i].score() == gpu.value().rows()[i].score());
-        REQUIRE(
-            cpu.value().rows()[i].candidate().output_indices() ==
-            gpu.value().rows()[i].candidate().output_indices());
+        REQUIRE(cpu.value().rows()[i].candidate().output_indices() ==
+                gpu.value().rows()[i].candidate().output_indices());
     }
 }
 
@@ -132,22 +120,14 @@ TEST_CASE("CpuCandidateExport exclusion removes rejected params", "[search][expo
     const std::string shift7_hash = SearchPrior::param_hash_of(shift7_params);
 
     StatusOr<SearchPrior> prior = SearchPrior::make(
-        "lp2-page-0-explore",
-        {},
-        {SearchPrior::Exclusion{shift7_hash, "h-reject-7", "rejected"}},
+        "lp2-page-0-explore", {}, {SearchPrior::Exclusion{shift7_hash, "h-reject-7", "rejected"}},
         "2026-09-21T18:00:00Z");
     REQUIRE(prior.ok());
 
     constexpr std::size_t k = 29;
     StatusOr<CpuCandidateExport::Result> with_prior = CpuCandidateExport::run(
-        cipher,
-        "caesar",
-        "chi2_english_gp_v0",
-        k,
-        ctx,
-        TransformDirection::Decrypt,
-        nlohmann::json::object(),
-        &prior.value());
+        cipher, "caesar", "chi2_english_gp_v0", k, ctx, TransformDirection::Decrypt,
+        nlohmann::json::object(), &prior.value());
     REQUIRE(with_prior.ok());
     REQUIRE(with_prior.value().size() == k - 1);
 
@@ -156,7 +136,8 @@ TEST_CASE("CpuCandidateExport exclusion removes rejected params", "[search][expo
     }
 }
 
-TEST_CASE("CpuCandidateExport seed envelope is ranked when not in grid params", "[search][export][cpu]") {
+TEST_CASE("CpuCandidateExport seed envelope is ranked when not in grid params",
+          "[search][export][cpu]") {
     const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
@@ -170,21 +151,13 @@ TEST_CASE("CpuCandidateExport seed envelope is ranked when not in grid params", 
     // Exclude shift 7 from the grid so only the seed path retains that plaintext.
     const std::string shift7_hash = SearchPrior::param_hash_of(envelope.at("params"));
     StatusOr<SearchPrior> prior = SearchPrior::make(
-        "lp2-page-0-explore",
-        {SearchPrior::Seed{"h-promoted-7", envelope}},
-        {SearchPrior::Exclusion{shift7_hash, "h-other", "rejected"}},
-        "2026-09-21T18:00:00Z");
+        "lp2-page-0-explore", {SearchPrior::Seed{"h-promoted-7", envelope}},
+        {SearchPrior::Exclusion{shift7_hash, "h-other", "rejected"}}, "2026-09-21T18:00:00Z");
     REQUIRE(prior.ok());
 
     StatusOr<CpuCandidateExport::Result> exported = CpuCandidateExport::run(
-        cipher,
-        "caesar",
-        "chi2_english_gp_v0",
-        1,
-        ctx,
-        TransformDirection::Decrypt,
-        nlohmann::json::object(),
-        &prior.value());
+        cipher, "caesar", "chi2_english_gp_v0", 1, ctx, TransformDirection::Decrypt,
+        nlohmann::json::object(), &prior.value());
     REQUIRE(exported.ok());
     REQUIRE(exported.value().size() == 1);
     REQUIRE(exported.value().rows()[0].candidate().candidate_id() == "prior-seed:h-promoted-7");
@@ -196,106 +169,56 @@ TEST_CASE("CpuCandidateExport rejects expansion above max_candidates", "[search]
     const std::vector<Index29> cipher = synthetic_cipher();
 
     StatusOr<CpuCandidateExport::Result> ok = CpuCandidateExport::run(
-        cipher,
-        "caesar",
-        "chi2_english_gp_v0",
-        5,
-        ctx,
-        TransformDirection::Decrypt,
-        nlohmann::json::object(),
-        nullptr,
-        "v0",
-        28);
+        cipher, "caesar", "chi2_english_gp_v0", 5, ctx, TransformDirection::Decrypt,
+        nlohmann::json::object(), nullptr, "v0", 28);
     REQUIRE(!ok.ok());
 
     StatusOr<CpuCandidateExport::Result> pass = CpuCandidateExport::run(
-        cipher,
-        "caesar",
-        "chi2_english_gp_v0",
-        5,
-        ctx,
-        TransformDirection::Decrypt,
-        nlohmann::json::object(),
-        nullptr,
-        "v0",
-        29);
+        cipher, "caesar", "chi2_english_gp_v0", 5, ctx, TransformDirection::Decrypt,
+        nlohmann::json::object(), nullptr, "v0", 29);
     REQUIRE(pass.ok());
 }
 
-TEST_CASE(
-    "CpuCandidateExport opt-in beaufort / totient families",
-    "[search][export][cpu][extended]") {
+TEST_CASE("CpuCandidateExport opt-in beaufort / totient families",
+          "[search][export][cpu][extended]") {
     const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
-    StatusOr<SearchJob> denied = SearchJob::make(
-        "_example",
-        "totient",
-        "chi2_english_gp_v0",
-        3,
-        1,
-        Backend::Cpu,
-        64);
+    StatusOr<SearchJob> denied =
+        SearchJob::make("_example", "totient", "chi2_english_gp_v0", 3, 1, Backend::Cpu, 64);
     REQUIRE_FALSE(denied.ok());
 
-    StatusOr<SearchJob> totient_job = SearchJob::make(
-        "_example",
-        "totient",
-        "chi2_english_gp_v0",
-        3,
-        1,
-        Backend::Cpu,
-        64,
-        TransformDirection::Decrypt,
-        nlohmann::json{{"prime_start_count", 8}},
-        std::nullopt,
-        "v0",
-        true);
+    StatusOr<SearchJob> totient_job =
+        SearchJob::make("_example", "totient", "chi2_english_gp_v0", 3, 1, Backend::Cpu, 64,
+                        TransformDirection::Decrypt, nlohmann::json{{"prime_start_count", 8}},
+                        std::nullopt, "v0", true);
     REQUIRE(totient_job.ok());
     StatusOr<CpuCandidateExport::Result> totient =
         CpuCandidateExport::from_job(cipher, totient_job.value(), ctx);
     REQUIRE(totient.ok());
     REQUIRE(totient.value().size() == 3);
-    REQUIRE(
-        totient.value().rows()[0].candidate().transform_id() ==
-        TransformId::totient_prime_stream());
+    REQUIRE(totient.value().rows()[0].candidate().transform_id() ==
+            TransformId::totient_prime_stream());
 
-    StatusOr<SearchJob> beaufort_job = SearchJob::make(
-        "_example",
-        "beaufort",
-        "chi2_english_gp_v0",
-        2,
-        1,
-        Backend::Cpu,
-        64,
-        TransformDirection::Decrypt,
-        nlohmann::json{{"max_key_length", 4}},
-        std::nullopt,
-        "v0",
-        true);
+    StatusOr<SearchJob> beaufort_job =
+        SearchJob::make("_example", "beaufort", "chi2_english_gp_v0", 2, 1, Backend::Cpu, 64,
+                        TransformDirection::Decrypt, nlohmann::json{{"max_key_length", 4}},
+                        std::nullopt, "v0", true);
     REQUIRE(beaufort_job.ok());
     StatusOr<CpuCandidateExport::Result> beaufort =
         CpuCandidateExport::from_job(cipher, beaufort_job.value(), ctx);
     REQUIRE(beaufort.ok());
     REQUIRE(beaufort.value().size() == 2);
-    REQUIRE(
-        beaufort.value().rows()[0].candidate().transform_id() == TransformId::beaufort_key());
+    REQUIRE(beaufort.value().rows()[0].candidate().transform_id() == TransformId::beaufort_key());
 }
 
-TEST_CASE(
-    "CpuCandidateExport compose recipes reuse AtbashCaesar grid",
-    "[search][export][cpu][compose]") {
+TEST_CASE("CpuCandidateExport compose recipes reuse AtbashCaesar grid",
+          "[search][export][cpu][compose]") {
     const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
-    StatusOr<SearchJob> default_job = SearchJob::make(
-        "_example",
-        "compose",
-        "chi2_english_gp_v0",
-        5,
-        1,
-        Backend::Cpu,
-        64);
+    StatusOr<SearchJob> default_job =
+        SearchJob::make("_example", "compose", "chi2_english_gp_v0", 5, 1, Backend::Cpu, 64);
     REQUIRE(default_job.ok());
     StatusOr<CpuCandidateExport::Result> def =
         CpuCandidateExport::from_job(cipher, default_job.value(), ctx);
@@ -303,73 +226,51 @@ TEST_CASE(
     REQUIRE(def.value().size() == 5);
     REQUIRE(def.value().rows()[0].candidate().transform_id() == TransformId::compose());
 
-    StatusOr<SearchJob> atbash_job = SearchJob::make(
-        "_example",
-        "atbash_caesar",
-        "chi2_english_gp_v0",
-        5,
-        1,
-        Backend::Cpu,
-        64);
+    StatusOr<SearchJob> atbash_job =
+        SearchJob::make("_example", "atbash_caesar", "chi2_english_gp_v0", 5, 1, Backend::Cpu, 64);
     REQUIRE(atbash_job.ok());
     StatusOr<CpuCandidateExport::Result> atbash =
         CpuCandidateExport::from_job(cipher, atbash_job.value(), ctx);
     REQUIRE(atbash.ok());
     REQUIRE(atbash.value().size() == 5);
     // Same family of candidates: Atbash∘Caesar ids and top-k ordering should match.
-    REQUIRE(
-        def.value().rows()[0].candidate().candidate_id() ==
-        atbash.value().rows()[0].candidate().candidate_id());
+    REQUIRE(def.value().rows()[0].candidate().candidate_id() ==
+            atbash.value().rows()[0].candidate().candidate_id());
     REQUIRE(def.value().rows()[0].score() == atbash.value().rows()[0].score());
 
     const nlohmann::json recipes{
-        {"recipes",
-         nlohmann::json::array(
-             {ComposeTransform::atbash_then_caesar_params(3),
-              ComposeTransform::atbash_then_caesar_params(7)})}};
-    StatusOr<SearchJob> explicit_job = SearchJob::make(
-        "_example",
-        "compose",
-        "chi2_english_gp_v0",
-        2,
-        1,
-        Backend::Cpu,
-        64,
-        TransformDirection::Decrypt,
-        recipes);
+        {"recipes", nlohmann::json::array({ComposeTransform::atbash_then_caesar_params(3),
+                                           ComposeTransform::atbash_then_caesar_params(7)})}};
+    StatusOr<SearchJob> explicit_job =
+        SearchJob::make("_example", "compose", "chi2_english_gp_v0", 2, 1, Backend::Cpu, 64,
+                        TransformDirection::Decrypt, recipes);
     REQUIRE(explicit_job.ok());
     StatusOr<CpuCandidateExport::Result> explicit_export =
         CpuCandidateExport::from_job(cipher, explicit_job.value(), ctx);
     REQUIRE(explicit_export.ok());
     REQUIRE(explicit_export.value().size() == 2);
-    REQUIRE(
-        CpuCandidateExport::generator_id_for_family("compose").value() ==
-        ComposeRecipeCandidateGenerator::generator_id);
+    REQUIRE(CpuCandidateExport::generator_id_for_family("compose").value() ==
+            ComposeRecipeCandidateGenerator::generator_id);
 }
 
-TEST_CASE(
-    "CpuCandidateExport opt-in theory URI params_list",
-    "[search][export][cpu][theory][compile]") {
+TEST_CASE("CpuCandidateExport opt-in theory URI params_list",
+          "[search][export][cpu][theory][compile]") {
     REQUIRE(DslCompile::pipeline_ready(compile_options()));
 
-    const auto root =
-        std::filesystem::temp_directory_path() / "parcae_cpu_export_theory_j37";
+    const auto root = std::filesystem::temp_directory_path() / "parcae_cpu_export_theory_j37";
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
     std::filesystem::create_directories(root / "theories", ec);
     std::filesystem::create_directories(root / "profiles" / "scores", ec);
 
-    const auto src_expected = std::filesystem::path(PARCAE_TEST_DATA_DIR) / "profiles" /
-                              "scores" / "english-gp-expected-v0.json";
-    std::filesystem::copy_file(
-        src_expected,
-        root / "profiles" / "scores" / "english-gp-expected-v0.json",
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    const auto src_expected = std::filesystem::path(PARCAE_TEST_DATA_DIR) / "profiles" / "scores" /
+                              "english-gp-expected-v0.json";
+    std::filesystem::copy_file(src_expected,
+                               root / "profiles" / "scores" / "english-gp-expected-v0.json",
+                               std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE_FALSE(ec);
 
-    const auto src =
-        std::filesystem::path(PARCAE_EXAMPLES_DIR) / "new_math_example.py";
+    const auto src = std::filesystem::path(PARCAE_EXAMPLES_DIR) / "new_math_example.py";
     StatusOr<DslCompile::Result> compiled =
         DslCompile::compile_file(src, root / "theories", compile_options());
     REQUIRE(compiled.ok());
@@ -377,37 +278,17 @@ TEST_CASE(
     const std::string uri = "parcae://theories/quadratic_polynomial_stream@1";
     const nlohmann::json param_grid{
         {"theory_uri", uri},
-        {"params_list",
-         nlohmann::json::array(
-             {nlohmann::json{{"c2", 1}, {"c1", 0}, {"c0", 0}},
-              nlohmann::json{{"c2", 0}, {"c1", 1}, {"c0", 0}}})}};
+        {"params_list", nlohmann::json::array({nlohmann::json{{"c2", 1}, {"c1", 0}, {"c0", 0}},
+                                               nlohmann::json{{"c2", 0}, {"c1", 1}, {"c0", 0}}})}};
 
-    StatusOr<SearchJob> denied = SearchJob::make(
-        "_example",
-        "theory",
-        "chi2_english_gp_v0",
-        2,
-        1,
-        Backend::Cpu,
-        64,
-        TransformDirection::Decrypt,
-        param_grid);
+    StatusOr<SearchJob> denied =
+        SearchJob::make("_example", "theory", "chi2_english_gp_v0", 2, 1, Backend::Cpu, 64,
+                        TransformDirection::Decrypt, param_grid);
     REQUIRE_FALSE(denied.ok());
 
-    StatusOr<SearchJob> job = SearchJob::make(
-        "_example",
-        "theory",
-        "chi2_english_gp_v0",
-        2,
-        1,
-        Backend::Cpu,
-        64,
-        TransformDirection::Decrypt,
-        param_grid,
-        std::nullopt,
-        "v0",
-        false,
-        true);
+    StatusOr<SearchJob> job =
+        SearchJob::make("_example", "theory", "chi2_english_gp_v0", 2, 1, Backend::Cpu, 64,
+                        TransformDirection::Decrypt, param_grid, std::nullopt, "v0", false, true);
     REQUIRE(job.ok());
     REQUIRE(job.value().allow_theory_uri());
 
@@ -418,9 +299,8 @@ TEST_CASE(
     REQUIRE(exported.ok());
     REQUIRE(exported.value().size() == 2);
     REQUIRE(exported.value().rows()[0].candidate().transform_id().str() == uri);
-    REQUIRE(
-        CpuCandidateExport::generator_id_for_family("theory").value() ==
-        TheoryExplicitParamsCandidateGenerator::generator_id);
+    REQUIRE(CpuCandidateExport::generator_id_for_family("theory").value() ==
+            TheoryExplicitParamsCandidateGenerator::generator_id);
 
     std::filesystem::remove_all(root, ec);
 }
@@ -434,9 +314,7 @@ public:
         last_rune_count = snapshot.rune_count();
     }
 
-    void on_stage(
-        std::string_view stage,
-        const ConsoleProgressSnapshot& snapshot) override {
+    void on_stage(std::string_view stage, const ConsoleProgressSnapshot& snapshot) override {
         std::lock_guard<std::mutex> lock(mutex_);
         stages.emplace_back(stage);
         if (snapshot.candidates_total().has_value()) {
@@ -452,9 +330,8 @@ public:
     std::vector<std::string> stages;
 };
 
-TEST_CASE(
-    "CpuCandidateExport emits expand then score; rows match without sink",
-    "[search][export][cpu][progress]") {
+TEST_CASE("CpuCandidateExport emits expand then score; rows match without sink",
+          "[search][export][cpu][progress]") {
     const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
@@ -464,33 +341,18 @@ TEST_CASE(
 
     constexpr std::size_t k = 5;
     StatusOr<CpuCandidateExport::Result> with_sink = CpuCandidateExport::run(
-        cipher,
-        "caesar",
-        "chi2_english_gp_v0",
-        k,
-        ctx,
-        TransformDirection::Decrypt,
-        nlohmann::json::object(),
-        nullptr,
-        "v0",
-        SIZE_MAX,
-        progress);
+        cipher, "caesar", "chi2_english_gp_v0", k, ctx, TransformDirection::Decrypt,
+        nlohmann::json::object(), nullptr, "v0", SIZE_MAX, progress);
     REQUIRE(with_sink.ok());
 
     StatusOr<CpuCandidateExport::Result> without = CpuCandidateExport::run(
-        cipher,
-        "caesar",
-        "chi2_english_gp_v0",
-        k,
-        ctx,
-        TransformDirection::Decrypt);
+        cipher, "caesar", "chi2_english_gp_v0", k, ctx, TransformDirection::Decrypt);
     REQUIRE(without.ok());
 
     REQUIRE(with_sink.value().size() == without.value().size());
     for (std::size_t i = 0; i < without.value().size(); ++i) {
-        REQUIRE(
-            with_sink.value().rows()[i].candidate().candidate_id() ==
-            without.value().rows()[i].candidate().candidate_id());
+        REQUIRE(with_sink.value().rows()[i].candidate().candidate_id() ==
+                without.value().rows()[i].candidate().candidate_id());
         REQUIRE(with_sink.value().rows()[i].score() == without.value().rows()[i].score());
     }
 
@@ -503,18 +365,15 @@ TEST_CASE(
     REQUIRE(sink.last_rune_count == cipher.size());
 }
 
-TEST_CASE(
-    "CpuCandidateExport emits filter stage when prior is set",
-    "[search][export][cpu][progress]") {
+TEST_CASE("CpuCandidateExport emits filter stage when prior is set",
+          "[search][export][cpu][progress]") {
     const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
     const nlohmann::json shift7_params = {{"shift", 7}};
     const std::string shift7_hash = SearchPrior::param_hash_of(shift7_params);
     StatusOr<SearchPrior> prior = SearchPrior::make(
-        "lp2-page-0-explore",
-        {},
-        {SearchPrior::Exclusion{shift7_hash, "h-reject-7", "rejected"}},
+        "lp2-page-0-explore", {}, {SearchPrior::Exclusion{shift7_hash, "h-reject-7", "rejected"}},
         "2026-09-21T18:00:00Z");
     REQUIRE(prior.ok());
 
@@ -523,17 +382,8 @@ TEST_CASE(
     progress.sink = &sink;
 
     StatusOr<CpuCandidateExport::Result> exported = CpuCandidateExport::run(
-        cipher,
-        "caesar",
-        "chi2_english_gp_v0",
-        5,
-        ctx,
-        TransformDirection::Decrypt,
-        nlohmann::json::object(),
-        &prior.value(),
-        "v0",
-        SIZE_MAX,
-        progress);
+        cipher, "caesar", "chi2_english_gp_v0", 5, ctx, TransformDirection::Decrypt,
+        nlohmann::json::object(), &prior.value(), "v0", SIZE_MAX, progress);
     REQUIRE(exported.ok());
     REQUIRE(sink.stages.size() >= 3);
     REQUIRE(sink.stages[0] == "expand");

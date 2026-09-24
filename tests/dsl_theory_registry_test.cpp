@@ -1,3 +1,7 @@
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include <parcae/core/status_or.hpp>
 #include <parcae/core/version.hpp>
 #include <parcae/dsl/dsl_spec_version.hpp>
@@ -6,19 +10,11 @@
 #include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/theory_registry.hpp>
 #include <parcae/dsl/theory_uri.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <filesystem>
-#include <fstream>
 #include <string>
-
-#include <nlohmann/json.hpp>
 
 namespace {
 
-constexpr const char* kSha =
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+constexpr const char* kSha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 [[nodiscard]] TheoryArtifact::Verification ok_exhaustive() {
     return TheoryArtifact::Verification{
@@ -30,17 +26,10 @@ constexpr const char* kSha =
 }
 
 [[nodiscard]] StatusOr<TheoryArtifact> make_ready(std::string name, std::uint32_t version = 1) {
-    return TheoryArtifact::make(
-        std::move(name),
-        version,
-        TheoryIr::Tier::A,
-        TheoryIr::Family::KeyedStream,
-        kSha,
-        ok_exhaustive(),
-        TheoryArtifact::FusionStatus::NotApplicable,
-        TheoryArtifact::InterruptMode::NoneByDesign,
-        {},
-        {"poly2_mod29"});
+    return TheoryArtifact::make(std::move(name), version, TheoryIr::Tier::A,
+                                TheoryIr::Family::KeyedStream, kSha, ok_exhaustive(),
+                                TheoryArtifact::FusionStatus::NotApplicable,
+                                TheoryArtifact::InterruptMode::NoneByDesign, {}, {"poly2_mod29"});
 }
 
 [[nodiscard]] std::filesystem::path make_temp_root(std::string_view suffix) {
@@ -52,7 +41,7 @@ constexpr const char* kSha =
     return root;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("TheoryRegistry check_dsl_spec accepts current", "[dsl][registry]") {
     StatusOr<TheoryArtifact> a = make_ready("current_theory");
@@ -80,7 +69,7 @@ TEST_CASE("TheoryRegistry rejects major-mismatched dsl_spec_version", "[dsl][reg
 
 TEST_CASE("TheoryRegistry rejects forward-incompatible newer minor", "[dsl][registry]") {
     REQUIRE_FALSE(TheoryRegistry::check_dsl_spec_string("1.1.0").ok());
-    REQUIRE_FALSE(TheoryRegistry::is_stale_spec("1.1.0"));  // same major → not catalog-stale
+    REQUIRE_FALSE(TheoryRegistry::is_stale_spec("1.1.0")); // same major → not catalog-stale
 }
 
 TEST_CASE("TheoryRegistry load enforces spec gate", "[dsl][registry]") {

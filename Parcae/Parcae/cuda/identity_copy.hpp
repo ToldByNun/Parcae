@@ -14,15 +14,12 @@
 class IdentityCopy {
 public:
     /// Launch copy on device pointers (`count` elements). No-op success if `count == 0`.
-    [[nodiscard]] static Status launch_device(
-        const std::uint8_t* device_in,
-        std::uint8_t* device_out,
-        std::size_t count);
+    [[nodiscard]] static Status launch_device(const std::uint8_t* device_in,
+                                              std::uint8_t* device_out, std::size_t count);
 
     /// Allocate device buffers, H2D → kernel → D2H. Requires equal span sizes.
-    [[nodiscard]] static Status apply_host(
-        std::span<const std::uint8_t> host_in,
-        std::span<std::uint8_t> host_out);
+    [[nodiscard]] static Status apply_host(std::span<const std::uint8_t> host_in,
+                                           std::span<std::uint8_t> host_out);
 
 private:
     IdentityCopy() = delete;

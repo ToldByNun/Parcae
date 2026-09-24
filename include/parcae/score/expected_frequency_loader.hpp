@@ -9,29 +9,26 @@
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include <nlohmann/json.hpp>
-
 class ExpectedFrequencyLoader {
 public:
-    [[nodiscard]] static StatusOr<ExpectedFrequencyTable> load_from_string(
-        const std::string& json_text) {
+    [[nodiscard]] static StatusOr<ExpectedFrequencyTable>
+    load_from_string(const std::string& json_text) {
         nlohmann::json root;
         try {
             root = nlohmann::json::parse(json_text);
         } catch (const nlohmann::json::exception& ex) {
-            return Status::error(
-                std::string("Invalid expected-frequency JSON: ") + ex.what());
+            return Status::error(std::string("Invalid expected-frequency JSON: ") + ex.what());
         }
         return load_from_json(root);
     }
 
-    [[nodiscard]] static StatusOr<ExpectedFrequencyTable> load_from_file(
-        const std::string& path) {
+    [[nodiscard]] static StatusOr<ExpectedFrequencyTable> load_from_file(const std::string& path) {
         std::ifstream input(path, std::ios::binary);
         if (!input) {
             return Status::error("Failed to open expected-frequency file: " + path);
@@ -42,8 +39,8 @@ public:
     }
 
 private:
-    [[nodiscard]] static StatusOr<ExpectedFrequencyTable> load_from_json(
-        const nlohmann::json& root) {
+    [[nodiscard]] static StatusOr<ExpectedFrequencyTable>
+    load_from_json(const nlohmann::json& root) {
         if (!root.is_object()) {
             return Status::error("expected-frequency root must be an object");
         }
@@ -111,13 +108,8 @@ private:
             }
         }
 
-        return ExpectedFrequencyTable(
-            root.at("id").get<std::string>(),
-            probs,
-            counts,
-            total,
-            std::move(smoothing),
-            std::move(sources));
+        return ExpectedFrequencyTable(root.at("id").get<std::string>(), probs, counts, total,
+                                      std::move(smoothing), std::move(sources));
     }
 };
 

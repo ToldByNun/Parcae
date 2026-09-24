@@ -1,11 +1,10 @@
-#include <catch2/catch_test_macros.hpp>
+#include "parcae/core/index29.hpp"
+#include "parcae/score/ic_mod29.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <random>
 #include <vector>
-
-#include "parcae/core/index29.hpp"
-#include "parcae/score/ic_mod29.hpp"
 
 #if defined(PARCAE_HAS_CUDA)
 
@@ -25,7 +24,10 @@ TEST_CASE("CUDA ic_mod29 matches CPU hand vector", "[cuda][score][ic]") {
     REQUIRE(ParcaeCuda::available());
 
     const std::vector<Index29> all_same{
-        Index29{5}, Index29{5}, Index29{5}, Index29{5},
+        Index29{5},
+        Index29{5},
+        Index29{5},
+        Index29{5},
     };
     StatusOr<double> cpu = IcMod29::score(all_same);
     StatusOr<double> cuda = IcMod29Score::score_host(to_bytes(all_same));

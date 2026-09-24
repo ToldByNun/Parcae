@@ -13,13 +13,12 @@
 #include <cctype>
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Seeds + exclusions derived from workspace hypotheses (`parcae.search_prior.v0`).
 class SearchPrior {
@@ -34,13 +33,9 @@ public:
         Seed(std::string hypothesis_id, nlohmann::json envelope)
             : hypothesis_id_(std::move(hypothesis_id)), envelope_(std::move(envelope)) {}
 
-        [[nodiscard]] const std::string& hypothesis_id() const noexcept {
-            return hypothesis_id_;
-        }
+        [[nodiscard]] const std::string& hypothesis_id() const noexcept { return hypothesis_id_; }
 
-        [[nodiscard]] const nlohmann::json& envelope() const noexcept {
-            return envelope_;
-        }
+        [[nodiscard]] const nlohmann::json& envelope() const noexcept { return envelope_; }
 
         [[nodiscard]] nlohmann::json to_json() const {
             return nlohmann::json{
@@ -61,21 +56,14 @@ public:
         Exclusion() = default;
 
         Exclusion(std::string param_hash, std::string hypothesis_id, std::string reason)
-            : param_hash_(std::move(param_hash)),
-              hypothesis_id_(std::move(hypothesis_id)),
+            : param_hash_(std::move(param_hash)), hypothesis_id_(std::move(hypothesis_id)),
               reason_(std::move(reason)) {}
 
-        [[nodiscard]] const std::string& param_hash() const noexcept {
-            return param_hash_;
-        }
+        [[nodiscard]] const std::string& param_hash() const noexcept { return param_hash_; }
 
-        [[nodiscard]] const std::string& hypothesis_id() const noexcept {
-            return hypothesis_id_;
-        }
+        [[nodiscard]] const std::string& hypothesis_id() const noexcept { return hypothesis_id_; }
 
-        [[nodiscard]] const std::string& reason() const noexcept {
-            return reason_;
-        }
+        [[nodiscard]] const std::string& reason() const noexcept { return reason_; }
 
         [[nodiscard]] nlohmann::json to_json() const {
             return nlohmann::json{
@@ -101,21 +89,13 @@ public:
 
     SearchPrior() = default;
 
-    [[nodiscard]] const std::string& workspace_id() const noexcept {
-        return workspace_id_;
-    }
+    [[nodiscard]] const std::string& workspace_id() const noexcept { return workspace_id_; }
 
-    [[nodiscard]] const std::vector<Seed>& seeds() const noexcept {
-        return seeds_;
-    }
+    [[nodiscard]] const std::vector<Seed>& seeds() const noexcept { return seeds_; }
 
-    [[nodiscard]] const std::vector<Exclusion>& exclusions() const noexcept {
-        return exclusions_;
-    }
+    [[nodiscard]] const std::vector<Exclusion>& exclusions() const noexcept { return exclusions_; }
 
-    [[nodiscard]] const std::string& built_utc() const noexcept {
-        return built_utc_;
-    }
+    [[nodiscard]] const std::string& built_utc() const noexcept { return built_utc_; }
 
     /// Canonical SHA-256 hex of replay-relevant prior JSON.
     [[nodiscard]] std::string prior_digest_sha256() const {
@@ -149,17 +129,16 @@ public:
     }
 
     [[nodiscard]] bool excludes_envelope(const nlohmann::json& envelope) const {
-        return excludes_params(
-            envelope.is_object() && envelope.contains("params") && !envelope.at("params").is_null()
-                ? envelope.at("params")
-                : nlohmann::json::object());
+        return excludes_params(envelope.is_object() && envelope.contains("params") &&
+                                       !envelope.at("params").is_null()
+                                   ? envelope.at("params")
+                                   : nlohmann::json::object());
     }
 
-    [[nodiscard]] static StatusOr<SearchPrior> make(
-        std::string_view workspace_id,
-        std::vector<Seed> seeds,
-        std::vector<Exclusion> exclusions,
-        std::string_view built_utc) {
+    [[nodiscard]] static StatusOr<SearchPrior> make(std::string_view workspace_id,
+                                                    std::vector<Seed> seeds,
+                                                    std::vector<Exclusion> exclusions,
+                                                    std::string_view built_utc) {
         StatusOr<std::string> wid = WorkspacePaths::validate_id(workspace_id);
         if (!wid.ok()) {
             return wid.status();
@@ -191,24 +170,20 @@ public:
     }
 
     /// Load promoted / rejected (and optionally scored) hypotheses from a workspace.
-    [[nodiscard]] static StatusOr<SearchPrior> from_workspace(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id,
-        std::string_view built_utc) {
+    [[nodiscard]] static StatusOr<SearchPrior>
+    from_workspace(const std::filesystem::path& data_root, std::string_view workspace_id,
+                   std::string_view built_utc) {
         return from_workspace(data_root, workspace_id, built_utc, BuildOptions{});
     }
 
-    [[nodiscard]] static StatusOr<SearchPrior> from_workspace(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id,
-        std::string_view built_utc,
-        BuildOptions options) {
+    [[nodiscard]] static StatusOr<SearchPrior>
+    from_workspace(const std::filesystem::path& data_root, std::string_view workspace_id,
+                   std::string_view built_utc, BuildOptions options) {
         StatusOr<std::string> wid = WorkspacePaths::validate_id(workspace_id);
         if (!wid.ok()) {
             return wid.status();
         }
-        StatusOr<std::vector<std::string>> ids =
-            HypothesisRecord::list_ids(data_root, wid.value());
+        StatusOr<std::vector<std::string>> ids = HypothesisRecord::list_ids(data_root, wid.value());
         if (!ids.ok()) {
             return ids.status();
         }
@@ -216,8 +191,7 @@ public:
         std::vector<Seed> seeds;
         std::vector<Exclusion> exclusions;
         for (const std::string& hid : ids.value()) {
-            StatusOr<HypothesisRecord> record =
-                HypothesisRecord::load(data_root, wid.value(), hid);
+            StatusOr<HypothesisRecord> record = HypothesisRecord::load(data_root, wid.value(), hid);
             if (!record.ok()) {
                 return record.status();
             }
@@ -227,21 +201,18 @@ public:
                 StatusOr<TransformEnvelope> envelope =
                     TransformEnvelope::from_json(record.value().method());
                 if (!envelope.ok()) {
-                    return Status::error(
-                        "SearchPrior seed envelope invalid for " + hid + ": " +
-                        envelope.status().message());
+                    return Status::error("SearchPrior seed envelope invalid for " + hid + ": " +
+                                         envelope.status().message());
                 }
                 seeds.emplace_back(hid, envelope.value().to_json());
             } else if (status == HypothesisStatus::Rejected) {
                 StatusOr<TransformEnvelope> envelope =
                     TransformEnvelope::from_json(record.value().method());
                 if (!envelope.ok()) {
-                    return Status::error(
-                        "SearchPrior exclusion envelope invalid for " + hid + ": " +
-                        envelope.status().message());
+                    return Status::error("SearchPrior exclusion envelope invalid for " + hid +
+                                         ": " + envelope.status().message());
                 }
-                exclusions.emplace_back(
-                    param_hash_of(envelope.value().params()), hid, "rejected");
+                exclusions.emplace_back(param_hash_of(envelope.value().params()), hid, "rejected");
             }
         }
 
@@ -254,8 +225,7 @@ public:
         }
         if (!root.contains("schema") || !root.at("schema").is_string() ||
             root.at("schema").get<std::string>() != schema_id) {
-            return Status::error(
-                "SearchPrior.schema must be \"" + std::string(schema_id) + "\"");
+            return Status::error("SearchPrior.schema must be \"" + std::string(schema_id) + "\"");
         }
         // Soft weights are forbidden in v0.
         if (root.contains("weights") || root.contains("soft_weights") || root.contains("weight")) {
@@ -297,11 +267,8 @@ public:
             exclusions.push_back(std::move(ex.value()));
         }
 
-        return make(
-            workspace_id.value(),
-            std::move(seeds),
-            std::move(exclusions),
-            built_utc.value());
+        return make(workspace_id.value(), std::move(seeds), std::move(exclusions),
+                    built_utc.value());
     }
 
     [[nodiscard]] static StatusOr<SearchPrior> parse(std::string_view text) {
@@ -334,10 +301,8 @@ public:
             exclusions.push_back(ex.to_json());
         }
         return nlohmann::json{
-            {"schema", std::string(schema_id)},
-            {"workspace_id", workspace_id_},
-            {"seeds", std::move(seeds)},
-            {"exclusions", std::move(exclusions)},
+            {"schema", std::string(schema_id)}, {"workspace_id", workspace_id_},
+            {"seeds", std::move(seeds)},        {"exclusions", std::move(exclusions)},
             {"built_utc", built_utc_},
         };
     }
@@ -371,9 +336,8 @@ public:
     }
 
 private:
-    [[nodiscard]] static StatusOr<std::string> require_string(
-        const nlohmann::json& root,
-        std::string_view key) {
+    [[nodiscard]] static StatusOr<std::string> require_string(const nlohmann::json& root,
+                                                              std::string_view key) {
         if (!root.contains(key) || !root.at(std::string(key)).is_string()) {
             return Status::error("SearchPrior." + std::string(key) + " must be a string");
         }
@@ -389,8 +353,7 @@ private:
         for (std::size_t i = kPrefix.size(); i < hash.size(); ++i) {
             const unsigned char c = static_cast<unsigned char>(hash[i]);
             if (!std::isxdigit(c) || (std::isalpha(c) && !std::islower(c))) {
-                return Status::error(
-                    "SearchPrior.exclusions.param_hash hex must be lowercase");
+                return Status::error("SearchPrior.exclusions.param_hash hex must be lowercase");
             }
         }
         return Status::success();
@@ -401,11 +364,10 @@ private:
         if (!hid.ok()) {
             return hid.status();
         }
-        StatusOr<TransformEnvelope> envelope =
-            TransformEnvelope::from_json(seed.envelope_);
+        StatusOr<TransformEnvelope> envelope = TransformEnvelope::from_json(seed.envelope_);
         if (!envelope.ok()) {
-            return Status::error(
-                "SearchPrior.seeds.envelope invalid: " + envelope.status().message());
+            return Status::error("SearchPrior.seeds.envelope invalid: " +
+                                 envelope.status().message());
         }
         return Status::success();
     }
@@ -421,28 +383,25 @@ private:
         return validate_param_hash(ex.param_hash_);
     }
 
-    [[nodiscard]] static StatusOr<Seed> seed_from_json(
-        const nlohmann::json& item,
-        std::size_t index) {
+    [[nodiscard]] static StatusOr<Seed> seed_from_json(const nlohmann::json& item,
+                                                       std::size_t index) {
         if (!item.is_object()) {
-            return Status::error(
-                "SearchPrior.seeds[" + std::to_string(index) + "] must be an object");
+            return Status::error("SearchPrior.seeds[" + std::to_string(index) +
+                                 "] must be an object");
         }
         StatusOr<std::string> hid = require_string(item, "hypothesis_id");
         if (!hid.ok()) {
-            return Status::error(
-                "SearchPrior.seeds[" + std::to_string(index) + "].hypothesis_id must be a string");
+            return Status::error("SearchPrior.seeds[" + std::to_string(index) +
+                                 "].hypothesis_id must be a string");
         }
         if (!item.contains("envelope") || !item.at("envelope").is_object()) {
-            return Status::error(
-                "SearchPrior.seeds[" + std::to_string(index) + "].envelope must be an object");
+            return Status::error("SearchPrior.seeds[" + std::to_string(index) +
+                                 "].envelope must be an object");
         }
-        StatusOr<TransformEnvelope> envelope =
-            TransformEnvelope::from_json(item.at("envelope"));
+        StatusOr<TransformEnvelope> envelope = TransformEnvelope::from_json(item.at("envelope"));
         if (!envelope.ok()) {
-            return Status::error(
-                "SearchPrior.seeds[" + std::to_string(index) + "].envelope invalid: " +
-                envelope.status().message());
+            return Status::error("SearchPrior.seeds[" + std::to_string(index) +
+                                 "].envelope invalid: " + envelope.status().message());
         }
         Seed seed(hid.value(), envelope.value().to_json());
         Status ok = validate_seed(seed);
@@ -452,31 +411,27 @@ private:
         return seed;
     }
 
-    [[nodiscard]] static StatusOr<Exclusion> exclusion_from_json(
-        const nlohmann::json& item,
-        std::size_t index) {
+    [[nodiscard]] static StatusOr<Exclusion> exclusion_from_json(const nlohmann::json& item,
+                                                                 std::size_t index) {
         if (!item.is_object()) {
-            return Status::error(
-                "SearchPrior.exclusions[" + std::to_string(index) + "] must be an object");
+            return Status::error("SearchPrior.exclusions[" + std::to_string(index) +
+                                 "] must be an object");
         }
         StatusOr<std::string> hash = require_string(item, "param_hash");
         if (!hash.ok()) {
-            return Status::error(
-                "SearchPrior.exclusions[" + std::to_string(index) +
-                "].param_hash must be a string");
+            return Status::error("SearchPrior.exclusions[" + std::to_string(index) +
+                                 "].param_hash must be a string");
         }
         StatusOr<std::string> hid = require_string(item, "hypothesis_id");
         if (!hid.ok()) {
-            return Status::error(
-                "SearchPrior.exclusions[" + std::to_string(index) +
-                "].hypothesis_id must be a string");
+            return Status::error("SearchPrior.exclusions[" + std::to_string(index) +
+                                 "].hypothesis_id must be a string");
         }
         std::string reason = "rejected";
         if (item.contains("reason") && !item.at("reason").is_null()) {
             if (!item.at("reason").is_string()) {
-                return Status::error(
-                    "SearchPrior.exclusions[" + std::to_string(index) +
-                    "].reason must be a string");
+                return Status::error("SearchPrior.exclusions[" + std::to_string(index) +
+                                     "].reason must be a string");
             }
             reason = item.at("reason").get<std::string>();
         }
@@ -489,21 +444,17 @@ private:
     }
 
     static void sort_seeds(std::vector<Seed>& seeds) {
-        std::sort(seeds.begin(), seeds.end(), [](const Seed& a, const Seed& b) {
-            return a.hypothesis_id_ < b.hypothesis_id_;
-        });
+        std::sort(seeds.begin(), seeds.end(),
+                  [](const Seed& a, const Seed& b) { return a.hypothesis_id_ < b.hypothesis_id_; });
     }
 
     static void sort_exclusions(std::vector<Exclusion>& exclusions) {
-        std::sort(
-            exclusions.begin(),
-            exclusions.end(),
-            [](const Exclusion& a, const Exclusion& b) {
-                if (a.param_hash_ != b.param_hash_) {
-                    return a.param_hash_ < b.param_hash_;
-                }
-                return a.hypothesis_id_ < b.hypothesis_id_;
-            });
+        std::sort(exclusions.begin(), exclusions.end(), [](const Exclusion& a, const Exclusion& b) {
+            if (a.param_hash_ != b.param_hash_) {
+                return a.param_hash_ < b.param_hash_;
+            }
+            return a.hypothesis_id_ < b.hypothesis_id_;
+        });
     }
 
     std::string workspace_id_;

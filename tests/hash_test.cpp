@@ -1,3 +1,5 @@
+#include <catch2/catch_test_macros.hpp>
+#include <iostream>
 #include <parcae/core/sha256.hpp>
 #include <parcae/corpus/fixture_loader.hpp>
 #include <parcae/corpus/separator_grammar.hpp>
@@ -9,10 +11,6 @@
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
 #include <parcae/validate/plaintext_normalizer.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <iostream>
 #include <string>
 #include <vector>
 
@@ -21,12 +19,10 @@
 #endif
 
 TEST_CASE("Sha256 empty and abc vectors", "[sha256]") {
-    REQUIRE(
-        Sha256::hex_digest("") ==
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-    REQUIRE(
-        Sha256::hex_digest("abc") ==
-        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    REQUIRE(Sha256::hex_digest("") ==
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    REQUIRE(Sha256::hex_digest("abc") ==
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
 }
 
 TEST_CASE("PlaintextNormalizer strips long hex and folds preferred Latin", "[sha256][normalizer]") {
@@ -60,15 +56,8 @@ TEST_CASE("Dump oracle fixture digests", "[.][hashdump]") {
     Tokenizer tokenizer(profile.value(), grammar.value());
 
     const char* ids[] = {
-        "a-warning",
-        "some-wisdom",
-        "loss-of-divinity",
-        "an-instruction",
-        "koan-1",
-        "welcome",
-        "koan-2",
-        "an-end",
-        "lp2-57-identity",
+        "a-warning", "some-wisdom", "loss-of-divinity", "an-instruction",  "koan-1",
+        "welcome",   "koan-2",      "an-end",           "lp2-57-identity",
     };
 
     for (const char* id : ids) {
@@ -86,12 +75,9 @@ TEST_CASE("Dump oracle fixture digests", "[.][hashdump]") {
         StatusOr<TransformDirection> dirn =
             TransformDirectionUtil::from_string(fixture.value().direction());
         REQUIRE(dirn.ok());
-        StatusOr<std::vector<Index29>> plain = ApplyTransform::apply(
-            tid.value(),
-            stream.value().consumable_indices(),
-            fixture.value().params(),
-            dirn.value(),
-            interrupt.value());
+        StatusOr<std::vector<Index29>> plain =
+            ApplyTransform::apply(tid.value(), stream.value().consumable_indices(),
+                                  fixture.value().params(), dirn.value(), interrupt.value());
         REQUIRE(plain.ok());
         const std::string normalized = normalizer.from_indices(plain.value());
         StatusOr<std::string> expected = normalizer.normalize(fixture.value().plaintext());

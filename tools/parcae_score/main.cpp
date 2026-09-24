@@ -1,24 +1,23 @@
-#include "cli_io.hpp"
-#include "tool_cli_json.hpp"
-#include "agent_policy_cli.hpp"
-
 #include "parcae/gematria/latin_codec.hpp"
 #include "parcae/score/score_catalog_entry.hpp"
 #include "parcae/score/score_id.hpp"
 #include "parcae/score/score_registry.hpp"
 #include "parcae/tool/api.hpp"
 
+#include "agent_policy_cli.hpp"
+#include "cli_io.hpp"
+#include "tool_cli_json.hpp"
+
 #include <cctype>
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #ifndef PARCAE_DEFAULT_DATA_DIR
 #define PARCAE_DEFAULT_DATA_DIR ""
@@ -29,33 +28,28 @@ namespace {
 constexpr std::string_view kTool = "score";
 
 void print_help() {
-    std::cerr
-        << "Usage: parcae-score --score-id <id> --input <file|->\n"
-        << "                    [--latin|--runes|--indices] [--params-json <json>]\n"
-        << "                    [--json] [--data-dir <path>]\n"
-        << "       parcae-score --list [--json] [--data-dir <path>]\n"
-        << "\n"
-        << "Input modes (exactly one; default --latin):\n"
-        << "  --latin     Preferred/alias Latin letters (non-letters stripped)\n"
-        << "  --runes     Tokenize Liber Primus UTF-8; score consumable runes\n"
-        << "  --indices   Comma/whitespace-separated Index29 values 0..28\n"
-        << "\n"
-        << "  --score-id       Registry id (e.g. ic_mod29, chi2_english_gp_v0)\n"
-        << "  --params-json    Optional params object (e.g. {\"reference\":[…]})\n"
-        << "  --backend        cpu|cuda (default cpu; exit 2 if cuda not built)\n"
-        << "  --allow-cuda     Required with --backend cuda (AgentPolicy opt-in)\n"
-        << "  --list           Print known score ids and exit\n"
-        << "  --json           JSON envelope on stdout (parcae.tool_response.v0)\n"
-        << "  --data-dir       Parcae data/ root\n"
-        << "  -h, --help       Show this help\n";
+    std::cerr << "Usage: parcae-score --score-id <id> --input <file|->\n"
+              << "                    [--latin|--runes|--indices] [--params-json <json>]\n"
+              << "                    [--json] [--data-dir <path>]\n"
+              << "       parcae-score --list [--json] [--data-dir <path>]\n"
+              << "\n"
+              << "Input modes (exactly one; default --latin):\n"
+              << "  --latin     Preferred/alias Latin letters (non-letters stripped)\n"
+              << "  --runes     Tokenize Liber Primus UTF-8; score consumable runes\n"
+              << "  --indices   Comma/whitespace-separated Index29 values 0..28\n"
+              << "\n"
+              << "  --score-id       Registry id (e.g. ic_mod29, chi2_english_gp_v0)\n"
+              << "  --params-json    Optional params object (e.g. {\"reference\":[…]})\n"
+              << "  --backend        cpu|cuda (default cpu; exit 2 if cuda not built)\n"
+              << "  --allow-cuda     Required with --backend cuda (AgentPolicy opt-in)\n"
+              << "  --list           Print known score ids and exit\n"
+              << "  --json           JSON envelope on stdout (parcae.tool_response.v0)\n"
+              << "  --data-dir       Parcae data/ root\n"
+              << "  -h, --help       Show this help\n";
 }
 
-[[nodiscard]] int fail(
-    bool json_mode,
-    const std::optional<std::string>& backend,
-    ToolErrorCode code,
-    std::string message,
-    int plain_exit) {
+[[nodiscard]] int fail(bool json_mode, const std::optional<std::string>& backend,
+                       ToolErrorCode code, std::string message, int plain_exit) {
     if (json_mode) {
         return ToolCliJson::err(kTool, backend, code, std::move(message));
     }
@@ -78,9 +72,8 @@ void print_help() {
     std::vector<Index29> out;
     std::size_t i = 0;
     while (i < text.size()) {
-        while (i < text.size() &&
-               (text[i] == ' ' || text[i] == ',' || text[i] == '\t' || text[i] == '\n' ||
-                text[i] == '\r')) {
+        while (i < text.size() && (text[i] == ' ' || text[i] == ',' || text[i] == '\t' ||
+                                   text[i] == '\n' || text[i] == '\r')) {
             ++i;
         }
         if (i >= text.size()) {
@@ -93,8 +86,7 @@ void print_help() {
         if (j == i) {
             return Status::error("Invalid --indices input (expected digits/commas/whitespace)");
         }
-        const unsigned long value =
-            std::stoul(std::string(text.substr(i, j - i)));
+        const unsigned long value = std::stoul(std::string(text.substr(i, j - i)));
         if (value >= Index29::modulus) {
             return Status::error("Index29 out of range [0,28]");
         }
@@ -107,10 +99,8 @@ void print_help() {
     return out;
 }
 
-[[nodiscard]] StatusOr<std::vector<Index29>> load_candidate(
-    const Context& ctx,
-    const std::string& source,
-    std::string_view mode) {
+[[nodiscard]] StatusOr<std::vector<Index29>>
+load_candidate(const Context& ctx, const std::string& source, std::string_view mode) {
     if (mode == "indices") {
         return parse_indices_text(source);
     }
@@ -137,7 +127,7 @@ void print_help() {
     return codec.delatinize(letters);
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
@@ -179,13 +169,11 @@ int main(int argc, char** argv) {
         for (const ScoreCatalogEntry& entry : ScoreRegistry::catalog()) {
             scores.push_back(entry.to_json());
         }
-        return ToolCliJson::ok(
-            kTool,
-            std::nullopt,
-            nlohmann::json{
-                {"scores", std::move(scores)},
-                {"score_ids", ToolApi::list_score_ids()},
-            });
+        return ToolCliJson::ok(kTool, std::nullopt,
+                               nlohmann::json{
+                                   {"scores", std::move(scores)},
+                                   {"score_ids", ToolApi::list_score_ids()},
+                               });
     }
 
     StatusOr<std::string> score_id = CliIo::require_option(args, "--score-id");
@@ -209,15 +197,13 @@ int main(int argc, char** argv) {
     const bool mode_latin = CliIo::has_flag(args, "--latin");
     const bool mode_runes = CliIo::has_flag(args, "--runes");
     const bool mode_indices = CliIo::has_flag(args, "--indices");
-    const int modes =
-        static_cast<int>(mode_latin) + static_cast<int>(mode_runes) +
-        static_cast<int>(mode_indices);
+    const int modes = static_cast<int>(mode_latin) + static_cast<int>(mode_runes) +
+                      static_cast<int>(mode_indices);
     if (modes > 1) {
         return fail(json_mode, backend_label, ToolErrorCode::Usage,
                     "Choose at most one of --latin, --runes, --indices", CliIo::kExitUsage);
     }
-    const std::string_view mode =
-        mode_runes ? "runes" : (mode_indices ? "indices" : "latin");
+    const std::string_view mode = mode_runes ? "runes" : (mode_indices ? "indices" : "latin");
 
     StatusOr<std::string> source = CliIo::read_all_utf8(input_path.value());
     if (!source.ok()) {
@@ -225,11 +211,10 @@ int main(int argc, char** argv) {
                     CliIo::kExitUsage);
     }
 
-    StatusOr<std::vector<Index29>> candidate =
-        load_candidate(ctx.value(), source.value(), mode);
+    StatusOr<std::vector<Index29>> candidate = load_candidate(ctx.value(), source.value(), mode);
     if (!candidate.ok()) {
-        return fail(json_mode, backend_label, ToolErrorCode::Internal,
-                    candidate.status().message(), CliIo::kExitFail);
+        return fail(json_mode, backend_label, ToolErrorCode::Internal, candidate.status().message(),
+                    CliIo::kExitFail);
     }
 
     nlohmann::json params = nlohmann::json::object();
@@ -247,14 +232,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    StatusOr<double> value = ToolApi::score(
-        ctx.value(),
-        candidate.value(),
-        score_id.value(),
-        "v0",
-        params,
-        {},
-        backend.value());
+    StatusOr<double> value = ToolApi::score(ctx.value(), candidate.value(), score_id.value(), "v0",
+                                            params, {}, backend.value());
     if (!value.ok()) {
         return fail(json_mode, backend_label, ToolErrorCode::Internal, value.status().message(),
                     CliIo::kExitFail);
@@ -267,13 +246,11 @@ int main(int argc, char** argv) {
         return CliIo::kExitOk;
     }
 
-    return ToolCliJson::ok(
-        kTool,
-        backend_label,
-        nlohmann::json{
-            {"score_id", score_id.value()},
-            {"score_version", "v0"},
-            {"backend", *backend_label},
-            {"value", value.value()},
-        });
+    return ToolCliJson::ok(kTool, backend_label,
+                           nlohmann::json{
+                               {"score_id", score_id.value()},
+                               {"score_version", "v0"},
+                               {"backend", *backend_label},
+                               {"value", value.value()},
+                           });
 }

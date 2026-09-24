@@ -1,10 +1,8 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <parcae/bench/bench_tier_spec.hpp>
 #include <parcae/core/index29.hpp>
 #include <parcae/dsl/dsl_peak_sanity.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <cmath>
 #include <string_view>
 
 TEST_CASE("BenchTierSpec T1 config matches canonical SLO table", "[bench][spec]") {
@@ -48,17 +46,8 @@ TEST_CASE("BenchTierSpec primary iteration order is T1 T2 T3", "[bench][spec]") 
 }
 
 TEST_CASE("BenchTierSpec peaks match DslPeakSanity and cuda-throughput plateaus", "[bench][spec]") {
-    for (const char* tier :
-         {"T1",
-          "T2",
-          "T3",
-          "F.atbash",
-          "F.affine",
-          "F.vigenere",
-          "F.beaufort",
-          "F.totient",
-          "C.koan1_fused",
-          "C.koan1_stages"}) {
+    for (const char* tier : {"T1", "T2", "T3", "F.atbash", "F.affine", "F.vigenere", "F.beaufort",
+                             "F.totient", "C.koan1_fused", "C.koan1_stages"}) {
         REQUIRE(BenchTierSpec::estimated_peak(tier) == DslPeakSanity::estimated_peak(tier));
         REQUIRE(BenchTierSpec::slo_floor(tier) == DslPeakSanity::slo_floor(tier));
         REQUIRE(BenchTierSpec::known_tier(tier));
@@ -83,8 +72,8 @@ TEST_CASE("BenchTierSpec pass_tier mirrors DslPeakSanity band", "[bench][spec]")
 TEST_CASE("BenchTierSpec percent_peak", "[bench][spec]") {
     REQUIRE(BenchTierSpec::percent_peak(196.0e9, 392.0e9) == 50.0);
     REQUIRE(BenchTierSpec::percent_peak(1.0, 0.0) == 0.0);
-    REQUIRE(std::isfinite(BenchTierSpec::percent_peak(BenchTierSpec::t3.slo_min,
-                                                       BenchTierSpec::t3.estimated_peak)));
+    REQUIRE(std::isfinite(
+        BenchTierSpec::percent_peak(BenchTierSpec::t3.slo_min, BenchTierSpec::t3.estimated_peak)));
 }
 
 TEST_CASE("BenchTierSpec primary reps match wired ThroughputTiers contract", "[bench][spec]") {

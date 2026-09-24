@@ -12,14 +12,13 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Compiled theory manifest `parcae.theory_artifact.v0` (docs/spec/theory-artifact.md).
 /// Writers always stamp `dsl_spec_version` = `DslSpecVersion::current` and
@@ -46,17 +45,11 @@ public:
         Param(std::string name, std::int64_t min, std::int64_t max)
             : name_(std::move(name)), min_(min), max_(max) {}
 
-        [[nodiscard]] const std::string& name() const noexcept {
-            return name_;
-        }
+        [[nodiscard]] const std::string& name() const noexcept { return name_; }
 
-        [[nodiscard]] std::int64_t min() const noexcept {
-            return min_;
-        }
+        [[nodiscard]] std::int64_t min() const noexcept { return min_; }
 
-        [[nodiscard]] std::int64_t max() const noexcept {
-            return max_;
-        }
+        [[nodiscard]] std::int64_t max() const noexcept { return max_; }
 
         [[nodiscard]] nlohmann::json to_json() const {
             return nlohmann::json{{"name", name_}, {"min", min_}, {"max", max_}};
@@ -70,31 +63,17 @@ public:
 
     class Verification {
     public:
-        Verification(
-            DslVerifier::Mode mode,
-            bool passed,
-            std::optional<std::uint32_t> seed,
-            std::string completed_utc)
-            : mode_(mode),
-              passed_(passed),
-              seed_(seed),
-              completed_utc_(std::move(completed_utc)) {}
+        Verification(DslVerifier::Mode mode, bool passed, std::optional<std::uint32_t> seed,
+                     std::string completed_utc)
+            : mode_(mode), passed_(passed), seed_(seed), completed_utc_(std::move(completed_utc)) {}
 
-        [[nodiscard]] DslVerifier::Mode mode() const noexcept {
-            return mode_;
-        }
+        [[nodiscard]] DslVerifier::Mode mode() const noexcept { return mode_; }
 
-        [[nodiscard]] bool passed() const noexcept {
-            return passed_;
-        }
+        [[nodiscard]] bool passed() const noexcept { return passed_; }
 
-        [[nodiscard]] const std::optional<std::uint32_t>& seed() const noexcept {
-            return seed_;
-        }
+        [[nodiscard]] const std::optional<std::uint32_t>& seed() const noexcept { return seed_; }
 
-        [[nodiscard]] const std::string& completed_utc() const noexcept {
-            return completed_utc_;
-        }
+        [[nodiscard]] const std::string& completed_utc() const noexcept { return completed_utc_; }
 
         [[nodiscard]] nlohmann::json to_json() const {
             nlohmann::json seed = nullptr;
@@ -148,21 +127,15 @@ public:
             cpu_reference_ = std::move(path);
         }
 
-        void set_cuda_header(std::optional<std::string> path) {
-            cuda_header_ = std::move(path);
-        }
+        void set_cuda_header(std::optional<std::string> path) { cuda_header_ = std::move(path); }
 
-        void set_cuda_source(std::optional<std::string> path) {
-            cuda_source_ = std::move(path);
-        }
+        void set_cuda_source(std::optional<std::string> path) { cuda_source_ = std::move(path); }
 
         void set_envelope_template(std::optional<std::string> path) {
             envelope_template_ = std::move(path);
         }
 
-        void set_apply_ir(std::optional<std::string> path) {
-            apply_ir_ = std::move(path);
-        }
+        void set_apply_ir(std::optional<std::string> path) { apply_ir_ = std::move(path); }
 
         void set_verify_report(std::optional<std::string> path) {
             verify_report_ = std::move(path);
@@ -208,9 +181,8 @@ public:
             return p.has_value() ? nlohmann::json(*p) : nlohmann::json(nullptr);
         }
 
-        [[nodiscard]] static Status check_rel(
-            const std::optional<std::string>& path,
-            std::string_view field) {
+        [[nodiscard]] static Status check_rel(const std::optional<std::string>& path,
+                                              std::string_view field) {
             if (!path.has_value()) {
                 return Status::success();
             }
@@ -249,7 +221,8 @@ public:
         return "unknown";
     }
 
-    [[nodiscard]] static InterruptMode interrupt_mode_from_theory(TheoryIr::InterruptMode m) noexcept {
+    [[nodiscard]] static InterruptMode
+    interrupt_mode_from_theory(TheoryIr::InterruptMode m) noexcept {
         switch (m) {
         case TheoryIr::InterruptMode::PolicyMethod:
             return InterruptMode::PolicyMethod;
@@ -263,21 +236,14 @@ public:
 
     /// Build a ready artifact. Always embeds current `dsl_spec_version` + toolkit version.
     /// `verification.passed` MUST be true (compile MUST NOT write failed gates).
-    [[nodiscard]] static StatusOr<TheoryArtifact> make(
-        std::string name,
-        std::uint32_t version,
-        TheoryIr::Tier tier,
-        TheoryIr::Family family,
-        std::string source_sha256,
-        Verification verification,
-        FusionStatus fusion,
-        InterruptMode interrupts,
-        std::vector<Param> params = {},
-        std::vector<std::string> primitives = {},
-        std::optional<std::string> structural_claim = std::nullopt,
-        std::optional<std::string> source_path = std::nullopt,
-        Paths paths = {},
-        nlohmann::json sweep = nullptr) {
+    [[nodiscard]] static StatusOr<TheoryArtifact>
+    make(std::string name, std::uint32_t version, TheoryIr::Tier tier, TheoryIr::Family family,
+         std::string source_sha256, Verification verification, FusionStatus fusion,
+         InterruptMode interrupts, std::vector<Param> params = {},
+         std::vector<std::string> primitives = {},
+         std::optional<std::string> structural_claim = std::nullopt,
+         std::optional<std::string> source_path = std::nullopt, Paths paths = {},
+         nlohmann::json sweep = nullptr) {
         StatusOr<TheoryUri> uri = TheoryUri::make(name, version);
         if (!uri.ok()) {
             return uri.status();
@@ -290,7 +256,8 @@ public:
             return Status::error(
                 "TheoryArtifact: verification.passed must be true for a ready artifact");
         }
-        if (verification.mode() == DslVerifier::Mode::Exhaustive && verification.seed().has_value()) {
+        if (verification.mode() == DslVerifier::Mode::Exhaustive &&
+            verification.seed().has_value()) {
             return Status::error("TheoryArtifact: exhaustive verification seed must be null");
         }
         if (verification.mode() == DslVerifier::Mode::Fuzz && !verification.seed().has_value()) {
@@ -301,8 +268,7 @@ public:
         }
         if ((tier == TheoryIr::Tier::B || tier == TheoryIr::Tier::C) &&
             (!structural_claim.has_value() || structural_claim->empty())) {
-            return Status::error(
-                "TheoryArtifact: structural_claim required for tier B/C");
+            return Status::error("TheoryArtifact: structural_claim required for tier B/C");
         }
         Status path_ok = paths.validate();
         if (!path_ok.ok()) {
@@ -335,37 +301,21 @@ public:
         return a;
     }
 
-    [[nodiscard]] const TheoryUri& uri() const noexcept {
-        return uri_;
-    }
+    [[nodiscard]] const TheoryUri& uri() const noexcept { return uri_; }
 
-    [[nodiscard]] const std::string& name() const noexcept {
-        return uri_.name();
-    }
+    [[nodiscard]] const std::string& name() const noexcept { return uri_.name(); }
 
-    [[nodiscard]] std::uint32_t version() const noexcept {
-        return uri_.version();
-    }
+    [[nodiscard]] std::uint32_t version() const noexcept { return uri_.version(); }
 
-    [[nodiscard]] const std::string& dsl_spec_version() const noexcept {
-        return dsl_spec_version_;
-    }
+    [[nodiscard]] const std::string& dsl_spec_version() const noexcept { return dsl_spec_version_; }
 
-    [[nodiscard]] const std::string& compiler_version() const noexcept {
-        return compiler_version_;
-    }
+    [[nodiscard]] const std::string& compiler_version() const noexcept { return compiler_version_; }
 
-    [[nodiscard]] const std::string& source_sha256() const noexcept {
-        return source_sha256_;
-    }
+    [[nodiscard]] const std::string& source_sha256() const noexcept { return source_sha256_; }
 
-    [[nodiscard]] TheoryIr::Tier tier() const noexcept {
-        return tier_;
-    }
+    [[nodiscard]] TheoryIr::Tier tier() const noexcept { return tier_; }
 
-    [[nodiscard]] TheoryIr::Family family() const noexcept {
-        return family_;
-    }
+    [[nodiscard]] TheoryIr::Family family() const noexcept { return family_; }
 
     [[nodiscard]] const std::optional<std::string>& structural_claim() const noexcept {
         return structural_claim_;
@@ -383,33 +333,21 @@ public:
         return dsl_ignores_applied_;
     }
 
-    [[nodiscard]] const std::vector<Param>& params() const noexcept {
-        return params_;
-    }
+    [[nodiscard]] const std::vector<Param>& params() const noexcept { return params_; }
 
     [[nodiscard]] const std::vector<std::string>& primitives() const noexcept {
         return primitives_;
     }
 
-    [[nodiscard]] const Verification& verification() const noexcept {
-        return verification_;
-    }
+    [[nodiscard]] const Verification& verification() const noexcept { return verification_; }
 
-    [[nodiscard]] FusionStatus fusion() const noexcept {
-        return fusion_;
-    }
+    [[nodiscard]] FusionStatus fusion() const noexcept { return fusion_; }
 
-    [[nodiscard]] InterruptMode interrupts() const noexcept {
-        return interrupts_;
-    }
+    [[nodiscard]] InterruptMode interrupts() const noexcept { return interrupts_; }
 
-    [[nodiscard]] const Paths& paths() const noexcept {
-        return paths_;
-    }
+    [[nodiscard]] const Paths& paths() const noexcept { return paths_; }
 
-    [[nodiscard]] const nlohmann::json& sweep() const noexcept {
-        return sweep_;
-    }
+    [[nodiscard]] const nlohmann::json& sweep() const noexcept { return sweep_; }
 
     [[nodiscard]] nlohmann::json to_json() const {
         nlohmann::json params = nlohmann::json::array();
@@ -456,8 +394,7 @@ public:
         }
         if (!root.contains("schema") || !root.at("schema").is_string() ||
             root.at("schema").get<std::string>() != schema_id) {
-            return Status::error(
-                "TheoryArtifact.schema must be parcae.theory_artifact.v0");
+            return Status::error("TheoryArtifact.schema must be parcae.theory_artifact.v0");
         }
         if (!root.contains("uri") || !root.at("uri").is_string()) {
             return Status::error("TheoryArtifact.uri must be a string");
@@ -596,20 +533,19 @@ public:
         return a;
     }
 
-    [[nodiscard]] static std::filesystem::path artifact_dir(
-        const std::filesystem::path& theories_root,
-        std::string_view name,
-        std::uint32_t version) {
+    [[nodiscard]] static std::filesystem::path
+    artifact_dir(const std::filesystem::path& theories_root, std::string_view name,
+                 std::uint32_t version) {
         return theories_root / std::string(name) / std::to_string(version);
     }
 
-    [[nodiscard]] std::filesystem::path artifact_dir(
-        const std::filesystem::path& theories_root) const {
+    [[nodiscard]] std::filesystem::path
+    artifact_dir(const std::filesystem::path& theories_root) const {
         return artifact_dir(theories_root, uri_.name(), uri_.version());
     }
 
-    [[nodiscard]] std::filesystem::path manifest_path(
-        const std::filesystem::path& theories_root) const {
+    [[nodiscard]] std::filesystem::path
+    manifest_path(const std::filesystem::path& theories_root) const {
         return artifact_dir(theories_root) / "manifest.json";
     }
 
@@ -618,8 +554,7 @@ public:
     /// `dsl_spec_version` (stamped at `make` as current).
     [[nodiscard]] Status store(const std::filesystem::path& theories_root) const {
         if (!verification_.passed()) {
-            return Status::error(
-                "TheoryArtifact::store refuses verification.passed == false");
+            return Status::error("TheoryArtifact::store refuses verification.passed == false");
         }
         if (dsl_spec_version_.empty()) {
             return Status::error("TheoryArtifact::store: dsl_spec_version must be embedded");
@@ -642,10 +577,8 @@ public:
         return Status::success();
     }
 
-    [[nodiscard]] static StatusOr<TheoryArtifact> load(
-        const std::filesystem::path& theories_root,
-        std::string_view name,
-        std::uint32_t version) {
+    [[nodiscard]] static StatusOr<TheoryArtifact>
+    load(const std::filesystem::path& theories_root, std::string_view name, std::uint32_t version) {
         StatusOr<TheoryUri> uri = TheoryUri::make(name, version);
         if (!uri.ok()) {
             return uri.status();
@@ -669,32 +602,28 @@ public:
         if (!a.ok()) {
             return a.status();
         }
-        if (a.value().name() != uri.value().name() || a.value().version() != uri.value().version()) {
-            return Status::error(
-                "manifest name/version does not match artifact directory");
+        if (a.value().name() != uri.value().name() ||
+            a.value().version() != uri.value().version()) {
+            return Status::error("manifest name/version does not match artifact directory");
         }
         return a;
     }
 
-    [[nodiscard]] static Status check_relative_path(
-        std::string_view path,
-        std::string_view field) {
+    [[nodiscard]] static Status check_relative_path(std::string_view path, std::string_view field) {
         if (path.empty()) {
-            return Status::error(
-                "TheoryArtifact.paths." + std::string(field) + " must be non-empty when set");
+            return Status::error("TheoryArtifact.paths." + std::string(field) +
+                                 " must be non-empty when set");
         }
         if (path.find(':') != std::string_view::npos || path.front() == '/' ||
             path.front() == '\\') {
-            return Status::error(
-                "TheoryArtifact.paths." + std::string(field) +
-                " must be relative (no absolute / drive paths)");
+            return Status::error("TheoryArtifact.paths." + std::string(field) +
+                                 " must be relative (no absolute / drive paths)");
         }
         const std::filesystem::path p{std::string(path)};
         for (const std::filesystem::path& part : p) {
             if (part == "..") {
-                return Status::error(
-                    "TheoryArtifact.paths." + std::string(field) +
-                    " must not escape via '..'");
+                return Status::error("TheoryArtifact.paths." + std::string(field) +
+                                     " must not escape via '..'");
             }
         }
         return Status::success();
@@ -798,8 +727,8 @@ private:
         if (m == "elementwise_default") {
             return InterruptMode::ElementwiseDefault;
         }
-        return Status::error(
-            "TheoryArtifact.interrupts.mode must be policy_method|none_by_design|elementwise_default");
+        return Status::error("TheoryArtifact.interrupts.mode must be "
+                             "policy_method|none_by_design|elementwise_default");
     }
 
     [[nodiscard]] static StatusOr<std::vector<Param>> parse_params(const nlohmann::json& root) {
@@ -813,16 +742,14 @@ private:
                 !item.contains("max") || !item.at("max").is_number_integer()) {
                 return Status::error("TheoryArtifact.params entries must be {name,min,max}");
             }
-            out.emplace_back(
-                item.at("name").get<std::string>(),
-                item.at("min").get<std::int64_t>(),
-                item.at("max").get<std::int64_t>());
+            out.emplace_back(item.at("name").get<std::string>(), item.at("min").get<std::int64_t>(),
+                             item.at("max").get<std::int64_t>());
         }
         return out;
     }
 
-    [[nodiscard]] static StatusOr<std::vector<std::string>> parse_primitives(
-        const nlohmann::json& root) {
+    [[nodiscard]] static StatusOr<std::vector<std::string>>
+    parse_primitives(const nlohmann::json& root) {
         if (!root.contains("primitives") || !root.at("primitives").is_array()) {
             return Status::error("TheoryArtifact.primitives must be an array");
         }
@@ -848,8 +775,8 @@ private:
                 return std::optional<std::string>{};
             }
             if (!p.at(key).is_string()) {
-                return Status::error(
-                    std::string("TheoryArtifact.paths.") + key + " must be string or null");
+                return Status::error(std::string("TheoryArtifact.paths.") + key +
+                                     " must be string or null");
             }
             return std::optional<std::string>{p.at(key).get<std::string>()};
         };

@@ -1,5 +1,3 @@
-#include "backend.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/corpus/fixture.hpp"
 #include "parcae/corpus/fixture_loader.hpp"
@@ -11,8 +9,9 @@
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
 
-#include <catch2/catch_test_macros.hpp>
+#include "backend.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <string>
 #include <utility>
 #include <vector>
@@ -36,22 +35,21 @@ public:
     }
 
     [[nodiscard]] static SeparatorGrammar load_grammar() {
-        StatusOr<SeparatorGrammar> grammar = SeparatorGrammar::load_from_file(
-            std::string(PARCAE_TEST_DATA_DIR) +
-            "/profiles/separators/rtkd-separator-grammar-v0.json");
+        StatusOr<SeparatorGrammar> grammar =
+            SeparatorGrammar::load_from_file(std::string(PARCAE_TEST_DATA_DIR) +
+                                             "/profiles/separators/rtkd-separator-grammar-v0.json");
         REQUIRE(grammar.ok());
         return grammar.value();
     }
 
-    [[nodiscard]] static bool digests_match_except_backend(
-        const ParityRecord& cpu,
-        const ParityRecord& cuda) {
+    [[nodiscard]] static bool digests_match_except_backend(const ParityRecord& cpu,
+                                                           const ParityRecord& cuda) {
         return cpu.transform_id() == cuda.transform_id() &&
                cpu.params_hash_sha256() == cuda.params_hash_sha256() &&
                cpu.input_sha256() == cuda.input_sha256() &&
                cpu.output_sha256() == cuda.output_sha256() &&
-               cpu.interrupt_sha256() == cuda.interrupt_sha256() &&
-               cpu.backend() == "cpu" && cuda.backend() == "cuda";
+               cpu.interrupt_sha256() == cuda.interrupt_sha256() && cpu.backend() == "cpu" &&
+               cuda.backend() == "cuda";
     }
 
     struct Case {
@@ -62,10 +60,8 @@ public:
         std::vector<Index29> consumable;
     };
 
-    [[nodiscard]] static Case load_case(
-        const char* id,
-        const GematriaProfile& profile,
-        const SeparatorGrammar& grammar) {
+    [[nodiscard]] static Case load_case(const char* id, const GematriaProfile& profile,
+                                        const SeparatorGrammar& grammar) {
         StatusOr<Fixture> fixture = FixtureLoader::load_directory(fixture_dir(id));
         REQUIRE(fixture.ok());
         REQUIRE(fixture.value().verification_status() == "locked");
@@ -102,9 +98,7 @@ private:
     SolvedCudaParity() = delete;
 };
 
-TEST_CASE(
-    "Solved-fixture consumable streams: CPU apply locks digests",
-    "[cuda][parity][solved]") {
+TEST_CASE("Solved-fixture consumable streams: CPU apply locks digests", "[cuda][parity][solved]") {
     const GematriaProfile profile = SolvedCudaParity::load_profile();
     const SeparatorGrammar grammar = SolvedCudaParity::load_grammar();
 
@@ -120,33 +114,25 @@ TEST_CASE(
              "lp2-57-identity",
          }) {
         SECTION(id) {
-            const SolvedCudaParity::Case loaded =
-                SolvedCudaParity::load_case(id, profile, grammar);
+            const SolvedCudaParity::Case loaded = SolvedCudaParity::load_case(id, profile, grammar);
 
             StatusOr<std::pair<std::vector<Index29>, ParityRecord>> cpu =
-                ParityRecord::apply_and_capture(
-                    loaded.id,
-                    loaded.consumable,
-                    loaded.fixture.params(),
-                    loaded.direction,
-                    loaded.interrupt,
-                    "cpu");
+                ParityRecord::apply_and_capture(loaded.id, loaded.consumable,
+                                                loaded.fixture.params(), loaded.direction,
+                                                loaded.interrupt, "cpu");
             REQUIRE(cpu.ok());
             REQUIRE(cpu.value().second.backend() == "cpu");
             REQUIRE(cpu.value().first.size() == loaded.consumable.size());
-            REQUIRE(
-                cpu.value().second.input_sha256() ==
-                ParityRecord::hash_indices(loaded.consumable));
-            REQUIRE(
-                cpu.value().second.output_sha256() ==
-                ParityRecord::hash_indices(cpu.value().first));
+            REQUIRE(cpu.value().second.input_sha256() ==
+                    ParityRecord::hash_indices(loaded.consumable));
+            REQUIRE(cpu.value().second.output_sha256() ==
+                    ParityRecord::hash_indices(cpu.value().first));
         }
     }
 }
 
-TEST_CASE(
-    "Solved-fixture consumable streams: CUDA matches CPU output_sha256",
-    "[cuda][parity][solved]") {
+TEST_CASE("Solved-fixture consumable streams: CUDA matches CPU output_sha256",
+          "[cuda][parity][solved]") {
 #if !defined(PARCAE_HAS_CUDA)
     SUCCEED("Build with PARCAE_BUILD_CUDA=ON to exercise solved consumable CUDA parity");
     return;
@@ -171,32 +157,23 @@ TEST_CASE(
              "lp2-57-identity",
          }) {
         SECTION(id) {
-            const SolvedCudaParity::Case loaded =
-                SolvedCudaParity::load_case(id, profile, grammar);
+            const SolvedCudaParity::Case loaded = SolvedCudaParity::load_case(id, profile, grammar);
 
             StatusOr<std::pair<std::vector<Index29>, ParityRecord>> cpu =
-                ParityRecord::apply_and_capture(
-                    loaded.id,
-                    loaded.consumable,
-                    loaded.fixture.params(),
-                    loaded.direction,
-                    loaded.interrupt,
-                    "cpu");
+                ParityRecord::apply_and_capture(loaded.id, loaded.consumable,
+                                                loaded.fixture.params(), loaded.direction,
+                                                loaded.interrupt, "cpu");
             REQUIRE(cpu.ok());
 
             StatusOr<std::pair<std::vector<Index29>, ParityRecord>> cuda =
-                CudaBackend::apply_and_capture(
-                    loaded.id,
-                    loaded.consumable,
-                    loaded.fixture.params(),
-                    loaded.direction,
-                    loaded.interrupt);
+                CudaBackend::apply_and_capture(loaded.id, loaded.consumable,
+                                               loaded.fixture.params(), loaded.direction,
+                                               loaded.interrupt);
             REQUIRE(cuda.ok());
             REQUIRE(cuda.value().first == cpu.value().first);
-            REQUIRE(SolvedCudaParity::digests_match_except_backend(
-                cpu.value().second, cuda.value().second));
-            REQUIRE(
-                cuda.value().second.output_sha256() == cpu.value().second.output_sha256());
+            REQUIRE(SolvedCudaParity::digests_match_except_backend(cpu.value().second,
+                                                                   cuda.value().second));
+            REQUIRE(cuda.value().second.output_sha256() == cpu.value().second.output_sha256());
         }
     }
 #endif

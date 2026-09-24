@@ -18,17 +18,13 @@ class TotientPrimeStreamTransform : public Transform {
 public:
     TotientPrimeStreamTransform() = default;
 
-    [[nodiscard]] TransformId id() const override {
-        return TransformId::totient_prime_stream();
-    }
+    [[nodiscard]] TransformId id() const override { return TransformId::totient_prime_stream(); }
 
     /// Allocation-free once `shifts` (consumable length) is provided. In-place OK.
-    [[nodiscard]] static Status kernel(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        std::span<const Index29> shifts,
-        std::span<const std::size_t> skip_indices_sorted,
-        TransformDirection direction) {
+    [[nodiscard]] static Status kernel(std::span<const Index29> input, std::span<Index29> output,
+                                       std::span<const Index29> shifts,
+                                       std::span<const std::size_t> skip_indices_sorted,
+                                       TransformDirection direction) {
         Status sizes = TransformBuffer::require_same_length(input, output);
         if (!sizes.ok()) {
             return sizes;
@@ -56,19 +52,17 @@ public:
         return Status::success();
     }
 
-    [[nodiscard]] Status apply_into(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        const nlohmann::json& params,
-        TransformDirection direction,
-        const InterruptPolicy& interrupt = InterruptPolicy::none()) const override {
+    [[nodiscard]] Status
+    apply_into(std::span<const Index29> input, std::span<Index29> output,
+               const nlohmann::json& params, TransformDirection direction,
+               const InterruptPolicy& interrupt = InterruptPolicy::none()) const override {
         StatusOr<std::size_t> start = parse_prime_start_index(params);
         if (!start.ok()) {
             return start.status();
         }
 
-        Status range = TransformBuffer::validate_interrupt_range(
-            interrupt, input.size(), "totient_prime_stream");
+        Status range = TransformBuffer::validate_interrupt_range(interrupt, input.size(),
+                                                                 "totient_prime_stream");
         if (!range.ok()) {
             return range;
         }
@@ -87,17 +81,12 @@ public:
             return filled;
         }
 
-        return kernel(
-            input,
-            output,
-            shifts,
-            TransformBuffer::skip_span(interrupt),
-            direction);
+        return kernel(input, output, shifts, TransformBuffer::skip_span(interrupt), direction);
     }
 
 private:
-    [[nodiscard]] static StatusOr<std::size_t> parse_prime_start_index(
-        const nlohmann::json& params) {
+    [[nodiscard]] static StatusOr<std::size_t>
+    parse_prime_start_index(const nlohmann::json& params) {
         if (params.is_null()) {
             return std::size_t{0};
         }
@@ -124,13 +113,11 @@ private:
         std::size_t prime_start_index = 0;
         if (params.contains("prime_start_index")) {
             if (!params.at("prime_start_index").is_number_integer()) {
-                return Status::error(
-                    "totient_prime_stream prime_start_index must be an integer");
+                return Status::error("totient_prime_stream prime_start_index must be an integer");
             }
             const auto raw = params.at("prime_start_index").get<std::int64_t>();
             if (raw < 0) {
-                return Status::error(
-                    "totient_prime_stream prime_start_index must be non-negative");
+                return Status::error("totient_prime_stream prime_start_index must be non-negative");
             }
             prime_start_index = static_cast<std::size_t>(raw);
         }

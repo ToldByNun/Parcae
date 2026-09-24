@@ -2,15 +2,15 @@
 
 #if defined(PARCAE_HAS_CUDA)
 
-#include "interrupt_device_view.hpp"
-#include "parcae_cuda.hpp"
-#include "params.hpp"
-#include "vigenere_key_kernel.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/interrupt/policy.hpp"
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/vigenere_key_transform.hpp"
+
+#include "interrupt_device_view.hpp"
+#include "params.hpp"
+#include "parcae_cuda.hpp"
+#include "vigenere_key_kernel.hpp"
 
 #include <cstdint>
 #include <random>
@@ -40,9 +40,10 @@ namespace {
     return from_bytes(bytes);
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE("CUDA vigenere parity hand vectors with and without interrupts", "[cuda][parity][vigenere]") {
+TEST_CASE("CUDA vigenere parity hand vectors with and without interrupts",
+          "[cuda][parity][vigenere]") {
     REQUIRE(ParcaeCuda::available());
 
     const std::vector<std::uint8_t> key{1, 2};
@@ -56,17 +57,16 @@ TEST_CASE("CUDA vigenere parity hand vectors with and without interrupts", "[cud
         REQUIRE(view.value().encoding() == InterruptDeviceView::Encoding::Bitmask);
 
         std::vector<Index29> cpu_out(plain.size());
-        REQUIRE(VigenereKeyTransform::kernel(
-                    plain, cpu_out, key_from_bytes(key), {}, TransformDirection::Encrypt)
+        REQUIRE(VigenereKeyTransform::kernel(plain, cpu_out, key_from_bytes(key), {},
+                                             TransformDirection::Encrypt)
                     .ok());
 
         std::vector<std::uint8_t> host_out(host_in.size(), 0xFFu);
-        REQUIRE(VigenereKeyKernel::apply_host(
-                    host_in, host_out, key, view.value(), CudaDir::Encrypt)
-                    .ok());
-        REQUIRE(from_bytes(host_out) == cpu_out);
         REQUIRE(
-            host_out == std::vector<std::uint8_t>{1, 3, 3, 5});
+            VigenereKeyKernel::apply_host(host_in, host_out, key, view.value(), CudaDir::Encrypt)
+                .ok());
+        REQUIRE(from_bytes(host_out) == cpu_out);
+        REQUIRE(host_out == std::vector<std::uint8_t>{1, 3, 3, 5});
     }
 
     SECTION("with interrupts") {
@@ -78,25 +78,22 @@ TEST_CASE("CUDA vigenere parity hand vectors with and without interrupts", "[cud
         REQUIRE(view.ok());
 
         std::vector<Index29> cpu_out(plain.size());
-        REQUIRE(VigenereKeyTransform::kernel(
-                    plain,
-                    cpu_out,
-                    key_from_bytes(key),
-                    policy.value().skip_indices(),
-                    TransformDirection::Encrypt)
+        REQUIRE(VigenereKeyTransform::kernel(plain, cpu_out, key_from_bytes(key),
+                                             policy.value().skip_indices(),
+                                             TransformDirection::Encrypt)
                     .ok());
 
         std::vector<std::uint8_t> host_out(host_in.size(), 0xFFu);
-        REQUIRE(VigenereKeyKernel::apply_host(
-                    host_in, host_out, key, view.value(), CudaDir::Encrypt)
-                    .ok());
+        REQUIRE(
+            VigenereKeyKernel::apply_host(host_in, host_out, key, view.value(), CudaDir::Encrypt)
+                .ok());
         REQUIRE(from_bytes(host_out) == cpu_out);
         REQUIRE(host_out == std::vector<std::uint8_t>{1, 1, 4, 3});
 
         std::vector<std::uint8_t> recovered(host_out.size());
-        REQUIRE(VigenereKeyKernel::apply_host(
-                    host_out, recovered, key, view.value(), CudaDir::Decrypt)
-                    .ok());
+        REQUIRE(
+            VigenereKeyKernel::apply_host(host_out, recovered, key, view.value(), CudaDir::Decrypt)
+                .ok());
         REQUIRE(recovered == host_in);
     }
 }
@@ -122,12 +119,8 @@ TEST_CASE("CUDA vigenere parity random and sorted-skips encoding", "[cuda][parit
     REQUIRE(policy.ok());
 
     std::vector<Index29> cpu_out(plain.size());
-    REQUIRE(VigenereKeyTransform::kernel(
-                plain,
-                cpu_out,
-                key_from_bytes(key),
-                policy.value().skip_indices(),
-                TransformDirection::Decrypt)
+    REQUIRE(VigenereKeyTransform::kernel(plain, cpu_out, key_from_bytes(key),
+                                         policy.value().skip_indices(), TransformDirection::Decrypt)
                 .ok());
 
     const std::vector<std::uint8_t> host_in = to_bytes(plain);
@@ -137,9 +130,8 @@ TEST_CASE("CUDA vigenere parity random and sorted-skips encoding", "[cuda][parit
     REQUIRE(view.value().encoding() == InterruptDeviceView::Encoding::Bitmask);
 
     std::vector<std::uint8_t> host_out(host_in.size());
-    REQUIRE(VigenereKeyKernel::apply_host(
-                host_in, host_out, key, view.value(), CudaDir::Decrypt)
-                .ok());
+    REQUIRE(
+        VigenereKeyKernel::apply_host(host_in, host_out, key, view.value(), CudaDir::Decrypt).ok());
     REQUIRE(from_bytes(host_out) == cpu_out);
 
     // Force sorted-skips encoding with T > 4096.
@@ -154,18 +146,15 @@ TEST_CASE("CUDA vigenere parity random and sorted-skips encoding", "[cuda][parit
     REQUIRE(large_view.value().encoding() == InterruptDeviceView::Encoding::SortedSkips);
 
     std::vector<Index29> large_cpu(large_T);
-    REQUIRE(VigenereKeyTransform::kernel(
-                large_plain,
-                large_cpu,
-                key_from_bytes(key),
-                large_policy.value().skip_indices(),
-                TransformDirection::Encrypt)
+    REQUIRE(VigenereKeyTransform::kernel(large_plain, large_cpu, key_from_bytes(key),
+                                         large_policy.value().skip_indices(),
+                                         TransformDirection::Encrypt)
                 .ok());
 
     const std::vector<std::uint8_t> large_in = to_bytes(large_plain);
     std::vector<std::uint8_t> large_out(large_T);
-    REQUIRE(VigenereKeyKernel::apply_host(
-                large_in, large_out, key, large_view.value(), CudaDir::Encrypt)
+    REQUIRE(VigenereKeyKernel::apply_host(large_in, large_out, key, large_view.value(),
+                                          CudaDir::Encrypt)
                 .ok());
     REQUIRE(from_bytes(large_out) == large_cpu);
 }

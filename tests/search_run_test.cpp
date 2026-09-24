@@ -1,14 +1,12 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include "parcae/run/search_run.hpp"
 #include "parcae/run/search_run_console.hpp"
 #include "parcae/tool/context.hpp"
 #include "parcae/tool/tool_backend.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <cstdint>
-#include <string>
-
 #include <nlohmann/json.hpp>
+#include <string>
 
 #ifndef PARCAE_TEST_DATA_DIR
 #error "PARCAE_TEST_DATA_DIR must be defined"
@@ -90,8 +88,8 @@ TEST_CASE("SearchRun CUDA caesar sweep + CPU↔CUDA parity", "[run][search][cuda
 
 TEST_CASE("SearchRun CUDA all families parity", "[run][search][cuda][families]") {
     const Context ctx{PARCAE_TEST_DATA_DIR};
-    const std::vector<std::string> families = {
-        "caesar", "atbash", "atbash_caesar", "affine", "vigenere"};
+    const std::vector<std::string> families = {"caesar", "atbash", "atbash_caesar", "affine",
+                                               "vigenere"};
     for (const std::string& family : families) {
         SearchRun::Options options;
         options.backend = Backend::Cuda;

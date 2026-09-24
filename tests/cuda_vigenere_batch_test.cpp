@@ -2,22 +2,21 @@
 
 #if defined(PARCAE_HAS_CUDA)
 
-#include "candidate_batch_buffers.hpp"
-#include "interrupt_device_view.hpp"
-#include "parcae_cuda.hpp"
-#include "params.hpp"
-#include "vigenere_batch_kernel.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
 #include "parcae/interrupt/policy.hpp"
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/vigenere_key_transform.hpp"
 
-#include <cstdint>
-#include <vector>
+#include "candidate_batch_buffers.hpp"
+#include "interrupt_device_view.hpp"
+#include "params.hpp"
+#include "parcae_cuda.hpp"
+#include "vigenere_batch_kernel.hpp"
 
+#include <cstdint>
 #include <nlohmann/json.hpp>
+#include <vector>
 
 namespace {
 
@@ -29,9 +28,9 @@ namespace {
     return {I(0), I(1), I(2), I(3), I(10), I(14), I(28)};
 }
 
-[[nodiscard]] StatusOr<CandidateBatchBuffers> make_vigenere_buffers(
-    const std::vector<Index29>& tokens,
-    const std::vector<std::vector<Index29>>& keys) {
+[[nodiscard]] StatusOr<CandidateBatchBuffers>
+make_vigenere_buffers(const std::vector<Index29>& tokens,
+                      const std::vector<std::vector<Index29>>& keys) {
     CandidateBatchBuffers::AllocateOptions options;
     options.family = CudaFamilyId::VigenereKey;
     options.with_scores = false;
@@ -53,11 +52,10 @@ namespace {
     return buffers;
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "CUDA vigenere batch matches VigenereExplicitKeyCandidateGenerator",
-    "[cuda][batch][vigenere]") {
+TEST_CASE("CUDA vigenere batch matches VigenereExplicitKeyCandidateGenerator",
+          "[cuda][batch][vigenere]") {
     REQUIRE(ParcaeCuda::available());
 
     const std::vector<Index29> cipher = cipher_fixture();
@@ -95,11 +93,9 @@ TEST_CASE("CUDA vigenere batch with shared interrupts", "[cuda][batch][vigenere]
     StatusOr<InterruptPolicy> policy = InterruptPolicy::from_skip_indices({1, 3});
     REQUIRE(policy.ok());
 
-    StatusOr<std::vector<Index29>> cipher = VigenereKeyTransform{}.apply(
-        plain,
-        nlohmann::json{{"key_indices", {1, 2}}},
-        TransformDirection::Encrypt,
-        policy.value());
+    StatusOr<std::vector<Index29>> cipher =
+        VigenereKeyTransform{}.apply(plain, nlohmann::json{{"key_indices", {1, 2}}},
+                                     TransformDirection::Encrypt, policy.value());
     REQUIRE(cipher.ok());
 
     const std::vector<std::vector<Index29>> keys = {
@@ -146,9 +142,7 @@ TEST_CASE("CUDA vigenere batch encrypt directions", "[cuda][batch][vigenere]") {
     REQUIRE(VigenereBatchKernel::apply_host(buffers.value(), interrupts.value()).ok());
 
     StatusOr<std::vector<Index29>> cpu = VigenereKeyTransform{}.apply(
-        plain,
-        nlohmann::json{{"key_indices", {3, 7}}},
-        TransformDirection::Encrypt);
+        plain, nlohmann::json{{"key_indices", {3, 7}}}, TransformDirection::Encrypt);
     REQUIRE(cpu.ok());
 
     std::vector<Index29> cuda_out(plain.size());

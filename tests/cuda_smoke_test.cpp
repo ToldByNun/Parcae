@@ -30,8 +30,8 @@ TEST_CASE("CUDA smoke identity copy via DeviceBuffer launch_device", "[cuda][smo
         DeviceBuffer<std::uint8_t>::allocate(host_in.size());
     REQUIRE(device_out.ok());
 
-    REQUIRE(IdentityCopy::launch_device(
-                device_in.value().data(), device_out.value().data(), host_in.size())
+    REQUIRE(IdentityCopy::launch_device(device_in.value().data(), device_out.value().data(),
+                                        host_in.size())
                 .ok());
 
     std::vector<std::uint8_t> host_out(host_in.size());

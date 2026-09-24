@@ -11,14 +11,10 @@ class AtbashTransform : public Transform {
 public:
     AtbashTransform() = default;
 
-    [[nodiscard]] TransformId id() const override {
-        return TransformId::atbash();
-    }
+    [[nodiscard]] TransformId id() const override { return TransformId::atbash(); }
 
     /// Allocation-free elementwise kernel (in-place OK).
-    [[nodiscard]] static Status kernel(
-        std::span<const Index29> input,
-        std::span<Index29> output) {
+    [[nodiscard]] static Status kernel(std::span<const Index29> input, std::span<Index29> output) {
         Status sizes = TransformBuffer::require_same_length(input, output);
         if (!sizes.ok()) {
             return sizes;
@@ -29,12 +25,10 @@ public:
         return Status::success();
     }
 
-    [[nodiscard]] Status apply_into(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        const nlohmann::json& params,
-        TransformDirection /*direction*/,
-        const InterruptPolicy& /*interrupt*/ = InterruptPolicy::none()) const override {
+    [[nodiscard]] Status
+    apply_into(std::span<const Index29> input, std::span<Index29> output,
+               const nlohmann::json& params, TransformDirection /*direction*/,
+               const InterruptPolicy& /*interrupt*/ = InterruptPolicy::none()) const override {
         Status params_status = validate_params(params);
         if (!params_status.ok()) {
             return params_status;

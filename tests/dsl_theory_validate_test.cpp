@@ -1,3 +1,7 @@
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include <parcae/core/status_or.hpp>
 #include <parcae/core/version.hpp>
 #include <parcae/dsl/dsl_spec_version.hpp>
@@ -5,19 +9,11 @@
 #include <parcae/dsl/theory_artifact.hpp>
 #include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/theory_validate.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <filesystem>
-#include <fstream>
 #include <string>
-
-#include <nlohmann/json.hpp>
 
 namespace {
 
-constexpr const char* kSha =
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+constexpr const char* kSha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 [[nodiscard]] TheoryArtifact::Verification ok_exhaustive() {
     return TheoryArtifact::Verification{
@@ -32,19 +28,9 @@ constexpr const char* kSha =
     TheoryArtifact::Paths paths;
     paths.set_cpu_reference("cpu_reference.hpp");
     return TheoryArtifact::make(
-        std::move(name),
-        1,
-        TheoryIr::Tier::A,
-        TheoryIr::Family::KeyedStream,
-        kSha,
-        ok_exhaustive(),
-        TheoryArtifact::FusionStatus::NotApplicable,
-        TheoryArtifact::InterruptMode::NoneByDesign,
-        {},
-        {"poly2_mod29"},
-        std::nullopt,
-        std::nullopt,
-        std::move(paths));
+        std::move(name), 1, TheoryIr::Tier::A, TheoryIr::Family::KeyedStream, kSha, ok_exhaustive(),
+        TheoryArtifact::FusionStatus::NotApplicable, TheoryArtifact::InterruptMode::NoneByDesign,
+        {}, {"poly2_mod29"}, std::nullopt, std::nullopt, std::move(paths));
 }
 
 [[nodiscard]] std::filesystem::path make_temp_root(std::string_view suffix) {
@@ -61,7 +47,7 @@ void write_cpu_stub(const std::filesystem::path& dir) {
     out << "// stub\n";
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("TheoryValidate passes ready artifact with declared files", "[dsl][validate]") {
     const std::filesystem::path root = make_temp_root("ok");

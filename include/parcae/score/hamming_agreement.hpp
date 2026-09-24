@@ -19,9 +19,8 @@ public:
     static constexpr std::string_view score_id = "hamming_agreement";
     static constexpr std::string_view score_version = "v0";
 
-    [[nodiscard]] static StatusOr<double> score(
-        const std::vector<Index29>& candidate,
-        const std::vector<Index29>& reference) {
+    [[nodiscard]] static StatusOr<double> score(const std::vector<Index29>& candidate,
+                                                const std::vector<Index29>& reference) {
         if (candidate.size() != reference.size()) {
             return Status::error("hamming_agreement requires equal lengths");
         }

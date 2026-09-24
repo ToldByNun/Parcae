@@ -1,5 +1,4 @@
 #include "affine_batch_kernel.hpp"
-
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
 #include "z29_device.hpp"
@@ -10,14 +9,10 @@ namespace {
 
 constexpr int kThreadsPerBlock = 256;
 
-__global__ void affine_batch_shared_kernel(
-    const std::uint8_t* in,
-    const std::uint8_t* affine_a,
-    const std::uint8_t* affine_b,
-    const std::uint8_t* directions,
-    std::uint8_t* out,
-    std::size_t candidate_count,
-    std::size_t token_count) {
+__global__ void affine_batch_shared_kernel(const std::uint8_t* in, const std::uint8_t* affine_a,
+                                           const std::uint8_t* affine_b,
+                                           const std::uint8_t* directions, std::uint8_t* out,
+                                           std::size_t candidate_count, std::size_t token_count) {
     const std::size_t flat =
         static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
         static_cast<std::size_t>(threadIdx.x);
@@ -39,12 +34,10 @@ __global__ void affine_batch_shared_kernel(
     }
 }
 
-[[nodiscard]] Status validate_batch(
-    std::size_t candidate_count,
-    std::size_t token_count,
-    std::span<const std::uint8_t> affine_a,
-    std::span<const std::uint8_t> affine_b,
-    std::span<const std::uint8_t> directions) {
+[[nodiscard]] Status validate_batch(std::size_t candidate_count, std::size_t token_count,
+                                    std::span<const std::uint8_t> affine_a,
+                                    std::span<const std::uint8_t> affine_b,
+                                    std::span<const std::uint8_t> directions) {
     if (candidate_count == 0) {
         return Status::error("AffineBatchKernel: C must be >= 1");
     }
@@ -74,16 +67,13 @@ __global__ void affine_batch_shared_kernel(
     return Status::success();
 }
 
-}  // namespace
+} // namespace
 
-Status AffineBatchKernel::launch_device(
-    const std::uint8_t* device_in,
-    const std::uint8_t* device_a,
-    const std::uint8_t* device_b,
-    const std::uint8_t* device_directions,
-    std::uint8_t* device_out,
-    std::size_t candidate_count,
-    std::size_t token_count) {
+Status AffineBatchKernel::launch_device(const std::uint8_t* device_in, const std::uint8_t* device_a,
+                                        const std::uint8_t* device_b,
+                                        const std::uint8_t* device_directions,
+                                        std::uint8_t* device_out, std::size_t candidate_count,
+                                        std::size_t token_count) {
     if (candidate_count == 0) {
         return Status::error("AffineBatchKernel::launch_device C must be >= 1");
     }
@@ -96,17 +86,10 @@ Status AffineBatchKernel::launch_device(
     }
 
     const std::size_t total = candidate_count * token_count;
-    const int blocks = static_cast<int>(
-        (total + static_cast<std::size_t>(kThreadsPerBlock) - 1u) /
-        static_cast<std::size_t>(kThreadsPerBlock));
+    const int blocks = static_cast<int>((total + static_cast<std::size_t>(kThreadsPerBlock) - 1u) /
+                                        static_cast<std::size_t>(kThreadsPerBlock));
     affine_batch_shared_kernel<<<blocks, kThreadsPerBlock>>>(
-        device_in,
-        device_a,
-        device_b,
-        device_directions,
-        device_out,
-        candidate_count,
-        token_count);
+        device_in, device_a, device_b, device_directions, device_out, candidate_count, token_count);
 
     Status launch = CudaError::to_status(cudaGetLastError(), "AffineBatchKernel::launch_device");
     if (!launch.ok()) {
@@ -115,12 +98,11 @@ Status AffineBatchKernel::launch_device(
     return CudaError::to_status(cudaDeviceSynchronize(), "AffineBatchKernel::launch_device sync");
 }
 
-Status AffineBatchKernel::apply_host(
-    std::span<const std::uint8_t> shared_in,
-    std::span<const std::uint8_t> affine_a,
-    std::span<const std::uint8_t> affine_b,
-    std::span<const std::uint8_t> directions,
-    std::span<std::uint8_t> out) {
+Status AffineBatchKernel::apply_host(std::span<const std::uint8_t> shared_in,
+                                     std::span<const std::uint8_t> affine_a,
+                                     std::span<const std::uint8_t> affine_b,
+                                     std::span<const std::uint8_t> directions,
+                                     std::span<std::uint8_t> out) {
     const std::size_t candidate_count = affine_a.size();
     const std::size_t token_count = shared_in.size();
 
@@ -159,14 +141,9 @@ Status AffineBatchKernel::apply_host(
         return device_out.status();
     }
 
-    Status launched = launch_device(
-        device_in.value().data(),
-        device_a.value().data(),
-        device_b.value().data(),
-        device_directions.value().data(),
-        device_out.value().data(),
-        candidate_count,
-        token_count);
+    Status launched = launch_device(device_in.value().data(), device_a.value().data(),
+                                    device_b.value().data(), device_directions.value().data(),
+                                    device_out.value().data(), candidate_count, token_count);
     if (!launched.ok()) {
         return launched;
     }
@@ -180,10 +157,6 @@ Status AffineBatchKernel::apply_host(CandidateBatchBuffers& buffers) {
     if (buffers.family() != CudaFamilyId::Affine) {
         return Status::error("AffineBatchKernel requires Affine family buffers");
     }
-    return apply_host(
-        buffers.token_index29(),
-        buffers.affine_a(),
-        buffers.affine_b(),
-        buffers.directions(),
-        buffers.out_index29());
+    return apply_host(buffers.token_index29(), buffers.affine_a(), buffers.affine_b(),
+                      buffers.directions(), buffers.out_index29());
 }

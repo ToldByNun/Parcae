@@ -1,19 +1,18 @@
-#include "cli_io.hpp"
-#include "tool_cli_json.hpp"
-
 #include "parcae/run/search_run.hpp"
 #include "parcae/run/search_run_console.hpp"
 #include "parcae/run/search_run_metrics.hpp"
 #include "parcae/tool/tool_backend.hpp"
 
+#include "cli_io.hpp"
+#include "tool_cli_json.hpp"
+
 #include <cstdint>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #ifndef PARCAE_DEFAULT_DATA_DIR
 #define PARCAE_DEFAULT_DATA_DIR ""
@@ -24,26 +23,21 @@ namespace {
 constexpr std::string_view kTool = "search_run";
 
 void print_help() {
-    std::cerr
-        << "Usage: parcae-search-run [--backend cpu|cuda] [--family caesar]\n"
-        << "                         [--seed <u32>] [--stream-length <n>]\n"
-        << "                         [--repeats <n>] [--score-id <id>]\n"
-        << "                         [--no-compare] [--json] [--omit-timing]\n"
-        << "                         [--data-dir <path>]\n"
-        << "\n"
-        << "AI-style search-run dashboard: throughput (runes/s), sweep scores,\n"
-        << "and locked-fixture scorer eval. Timing covers transform+score only\n"
-        << "(setup/init excluded). tok_per_sec is intentionally non-deterministic;\n"
-        << "use --omit-timing with --json for replayable agent output (params per step).\n"
-        << "\nv0 families: caesar|atbash|atbash_caesar|affine|vigenere\n";
+    std::cerr << "Usage: parcae-search-run [--backend cpu|cuda] [--family caesar]\n"
+              << "                         [--seed <u32>] [--stream-length <n>]\n"
+              << "                         [--repeats <n>] [--score-id <id>]\n"
+              << "                         [--no-compare] [--json] [--omit-timing]\n"
+              << "                         [--data-dir <path>]\n"
+              << "\n"
+              << "AI-style search-run dashboard: throughput (runes/s), sweep scores,\n"
+              << "and locked-fixture scorer eval. Timing covers transform+score only\n"
+              << "(setup/init excluded). tok_per_sec is intentionally non-deterministic;\n"
+              << "use --omit-timing with --json for replayable agent output (params per step).\n"
+              << "\nv0 families: caesar|atbash|atbash_caesar|affine|vigenere\n";
 }
 
-[[nodiscard]] int fail(
-    bool json_mode,
-    const std::optional<std::string>& backend,
-    ToolErrorCode code,
-    std::string message,
-    int plain_exit) {
+[[nodiscard]] int fail(bool json_mode, const std::optional<std::string>& backend,
+                       ToolErrorCode code, std::string message, int plain_exit) {
     if (json_mode) {
         return ToolCliJson::err(kTool, backend, code, std::move(message));
     }
@@ -51,7 +45,7 @@ void print_help() {
     return plain_exit;
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
@@ -71,8 +65,8 @@ int main(int argc, char** argv) {
     const std::string data_dir = CliIo::optional_option(args, "--data-dir");
     std::optional<std::string> backend_label;
 
-    StatusOr<Backend> backend = BackendUtil::from_string(
-        CliIo::optional_option(args, "--backend", "cpu"));
+    StatusOr<Backend> backend =
+        BackendUtil::from_string(CliIo::optional_option(args, "--backend", "cpu"));
     if (!backend.ok()) {
         print_help();
         return fail(json_mode, std::nullopt, ToolErrorCode::Usage, backend.status().message(),
@@ -145,21 +139,18 @@ int main(int argc, char** argv) {
     }
 
     const bool eval_ok = metrics.value().eval_set_pass_rate() >= 1.0;
-    const bool parity_ok = !metrics.value().cpu_cuda_pass().has_value() ||
-                           metrics.value().cpu_cuda_pass().value();
+    const bool parity_ok =
+        !metrics.value().cpu_cuda_pass().has_value() || metrics.value().cpu_cuda_pass().value();
 
     if (json_mode) {
         nlohmann::json result = metrics.value().to_json(omit_timing);
         if (eval_ok && parity_ok) {
             return ToolCliJson::ok(kTool, backend_label, std::move(result));
         }
-        return ToolCliJson::err(
-            kTool,
-            backend_label,
-            ToolErrorCode::Validation,
-            !eval_ok ? "fixture eval did not all-pass"
-                     : "CPU↔CUDA score parity failed",
-            std::move(result));
+        return ToolCliJson::err(kTool, backend_label, ToolErrorCode::Validation,
+                                !eval_ok ? "fixture eval did not all-pass"
+                                         : "CPU↔CUDA score parity failed",
+                                std::move(result));
     }
 
     std::cout << SearchRunConsole::format(metrics.value());

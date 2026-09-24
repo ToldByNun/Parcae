@@ -1,8 +1,6 @@
-#include <parcae/bench/bench_metric.hpp>
-
 #include <catch2/catch_test_macros.hpp>
-
 #include <cmath>
+#include <parcae/bench/bench_metric.hpp>
 #include <string>
 
 TEST_CASE("BenchMetric runes_per_sec and keys_per_sec formulas", "[bench][metric]") {
@@ -16,8 +14,7 @@ TEST_CASE("BenchMetric runes_per_sec and keys_per_sec formulas", "[bench][metric
 TEST_CASE("BenchMetric Sample::from_elapsed", "[bench][metric]") {
     const BenchMetric::Sample s = BenchMetric::Sample::from_elapsed(64, 29, 1048576, 2.0);
     REQUIRE(s.wall_seconds() == 2.0);
-    const double expected_rps =
-        BenchMetric::runes_per_sec(64, 29, 1048576, 2.0);
+    const double expected_rps = BenchMetric::runes_per_sec(64, 29, 1048576, 2.0);
     const double expected_kps = BenchMetric::keys_per_sec(64, 29, 2.0);
     REQUIRE(s.runes_per_sec() == expected_rps);
     REQUIRE(s.keys_per_sec() == expected_kps);

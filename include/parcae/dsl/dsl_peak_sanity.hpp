@@ -38,53 +38,26 @@ public:
 
     class Report {
     public:
-        Report(
-            std::string tier,
-            double rps,
-            double slo_min,
-            double peak,
-            double percent_peak,
-            Verdict verdict,
-            std::string detail)
-            : tier_(std::move(tier)),
-              rps_(rps),
-              slo_min_(slo_min),
-              peak_(peak),
-              percent_peak_(percent_peak),
-              verdict_(verdict),
-              detail_(std::move(detail)) {}
+        Report(std::string tier, double rps, double slo_min, double peak, double percent_peak,
+               Verdict verdict, std::string detail)
+            : tier_(std::move(tier)), rps_(rps), slo_min_(slo_min), peak_(peak),
+              percent_peak_(percent_peak), verdict_(verdict), detail_(std::move(detail)) {}
 
-        [[nodiscard]] const std::string& tier() const noexcept {
-            return tier_;
-        }
+        [[nodiscard]] const std::string& tier() const noexcept { return tier_; }
 
-        [[nodiscard]] double rps() const noexcept {
-            return rps_;
-        }
+        [[nodiscard]] double rps() const noexcept { return rps_; }
 
-        [[nodiscard]] double slo_min() const noexcept {
-            return slo_min_;
-        }
+        [[nodiscard]] double slo_min() const noexcept { return slo_min_; }
 
-        [[nodiscard]] double peak() const noexcept {
-            return peak_;
-        }
+        [[nodiscard]] double peak() const noexcept { return peak_; }
 
-        [[nodiscard]] double percent_peak() const noexcept {
-            return percent_peak_;
-        }
+        [[nodiscard]] double percent_peak() const noexcept { return percent_peak_; }
 
-        [[nodiscard]] Verdict verdict() const noexcept {
-            return verdict_;
-        }
+        [[nodiscard]] Verdict verdict() const noexcept { return verdict_; }
 
-        [[nodiscard]] bool passed() const noexcept {
-            return verdict_ == Verdict::Pass;
-        }
+        [[nodiscard]] bool passed() const noexcept { return verdict_ == Verdict::Pass; }
 
-        [[nodiscard]] const std::string& detail() const noexcept {
-            return detail_;
-        }
+        [[nodiscard]] const std::string& detail() const noexcept { return detail_; }
 
     private:
         std::string tier_;
@@ -127,24 +100,22 @@ public:
         const double pct = percent_peak(rps, peak);
 
         if (peak <= 0.0) {
-            return Report{
-                tier_s,
-                rps,
-                slo,
-                peak,
-                pct,
-                Verdict::UnknownTier,
-                "unknown throughput tier '" + tier_s + "'"};
+            return Report{tier_s,
+                          rps,
+                          slo,
+                          peak,
+                          pct,
+                          Verdict::UnknownTier,
+                          "unknown throughput tier '" + tier_s + "'"};
         }
 
         // Claims / measurements must not exceed the practical ceiling (stale peak → recalibrate).
         constexpr double kEps = 1.0e-9;
         if (rps > peak * (1.0 + kEps)) {
             std::ostringstream d;
-            d << "implausible rps above peak: tier=" << tier_s << " rps=" << rps
-              << " peak=" << peak << " pct=" << pct;
-            return Report{
-                tier_s, rps, slo, peak, pct, Verdict::ImplausibleAbovePeak, d.str()};
+            d << "implausible rps above peak: tier=" << tier_s << " rps=" << rps << " peak=" << peak
+              << " pct=" << pct;
+            return Report{tier_s, rps, slo, peak, pct, Verdict::ImplausibleAbovePeak, d.str()};
         }
 
         if (rps < slo) {
@@ -170,9 +141,8 @@ public:
         if (r.passed()) {
             return Status::success();
         }
-        return DslDiag::make(
-                   DslRuleId::E050_verify_failed,
-                   std::string("peak sanity: ") + r.detail())
+        return DslDiag::make(DslRuleId::E050_verify_failed,
+                             std::string("peak sanity: ") + r.detail())
             .to_status();
     }
 
@@ -180,17 +150,15 @@ public:
     [[nodiscard]] static Status check_not_above_peak(std::string_view tier, double rps) {
         const double peak = estimated_peak(tier);
         if (peak <= 0.0) {
-            return DslDiag::make(
-                       DslRuleId::E032_primitive_body,
-                       "peak sanity: unknown tier '" + std::string(tier) + "'")
+            return DslDiag::make(DslRuleId::E032_primitive_body,
+                                 "peak sanity: unknown tier '" + std::string(tier) + "'")
                 .to_status();
         }
         constexpr double kEps = 1.0e-9;
         if (rps > peak * (1.0 + kEps)) {
-            return DslDiag::make(
-                       DslRuleId::E050_verify_failed,
-                       "peak sanity: rps exceeds BenchTierSpec ceiling for '" +
-                           std::string(tier) + "'")
+            return DslDiag::make(DslRuleId::E050_verify_failed,
+                                 "peak sanity: rps exceeds BenchTierSpec ceiling for '" +
+                                     std::string(tier) + "'")
                 .to_status();
         }
         return Status::success();
@@ -199,8 +167,8 @@ public:
     /// Best-effort tier id for DSL theories (compose / known elementwise names).
     [[nodiscard]] static std::string suggest_tier(const TheoryIr& theory) {
         const std::string& n = theory.name();
-        if (n.find("koan") != std::string::npos || n.find("atbash_then_caesar") != std::string::npos ||
-            n == "koan1_style") {
+        if (n.find("koan") != std::string::npos ||
+            n.find("atbash_then_caesar") != std::string::npos || n == "koan1_style") {
             return "C.koan1_fused";
         }
         if (n == "atbash" || n.find("atbash") != std::string::npos) {

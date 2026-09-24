@@ -1,23 +1,17 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_divergence_gate.hpp>
 #include <parcae/dsl/dsl_rule_id.hpp>
 #include <parcae/dsl/dsl_semantic_gate.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
 
 namespace {
 
 [[nodiscard]] std::string minimal_success_doc(const std::string& module_json) {
-    return std::string("{") +
-           R"("schema":"parcae.dsl_ast_json.v0",)" +
-           R"("dsl_ast_json_version":"1.0.0",)" +
-           R"("source_path":"theories/x.py",)" +
+    return std::string("{") + R"("schema":"parcae.dsl_ast_json.v0",)" +
+           R"("dsl_ast_json_version":"1.0.0",)" + R"("source_path":"theories/x.py",)" +
            R"("source_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",)" +
-           R"("python_version":"3.12.0",)" +
-           R"("ok":true,)" +
-           R"("module":)" + module_json + "}";
+           R"("python_version":"3.12.0",)" + R"("ok":true,)" + R"("module":)" + module_json + "}";
 }
 
 [[nodiscard]] DslAstDocument ingest_or_fail(const std::string& module_json) {
@@ -55,11 +49,9 @@ namespace {
     })";
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "DslDivergenceGate rejects HotLoop if on cipher with E033",
-    "[dsl][divergence][E033]") {
+TEST_CASE("DslDivergenceGate rejects HotLoop if on cipher with E033", "[dsl][divergence][E033]") {
     const DslAstDocument doc = ingest_or_fail(hotloop_primitive_with_if(
         R"({"kind":"Compare","lineno":4,"col_offset":7,
             "left":{"kind":"Name","id":"x","ctx":"Load","lineno":4,"col_offset":7},
@@ -73,9 +65,7 @@ TEST_CASE(
     REQUIRE(r.status().message().find("x") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslDivergenceGate rejects HotLoop if on stream index i",
-    "[dsl][divergence][E033]") {
+TEST_CASE("DslDivergenceGate rejects HotLoop if on stream index i", "[dsl][divergence][E033]") {
     const DslAstDocument doc = ingest_or_fail(hotloop_primitive_with_if(
         R"({"kind":"Compare","lineno":4,"col_offset":7,
             "left":{"kind":"Name","id":"i","ctx":"Load","lineno":4,"col_offset":7},
@@ -88,9 +78,7 @@ TEST_CASE(
     REQUIRE(st.message().find("'i'") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslDivergenceGate accepts HotLoop if on Param with W011",
-    "[dsl][divergence][W011]") {
+TEST_CASE("DslDivergenceGate accepts HotLoop if on Param with W011", "[dsl][divergence][W011]") {
     const DslAstDocument doc = ingest_or_fail(hotloop_primitive_with_if(
         R"({"kind":"Compare","lineno":4,"col_offset":7,
             "left":{"kind":"Name","id":"a","ctx":"Load","lineno":4,"col_offset":7},
@@ -106,11 +94,9 @@ TEST_CASE(
     REQUIRE(r.value().warnings()[0].message().find("LoopInvariant") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslDivergenceGate accepts const HotLoop if with W011",
-    "[dsl][divergence][W011]") {
-    const DslAstDocument doc = ingest_or_fail(hotloop_primitive_with_if(
-        R"({"kind":"Constant","value":true,"lineno":4,"col_offset":7})"));
+TEST_CASE("DslDivergenceGate accepts const HotLoop if with W011", "[dsl][divergence][W011]") {
+    const DslAstDocument doc = ingest_or_fail(
+        hotloop_primitive_with_if(R"({"kind":"Constant","value":true,"lineno":4,"col_offset":7})"));
 
     const StatusOr<DslDivergenceGate::Report> r = DslDivergenceGate::check(doc);
     REQUIRE(r.ok());
@@ -118,9 +104,7 @@ TEST_CASE(
     REQUIRE(r.value().warnings()[0].message().find("CompileTimeConstant") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslDivergenceGate accepts HostFlag name with W011",
-    "[dsl][divergence][W011]") {
+TEST_CASE("DslDivergenceGate accepts HostFlag name with W011", "[dsl][divergence][W011]") {
     const DslAstDocument doc = ingest_or_fail(hotloop_primitive_with_if(
         R"({"kind":"Name","id":"flag","ctx":"Load","lineno":4,"col_offset":7})"));
 
@@ -129,9 +113,7 @@ TEST_CASE(
     REQUIRE(r.value().warnings()[0].message().find("HostFlag") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslDivergenceGate ignores OuterControl If",
-    "[dsl][divergence]") {
+TEST_CASE("DslDivergenceGate ignores OuterControl If", "[dsl][divergence]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"If","lineno":2,"col_offset":0,
@@ -148,9 +130,7 @@ TEST_CASE(
     REQUIRE(r.value().empty());
 }
 
-TEST_CASE(
-    "DslDivergenceGate BoolOp with cipher child is E033",
-    "[dsl][divergence][E033]") {
+TEST_CASE("DslDivergenceGate BoolOp with cipher child is E033", "[dsl][divergence][E033]") {
     const DslAstDocument doc = ingest_or_fail(hotloop_primitive_with_if(
         R"({"kind":"BoolOp","lineno":4,"col_offset":7,"op":"And",
             "values":[
@@ -166,9 +146,7 @@ TEST_CASE(
     REQUIRE(st.message().find("E033") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslPredicateClass classify_expr helper",
-    "[dsl][divergence]") {
+TEST_CASE("DslPredicateClass classify_expr helper", "[dsl][divergence]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"Expr","lineno":1,"col_offset":0,
@@ -185,9 +163,8 @@ TEST_CASE(
     REQUIRE(pred.evidence() == "x");
 }
 
-TEST_CASE(
-    "DslDivergenceGate skips self when resolving method cipher_var",
-    "[dsl][divergence][golden]") {
+TEST_CASE("DslDivergenceGate skips self when resolving method cipher_var",
+          "[dsl][divergence][golden]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"ClassDef","name":"T","lineno":2,"col_offset":0,

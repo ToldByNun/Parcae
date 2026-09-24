@@ -38,22 +38,14 @@ public:
     }
 
     /// CSI EL 0: clear from cursor to end of line.
-    [[nodiscard]] static std::string clear_to_eol() {
-        return std::string("\x1b[K");
-    }
+    [[nodiscard]] static std::string clear_to_eol() { return std::string("\x1b[K"); }
 
-    [[nodiscard]] static std::string carriage_return() {
-        return std::string("\r");
-    }
+    [[nodiscard]] static std::string carriage_return() { return std::string("\r"); }
 
     /// Hide / show cursor (DEC private modes). Panel painters MAY use these.
-    [[nodiscard]] static std::string hide_cursor() {
-        return std::string("\x1b[?25l");
-    }
+    [[nodiscard]] static std::string hide_cursor() { return std::string("\x1b[?25l"); }
 
-    [[nodiscard]] static std::string show_cursor() {
-        return std::string("\x1b[?25h");
-    }
+    [[nodiscard]] static std::string show_cursor() { return std::string("\x1b[?25h"); }
 
     /// 7-bit progress bar: `#` filled, `-` empty. `fraction` clamped to `[0, 1]`.
     [[nodiscard]] static std::string ascii_bar(double fraction, std::size_t width) {
@@ -67,8 +59,8 @@ public:
         if (frac > 1.0) {
             frac = 1.0;
         }
-        const std::size_t filled = static_cast<std::size_t>(
-            std::lround(frac * static_cast<double>(width)));
+        const std::size_t filled =
+            static_cast<std::size_t>(std::lround(frac * static_cast<double>(width)));
         const std::size_t n = std::min(filled, width);
         return std::string(n, '#') + std::string(width - n, '-');
     }

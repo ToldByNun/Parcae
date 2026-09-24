@@ -11,13 +11,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Expand `TheoryArtifact.sweep` into a candidate param plan (docs/spec/theory-artifact.md).
 /// Does **not** apply transforms or invent solved-corpus defaults. Apply/score
@@ -30,13 +29,9 @@ public:
         Options() = default;
 
         /// Cap expanded candidates (0 = unlimited). Default 100000.
-        void set_limit(std::size_t limit) {
-            limit_ = limit;
-        }
+        void set_limit(std::size_t limit) { limit_ = limit; }
 
-        [[nodiscard]] std::size_t limit() const noexcept {
-            return limit_;
-        }
+        [[nodiscard]] std::size_t limit() const noexcept { return limit_; }
 
     private:
         std::size_t limit_ = 100000;
@@ -44,29 +39,17 @@ public:
 
     class Plan {
     public:
-        Plan(
-            std::string uri,
-            std::string corpus,
-            std::vector<std::string> record_metrics,
-            std::optional<std::string> compare_against,
-            std::vector<nlohmann::json> candidates,
-            std::size_t total_before_limit,
-            bool truncated)
-            : uri_(std::move(uri)),
-              corpus_(std::move(corpus)),
+        Plan(std::string uri, std::string corpus, std::vector<std::string> record_metrics,
+             std::optional<std::string> compare_against, std::vector<nlohmann::json> candidates,
+             std::size_t total_before_limit, bool truncated)
+            : uri_(std::move(uri)), corpus_(std::move(corpus)),
               record_metrics_(std::move(record_metrics)),
-              compare_against_(std::move(compare_against)),
-              candidates_(std::move(candidates)),
-              total_before_limit_(total_before_limit),
-              truncated_(truncated) {}
+              compare_against_(std::move(compare_against)), candidates_(std::move(candidates)),
+              total_before_limit_(total_before_limit), truncated_(truncated) {}
 
-        [[nodiscard]] const std::string& uri() const noexcept {
-            return uri_;
-        }
+        [[nodiscard]] const std::string& uri() const noexcept { return uri_; }
 
-        [[nodiscard]] const std::string& corpus() const noexcept {
-            return corpus_;
-        }
+        [[nodiscard]] const std::string& corpus() const noexcept { return corpus_; }
 
         [[nodiscard]] const std::vector<std::string>& record_metrics() const noexcept {
             return record_metrics_;
@@ -84,9 +67,7 @@ public:
             return total_before_limit_;
         }
 
-        [[nodiscard]] bool truncated() const noexcept {
-            return truncated_;
-        }
+        [[nodiscard]] bool truncated() const noexcept { return truncated_; }
 
         [[nodiscard]] nlohmann::json to_json() const {
             nlohmann::json metrics = nlohmann::json::array();
@@ -134,9 +115,9 @@ public:
     [[nodiscard]] static StatusOr<Plan> plan(const TheoryArtifact& artifact, Options opt) {
         const nlohmann::json& sweep = artifact.sweep();
         if (sweep.is_null()) {
-            return Status::error(
-                "theory '" + artifact.name() +
-                "' has sweep=null; nothing to sweep (configure sweep in the theory source / recompile)");
+            return Status::error("theory '" + artifact.name() +
+                                 "' has sweep=null; nothing to sweep (configure sweep in the "
+                                 "theory source / recompile)");
         }
         if (!sweep.is_object()) {
             return Status::error("TheoryArtifact.sweep must be an object when set");
@@ -179,33 +160,26 @@ public:
         std::vector<nlohmann::json> candidates;
         std::size_t total = 0;
         bool truncated = false;
-        Status cart = cartesian(artifact.params(), axes.value(), opt.limit(), candidates, total, truncated);
+        Status cart =
+            cartesian(artifact.params(), axes.value(), opt.limit(), candidates, total, truncated);
         if (!cart.ok()) {
             return cart;
         }
 
         return Plan{
-            artifact.uri().to_string(),
-            corpus,
-            std::move(metrics),
-            std::move(compare),
-            std::move(candidates),
-            total,
-            truncated,
+            artifact.uri().to_string(), corpus, std::move(metrics), std::move(compare),
+            std::move(candidates),      total,  truncated,
         };
     }
 
     /// Load via TheoryRegistry (stale dsl_spec → error) then plan.
-    [[nodiscard]] static StatusOr<Plan> plan_uri(
-        const std::filesystem::path& theories_root,
-        std::string_view uri_or_ref) {
+    [[nodiscard]] static StatusOr<Plan> plan_uri(const std::filesystem::path& theories_root,
+                                                 std::string_view uri_or_ref) {
         return plan_uri(theories_root, uri_or_ref, Options{});
     }
 
-    [[nodiscard]] static StatusOr<Plan> plan_uri(
-        const std::filesystem::path& theories_root,
-        std::string_view uri_or_ref,
-        Options opt) {
+    [[nodiscard]] static StatusOr<Plan> plan_uri(const std::filesystem::path& theories_root,
+                                                 std::string_view uri_or_ref, Options opt) {
         StatusOr<TheoryUri> uri = parse_ref(uri_or_ref);
         if (!uri.ok()) {
             return uri.status();
@@ -246,16 +220,14 @@ private:
         return TheoryUri::make(std::string(name), v);
     }
 
-    [[nodiscard]] static Status validate_config(
-        const TheoryArtifact& artifact,
-        const nlohmann::json& sweep) {
+    [[nodiscard]] static Status validate_config(const TheoryArtifact& artifact,
+                                                const nlohmann::json& sweep) {
         if (!sweep.contains("theory") || !sweep.at("theory").is_string()) {
             return Status::error("sweep.theory must be a string equal to the artifact name");
         }
         if (sweep.at("theory").get<std::string>() != artifact.name()) {
-            return Status::error(
-                "sweep.theory '" + sweep.at("theory").get<std::string>() +
-                "' must equal artifact name '" + artifact.name() + "'");
+            return Status::error("sweep.theory '" + sweep.at("theory").get<std::string>() +
+                                 "' must equal artifact name '" + artifact.name() + "'");
         }
         if (!sweep.contains("corpus") || !sweep.at("corpus").is_string() ||
             sweep.at("corpus").get<std::string>().empty()) {
@@ -270,8 +242,7 @@ private:
         }
         if ((artifact.tier() == TheoryIr::Tier::B || artifact.tier() == TheoryIr::Tier::C) &&
             (!sweep.contains("compare_against") || sweep.at("compare_against").is_null())) {
-            return Status::error(
-                "sweep.compare_against required for tier B/C when sweep is set");
+            return Status::error("sweep.compare_against required for tier B/C when sweep is set");
         }
         return Status::success();
     }
@@ -279,17 +250,9 @@ private:
     /// Solved-fixture ids must not be silent Tier B/C discovery corpora.
     [[nodiscard]] static bool is_solved_oracle_corpus(std::string_view corpus) {
         static constexpr std::string_view kSolved[] = {
-            "a-warning",
-            "an-end",
-            "an-instruction",
-            "koan-1",
-            "koan-2",
-            "loss-of-divinity",
-            "lp2-57-identity",
-            "some-wisdom",
-            "welcome",
-            "synth-identity",
-            "synth-vigenere-draft",
+            "a-warning", "an-end",           "an-instruction",       "koan-1",
+            "koan-2",    "loss-of-divinity", "lp2-57-identity",      "some-wisdom",
+            "welcome",   "synth-identity",   "synth-vigenere-draft",
         };
         for (std::string_view id : kSolved) {
             if (corpus == id) {
@@ -310,9 +273,8 @@ private:
         return Status::success();
     }
 
-    [[nodiscard]] static StatusOr<std::vector<std::int64_t>> parse_axis(
-        const TheoryArtifact::Param& param,
-        const nlohmann::json& spec) {
+    [[nodiscard]] static StatusOr<std::vector<std::int64_t>>
+    parse_axis(const TheoryArtifact::Param& param, const nlohmann::json& spec) {
         std::vector<std::int64_t> values;
         if (spec.is_string() && spec.get<std::string>() == "full") {
             for (std::int64_t v = param.min(); v <= param.max(); ++v) {
@@ -323,15 +285,15 @@ private:
         if (spec.is_array()) {
             for (const auto& item : spec) {
                 if (!item.is_number_integer()) {
-                    return Status::error(
-                        "param_grid." + param.name() + " array entries must be integers");
+                    return Status::error("param_grid." + param.name() +
+                                         " array entries must be integers");
                 }
                 const std::int64_t v = item.get<std::int64_t>();
                 if (v < param.min() || v > param.max()) {
-                    return Status::error(
-                        "param_grid." + param.name() + " value " + std::to_string(v) +
-                        " outside declared domain [" + std::to_string(param.min()) + "," +
-                        std::to_string(param.max()) + "]");
+                    return Status::error("param_grid." + param.name() + " value " +
+                                         std::to_string(v) + " outside declared domain [" +
+                                         std::to_string(param.min()) + "," +
+                                         std::to_string(param.max()) + "]");
                 }
                 values.push_back(v);
             }
@@ -343,13 +305,12 @@ private:
         if (spec.is_object()) {
             if (spec.contains("values")) {
                 if (!spec.at("values").is_array()) {
-                    return Status::error(
-                        "param_grid." + param.name() + ".values must be an array");
+                    return Status::error("param_grid." + param.name() + ".values must be an array");
                 }
                 return parse_axis(param, spec.at("values"));
             }
-            if (!spec.contains("min") || !spec.contains("max") || !spec.at("min").is_number_integer() ||
-                !spec.at("max").is_number_integer()) {
+            if (!spec.contains("min") || !spec.contains("max") ||
+                !spec.at("min").is_number_integer() || !spec.at("max").is_number_integer()) {
                 return Status::error(
                     "param_grid." + param.name() +
                     " object must have integer min/max or a values array (or \"full\")");
@@ -369,20 +330,17 @@ private:
             }
             return values;
         }
-        return Status::error(
-            "param_grid." + param.name() +
-            " must be \"full\", an int array, or {min,max}/{values}");
+        return Status::error("param_grid." + param.name() +
+                             " must be \"full\", an int array, or {min,max}/{values}");
     }
 
-    [[nodiscard]] static StatusOr<std::vector<std::vector<std::int64_t>>> expand_axes(
-        const TheoryArtifact& artifact,
-        const nlohmann::json& grid) {
+    [[nodiscard]] static StatusOr<std::vector<std::vector<std::int64_t>>>
+    expand_axes(const TheoryArtifact& artifact, const nlohmann::json& grid) {
         std::vector<std::vector<std::int64_t>> axes;
         axes.reserve(artifact.params().size());
         for (const TheoryArtifact::Param& p : artifact.params()) {
             if (!grid.contains(p.name())) {
-                return Status::error(
-                    "param_grid missing theory param '" + p.name() + "'");
+                return Status::error("param_grid missing theory param '" + p.name() + "'");
             }
             StatusOr<std::vector<std::int64_t>> axis = parse_axis(p, grid.at(p.name()));
             if (!axis.ok()) {
@@ -406,13 +364,10 @@ private:
         return axes;
     }
 
-    [[nodiscard]] static Status cartesian(
-        const std::vector<TheoryArtifact::Param>& params,
-        const std::vector<std::vector<std::int64_t>>& axes,
-        std::size_t limit,
-        std::vector<nlohmann::json>& out,
-        std::size_t& total,
-        bool& truncated) {
+    [[nodiscard]] static Status cartesian(const std::vector<TheoryArtifact::Param>& params,
+                                          const std::vector<std::vector<std::int64_t>>& axes,
+                                          std::size_t limit, std::vector<nlohmann::json>& out,
+                                          std::size_t& total, bool& truncated) {
         if (params.size() != axes.size()) {
             return Status::error("internal: param/axis size mismatch");
         }

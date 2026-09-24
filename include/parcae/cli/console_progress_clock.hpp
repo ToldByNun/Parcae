@@ -10,9 +10,7 @@
 /// fixed elapsed via `set_elapsed_override` so rates / formatting stay deterministic.
 class ConsoleProgressClock {
 public:
-    ConsoleProgressClock() {
-        restart();
-    }
+    ConsoleProgressClock() { restart(); }
 
     void restart() noexcept {
         start_ = std::chrono::steady_clock::now();

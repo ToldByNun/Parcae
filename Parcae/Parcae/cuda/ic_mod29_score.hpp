@@ -19,10 +19,9 @@ public:
 
     /// Device histogram: `device_counts` must point to 29 zeroed `unsigned long long`.
     /// No-op success if `count == 0`.
-    [[nodiscard]] static Status histogram_device(
-        const std::uint8_t* device_indices,
-        std::size_t count,
-        unsigned long long* device_counts);
+    [[nodiscard]] static Status histogram_device(const std::uint8_t* device_indices,
+                                                 std::size_t count,
+                                                 unsigned long long* device_counts);
 
     /// H2D → integer histogram → fixed-order numerator → one FP divide.
     [[nodiscard]] static StatusOr<double> score_host(std::span<const std::uint8_t> indices);
@@ -31,4 +30,4 @@ private:
     IcMod29Score() = delete;
 };
 
-#endif  // IC_MOD29_SCORE_HPP
+#endif // IC_MOD29_SCORE_HPP

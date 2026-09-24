@@ -13,13 +13,13 @@
 #include "parcae/corpus/fixture.hpp"
 #include "parcae/corpus/fixture_loader.hpp"
 #include "parcae/corpus/token_stream.hpp"
-#include "parcae/generate/affine_candidate_generator.hpp"
-#include "parcae/generate/atbash_candidate_generator.hpp"
-#include "parcae/generate/atbash_caesar_candidate_generator.hpp"
-#include "parcae/generate/caesar_candidate_generator.hpp"
-#include "parcae/generate/transform_candidate.hpp"
 #include "parcae/gematria/gematria_profile.hpp"
 #include "parcae/gematria/latin_codec.hpp"
+#include "parcae/generate/affine_candidate_generator.hpp"
+#include "parcae/generate/atbash_caesar_candidate_generator.hpp"
+#include "parcae/generate/atbash_candidate_generator.hpp"
+#include "parcae/generate/caesar_candidate_generator.hpp"
+#include "parcae/generate/transform_candidate.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
 #include "parcae/score/score_request.hpp"
 #include "parcae/tool/api.hpp"
@@ -31,18 +31,17 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <iomanip>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <span>
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Blind crack attempt: ciphertext-only, additive family battery, χ² ranking.
 ///
@@ -118,7 +117,7 @@ public:
             }
             ++report.attempted_count;
             report.total_runes_scored += static_cast<std::uint64_t>(one.value().candidate_count) *
-                                        static_cast<std::uint64_t>(one.value().rune_count);
+                                         static_cast<std::uint64_t>(one.value().rune_count);
             report.fixtures.push_back(std::move(one.value()));
         }
         const auto t_all1 = std::chrono::steady_clock::now();
@@ -144,8 +143,10 @@ public:
         out << "Score:   chi2_english_gp_v0 - plaintext NOT used for ranking\n";
         out << "Throughput: C x T / wall (expand+score)\n\n";
 
-        out << "Fixture              T    Cands     ms      runes/s  Top hit                         Cracked?\n";
-        out << "----------------------------------------------------------------------------------------------\n";
+        out << "Fixture              T    Cands     ms      runes/s  Top hit                       "
+               "  Cracked?\n";
+        out << "-----------------------------------------------------------------------------------"
+               "-----------\n";
         for (const FixtureReport& f : report.fixtures) {
             const double ms = f.wall_seconds * 1000.0;
             std::string top = f.top.candidate_id;
@@ -165,7 +166,8 @@ public:
                 out << "                     preview: " << f.top.latin_preview << '\n';
             }
         }
-        out << "----------------------------------------------------------------------------------------------\n";
+        out << "-----------------------------------------------------------------------------------"
+               "-----------\n";
         out << "Cracked " << report.cracked_count << " / " << report.attempted_count << " in "
             << std::setprecision(3) << std::fixed << report.total_wall_seconds << " s total\n";
         out << "Aggregate throughput: " << format_runes_per_sec(report.aggregate_runes_per_sec)
@@ -188,8 +190,8 @@ private:
         snap.set_elapsed_seconds(report.total_wall_seconds);
         snap.set_runes_per_sec(report.aggregate_runes_per_sec);
         if (report.total_wall_seconds > 0.0 && report.attempted_count > 0) {
-            snap.set_candidates_per_sec(
-                static_cast<double>(report.attempted_count) / report.total_wall_seconds);
+            snap.set_candidates_per_sec(static_cast<double>(report.attempted_count) /
+                                        report.total_wall_seconds);
         }
         // Prefer a cracked top hit; else best (lowest) χ² among fixtures.
         std::optional<double> best;
@@ -214,13 +216,12 @@ private:
     }
 
     [[nodiscard]] static bool family_in_battery(const std::string& transform_id) {
-        return transform_id == "identity" || transform_id == "atbash" ||
-               transform_id == "caesar" || transform_id == "affine" ||
-               transform_id == "compose";
+        return transform_id == "identity" || transform_id == "atbash" || transform_id == "caesar" ||
+               transform_id == "affine" || transform_id == "compose";
     }
 
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> expand_battery(
-        std::span<const Index29> cipher) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    expand_battery(std::span<const Index29> cipher) {
         std::vector<TransformCandidate> all;
 
         StatusOr<std::vector<Index29>> id_out = IdentityTransform{}.apply(
@@ -228,12 +229,8 @@ private:
         if (!id_out.ok()) {
             return id_out.status();
         }
-        all.emplace_back(
-            "identity",
-            TransformId::identity(),
-            TransformDirection::Decrypt,
-            nlohmann::json::object(),
-            std::move(id_out.value()));
+        all.emplace_back("identity", TransformId::identity(), TransformDirection::Decrypt,
+                         nlohmann::json::object(), std::move(id_out.value()));
 
         auto append = [&](StatusOr<std::vector<TransformCandidate>> part) -> Status {
             if (!part.ok()) {
@@ -264,12 +261,9 @@ private:
         return all;
     }
 
-    [[nodiscard]] static StatusOr<FixtureReport> crack_one(
-        const Context& ctx,
-        const Fixture& fixture,
-        const ExpectedFrequencyTable& freqs,
-        const LatinCodec& codec,
-        const PlaintextNormalizer& normalizer) {
+    [[nodiscard]] static StatusOr<FixtureReport>
+    crack_one(const Context& ctx, const Fixture& fixture, const ExpectedFrequencyTable& freqs,
+              const LatinCodec& codec, const PlaintextNormalizer& normalizer) {
         StatusOr<TokenStream> stream = ToolApi::tokenize(ctx, fixture.ciphertext());
         if (!stream.ok()) {
             return stream.status();
@@ -287,12 +281,8 @@ private:
         if (!candidates.ok()) {
             return candidates.status();
         }
-        StatusOr<BatchResult> ranked = BatchRunner::run(
-            candidates.value(),
-            "chi2_english_gp_v0",
-            /*k=*/1,
-            request,
-            BatchExecution::Parallel);
+        StatusOr<BatchResult> ranked = BatchRunner::run(candidates.value(), "chi2_english_gp_v0",
+                                                        /*k=*/1, request, BatchExecution::Parallel);
         if (!ranked.ok()) {
             return ranked.status();
         }
@@ -305,10 +295,9 @@ private:
         report.rune_count = cipher.size();
         report.candidate_count = candidates.value().size();
         report.wall_seconds = std::chrono::duration<double>(t1 - t0).count();
-        const double work = static_cast<double>(report.candidate_count) *
-                            static_cast<double>(report.rune_count);
-        report.runes_per_sec =
-            report.wall_seconds > 0.0 ? (work / report.wall_seconds) : 0.0;
+        const double work =
+            static_cast<double>(report.candidate_count) * static_cast<double>(report.rune_count);
+        report.runes_per_sec = report.wall_seconds > 0.0 ? (work / report.wall_seconds) : 0.0;
 
         if (ranked.value().top().empty()) {
             return Status::error("BlindCrack: empty top-k for " + fixture.id());
@@ -334,4 +323,4 @@ private:
     }
 };
 
-#endif  // BLIND_CRACK_HPP
+#endif // BLIND_CRACK_HPP

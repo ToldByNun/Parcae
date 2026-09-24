@@ -36,8 +36,7 @@ public:
             numerator += c * (c - 1);
         }
 
-        const double denom =
-            static_cast<double>(n) * static_cast<double>(n - 1);
+        const double denom = static_cast<double>(n) * static_cast<double>(n - 1);
         return static_cast<double>(numerator) / denom;
     }
 };

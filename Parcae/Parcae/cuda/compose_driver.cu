@@ -1,17 +1,16 @@
-#include "compose_driver.hpp"
+#include "parcae/core/index29.hpp"
+#include "parcae/math/totient_keystream.hpp"
 
 #include "affine_kernel.hpp"
 #include "atbash_kernel.hpp"
 #include "beaufort_key_kernel.hpp"
 #include "caesar_kernel.hpp"
+#include "compose_driver.hpp"
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
 #include "identity_copy.hpp"
 #include "totient_prime_stream_kernel.hpp"
 #include "vigenere_key_kernel.hpp"
-
-#include "parcae/core/index29.hpp"
-#include "parcae/math/totient_keystream.hpp"
 
 #include <cstddef>
 #include <vector>
@@ -32,112 +31,84 @@ namespace {
     return n;
 }
 
-[[nodiscard]] Status run_stage(
-    const std::uint8_t* device_in,
-    std::uint8_t* device_out,
-    std::size_t count,
-    const ComposeStageParams& stage,
-    CudaDir effective_dir,
-    const ComposeParamsHost& recipe,
-    const InterruptDeviceView& interrupts,
-    const std::uint32_t* device_interrupt,
-    const std::uint8_t* device_key_arena) {
+[[nodiscard]] Status run_stage(const std::uint8_t* device_in, std::uint8_t* device_out,
+                               std::size_t count, const ComposeStageParams& stage,
+                               CudaDir effective_dir, const ComposeParamsHost& recipe,
+                               const InterruptDeviceView& interrupts,
+                               const std::uint32_t* device_interrupt,
+                               const std::uint8_t* device_key_arena) {
     switch (stage.family) {
-        case CudaFamilyId::Identity:
-            return IdentityCopy::launch_device(device_in, device_out, count);
-        case CudaFamilyId::Atbash:
-            return AtbashKernel::launch_device(device_in, device_out, count);
-        case CudaFamilyId::Caesar:
-            return CaesarKernel::launch_device(
-                device_in, device_out, count, stage.caesar.shift, effective_dir);
-        case CudaFamilyId::Affine:
-            return AffineKernel::launch_device(
-                device_in,
-                device_out,
-                count,
-                stage.affine.a,
-                stage.affine.b,
-                effective_dir);
-        case CudaFamilyId::VigenereKey: {
-            if (stage.key_len == 0) {
-                return Status::error("ComposeDriver: vigenere stage key must be non-empty");
-            }
-            if (static_cast<std::size_t>(stage.key_begin) + stage.key_len > recipe.key_arena.size()) {
-                return Status::error("ComposeDriver: vigenere key slice out of arena");
-            }
-            if (device_key_arena == nullptr) {
-                return Status::error("ComposeDriver: missing device key arena");
-            }
-            return VigenereKeyKernel::launch_device(
-                device_in,
-                device_out,
-                count,
-                device_key_arena + stage.key_begin,
-                stage.key_len,
-                interrupts,
-                device_interrupt,
-                effective_dir);
+    case CudaFamilyId::Identity:
+        return IdentityCopy::launch_device(device_in, device_out, count);
+    case CudaFamilyId::Atbash:
+        return AtbashKernel::launch_device(device_in, device_out, count);
+    case CudaFamilyId::Caesar:
+        return CaesarKernel::launch_device(device_in, device_out, count, stage.caesar.shift,
+                                           effective_dir);
+    case CudaFamilyId::Affine:
+        return AffineKernel::launch_device(device_in, device_out, count, stage.affine.a,
+                                           stage.affine.b, effective_dir);
+    case CudaFamilyId::VigenereKey: {
+        if (stage.key_len == 0) {
+            return Status::error("ComposeDriver: vigenere stage key must be non-empty");
         }
-        case CudaFamilyId::BeaufortKey: {
-            if (stage.key_len == 0) {
-                return Status::error("ComposeDriver: beaufort stage key must be non-empty");
-            }
-            if (static_cast<std::size_t>(stage.key_begin) + stage.key_len > recipe.key_arena.size()) {
-                return Status::error("ComposeDriver: beaufort key slice out of arena");
-            }
-            if (device_key_arena == nullptr) {
-                return Status::error("ComposeDriver: missing device key arena");
-            }
-            return BeaufortKeyKernel::launch_device(
-                device_in,
-                device_out,
-                count,
-                device_key_arena + stage.key_begin,
-                stage.key_len,
-                interrupts,
-                device_interrupt);
+        if (static_cast<std::size_t>(stage.key_begin) + stage.key_len > recipe.key_arena.size()) {
+            return Status::error("ComposeDriver: vigenere key slice out of arena");
         }
-        case CudaFamilyId::TotientPrimeStream: {
-            const std::size_t shifts_needed = consumable_count(interrupts);
-            std::vector<Index29> shifts(shifts_needed);
-            Status filled = TotientKeystream::shifts_into(
-                shifts, static_cast<std::size_t>(stage.totient.prime_start_index));
-            if (!filled.ok()) {
-                return filled;
-            }
-            std::vector<std::uint8_t> shift_bytes(shifts_needed);
-            for (std::size_t i = 0; i < shifts_needed; ++i) {
-                shift_bytes[i] = shifts[i].value();
-            }
-            StatusOr<DeviceBuffer<std::uint8_t>> device_shifts =
-                DeviceBuffer<std::uint8_t>::from_host(shift_bytes);
-            if (!device_shifts.ok()) {
-                return device_shifts.status();
-            }
-            return TotientPrimeStreamKernel::launch_device(
-                device_in,
-                device_out,
-                count,
-                device_shifts.value().data(),
-                static_cast<std::uint32_t>(shift_bytes.size()),
-                interrupts,
-                device_interrupt,
-                effective_dir);
+        if (device_key_arena == nullptr) {
+            return Status::error("ComposeDriver: missing device key arena");
         }
-        case CudaFamilyId::Compose:
-            return Status::error("ComposeDriver: nested compose is not supported");
+        return VigenereKeyKernel::launch_device(device_in, device_out, count,
+                                                device_key_arena + stage.key_begin, stage.key_len,
+                                                interrupts, device_interrupt, effective_dir);
+    }
+    case CudaFamilyId::BeaufortKey: {
+        if (stage.key_len == 0) {
+            return Status::error("ComposeDriver: beaufort stage key must be non-empty");
+        }
+        if (static_cast<std::size_t>(stage.key_begin) + stage.key_len > recipe.key_arena.size()) {
+            return Status::error("ComposeDriver: beaufort key slice out of arena");
+        }
+        if (device_key_arena == nullptr) {
+            return Status::error("ComposeDriver: missing device key arena");
+        }
+        return BeaufortKeyKernel::launch_device(device_in, device_out, count,
+                                                device_key_arena + stage.key_begin, stage.key_len,
+                                                interrupts, device_interrupt);
+    }
+    case CudaFamilyId::TotientPrimeStream: {
+        const std::size_t shifts_needed = consumable_count(interrupts);
+        std::vector<Index29> shifts(shifts_needed);
+        Status filled = TotientKeystream::shifts_into(
+            shifts, static_cast<std::size_t>(stage.totient.prime_start_index));
+        if (!filled.ok()) {
+            return filled;
+        }
+        std::vector<std::uint8_t> shift_bytes(shifts_needed);
+        for (std::size_t i = 0; i < shifts_needed; ++i) {
+            shift_bytes[i] = shifts[i].value();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_shifts =
+            DeviceBuffer<std::uint8_t>::from_host(shift_bytes);
+        if (!device_shifts.ok()) {
+            return device_shifts.status();
+        }
+        return TotientPrimeStreamKernel::launch_device(
+            device_in, device_out, count, device_shifts.value().data(),
+            static_cast<std::uint32_t>(shift_bytes.size()), interrupts, device_interrupt,
+            effective_dir);
+    }
+    case CudaFamilyId::Compose:
+        return Status::error("ComposeDriver: nested compose is not supported");
     }
     return Status::error("ComposeDriver: unknown stage family");
 }
 
-}  // namespace
+} // namespace
 
-Status ComposeDriver::apply_host(
-    std::span<const std::uint8_t> host_in,
-    std::span<std::uint8_t> host_out,
-    const ComposeParamsHost& recipe,
-    const InterruptDeviceView& interrupts,
-    CudaDir outer_direction) {
+Status ComposeDriver::apply_host(std::span<const std::uint8_t> host_in,
+                                 std::span<std::uint8_t> host_out, const ComposeParamsHost& recipe,
+                                 const InterruptDeviceView& interrupts, CudaDir outer_direction) {
     if (host_in.size() != host_out.size()) {
         return Status::error("ComposeDriver::apply_host size mismatch");
     }
@@ -215,16 +186,8 @@ Status ComposeDriver::apply_host(
             last ? buf_final.value().data() : (even ? buf_b.value().data() : buf_a.value().data());
 
         const ComposeStageParams& stage = stage_at(s);
-        Status status = run_stage(
-            in_ptr,
-            out_ptr,
-            count,
-            stage,
-            effective_dir_for(stage),
-            recipe,
-            interrupts,
-            interrupt_ptr,
-            key_ptr);
+        Status status = run_stage(in_ptr, out_ptr, count, stage, effective_dir_for(stage), recipe,
+                                  interrupts, interrupt_ptr, key_ptr);
         if (!status.ok()) {
             return status;
         }

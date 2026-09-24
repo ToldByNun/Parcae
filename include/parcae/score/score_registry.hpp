@@ -15,12 +15,11 @@
 #include "parcae/score/self_repeat_rate.hpp"
 
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// String-id dispatch for the tool / agent `score` primitive.
 ///
@@ -31,25 +30,14 @@ class ScoreRegistry {
 public:
     [[nodiscard]] static std::vector<ScoreCatalogEntry> catalog() {
         return {
-            {ScoreId::exact_match().str(),
-             "v0",
-             ScoreOrder::Desc,
+            {ScoreId::exact_match().str(), "v0", ScoreOrder::Desc,
              ScoreCatalogEntry::Arity::Pairwise},
-            {ScoreId::hamming_agreement().str(),
-             "v0",
-             ScoreOrder::Desc,
+            {ScoreId::hamming_agreement().str(), "v0", ScoreOrder::Desc,
              ScoreCatalogEntry::Arity::Pairwise},
-            {ScoreId::ic_mod29().str(),
-             "v0",
-             ScoreOrder::Desc,
-             ScoreCatalogEntry::Arity::Unary},
-            {ScoreId::chi2_english_gp_v0().str(),
-             "v0",
-             ScoreOrder::Asc,
+            {ScoreId::ic_mod29().str(), "v0", ScoreOrder::Desc, ScoreCatalogEntry::Arity::Unary},
+            {ScoreId::chi2_english_gp_v0().str(), "v0", ScoreOrder::Asc,
              ScoreCatalogEntry::Arity::UnaryWithTable},
-            {ScoreId::self_repeat_rate().str(),
-             "v0",
-             ScoreOrder::Asc,
+            {ScoreId::self_repeat_rate().str(), "v0", ScoreOrder::Asc,
              ScoreCatalogEntry::Arity::Unary},
         };
     }
@@ -74,12 +62,11 @@ public:
         return ScoreOrderUtil::for_score_id(id.value());
     }
 
-    [[nodiscard]] static StatusOr<double> score(
-        std::string_view score_id,
-        std::span<const Index29> candidate,
-        std::string_view score_version = "v0",
-        const nlohmann::json& params = nlohmann::json::object(),
-        const ScoreRequest& request = ScoreRequest()) {
+    [[nodiscard]] static StatusOr<double>
+    score(std::string_view score_id, std::span<const Index29> candidate,
+          std::string_view score_version = "v0",
+          const nlohmann::json& params = nlohmann::json::object(),
+          const ScoreRequest& request = ScoreRequest()) {
         if (score_version != "v0") {
             return Status::error("Unsupported score_version (only v0 is registered)");
         }
@@ -127,19 +114,17 @@ public:
 private:
     ScoreRegistry() = delete;
 
-    [[nodiscard]] static StatusOr<std::vector<Index29>> resolve_reference(
-        const ScoreRequest& request,
-        const nlohmann::json& params,
-        std::string_view score_name) {
+    [[nodiscard]] static StatusOr<std::vector<Index29>>
+    resolve_reference(const ScoreRequest& request, const nlohmann::json& params,
+                      std::string_view score_name) {
         if (request.reference.has_value()) {
             const std::span<const Index29> ref = request.reference.value();
             return std::vector<Index29>(ref.begin(), ref.end());
         }
 
         if (!params.contains("reference")) {
-            return Status::error(
-                std::string(score_name) +
-                " requires ScoreRequest.reference or params.reference");
+            return Status::error(std::string(score_name) +
+                                 " requires ScoreRequest.reference or params.reference");
         }
         if (!params.at("reference").is_array()) {
             return Status::error(std::string(score_name) + " params.reference must be an array");
@@ -149,13 +134,13 @@ private:
         out.reserve(params.at("reference").size());
         for (const auto& item : params.at("reference")) {
             if (!item.is_number_integer()) {
-                return Status::error(
-                    std::string(score_name) + " params.reference entries must be integers");
+                return Status::error(std::string(score_name) +
+                                     " params.reference entries must be integers");
             }
             const int value = item.get<int>();
             if (value < 0 || value >= static_cast<int>(Index29::modulus)) {
-                return Status::error(
-                    std::string(score_name) + " params.reference entry out of range [0,28]");
+                return Status::error(std::string(score_name) +
+                                     " params.reference entry out of range [0,28]");
             }
             out.push_back(Index29{static_cast<std::uint8_t>(value)});
         }

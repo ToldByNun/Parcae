@@ -57,21 +57,14 @@ public:
         return DslSpecVersion{major, minor, patch};
     }
 
-    [[nodiscard]] int major() const noexcept {
-        return major_;
-    }
+    [[nodiscard]] int major() const noexcept { return major_; }
 
-    [[nodiscard]] int minor() const noexcept {
-        return minor_;
-    }
+    [[nodiscard]] int minor() const noexcept { return minor_; }
 
-    [[nodiscard]] int patch() const noexcept {
-        return patch_;
-    }
+    [[nodiscard]] int patch() const noexcept { return patch_; }
 
     [[nodiscard]] std::string to_string() const {
-        return std::to_string(major_) + "." + std::to_string(minor_) + "." +
-               std::to_string(patch_);
+        return std::to_string(major_) + "." + std::to_string(minor_) + "." + std::to_string(patch_);
     }
 
     /// True when this version equals current_major/minor/patch.
@@ -93,15 +86,14 @@ public:
     /// Rejects MAJOR mismatch and forward-incompatible (newer) versions.
     [[nodiscard]] Status check_compatible_with_current() const {
         if (major_mismatch_with_current()) {
-            return Status::error(
-                "dsl_spec_version major mismatch: artifact " + to_string() + ", toolchain " +
-                std::string(current_string) + " — re-run parcae-compile");
+            return Status::error("dsl_spec_version major mismatch: artifact " + to_string() +
+                                 ", toolchain " + std::string(current_string) +
+                                 " — re-run parcae-compile");
         }
         if (is_newer_than_current()) {
-            return Status::error(
-                "dsl_spec_version is newer than toolchain: artifact " + to_string() +
-                ", toolchain " + std::string(current_string) +
-                " — upgrade Parcae or rebuild the artifact with this toolkit");
+            return Status::error("dsl_spec_version is newer than toolchain: artifact " +
+                                 to_string() + ", toolchain " + std::string(current_string) +
+                                 " — upgrade Parcae or rebuild the artifact with this toolkit");
         }
         return Status::success();
     }
@@ -124,11 +116,13 @@ public:
         return 0;
     }
 
-    [[nodiscard]] friend bool operator==(const DslSpecVersion& a, const DslSpecVersion& b) noexcept {
+    [[nodiscard]] friend bool operator==(const DslSpecVersion& a,
+                                         const DslSpecVersion& b) noexcept {
         return compare(a, b) == 0;
     }
 
-    [[nodiscard]] friend bool operator!=(const DslSpecVersion& a, const DslSpecVersion& b) noexcept {
+    [[nodiscard]] friend bool operator!=(const DslSpecVersion& a,
+                                         const DslSpecVersion& b) noexcept {
         return !(a == b);
     }
 
@@ -141,7 +135,8 @@ private:
             return Status::error("dsl_spec_version expected a decimal integer component");
         }
         // No leading zeros except a single "0".
-        if (text[i] == '0' && i + 1 < text.size() && std::isdigit(static_cast<unsigned char>(text[i + 1]))) {
+        if (text[i] == '0' && i + 1 < text.size() &&
+            std::isdigit(static_cast<unsigned char>(text[i + 1]))) {
             return Status::error("dsl_spec_version components must not have leading zeros");
         }
         long value = 0;

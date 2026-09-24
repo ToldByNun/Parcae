@@ -1,3 +1,5 @@
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
 #include <parcae/dsl/dsl_compile.hpp>
 #include <parcae/dsl/dsl_spec_version.hpp>
 #include <parcae/dsl/theory_artifact.hpp>
@@ -5,10 +7,6 @@
 #include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/theory_registry.hpp>
 #include <parcae/dsl/theory_validate.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <filesystem>
 #include <string>
 
 #ifndef PARCAE_EXAMPLES_DIR
@@ -34,19 +32,17 @@ namespace {
     return opt;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("examples/full_lifecycle_example.py is present", "[dsl][examples][i40]") {
     REQUIRE(std::filesystem::is_regular_file(full_lifecycle_example()));
 }
 
-TEST_CASE(
-    "parcae-compile path: theories/examples/full_lifecycle_example.py",
-    "[dsl][examples][i40][compile]") {
+TEST_CASE("parcae-compile path: theories/examples/full_lifecycle_example.py",
+          "[dsl][examples][i40][compile]") {
     REQUIRE(DslCompile::pipeline_ready(compile_options()));
 
-    const auto root =
-        std::filesystem::temp_directory_path() / "parcae_examples_full_lifecycle_i40";
+    const auto root = std::filesystem::temp_directory_path() / "parcae_examples_full_lifecycle_i40";
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
     std::filesystem::create_directories(root, ec);
@@ -62,9 +58,8 @@ TEST_CASE(
     REQUIRE(art.dsl_spec_version() == DslSpecVersion::current_string);
     REQUIRE(art.tier() == TheoryIr::Tier::A);
     REQUIRE(art.family() == TheoryIr::Family::Compose);
-    REQUIRE(
-        (art.fusion() == TheoryArtifact::FusionStatus::Fused ||
-         art.fusion() == TheoryArtifact::FusionStatus::FallbackStaged));
+    REQUIRE((art.fusion() == TheoryArtifact::FusionStatus::Fused ||
+             art.fusion() == TheoryArtifact::FusionStatus::FallbackStaged));
     REQUIRE(art.verification().passed());
     REQUIRE(art.params().size() == 1);
     REQUIRE(art.params().front().name() == "caesar_shift");

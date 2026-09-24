@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <future>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <span>
 #include <string>
@@ -27,8 +28,6 @@
 #include <thread>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Bounded batch / top-k over already-applied `TransformCandidate`s.
 ///
@@ -54,15 +53,11 @@ public:
 
     /// Score every candidate with `score_id`, keep the best `k` (best-first).
     /// `k == 0` is an error. If `k >= N`, returns all candidates sorted.
-    [[nodiscard]] static StatusOr<BatchResult> run(
-        std::span<const TransformCandidate> candidates,
-        std::string_view score_id,
-        std::size_t k,
+    [[nodiscard]] static StatusOr<BatchResult>
+    run(std::span<const TransformCandidate> candidates, std::string_view score_id, std::size_t k,
         const ScoreRequest& request = ScoreRequest(),
-        BatchExecution execution = BatchExecution::Serial,
-        std::string_view score_version = "v0",
-        const nlohmann::json& params = nlohmann::json::object(),
-        Progress progress = Progress{}) {
+        BatchExecution execution = BatchExecution::Serial, std::string_view score_version = "v0",
+        const nlohmann::json& params = nlohmann::json::object(), Progress progress = Progress{}) {
         if (k == 0) {
             return Status::error("BatchRunner requires k >= 1");
         }
@@ -72,15 +67,9 @@ public:
             return order.status();
         }
 
-        StatusOr<std::vector<double>> scores = compute_scores(
-            candidates,
-            score_id,
-            score_version,
-            params,
-            request,
-            execution,
-            order.value(),
-            progress);
+        StatusOr<std::vector<double>> scores =
+            compute_scores(candidates, score_id, score_version, params, request, execution,
+                           order.value(), progress);
         if (!scores.ok()) {
             return scores.status();
         }
@@ -142,9 +131,8 @@ private:
         std::string best_label_;
     };
 
-    [[nodiscard]] static ConsoleProgressSnapshot make_base_snapshot(
-        std::size_t total,
-        std::size_t rune_count) {
+    [[nodiscard]] static ConsoleProgressSnapshot make_base_snapshot(std::size_t total,
+                                                                    std::size_t rune_count) {
         ConsoleProgressSnapshot snap;
         snap.set_stage("score");
         snap.set_candidates_total(total);
@@ -153,12 +141,9 @@ private:
         return snap;
     }
 
-    static void emit_progress(
-        ConsoleProgressSink* sink,
-        ConsoleProgressSnapshot snap,
-        std::size_t done,
-        const ConsoleProgressClock& clock,
-        const BestTracker& best) {
+    static void emit_progress(ConsoleProgressSink* sink, ConsoleProgressSnapshot snap,
+                              std::size_t done, const ConsoleProgressClock& clock,
+                              const BestTracker& best) {
         if (sink == nullptr) {
             return;
         }
@@ -169,37 +154,23 @@ private:
         sink->on_progress(snap);
     }
 
-    [[nodiscard]] static StatusOr<std::vector<double>> compute_scores(
-        std::span<const TransformCandidate> candidates,
-        std::string_view score_id,
-        std::string_view score_version,
-        const nlohmann::json& params,
-        const ScoreRequest& request,
-        BatchExecution execution,
-        ScoreOrder order,
-        Progress progress) {
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    compute_scores(std::span<const TransformCandidate> candidates, std::string_view score_id,
+                   std::string_view score_version, const nlohmann::json& params,
+                   const ScoreRequest& request, BatchExecution execution, ScoreOrder order,
+                   Progress progress) {
         if (execution == BatchExecution::Parallel && candidates.size() >= 2) {
-            return compute_scores_parallel(
-                candidates,
-                score_id,
-                score_version,
-                params,
-                request,
-                order,
-                progress);
+            return compute_scores_parallel(candidates, score_id, score_version, params, request,
+                                           order, progress);
         }
-        return compute_scores_serial(
-            candidates, score_id, score_version, params, request, order, progress);
+        return compute_scores_serial(candidates, score_id, score_version, params, request, order,
+                                     progress);
     }
 
-    [[nodiscard]] static StatusOr<std::vector<double>> compute_scores_serial(
-        std::span<const TransformCandidate> candidates,
-        std::string_view score_id,
-        std::string_view score_version,
-        const nlohmann::json& params,
-        const ScoreRequest& request,
-        ScoreOrder order,
-        Progress progress) {
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    compute_scores_serial(std::span<const TransformCandidate> candidates, std::string_view score_id,
+                          std::string_view score_version, const nlohmann::json& params,
+                          const ScoreRequest& request, ScoreOrder order, Progress progress) {
         ConsoleProgressClock clock;
         BestTracker best(order);
         const ConsoleProgressSnapshot base =
@@ -212,23 +183,14 @@ private:
         std::vector<double> scores;
         scores.reserve(candidates.size());
         for (const TransformCandidate& candidate : candidates) {
-            StatusOr<double> value = ScoreRegistry::score(
-                score_id,
-                candidate.output_indices(),
-                score_version,
-                params,
-                request);
+            StatusOr<double> value = ScoreRegistry::score(score_id, candidate.output_indices(),
+                                                          score_version, params, request);
             if (!value.ok()) {
                 return value.status();
             }
             scores.push_back(value.value());
             best.consider(value.value(), candidate.candidate_id());
-            emit_progress(
-                progress.sink,
-                base,
-                scores.size(),
-                clock,
-                best);
+            emit_progress(progress.sink, base, scores.size(), clock, best);
         }
         return scores;
     }
@@ -239,14 +201,11 @@ private:
     ///
     /// Progress: workers may call `sink->on_progress` (sink MUST be thread-safe,
     /// e.g. `ConsoleDashboard`). Ranking / scores are unchanged by the sink.
-    [[nodiscard]] static StatusOr<std::vector<double>> compute_scores_parallel(
-        std::span<const TransformCandidate> candidates,
-        std::string_view score_id,
-        std::string_view score_version,
-        const nlohmann::json& params,
-        const ScoreRequest& request,
-        ScoreOrder order,
-        Progress progress) {
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    compute_scores_parallel(std::span<const TransformCandidate> candidates,
+                            std::string_view score_id, std::string_view score_version,
+                            const nlohmann::json& params, const ScoreRequest& request,
+                            ScoreOrder order, Progress progress) {
         const std::size_t n = candidates.size();
         std::vector<double> scores(n, 0.0);
         std::vector<char> ok(n, 0);
@@ -258,8 +217,7 @@ private:
 
         ConsoleProgressClock clock;
         BestTracker best(order);
-        const ConsoleProgressSnapshot base =
-            make_base_snapshot(n, progress.rune_count);
+        const ConsoleProgressSnapshot base = make_base_snapshot(n, progress.rune_count);
         std::atomic<std::size_t> scored{0};
 
         if (progress.sink != nullptr) {
@@ -284,30 +242,14 @@ private:
             }
             const std::size_t end = std::min(begin + chunk, n);
 
-            futures.push_back(std::async(
-                std::launch::async,
-                [&candidates,
-                 &scores,
-                 &ok,
-                 &errors,
-                 &params,
-                 &request,
-                 &best,
-                 &clock,
-                 &scored,
-                 &base,
-                 sink,
-                 score_id_owned,
-                 score_version_owned,
-                 begin,
-                 end]() {
+            futures.push_back(
+                std::async(std::launch::async, [&candidates, &scores, &ok, &errors, &params,
+                                                &request, &best, &clock, &scored, &base, sink,
+                                                score_id_owned, score_version_owned, begin, end]() {
                     for (std::size_t i = begin; i < end; ++i) {
-                        StatusOr<double> value = ScoreRegistry::score(
-                            score_id_owned,
-                            candidates[i].output_indices(),
-                            score_version_owned,
-                            params,
-                            request);
+                        StatusOr<double> value =
+                            ScoreRegistry::score(score_id_owned, candidates[i].output_indices(),
+                                                 score_version_owned, params, request);
                         if (!value.ok()) {
                             errors[i] = value.status();
                             ok[i] = 0;
@@ -316,8 +258,7 @@ private:
                         scores[i] = value.value();
                         ok[i] = 1;
                         best.consider(value.value(), candidates[i].candidate_id());
-                        const std::size_t done =
-                            scored.fetch_add(1, std::memory_order_relaxed) + 1;
+                        const std::size_t done = scored.fetch_add(1, std::memory_order_relaxed) + 1;
                         emit_progress(sink, base, done, clock, best);
                     }
                 }));

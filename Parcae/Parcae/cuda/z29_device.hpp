@@ -21,8 +21,7 @@ public:
     }
 
     [[nodiscard]] PARCAE_HD static std::uint8_t neg(std::uint8_t x) noexcept {
-        return x == 0 ? static_cast<std::uint8_t>(0)
-                      : static_cast<std::uint8_t>(modulus - x);
+        return x == 0 ? static_cast<std::uint8_t>(0) : static_cast<std::uint8_t>(modulus - x);
     }
 
     [[nodiscard]] PARCAE_HD static std::uint8_t sub(std::uint8_t x, std::uint8_t y) noexcept {
@@ -32,16 +31,16 @@ public:
 
     [[nodiscard]] PARCAE_HD static std::uint8_t mul(std::uint8_t x, std::uint8_t y) noexcept {
         // Product < 841; NVCC lowers `% 29` to a mul-high reciprocal.
-        return static_cast<std::uint8_t>(
-            (static_cast<unsigned>(x) * static_cast<unsigned>(y)) % modulus);
+        return static_cast<std::uint8_t>((static_cast<unsigned>(x) * static_cast<unsigned>(y)) %
+                                         modulus);
     }
 
     /// Modular inverse for `a` in 1..28. Index 0 is unused (do not call with 0).
     [[nodiscard]] PARCAE_HD static std::uint8_t inv(std::uint8_t a) noexcept {
         // Must match `Z29::inv` / CPU inv_table for 1..28.
-        constexpr std::uint8_t inv_table[modulus] = {
-            0,  1,  15, 10, 22, 6,  5,  25, 11, 13, 3,  8,  17, 9,  27,
-            2,  20, 12, 21, 26, 16, 18, 4,  24, 23, 7,  19, 14, 28};
+        constexpr std::uint8_t inv_table[modulus] = {0,  1,  15, 10, 22, 6, 5,  25, 11, 13,
+                                                     3,  8,  17, 9,  27, 2, 20, 12, 21, 26,
+                                                     16, 18, 4,  24, 23, 7, 19, 14, 28};
         return inv_table[a];
     }
 
@@ -83,8 +82,7 @@ public:
         if (y >= 64u) {
             return 0;
         }
-        return static_cast<std::uint8_t>(
-            (static_cast<unsigned long long>(x) << y) % modulus);
+        return static_cast<std::uint8_t>((static_cast<unsigned long long>(x) << y) % modulus);
     }
 
     [[nodiscard]] PARCAE_HD static std::uint8_t rshift(std::uint8_t x, std::uint8_t y) noexcept {
@@ -131,10 +129,8 @@ public:
     }
 
     /// Mux: nonzero `cond` → `t`, else `f` (matches Z29Expr::Select).
-    [[nodiscard]] PARCAE_HD static std::uint8_t select(
-        std::uint8_t cond,
-        std::uint8_t t,
-        std::uint8_t f) noexcept {
+    [[nodiscard]] PARCAE_HD static std::uint8_t select(std::uint8_t cond, std::uint8_t t,
+                                                       std::uint8_t f) noexcept {
         return cond != 0 ? t : f;
     }
 

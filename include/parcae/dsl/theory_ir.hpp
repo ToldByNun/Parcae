@@ -107,25 +107,15 @@ public:
         return "unknown";
     }
 
-    [[nodiscard]] static StatusOr<TheoryIr> make(
-        std::string name,
-        Family family,
-        Tier tier,
-        InterruptMode interrupts,
-        std::vector<ParamIr> params,
-        Z29Expr::Ptr encrypt_step = {},
-        Z29Expr::Ptr decrypt_step = {},
-        std::optional<std::string> structural_claim = std::nullopt,
-        std::string source_path = {},
-        std::optional<int> lineno = std::nullopt,
-        std::optional<int> col = std::nullopt) {
+    [[nodiscard]] static StatusOr<TheoryIr>
+    make(std::string name, Family family, Tier tier, InterruptMode interrupts,
+         std::vector<ParamIr> params, Z29Expr::Ptr encrypt_step = {},
+         Z29Expr::Ptr decrypt_step = {}, std::optional<std::string> structural_claim = std::nullopt,
+         std::string source_path = {}, std::optional<int> lineno = std::nullopt,
+         std::optional<int> col = std::nullopt) {
         if (name.empty()) {
-            return DslDiag::make(
-                       DslRuleId::E032_primitive_body,
-                       "theory name must be non-empty",
-                       std::move(source_path),
-                       lineno,
-                       col)
+            return DslDiag::make(DslRuleId::E032_primitive_body, "theory name must be non-empty",
+                                 std::move(source_path), lineno, col)
                 .to_status();
         }
         TheoryIr ir{
@@ -148,33 +138,19 @@ public:
         return ir;
     }
 
-    [[nodiscard]] const std::string& name() const noexcept {
-        return name_;
-    }
+    [[nodiscard]] const std::string& name() const noexcept { return name_; }
 
-    [[nodiscard]] Family family() const noexcept {
-        return family_;
-    }
+    [[nodiscard]] Family family() const noexcept { return family_; }
 
-    [[nodiscard]] Tier tier() const noexcept {
-        return tier_;
-    }
+    [[nodiscard]] Tier tier() const noexcept { return tier_; }
 
-    [[nodiscard]] InterruptMode interrupt_mode() const noexcept {
-        return interrupt_mode_;
-    }
+    [[nodiscard]] InterruptMode interrupt_mode() const noexcept { return interrupt_mode_; }
 
-    [[nodiscard]] const std::vector<ParamIr>& params() const noexcept {
-        return params_;
-    }
+    [[nodiscard]] const std::vector<ParamIr>& params() const noexcept { return params_; }
 
-    [[nodiscard]] const Z29Expr::Ptr& encrypt_step() const noexcept {
-        return encrypt_step_;
-    }
+    [[nodiscard]] const Z29Expr::Ptr& encrypt_step() const noexcept { return encrypt_step_; }
 
-    [[nodiscard]] const Z29Expr::Ptr& decrypt_step() const noexcept {
-        return decrypt_step_;
-    }
+    [[nodiscard]] const Z29Expr::Ptr& decrypt_step() const noexcept { return decrypt_step_; }
 
     [[nodiscard]] const std::optional<std::string>& structural_claim() const noexcept {
         return structural_claim_;
@@ -197,12 +173,10 @@ public:
             return Status::success();
         }
         if (!structural_claim_.has_value() || structural_claim_->empty()) {
-            return DslDiag::make(
-                       DslRuleId::E013_tier_structural_claim,
-                       std::string("tier ") + tier_str(tier_) + " requires structural_claim()",
-                       source_path_,
-                       lineno_,
-                       col_)
+            return DslDiag::make(DslRuleId::E013_tier_structural_claim,
+                                 std::string("tier ") + tier_str(tier_) +
+                                     " requires structural_claim()",
+                                 source_path_, lineno_, col_)
                 .to_status();
         }
         return Status::success();
@@ -217,13 +191,11 @@ public:
         if (family_ == Family::Elementwise) {
             return Status::success();
         }
-        return DslDiag::make(
-                   DslRuleId::E030_interrupt_policy,
-                   std::string("interrupt_policy missing; family=") + family_str(family_) +
-                       "; set interrupts='none_by_design' if intentional",
-                   source_path_,
-                   lineno_,
-                   col_)
+        return DslDiag::make(DslRuleId::E030_interrupt_policy,
+                             std::string("interrupt_policy missing; family=") +
+                                 family_str(family_) +
+                                 "; set interrupts='none_by_design' if intentional",
+                             source_path_, lineno_, col_)
             .to_status();
     }
 
@@ -235,12 +207,9 @@ public:
         for (std::size_t i = 0; i < params_.size(); ++i) {
             for (std::size_t j = i + 1; j < params_.size(); ++j) {
                 if (params_[i].name() == params_[j].name()) {
-                    return DslDiag::make(
-                               DslRuleId::E040_param_domain,
-                               "duplicate param name '" + params_[i].name() + "'",
-                               source_path_,
-                               lineno_,
-                               col_)
+                    return DslDiag::make(DslRuleId::E040_param_domain,
+                                         "duplicate param name '" + params_[i].name() + "'",
+                                         source_path_, lineno_, col_)
                         .to_status();
                 }
             }
@@ -249,29 +218,14 @@ public:
     }
 
 private:
-    TheoryIr(
-        std::string name,
-        Family family,
-        Tier tier,
-        InterruptMode interrupts,
-        std::vector<ParamIr> params,
-        Z29Expr::Ptr encrypt_step,
-        Z29Expr::Ptr decrypt_step,
-        std::optional<std::string> structural_claim,
-        std::string source_path,
-        std::optional<int> lineno,
-        std::optional<int> col)
-        : name_(std::move(name)),
-          family_(family),
-          tier_(tier),
-          interrupt_mode_(interrupts),
-          params_(std::move(params)),
-          encrypt_step_(std::move(encrypt_step)),
-          decrypt_step_(std::move(decrypt_step)),
-          structural_claim_(std::move(structural_claim)),
-          source_path_(std::move(source_path)),
-          lineno_(lineno),
-          col_(col) {}
+    TheoryIr(std::string name, Family family, Tier tier, InterruptMode interrupts,
+             std::vector<ParamIr> params, Z29Expr::Ptr encrypt_step, Z29Expr::Ptr decrypt_step,
+             std::optional<std::string> structural_claim, std::string source_path,
+             std::optional<int> lineno, std::optional<int> col)
+        : name_(std::move(name)), family_(family), tier_(tier), interrupt_mode_(interrupts),
+          params_(std::move(params)), encrypt_step_(std::move(encrypt_step)),
+          decrypt_step_(std::move(decrypt_step)), structural_claim_(std::move(structural_claim)),
+          source_path_(std::move(source_path)), lineno_(lineno), col_(col) {}
 
     std::string name_;
     Family family_ = Family::Elementwise;

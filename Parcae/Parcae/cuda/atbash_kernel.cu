@@ -1,5 +1,4 @@
 #include "atbash_kernel.hpp"
-
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
 
@@ -9,10 +8,7 @@ namespace {
 
 constexpr int kThreadsPerBlock = 256;
 
-__global__ void atbash_kernel(
-    const std::uint8_t* in,
-    std::uint8_t* out,
-    std::size_t count) {
+__global__ void atbash_kernel(const std::uint8_t* in, std::uint8_t* out, std::size_t count) {
     const std::size_t i =
         static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
         static_cast<std::size_t>(threadIdx.x);
@@ -21,12 +17,10 @@ __global__ void atbash_kernel(
     }
 }
 
-}  // namespace
+} // namespace
 
-Status AtbashKernel::launch_device_async(
-    const std::uint8_t* device_in,
-    std::uint8_t* device_out,
-    std::size_t count) {
+Status AtbashKernel::launch_device_async(const std::uint8_t* device_in, std::uint8_t* device_out,
+                                         std::size_t count) {
     if (count == 0) {
         return Status::success();
     }
@@ -40,10 +34,8 @@ Status AtbashKernel::launch_device_async(
     return CudaError::to_status(cudaGetLastError(), "AtbashKernel::launch_device_async");
 }
 
-Status AtbashKernel::launch_device(
-    const std::uint8_t* device_in,
-    std::uint8_t* device_out,
-    std::size_t count) {
+Status AtbashKernel::launch_device(const std::uint8_t* device_in, std::uint8_t* device_out,
+                                   std::size_t count) {
     Status launched = launch_device_async(device_in, device_out, count);
     if (!launched.ok()) {
         return launched;
@@ -51,9 +43,8 @@ Status AtbashKernel::launch_device(
     return CudaError::to_status(cudaDeviceSynchronize(), "AtbashKernel::launch_device sync");
 }
 
-Status AtbashKernel::apply_host(
-    std::span<const std::uint8_t> host_in,
-    std::span<std::uint8_t> host_out) {
+Status AtbashKernel::apply_host(std::span<const std::uint8_t> host_in,
+                                std::span<std::uint8_t> host_out) {
     if (host_in.size() != host_out.size()) {
         return Status::error("AtbashKernel::apply_host size mismatch");
     }

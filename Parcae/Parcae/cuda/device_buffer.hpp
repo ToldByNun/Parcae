@@ -1,13 +1,13 @@
 #ifndef DEVICE_BUFFER_HPP
 #define DEVICE_BUFFER_HPP
 
-#include "cuda_error.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 
-#include <cuda_runtime_api.h>
+#include "cuda_error.hpp"
 
 #include <cstddef>
+#include <cuda_runtime_api.h>
 #include <span>
 #include <utility>
 
@@ -40,9 +40,7 @@ public:
         return *this;
     }
 
-    ~DeviceBuffer() {
-        reset();
-    }
+    ~DeviceBuffer() { reset(); }
 
     /// Allocate `count` elements on the current CUDA device.
     [[nodiscard]] static StatusOr<DeviceBuffer> allocate(std::size_t count) {
@@ -105,21 +103,13 @@ public:
         }
     }
 
-    [[nodiscard]] T* data() noexcept {
-        return data_;
-    }
+    [[nodiscard]] T* data() noexcept { return data_; }
 
-    [[nodiscard]] const T* data() const noexcept {
-        return data_;
-    }
+    [[nodiscard]] const T* data() const noexcept { return data_; }
 
-    [[nodiscard]] std::size_t size() const noexcept {
-        return count_;
-    }
+    [[nodiscard]] std::size_t size() const noexcept { return count_; }
 
-    [[nodiscard]] bool empty() const noexcept {
-        return count_ == 0;
-    }
+    [[nodiscard]] bool empty() const noexcept { return count_ == 0; }
 
     [[nodiscard]] explicit operator bool() const noexcept {
         return data_ != nullptr || count_ == 0;

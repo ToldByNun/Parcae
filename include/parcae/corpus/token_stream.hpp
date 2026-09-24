@@ -1,10 +1,10 @@
 #ifndef TOKEN_STREAM_HPP
 #define TOKEN_STREAM_HPP
 
-#include "parcae/corpus/consumable_mask.hpp"
-#include "parcae/corpus/token.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
+#include "parcae/corpus/consumable_mask.hpp"
+#include "parcae/corpus/token.hpp"
 
 #include <cstddef>
 #include <string>
@@ -28,21 +28,13 @@ public:
         return stream;
     }
 
-    [[nodiscard]] std::size_t size() const noexcept {
-        return tokens_.size();
-    }
+    [[nodiscard]] std::size_t size() const noexcept { return tokens_.size(); }
 
-    [[nodiscard]] bool empty() const noexcept {
-        return tokens_.empty();
-    }
+    [[nodiscard]] bool empty() const noexcept { return tokens_.empty(); }
 
-    [[nodiscard]] const Token& at(std::size_t i) const {
-        return tokens_.at(i);
-    }
+    [[nodiscard]] const Token& at(std::size_t i) const { return tokens_.at(i); }
 
-    [[nodiscard]] const std::vector<Token>& tokens() const noexcept {
-        return tokens_;
-    }
+    [[nodiscard]] const std::vector<Token>& tokens() const noexcept { return tokens_; }
 
     [[nodiscard]] std::size_t consumable_count() const noexcept {
         std::size_t count = 0;

@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_directive_table.hpp>
 #include <parcae/dsl/dsl_divergence_gate.hpp>
@@ -5,29 +6,22 @@
 #include <parcae/dsl/dsl_rule_id.hpp>
 #include <parcae/dsl/dsl_semantic_gate.hpp>
 #include <parcae/dsl/host_glue_ir.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
 #include <vector>
 
 namespace {
 
-[[nodiscard]] std::string wrap_doc(const std::string& module_json, const std::string& directives_json) {
-    return std::string("{") +
-           R"("schema":"parcae.dsl_ast_json.v0",)" +
-           R"("dsl_ast_json_version":"1.1.0",)" +
-           R"("source_path":"theories/ign.py",)" +
+[[nodiscard]] std::string wrap_doc(const std::string& module_json,
+                                   const std::string& directives_json) {
+    return std::string("{") + R"("schema":"parcae.dsl_ast_json.v0",)" +
+           R"("dsl_ast_json_version":"1.1.0",)" + R"("source_path":"theories/ign.py",)" +
            R"("source_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",)" +
-           R"("python_version":"3.12.0",)" +
-           R"("ok":true,)" +
-           R"("directives":)" + directives_json + "," +
-           R"("module":)" + module_json + "}";
+           R"("python_version":"3.12.0",)" + R"("ok":true,)" + R"("directives":)" +
+           directives_json + "," + R"("module":)" + module_json + "}";
 }
 
-[[nodiscard]] DslAstDocument ingest_or_fail(
-    const std::string& module_json,
-    const std::string& directives_json = "[]") {
+[[nodiscard]] DslAstDocument ingest_or_fail(const std::string& module_json,
+                                            const std::string& directives_json = "[]") {
     const StatusOr<DslAstDocument> doc =
         DslAstJsonIngest::parse_text(wrap_doc(module_json, directives_json));
     REQUIRE(doc.ok());
@@ -106,7 +100,7 @@ namespace {
     })";
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("DslDirectiveTable rejects ignores without allow flag", "[dsl][directives][E031]") {
     const DslAstDocument doc = ingest_or_fail(
@@ -133,9 +127,8 @@ TEST_CASE("DslDirectiveTable rejects unknown flag", "[dsl][directives][E031]") {
     REQUIRE(table.status().message().find("unknown DSL_FLAG") != std::string::npos);
 }
 
-TEST_CASE(
-    "divergent_branch suppresses E033 and emits W010",
-    "[dsl][directives][directive][W010][E033]") {
+TEST_CASE("divergent_branch suppresses E033 and emits W010",
+          "[dsl][directives][directive][W010][E033]") {
     const DslAstDocument doc = ingest_or_fail(
         hotloop_if_module(),
         R"([{"lineno":4,"flag":"divergent_branch","raw":"#ignore DSL_FLAG:divergent_branch"}])");
@@ -157,14 +150,12 @@ TEST_CASE(
     REQUIRE(table.value().flags_applied() == std::vector<std::string>{"divergent_branch"});
 }
 
-TEST_CASE(
-    "hotloop_restriction suppresses E034 and emits W010",
-    "[dsl][directives][W010][E034]") {
+TEST_CASE("hotloop_restriction suppresses E034 and emits W010", "[dsl][directives][W010][E034]") {
     const DslAstDocument doc = ingest_or_fail(
         hotloop_for_module(),
         R"([{"lineno":4,"flag":"hotloop_restriction","raw":"#ignore DSL_FLAG:hotloop_restriction"}])");
 
-    REQUIRE_FALSE(DslSemanticGate::check(doc).ok());  // without table → E034
+    REQUIRE_FALSE(DslSemanticGate::check(doc).ok()); // without table → E034
 
     DslDirectiveTable::Options opts;
     (void)opts.set_allow_dsl_ignores(true);
@@ -178,9 +169,7 @@ TEST_CASE(
     REQUIRE(table.value().warnings()[0].message().find("E034") != std::string::npos);
 }
 
-TEST_CASE(
-    "host_loop_bound suppresses E035 and emits W010",
-    "[dsl][directives][W010][E035]") {
+TEST_CASE("host_loop_bound suppresses E035 and emits W010", "[dsl][directives][W010][E035]") {
     const DslAstDocument doc = ingest_or_fail(
         unbounded_while_module(),
         R"([{"lineno":2,"flag":"host_loop_bound","raw":"#ignore DSL_FLAG:host_loop_bound"}])");
@@ -196,8 +185,7 @@ TEST_CASE(
     REQUIRE(prog.ok());
     REQUIRE(prog.value().while_count() == 1);
     REQUIRE(prog.value().root()->kind() == HostGlueIr::Kind::WhileBounded);
-    REQUIRE(
-        prog.value().root()->int_value() == DslDirectiveTable::host_loop_bound_asserted_max);
+    REQUIRE(prog.value().root()->int_value() == DslDirectiveTable::host_loop_bound_asserted_max);
     REQUIRE(prog.value().root()->bound_kind() == HostGlueIr::BoundKind::HostKnown);
     REQUIRE(table.value().warnings().size() == 1);
     REQUIRE(table.value().warnings()[0].rule_id() == "W010");

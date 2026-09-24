@@ -34,9 +34,7 @@ public:
         return latinize(indices.value());
     }
 
-    [[nodiscard]] const LatinLabels& labels() const noexcept {
-        return labels_;
-    }
+    [[nodiscard]] const LatinLabels& labels() const noexcept { return labels_; }
 
 private:
     LatinLabels labels_;

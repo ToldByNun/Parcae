@@ -1,17 +1,14 @@
-#include "ic_mod29_score.hpp"
-
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
+#include "ic_mod29_score.hpp"
 
 #include <array>
 #include <cuda_runtime_api.h>
 
 constexpr int kIcMod29Threads = 256;
 
-static __global__ void ic_mod29_histogram_kernel(
-    const std::uint8_t* indices,
-    std::size_t count,
-    unsigned long long* counts) {
+static __global__ void ic_mod29_histogram_kernel(const std::uint8_t* indices, std::size_t count,
+                                                 unsigned long long* counts) {
     __shared__ unsigned long long shared[IcMod29Score::alphabet_size];
 
     if (threadIdx.x < static_cast<int>(IcMod29Score::alphabet_size)) {
@@ -24,8 +21,7 @@ static __global__ void ic_mod29_histogram_kernel(
     for (std::size_t i =
              static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
              static_cast<std::size_t>(threadIdx.x);
-         i < count;
-         i += stride) {
+         i < count; i += stride) {
         atomicAdd(&shared[indices[i]], 1ull);
     }
     __syncthreads();
@@ -35,10 +31,8 @@ static __global__ void ic_mod29_histogram_kernel(
     }
 }
 
-Status IcMod29Score::histogram_device(
-    const std::uint8_t* device_indices,
-    std::size_t count,
-    unsigned long long* device_counts) {
+Status IcMod29Score::histogram_device(const std::uint8_t* device_indices, std::size_t count,
+                                      unsigned long long* device_counts) {
     if (count == 0) {
         return Status::success();
     }
@@ -46,11 +40,9 @@ Status IcMod29Score::histogram_device(
         return Status::error("IcMod29Score::histogram_device null device pointer");
     }
 
-    const int blocks = static_cast<int>(
-        (count + static_cast<std::size_t>(kIcMod29Threads) - 1u) /
-        static_cast<std::size_t>(kIcMod29Threads));
-    ic_mod29_histogram_kernel<<<blocks, kIcMod29Threads>>>(
-        device_indices, count, device_counts);
+    const int blocks = static_cast<int>((count + static_cast<std::size_t>(kIcMod29Threads) - 1u) /
+                                        static_cast<std::size_t>(kIcMod29Threads));
+    ic_mod29_histogram_kernel<<<blocks, kIcMod29Threads>>>(device_indices, count, device_counts);
 
     Status launch = CudaError::to_status(cudaGetLastError(), "IcMod29Score::histogram_device");
     if (!launch.ok()) {
@@ -83,8 +75,7 @@ StatusOr<double> IcMod29Score::score_host(std::span<const std::uint8_t> indices)
         return cleared;
     }
 
-    Status hist =
-        histogram_device(device_in.value().data(), n, device_counts.value().data());
+    Status hist = histogram_device(device_in.value().data(), n, device_counts.value().data());
     if (!hist.ok()) {
         return hist;
     }

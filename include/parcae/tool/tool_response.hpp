@@ -5,13 +5,12 @@
 #include "parcae/core/status_or.hpp"
 
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
-
-#include <nlohmann/json.hpp>
 
 /// Stable `error.code` values for `parcae.tool_response.v0` (docs/spec/agent-tools.md).
 enum class ToolErrorCode : std::uint8_t {
@@ -28,20 +27,20 @@ class ToolErrorCodeUtil {
 public:
     [[nodiscard]] static constexpr std::string_view to_string(ToolErrorCode code) noexcept {
         switch (code) {
-            case ToolErrorCode::Usage:
-                return "usage";
-            case ToolErrorCode::Io:
-                return "io";
-            case ToolErrorCode::Schema:
-                return "schema";
-            case ToolErrorCode::Policy:
-                return "policy";
-            case ToolErrorCode::NotBuilt:
-                return "not_built";
-            case ToolErrorCode::Validation:
-                return "validation";
-            case ToolErrorCode::Internal:
-                return "internal";
+        case ToolErrorCode::Usage:
+            return "usage";
+        case ToolErrorCode::Io:
+            return "io";
+        case ToolErrorCode::Schema:
+            return "schema";
+        case ToolErrorCode::Policy:
+            return "policy";
+        case ToolErrorCode::NotBuilt:
+            return "not_built";
+        case ToolErrorCode::Validation:
+            return "validation";
+        case ToolErrorCode::Internal:
+            return "internal";
         }
         return "internal";
     }
@@ -86,10 +85,8 @@ public:
     static constexpr std::string_view schema_id = "parcae.tool_response.v0";
 
     /// Success envelope: `ok=true`, `error=null`, `result` is an object (MAY be empty).
-    [[nodiscard]] static nlohmann::json success(
-        std::string_view tool,
-        std::optional<std::string> backend,
-        nlohmann::json result) {
+    [[nodiscard]] static nlohmann::json
+    success(std::string_view tool, std::optional<std::string> backend, nlohmann::json result) {
         if (!result.is_object()) {
             result = nlohmann::json::object();
         }
@@ -104,12 +101,10 @@ public:
     }
 
     /// Failure envelope: `ok=false`, `result=null`, `error={code,message[,details]}`.
-    [[nodiscard]] static nlohmann::json failure(
-        std::string_view tool,
-        std::optional<std::string> backend,
-        ToolErrorCode code,
-        std::string message,
-        nlohmann::json details = nlohmann::json(nullptr)) {
+    [[nodiscard]] static nlohmann::json failure(std::string_view tool,
+                                                std::optional<std::string> backend,
+                                                ToolErrorCode code, std::string message,
+                                                nlohmann::json details = nlohmann::json(nullptr)) {
         nlohmann::json error{
             {"code", std::string(ToolErrorCodeUtil::to_string(code))},
             {"message", std::move(message)},
@@ -127,9 +122,7 @@ public:
         };
     }
 
-    [[nodiscard]] static constexpr int exit_success() noexcept {
-        return 0;
-    }
+    [[nodiscard]] static constexpr int exit_success() noexcept { return 0; }
 
     [[nodiscard]] static constexpr int exit_failure(ToolErrorCode code) noexcept {
         return ToolErrorCodeUtil::exit_status(code);
@@ -222,4 +215,4 @@ private:
     ToolResponse() = delete;
 };
 
-#endif  // TOOL_RESPONSE_HPP
+#endif // TOOL_RESPONSE_HPP

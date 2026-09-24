@@ -1,3 +1,7 @@
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include <parcae/core/status_or.hpp>
 #include <parcae/core/version.hpp>
 #include <parcae/dsl/dsl_spec_version.hpp>
@@ -5,19 +9,11 @@
 #include <parcae/dsl/theory_artifact.hpp>
 #include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/theory_uri.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <filesystem>
-#include <fstream>
 #include <string>
-
-#include <nlohmann/json.hpp>
 
 namespace {
 
-constexpr const char* kSha =
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+constexpr const char* kSha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 [[nodiscard]] TheoryArtifact::Verification ok_exhaustive() {
     return TheoryArtifact::Verification{
@@ -30,23 +26,14 @@ constexpr const char* kSha =
 
 [[nodiscard]] StatusOr<TheoryArtifact> make_ready_a(std::string name = "poly2_mod29_demo") {
     return TheoryArtifact::make(
-        std::move(name),
-        1,
-        TheoryIr::Tier::A,
-        TheoryIr::Family::KeyedStream,
-        kSha,
-        ok_exhaustive(),
-        TheoryArtifact::FusionStatus::NotApplicable,
-        TheoryArtifact::InterruptMode::NoneByDesign,
-        {TheoryArtifact::Param{"c2", 0, 28},
-         TheoryArtifact::Param{"c1", 0, 28},
+        std::move(name), 1, TheoryIr::Tier::A, TheoryIr::Family::KeyedStream, kSha, ok_exhaustive(),
+        TheoryArtifact::FusionStatus::NotApplicable, TheoryArtifact::InterruptMode::NoneByDesign,
+        {TheoryArtifact::Param{"c2", 0, 28}, TheoryArtifact::Param{"c1", 0, 28},
          TheoryArtifact::Param{"c0", 0, 28}},
-        {"poly2_mod29"},
-        std::nullopt,
-        std::string("theories/examples/new_math_example.py"));
+        {"poly2_mod29"}, std::nullopt, std::string("theories/examples/new_math_example.py"));
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("TheoryUri parse and format", "[dsl][artifact][uri]") {
     const StatusOr<TheoryUri> u = TheoryUri::parse("parcae://theories/my_affine@3");
@@ -88,13 +75,8 @@ TEST_CASE("TheoryArtifact refuses failed verification", "[dsl][artifact]") {
         "2026-09-21T00:00:00Z",
     };
     const StatusOr<TheoryArtifact> a = TheoryArtifact::make(
-        "poly2_mod29_demo",
-        1,
-        TheoryIr::Tier::A,
-        TheoryIr::Family::KeyedStream,
-        kSha,
-        std::move(failed),
-        TheoryArtifact::FusionStatus::NotApplicable,
+        "poly2_mod29_demo", 1, TheoryIr::Tier::A, TheoryIr::Family::KeyedStream, kSha,
+        std::move(failed), TheoryArtifact::FusionStatus::NotApplicable,
         TheoryArtifact::InterruptMode::NoneByDesign);
     REQUIRE_FALSE(a.ok());
     REQUIRE(a.status().message().find("passed") != std::string::npos);
@@ -102,27 +84,15 @@ TEST_CASE("TheoryArtifact refuses failed verification", "[dsl][artifact]") {
 
 TEST_CASE("TheoryArtifact tier B requires structural_claim", "[dsl][artifact]") {
     const StatusOr<TheoryArtifact> missing = TheoryArtifact::make(
-        "speculative_stream",
-        1,
-        TheoryIr::Tier::B,
-        TheoryIr::Family::KeyedStream,
-        kSha,
-        ok_exhaustive(),
-        TheoryArtifact::FusionStatus::NotApplicable,
+        "speculative_stream", 1, TheoryIr::Tier::B, TheoryIr::Family::KeyedStream, kSha,
+        ok_exhaustive(), TheoryArtifact::FusionStatus::NotApplicable,
         TheoryArtifact::InterruptMode::PolicyMethod);
     REQUIRE_FALSE(missing.ok());
 
     const StatusOr<TheoryArtifact> ok = TheoryArtifact::make(
-        "speculative_stream",
-        1,
-        TheoryIr::Tier::B,
-        TheoryIr::Family::KeyedStream,
-        kSha,
-        ok_exhaustive(),
-        TheoryArtifact::FusionStatus::NotApplicable,
-        TheoryArtifact::InterruptMode::PolicyMethod,
-        {},
-        {},
+        "speculative_stream", 1, TheoryIr::Tier::B, TheoryIr::Family::KeyedStream, kSha,
+        ok_exhaustive(), TheoryArtifact::FusionStatus::NotApplicable,
+        TheoryArtifact::InterruptMode::PolicyMethod, {}, {},
         std::string("Speculative. research anchor only."));
     REQUIRE(ok.ok());
     REQUIRE(ok.value().structural_claim().has_value());
@@ -132,26 +102,16 @@ TEST_CASE("TheoryArtifact paths reject escape", "[dsl][artifact]") {
     TheoryArtifact::Paths paths;
     paths.set_cpu_reference(std::string("../escape.hpp"));
     const StatusOr<TheoryArtifact> a = TheoryArtifact::make(
-        "poly2_mod29_demo",
-        1,
-        TheoryIr::Tier::A,
-        TheoryIr::Family::KeyedStream,
-        kSha,
-        ok_exhaustive(),
-        TheoryArtifact::FusionStatus::NotApplicable,
-        TheoryArtifact::InterruptMode::NoneByDesign,
-        {},
-        {},
-        std::nullopt,
-        std::nullopt,
+        "poly2_mod29_demo", 1, TheoryIr::Tier::A, TheoryIr::Family::KeyedStream, kSha,
+        ok_exhaustive(), TheoryArtifact::FusionStatus::NotApplicable,
+        TheoryArtifact::InterruptMode::NoneByDesign, {}, {}, std::nullopt, std::nullopt,
         std::move(paths));
     REQUIRE_FALSE(a.ok());
     REQUIRE(a.status().message().find("..") != std::string::npos);
 }
 
 TEST_CASE("TheoryArtifact store/load roundtrip embeds dsl_spec_version", "[dsl][artifact]") {
-    const auto root =
-        std::filesystem::temp_directory_path() / "parcae_theory_artifact_h31";
+    const auto root = std::filesystem::temp_directory_path() / "parcae_theory_artifact_h31";
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
     std::filesystem::create_directories(root, ec);
@@ -161,18 +121,10 @@ TEST_CASE("TheoryArtifact store/load roundtrip embeds dsl_spec_version", "[dsl][
     paths.set_verify_report(std::string("verify_report.json"));
 
     StatusOr<TheoryArtifact> with_paths = TheoryArtifact::make(
-        "quadratic_polynomial_stream",
-        1,
-        TheoryIr::Tier::A,
-        TheoryIr::Family::KeyedStream,
-        kSha,
-        ok_exhaustive(),
-        TheoryArtifact::FusionStatus::NotApplicable,
-        TheoryArtifact::InterruptMode::NoneByDesign,
-        {TheoryArtifact::Param{"c2", 0, 28}},
-        {"poly2_mod29"},
-        std::nullopt,
-        std::string("theories/examples/new_math_example.py"),
+        "quadratic_polynomial_stream", 1, TheoryIr::Tier::A, TheoryIr::Family::KeyedStream, kSha,
+        ok_exhaustive(), TheoryArtifact::FusionStatus::NotApplicable,
+        TheoryArtifact::InterruptMode::NoneByDesign, {TheoryArtifact::Param{"c2", 0, 28}},
+        {"poly2_mod29"}, std::nullopt, std::string("theories/examples/new_math_example.py"),
         std::move(paths));
     REQUIRE(with_paths.ok());
     REQUIRE(with_paths.value().store(root).ok());
@@ -190,8 +142,7 @@ TEST_CASE("TheoryArtifact store/load roundtrip embeds dsl_spec_version", "[dsl][
         REQUIRE(on_disk.at("uri") == "parcae://theories/quadratic_polynomial_stream@1");
     }
 
-    StatusOr<TheoryArtifact> loaded =
-        TheoryArtifact::load(root, "quadratic_polynomial_stream", 1);
+    StatusOr<TheoryArtifact> loaded = TheoryArtifact::load(root, "quadratic_polynomial_stream", 1);
     REQUIRE(loaded.ok());
     REQUIRE(loaded.value().dsl_spec_version() == DslSpecVersion::current_string);
     REQUIRE(loaded.value().primitives().size() == 1);
@@ -221,15 +172,9 @@ TEST_CASE("TheoryArtifact fuzz seed rules", "[dsl][artifact]") {
         DslVerifier::default_fuzz_seed,
         "2026-09-21T00:00:00Z",
     };
-    REQUIRE(TheoryArtifact::make(
-                "fuzz_theory",
-                2,
-                TheoryIr::Tier::A,
-                TheoryIr::Family::Elementwise,
-                kSha,
-                fuzz_ok,
-                TheoryArtifact::FusionStatus::NotApplicable,
-                TheoryArtifact::InterruptMode::ElementwiseDefault)
+    REQUIRE(TheoryArtifact::make("fuzz_theory", 2, TheoryIr::Tier::A, TheoryIr::Family::Elementwise,
+                                 kSha, fuzz_ok, TheoryArtifact::FusionStatus::NotApplicable,
+                                 TheoryArtifact::InterruptMode::ElementwiseDefault)
                 .ok());
 
     TheoryArtifact::Verification fuzz_no_seed{
@@ -238,14 +183,9 @@ TEST_CASE("TheoryArtifact fuzz seed rules", "[dsl][artifact]") {
         std::nullopt,
         "2026-09-21T00:00:00Z",
     };
-    REQUIRE_FALSE(TheoryArtifact::make(
-                      "fuzz_theory",
-                      2,
-                      TheoryIr::Tier::A,
-                      TheoryIr::Family::Elementwise,
-                      kSha,
-                      std::move(fuzz_no_seed),
-                      TheoryArtifact::FusionStatus::NotApplicable,
-                      TheoryArtifact::InterruptMode::ElementwiseDefault)
+    REQUIRE_FALSE(TheoryArtifact::make("fuzz_theory", 2, TheoryIr::Tier::A,
+                                       TheoryIr::Family::Elementwise, kSha, std::move(fuzz_no_seed),
+                                       TheoryArtifact::FusionStatus::NotApplicable,
+                                       TheoryArtifact::InterruptMode::ElementwiseDefault)
                       .ok());
 }

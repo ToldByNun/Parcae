@@ -1,5 +1,4 @@
 #include "chi2_english_gp_score.hpp"
-
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
 #include "ic_mod29_score.hpp"
@@ -7,10 +6,9 @@
 #include <array>
 #include <cuda_runtime_api.h>
 
-StatusOr<double> Chi2EnglishGpScore::finalize(
-    std::span<const unsigned long long> observed,
-    std::size_t n,
-    std::span<const double> probabilities) {
+StatusOr<double> Chi2EnglishGpScore::finalize(std::span<const unsigned long long> observed,
+                                              std::size_t n,
+                                              std::span<const double> probabilities) {
     if (n == 0) {
         return Status::error("chi2_english_gp_v0 requires a non-empty sequence");
     }
@@ -40,11 +38,10 @@ StatusOr<double> Chi2EnglishGpScore::finalize(
     return chi2;
 }
 
-StatusOr<double> Chi2EnglishGpScore::score_device(
-    const std::uint8_t* device_indices,
-    std::size_t count,
-    std::span<const double> probabilities,
-    unsigned long long* device_counts) {
+StatusOr<double> Chi2EnglishGpScore::score_device(const std::uint8_t* device_indices,
+                                                  std::size_t count,
+                                                  std::span<const double> probabilities,
+                                                  unsigned long long* device_counts) {
     if (count == 0) {
         return Status::error("chi2_english_gp_v0 requires a non-empty sequence");
     }
@@ -68,13 +65,10 @@ StatusOr<double> Chi2EnglishGpScore::score_device(
     }
 
     std::array<unsigned long long, alphabet_size> observed{};
-    Status copied = CudaError::to_status(
-        cudaMemcpy(
-            observed.data(),
-            device_counts,
-            alphabet_size * sizeof(unsigned long long),
-            cudaMemcpyDeviceToHost),
-        "Chi2EnglishGpScore::score_device D2H histogram");
+    Status copied = CudaError::to_status(cudaMemcpy(observed.data(), device_counts,
+                                                    alphabet_size * sizeof(unsigned long long),
+                                                    cudaMemcpyDeviceToHost),
+                                         "Chi2EnglishGpScore::score_device D2H histogram");
     if (!copied.ok()) {
         return copied;
     }
@@ -82,9 +76,8 @@ StatusOr<double> Chi2EnglishGpScore::score_device(
     return finalize(observed, count, probabilities);
 }
 
-StatusOr<double> Chi2EnglishGpScore::score_host(
-    std::span<const std::uint8_t> indices,
-    std::span<const double> probabilities) {
+StatusOr<double> Chi2EnglishGpScore::score_host(std::span<const std::uint8_t> indices,
+                                                std::span<const double> probabilities) {
     const std::size_t n = indices.size();
     if (n == 0) {
         return Status::error("chi2_english_gp_v0 requires a non-empty sequence");
@@ -109,9 +102,5 @@ StatusOr<double> Chi2EnglishGpScore::score_host(
         return device_counts.status();
     }
 
-    return score_device(
-        device_in.value().data(),
-        n,
-        probabilities,
-        device_counts.value().data());
+    return score_device(device_in.value().data(), n, probabilities, device_counts.value().data());
 }

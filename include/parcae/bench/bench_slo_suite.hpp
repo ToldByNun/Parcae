@@ -30,13 +30,9 @@ public:
 
         explicit Options(bool extended) noexcept : extended_(extended) {}
 
-        [[nodiscard]] bool extended() const noexcept {
-            return extended_;
-        }
+        [[nodiscard]] bool extended() const noexcept { return extended_; }
 
-        void set_extended(bool enabled) noexcept {
-            extended_ = enabled;
-        }
+        void set_extended(bool enabled) noexcept { extended_ = enabled; }
 
     private:
         /// When true, include F.* transform-family and C.* compose rows.
@@ -45,17 +41,10 @@ public:
 
     /// Build a measured SLO row (derives keys/s and wall from runes/s).
     /// Host-only helper — usable without CUDA for unit tests.
-    [[nodiscard]] static BenchReport::Row make_measured_row(
-        std::string name,
-        std::string workload,
-        double runes_per_sec,
-        double target_min,
-        double target_max,
-        bool pass,
-        std::size_t candidates,
-        std::size_t tokens,
-        std::size_t repeats,
-        std::string detail = {}) {
+    [[nodiscard]] static BenchReport::Row
+    make_measured_row(std::string name, std::string workload, double runes_per_sec,
+                      double target_min, double target_max, bool pass, std::size_t candidates,
+                      std::size_t tokens, std::size_t repeats, std::string detail = {}) {
         const double peak = BenchTierSpec::estimated_peak(name);
         double keys_per_sec = 0.0;
         double wall_seconds = 0.0;
@@ -66,49 +55,31 @@ public:
                            runes_per_sec;
         }
         return BenchReport::Row::make(
-            std::move(name),
-            std::move(workload),
-            BenchReport::Suite::Slo,
+            std::move(name), std::move(workload), BenchReport::Suite::Slo,
             BenchReport::Backend::Cuda,
-            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail,
-            runes_per_sec,
-            keys_per_sec,
-            wall_seconds,
-            target_min,
-            target_max,
-            peak,
-            candidates,
-            tokens,
-            repeats,
+            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail, runes_per_sec,
+            keys_per_sec, wall_seconds, target_min, target_max, peak, candidates, tokens, repeats,
             std::move(detail));
     }
 
 #if defined(PARCAE_HAS_CUDA)
-    [[nodiscard]] static BenchReport::Row from_tier_result(
-        const ThroughputTiers::TierResult& tier) {
-        return make_measured_row(
-            tier.name,
-            tier.workload,
-            tier.runes_per_sec,
-            tier.target_min,
-            tier.target_max,
-            tier.pass,
-            tier.candidates,
-            tier.tokens,
-            tier.repeats);
+    [[nodiscard]] static BenchReport::Row
+    from_tier_result(const ThroughputTiers::TierResult& tier) {
+        return make_measured_row(tier.name, tier.workload, tier.runes_per_sec, tier.target_min,
+                                 tier.target_max, tier.pass, tier.candidates, tier.tokens,
+                                 tier.repeats);
     }
 #endif
 
     /// Run T1–T3 (and optionally F.*/C.*). Returns `BenchReport::Document`.
-    [[nodiscard]] static StatusOr<BenchReport::Document> run(
-        const ExpectedFrequencyTable& freqs, const Options& options = Options{}) {
+    [[nodiscard]] static StatusOr<BenchReport::Document> run(const ExpectedFrequencyTable& freqs,
+                                                             const Options& options = Options{}) {
 #if !defined(PARCAE_HAS_CUDA)
         (void)freqs;
         (void)options;
         return Status::error("BenchSloSuite: requires a CUDA build (PARCAE_HAS_CUDA)");
 #else
-        StatusOr<ThroughputTiers::Report> raw =
-            ThroughputTiers::run(freqs, options.extended());
+        StatusOr<ThroughputTiers::Report> raw = ThroughputTiers::run(freqs, options.extended());
         if (!raw.ok()) {
             return raw.status();
         }

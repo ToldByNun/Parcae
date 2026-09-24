@@ -28,14 +28,10 @@ public:
         Hoist(std::string name, Z29Expr::Ptr inv_arg)
             : name_(std::move(name)), inv_arg_(std::move(inv_arg)) {}
 
-        [[nodiscard]] const std::string& name() const noexcept {
-            return name_;
-        }
+        [[nodiscard]] const std::string& name() const noexcept { return name_; }
 
         /// Argument of `inv` — emit as `Z29::inv(<emit inv_arg>)` once per kernel.
-        [[nodiscard]] const Z29Expr::Ptr& inv_arg() const noexcept {
-            return inv_arg_;
-        }
+        [[nodiscard]] const Z29Expr::Ptr& inv_arg() const noexcept { return inv_arg_; }
 
     private:
         std::string name_;
@@ -44,31 +40,18 @@ public:
 
     class Result {
     public:
-        Result(
-            Z29Expr::Ptr expr,
-            std::vector<Hoist> hoists,
-            std::size_t const_folds,
-            std::size_t inv_hoists)
-            : expr_(std::move(expr)),
-              hoists_(std::move(hoists)),
-              const_folds_(const_folds),
+        Result(Z29Expr::Ptr expr, std::vector<Hoist> hoists, std::size_t const_folds,
+               std::size_t inv_hoists)
+            : expr_(std::move(expr)), hoists_(std::move(hoists)), const_folds_(const_folds),
               inv_hoists_(inv_hoists) {}
 
-        [[nodiscard]] const Z29Expr::Ptr& expr() const noexcept {
-            return expr_;
-        }
+        [[nodiscard]] const Z29Expr::Ptr& expr() const noexcept { return expr_; }
 
-        [[nodiscard]] const std::vector<Hoist>& hoists() const noexcept {
-            return hoists_;
-        }
+        [[nodiscard]] const std::vector<Hoist>& hoists() const noexcept { return hoists_; }
 
-        [[nodiscard]] std::size_t const_folds() const noexcept {
-            return const_folds_;
-        }
+        [[nodiscard]] std::size_t const_folds() const noexcept { return const_folds_; }
 
-        [[nodiscard]] std::size_t inv_hoists() const noexcept {
-            return inv_hoists_;
-        }
+        [[nodiscard]] std::size_t inv_hoists() const noexcept { return inv_hoists_; }
 
     private:
         Z29Expr::Ptr expr_;
@@ -80,21 +63,14 @@ public:
     class TheoryResult {
     public:
         TheoryResult(TheoryIr theory, Result encrypt, Result decrypt)
-            : theory_(std::move(theory)),
-              encrypt_(std::move(encrypt)),
+            : theory_(std::move(theory)), encrypt_(std::move(encrypt)),
               decrypt_(std::move(decrypt)) {}
 
-        [[nodiscard]] const TheoryIr& theory() const noexcept {
-            return theory_;
-        }
+        [[nodiscard]] const TheoryIr& theory() const noexcept { return theory_; }
 
-        [[nodiscard]] const Result& encrypt() const noexcept {
-            return encrypt_;
-        }
+        [[nodiscard]] const Result& encrypt() const noexcept { return encrypt_; }
 
-        [[nodiscard]] const Result& decrypt() const noexcept {
-            return decrypt_;
-        }
+        [[nodiscard]] const Result& decrypt() const noexcept { return decrypt_; }
 
     private:
         TheoryIr theory_;
@@ -113,12 +89,10 @@ public:
     }
 
     /// Const-fold then hoist cipher-independent `inv` / `z29_inv` to `__parcae_inv_N`.
-    [[nodiscard]] static StatusOr<Result> optimize(
-        const Z29Expr::Ptr& expr,
-        std::string_view cipher_var = "x") {
+    [[nodiscard]] static StatusOr<Result> optimize(const Z29Expr::Ptr& expr,
+                                                   std::string_view cipher_var = "x") {
         if (!expr) {
-            return DslDiag::make(DslRuleId::E032_primitive_body, "optimize: null expr")
-                .to_status();
+            return DslDiag::make(DslRuleId::E032_primitive_body, "optimize: null expr").to_status();
         }
         if (cipher_var.empty()) {
             return DslDiag::make(DslRuleId::E032_primitive_body, "optimize: empty cipher_var")
@@ -142,14 +116,12 @@ public:
     }
 
     /// Optimize encrypt_step and decrypt_step; returns a new TheoryIr with rewritten bodies.
-    [[nodiscard]] static StatusOr<TheoryResult> optimize_theory(
-        const TheoryIr& theory,
-        std::string_view cipher_var = "x") {
+    [[nodiscard]] static StatusOr<TheoryResult> optimize_theory(const TheoryIr& theory,
+                                                                std::string_view cipher_var = "x") {
         if (!theory.encrypt_step() || !theory.decrypt_step()) {
-            return DslDiag::make(
-                       DslRuleId::E032_primitive_body,
-                       "theory '" + theory.name() +
-                           "' needs encrypt_step and decrypt_step to optimize")
+            return DslDiag::make(DslRuleId::E032_primitive_body,
+                                 "theory '" + theory.name() +
+                                     "' needs encrypt_step and decrypt_step to optimize")
                 .to_status();
         }
         StatusOr<Result> enc = optimize(theory.encrypt_step(), cipher_var);
@@ -161,23 +133,15 @@ public:
             return dec.status();
         }
         StatusOr<TheoryIr> rebuilt = TheoryIr::make(
-            theory.name(),
-            theory.family(),
-            theory.tier(),
-            theory.interrupt_mode(),
-            theory.params(),
-            enc.value().expr(),
-            dec.value().expr(),
-            theory.structural_claim());
+            theory.name(), theory.family(), theory.tier(), theory.interrupt_mode(), theory.params(),
+            enc.value().expr(), dec.value().expr(), theory.structural_claim());
         if (!rebuilt.ok()) {
             return rebuilt.status();
         }
         return TheoryResult{rebuilt.value(), enc.value(), dec.value()};
     }
 
-    [[nodiscard]] static bool depends_on_var(
-        const Z29Expr& expr,
-        std::string_view var_name) {
+    [[nodiscard]] static bool depends_on_var(const Z29Expr& expr, std::string_view var_name) {
         using Kind = Z29Expr::Kind;
         switch (expr.kind()) {
         case Kind::Const:
@@ -211,9 +175,8 @@ public:
 private:
     DslOptimize() = delete;
 
-    [[nodiscard]] static StatusOr<Z29Expr::Ptr> const_fold_rec(
-        const Z29Expr& expr,
-        std::size_t& folds) {
+    [[nodiscard]] static StatusOr<Z29Expr::Ptr> const_fold_rec(const Z29Expr& expr,
+                                                               std::size_t& folds) {
         using Kind = Z29Expr::Kind;
         switch (expr.kind()) {
         case Kind::Const:
@@ -317,8 +280,7 @@ private:
                     return DslDiag::make(DslRuleId::E032_primitive_body, "const_fold call arity")
                         .to_status();
                 }
-                return const_fold_rec(
-                    *Z29Expr::make_select(args[0], args[1], args[2]), folds);
+                return const_fold_rec(*Z29Expr::make_select(args[0], args[1], args[2]), folds);
             }
             std::vector<Z29Expr::Ptr> mapped;
             mapped.reserve(args.size());
@@ -355,8 +317,7 @@ private:
                 ++folds;
                 return t.value();
             }
-            return Z29Expr::make_select(
-                c.value(), t.value(), f.value(), expr.prefer_branch());
+            return Z29Expr::make_select(c.value(), t.value(), f.value(), expr.prefer_branch());
         }
         default:
             break;
@@ -435,11 +396,10 @@ private:
             .to_status();
     }
 
-    [[nodiscard]] static StatusOr<Z29Expr::Ptr> hoist_inv_rec(
-        const Z29Expr& expr,
-        std::string_view cipher_var,
-        std::vector<Hoist>& hoists,
-        std::size_t& hoist_count) {
+    [[nodiscard]] static StatusOr<Z29Expr::Ptr> hoist_inv_rec(const Z29Expr& expr,
+                                                              std::string_view cipher_var,
+                                                              std::vector<Hoist>& hoists,
+                                                              std::size_t& hoist_count) {
         using Kind = Z29Expr::Kind;
 
         auto maybe_hoist_inv = [&](const Z29Expr::Ptr& arg) -> StatusOr<Z29Expr::Ptr> {
@@ -452,8 +412,8 @@ private:
             }
             if (a.value()->kind() == Kind::Const) {
                 if (a.value()->const_value() == 0) {
-                    return DslDiag::make(
-                               DslRuleId::E040_param_domain, "hoist_inv: z29_inv(0) is undefined")
+                    return DslDiag::make(DslRuleId::E040_param_domain,
+                                         "hoist_inv: z29_inv(0) is undefined")
                         .to_status();
                 }
                 return Z29Expr::constant(Z29::inv(Index29{a.value()->const_value()}).value())
@@ -488,8 +448,7 @@ private:
             return Z29Expr::call(expr.name(), std::move(mapped));
         }
         case Kind::Select: {
-            StatusOr<Z29Expr::Ptr> c =
-                hoist_inv_rec(*expr.cond(), cipher_var, hoists, hoist_count);
+            StatusOr<Z29Expr::Ptr> c = hoist_inv_rec(*expr.cond(), cipher_var, hoists, hoist_count);
             if (!c.ok()) {
                 return c.status();
             }
@@ -503,8 +462,7 @@ private:
             if (!f.ok()) {
                 return f.status();
             }
-            return Z29Expr::make_select(
-                c.value(), t.value(), f.value(), expr.prefer_branch());
+            return Z29Expr::make_select(c.value(), t.value(), f.value(), expr.prefer_branch());
         }
         default:
             break;
@@ -514,7 +472,8 @@ private:
             if (!l.ok()) {
                 return l.status();
             }
-            StatusOr<Z29Expr::Ptr> r = hoist_inv_rec(*expr.right(), cipher_var, hoists, hoist_count);
+            StatusOr<Z29Expr::Ptr> r =
+                hoist_inv_rec(*expr.right(), cipher_var, hoists, hoist_count);
             if (!r.ok()) {
                 return r.status();
             }
@@ -527,10 +486,8 @@ private:
             }
             return Z29Expr::make_unary_kind(expr.kind(), a.value());
         }
-        return DslDiag::make(DslRuleId::E032_primitive_body, "hoist_inv: unknown kind")
-            .to_status();
+        return DslDiag::make(DslRuleId::E032_primitive_body, "hoist_inv: unknown kind").to_status();
     }
-
 };
 
 #endif // DSL_OPTIMIZE_HPP

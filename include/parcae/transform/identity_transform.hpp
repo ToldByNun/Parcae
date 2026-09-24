@@ -12,16 +12,12 @@ class IdentityTransform : public Transform {
 public:
     IdentityTransform() = default;
 
-    [[nodiscard]] TransformId id() const override {
-        return TransformId::identity();
-    }
+    [[nodiscard]] TransformId id() const override { return TransformId::identity(); }
 
-    [[nodiscard]] Status apply_into(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        const nlohmann::json& params,
-        TransformDirection /*direction*/,
-        const InterruptPolicy& /*interrupt*/ = InterruptPolicy::none()) const override {
+    [[nodiscard]] Status
+    apply_into(std::span<const Index29> input, std::span<Index29> output,
+               const nlohmann::json& params, TransformDirection /*direction*/,
+               const InterruptPolicy& /*interrupt*/ = InterruptPolicy::none()) const override {
         Status params_status = validate_params(params);
         if (!params_status.ok()) {
             return params_status;

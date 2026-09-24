@@ -1,3 +1,6 @@
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <fstream>
 #include <parcae/core/index29.hpp>
 #include <parcae/generate/transform_candidate.hpp>
 #include <parcae/hypothesis/hypothesis_record.hpp>
@@ -9,11 +12,6 @@
 #include <parcae/tool/tool_backend.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <filesystem>
-#include <fstream>
 #include <string>
 #include <vector>
 
@@ -30,26 +28,18 @@ namespace {
 [[nodiscard]] TransformCandidate caesar_candidate(std::uint8_t shift) {
     StatusOr<TransformId> id = TransformId::from_string("caesar");
     REQUIRE(id.ok());
-    return TransformCandidate(
-        "caesar-shift-" + std::to_string(shift),
-        id.value(),
-        TransformDirection::Decrypt,
-        nlohmann::json{{"shift", shift}},
-        {Index29{19}, Index29{7}, Index29{4}});
+    return TransformCandidate("caesar-shift-" + std::to_string(shift), id.value(),
+                              TransformDirection::Decrypt, nlohmann::json{{"shift", shift}},
+                              {Index29{19}, Index29{7}, Index29{4}});
 }
 
-[[nodiscard]] StatusOr<HypothesisRecord> store_status(
-    const std::filesystem::path& data_root,
-    std::string_view workspace_id,
-    std::string_view hypothesis_id,
-    int shift,
-    HypothesisStatus terminal) {
-    StatusOr<HypothesisRecord> draft = HypothesisRecord::make_draft(
-        workspace_id,
-        hypothesis_id,
-        "2026-09-21T19:00:00Z",
-        std::string(hypothesis_id),
-        caesar_method(shift));
+[[nodiscard]] StatusOr<HypothesisRecord> store_status(const std::filesystem::path& data_root,
+                                                      std::string_view workspace_id,
+                                                      std::string_view hypothesis_id, int shift,
+                                                      HypothesisStatus terminal) {
+    StatusOr<HypothesisRecord> draft =
+        HypothesisRecord::make_draft(workspace_id, hypothesis_id, "2026-09-21T19:00:00Z",
+                                     std::string(hypothesis_id), caesar_method(shift));
     if (!draft.ok()) {
         return draft.status();
     }
@@ -79,11 +69,9 @@ namespace {
     return draft;
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "SearchJob + SearchPrior + BatchArtifact end-to-end round-trip",
-    "[search][roundtrip]") {
+TEST_CASE("SearchJob + SearchPrior + BatchArtifact end-to-end round-trip", "[search][roundtrip]") {
     const auto tmp = std::filesystem::temp_directory_path() / "parcae_search_roundtrip_b8";
     std::error_code ec;
     std::filesystem::remove_all(tmp, ec);
@@ -93,8 +81,7 @@ TEST_CASE(
     REQUIRE(store_status(tmp, "rt-ws", "h-excl", 7, HypothesisStatus::Rejected).ok());
     REQUIRE(store_status(tmp, "rt-ws", "h-noise", 5, HypothesisStatus::Proposed).ok());
 
-    StatusOr<SearchPrior> prior =
-        SearchPrior::from_workspace(tmp, "rt-ws", "2026-09-21T19:30:00Z");
+    StatusOr<SearchPrior> prior = SearchPrior::from_workspace(tmp, "rt-ws", "2026-09-21T19:30:00Z");
     REQUIRE(prior.ok());
     REQUIRE(prior.value().seeds().size() == 1);
     REQUIRE(prior.value().seeds()[0].hypothesis_id() == "h-seed");
@@ -111,22 +98,12 @@ TEST_CASE(
     }
     StatusOr<SearchPrior> prior_loaded = SearchPrior::load_file(prior_path);
     REQUIRE(prior_loaded.ok());
-    REQUIRE(
-        prior_loaded.value().prior_digest_sha256() == prior.value().prior_digest_sha256());
+    REQUIRE(prior_loaded.value().prior_digest_sha256() == prior.value().prior_digest_sha256());
 
-    StatusOr<SearchJob> job = SearchJob::make(
-        "rt-ws",
-        "caesar",
-        "chi2_english_gp_v0",
-        2,
-        42,
-        Backend::Cpu,
-        128,
-        TransformDirection::Decrypt,
-        nlohmann::json::object(),
-        prior.value().to_json(),
-        "v0",
-        false);
+    StatusOr<SearchJob> job =
+        SearchJob::make("rt-ws", "caesar", "chi2_english_gp_v0", 2, 42, Backend::Cpu, 128,
+                        TransformDirection::Decrypt, nlohmann::json::object(),
+                        prior.value().to_json(), "v0", false);
     REQUIRE(job.ok());
     REQUIRE(job.value().prior().has_value());
     REQUIRE(job.value().require_workspace_dir(tmp).ok());
@@ -145,9 +122,7 @@ TEST_CASE(
     StatusOr<SearchPrior> prior_from_job =
         SearchPrior::from_json(job_loaded.value().prior().value());
     REQUIRE(prior_from_job.ok());
-    REQUIRE(
-        prior_from_job.value().prior_digest_sha256() ==
-        prior.value().prior_digest_sha256());
+    REQUIRE(prior_from_job.value().prior_digest_sha256() == prior.value().prior_digest_sha256());
 
     // Candidate list respects prior: keep seed shift=3, drop excluded shift=7.
     std::vector<nlohmann::json> lines;
@@ -158,34 +133,18 @@ TEST_CASE(
     REQUIRE(prior.value().excludes_envelope(excl_cand.envelope()));
     REQUIRE_FALSE(prior.value().excludes_envelope(other_cand.envelope()));
 
-    lines.push_back(BatchArtifact::candidate_wire(
-        seed_cand,
-        job.value().score_id(),
-        job.value().score_version(),
-        9.5,
-        job.value().backend(),
-        0));
-    lines.push_back(BatchArtifact::candidate_wire(
-        other_cand,
-        job.value().score_id(),
-        job.value().score_version(),
-        15.0,
-        job.value().backend(),
-        1));
+    lines.push_back(BatchArtifact::candidate_wire(seed_cand, job.value().score_id(),
+                                                  job.value().score_version(), 9.5,
+                                                  job.value().backend(), 0));
+    lines.push_back(BatchArtifact::candidate_wire(other_cand, job.value().score_id(),
+                                                  job.value().score_version(), 15.0,
+                                                  job.value().backend(), 1));
 
     StatusOr<BatchArtifact> art = BatchArtifact::make(
-        job.value().workspace_id(),
-        "b-rt-20260921-0001",
-        "2026-09-21T19:31:00Z",
-        job.value().job_digest_sha256(),
-        prior.value().prior_digest_sha256(),
-        job.value().family(),
-        job.value().score_id(),
-        job.value().score_version(),
-        job.value().backend(),
-        job.value().k(),
-        job.value().seed(),
-        lines,
+        job.value().workspace_id(), "b-rt-20260921-0001", "2026-09-21T19:31:00Z",
+        job.value().job_digest_sha256(), prior.value().prior_digest_sha256(), job.value().family(),
+        job.value().score_id(), job.value().score_version(), job.value().backend(), job.value().k(),
+        job.value().seed(), lines,
         nlohmann::json{
             {"schema", "parcae.batch_report.v0"},
             {"seed_hypothesis_id", "h-seed"},
@@ -194,8 +153,7 @@ TEST_CASE(
     REQUIRE(art.ok());
     REQUIRE(art.value().store(tmp).ok());
 
-    StatusOr<BatchArtifact> art_loaded =
-        BatchArtifact::load(tmp, "rt-ws", "b-rt-20260921-0001");
+    StatusOr<BatchArtifact> art_loaded = BatchArtifact::load(tmp, "rt-ws", "b-rt-20260921-0001");
     REQUIRE(art_loaded.ok());
     REQUIRE(art_loaded.value().job_digest_sha256() == job.value().job_digest_sha256());
     REQUIRE(art_loaded.value().prior_digest_sha256() == prior.value().prior_digest_sha256());
@@ -207,36 +165,30 @@ TEST_CASE(
     // Re-parse job from digest-bearing artifact fields still matches.
     StatusOr<SearchJob> job_again = SearchJob::from_json(job_loaded.value().to_json());
     REQUIRE(job_again.ok());
-    REQUIRE(
-        job_again.value().job_digest_sha256() == art_loaded.value().job_digest_sha256());
+    REQUIRE(job_again.value().job_digest_sha256() == art_loaded.value().job_digest_sha256());
 
     std::filesystem::remove_all(tmp, ec);
 }
 
-TEST_CASE(
-    "SearchJob inline prior rejects soft weights; digests stay key-order stable",
-    "[search][roundtrip]") {
-    StatusOr<SearchPrior> prior = SearchPrior::make(
-        "_example",
-        {
-            SearchPrior::Seed(
-                "h-caesar-3",
-                nlohmann::json{
-                    {"transform_id", "caesar"},
-                    {"direction", "decrypt"},
-                    {"params", {{"shift", 3}}},
-                }),
-        },
-        {},
-        "2026-09-21T19:00:00Z");
+TEST_CASE("SearchJob inline prior rejects soft weights; digests stay key-order stable",
+          "[search][roundtrip]") {
+    StatusOr<SearchPrior> prior =
+        SearchPrior::make("_example",
+                          {
+                              SearchPrior::Seed("h-caesar-3",
+                                                nlohmann::json{
+                                                    {"transform_id", "caesar"},
+                                                    {"direction", "decrypt"},
+                                                    {"params", {{"shift", 3}}},
+                                                }),
+                          },
+                          {}, "2026-09-21T19:00:00Z");
     REQUIRE(prior.ok());
 
     nlohmann::json prior_a = prior.value().to_json();
     nlohmann::json prior_b{
-        {"built_utc", "2026-09-21T19:00:00Z"},
-        {"exclusions", nlohmann::json::array()},
-        {"seeds", prior_a.at("seeds")},
-        {"workspace_id", "_example"},
+        {"built_utc", "2026-09-21T19:00:00Z"}, {"exclusions", nlohmann::json::array()},
+        {"seeds", prior_a.at("seeds")},        {"workspace_id", "_example"},
         {"schema", "parcae.search_prior.v0"},
     };
     StatusOr<SearchPrior> pa = SearchPrior::from_json(prior_a);
@@ -247,41 +199,16 @@ TEST_CASE(
 
     nlohmann::json bad_prior = prior_a;
     bad_prior["weights"] = nlohmann::json{{"h-caesar-3", 0.5}};
-    REQUIRE_FALSE(SearchJob::make(
-                       "_example",
-                       "caesar",
-                       "chi2_english_gp_v0",
-                       1,
-                       1,
-                       Backend::Cpu,
-                       1,
-                       TransformDirection::Decrypt,
-                       nlohmann::json::object(),
-                       bad_prior)
-                       .ok());
+    REQUIRE_FALSE(SearchJob::make("_example", "caesar", "chi2_english_gp_v0", 1, 1, Backend::Cpu, 1,
+                                  TransformDirection::Decrypt, nlohmann::json::object(), bad_prior)
+                      .ok());
 
-    StatusOr<SearchJob> job_a = SearchJob::make(
-        "_example",
-        "caesar",
-        "chi2_english_gp_v0",
-        1,
-        1,
-        Backend::Cpu,
-        1,
-        TransformDirection::Decrypt,
-        nlohmann::json::object(),
-        prior_a);
-    StatusOr<SearchJob> job_b = SearchJob::make(
-        "_example",
-        "caesar",
-        "chi2_english_gp_v0",
-        1,
-        1,
-        Backend::Cpu,
-        1,
-        TransformDirection::Decrypt,
-        nlohmann::json::object(),
-        prior_b);
+    StatusOr<SearchJob> job_a =
+        SearchJob::make("_example", "caesar", "chi2_english_gp_v0", 1, 1, Backend::Cpu, 1,
+                        TransformDirection::Decrypt, nlohmann::json::object(), prior_a);
+    StatusOr<SearchJob> job_b =
+        SearchJob::make("_example", "caesar", "chi2_english_gp_v0", 1, 1, Backend::Cpu, 1,
+                        TransformDirection::Decrypt, nlohmann::json::object(), prior_b);
     REQUIRE(job_a.ok());
     REQUIRE(job_b.ok());
     REQUIRE(job_a.value().job_digest_sha256() == job_b.value().job_digest_sha256());

@@ -12,14 +12,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Bounded generator `gen_totient_offsets`.
 ///
@@ -32,11 +31,11 @@ public:
     static constexpr std::string_view generator_id = "gen_totient_offsets";
 
     /// Apply totient_prime_stream for each start index. Empty `starts` is an error.
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate(
-        std::span<const Index29> ciphertext,
-        const std::vector<std::size_t>& prime_start_indices,
-        TransformDirection direction = TransformDirection::Decrypt,
-        const InterruptPolicy& interrupt = InterruptPolicy::none()) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    generate(std::span<const Index29> ciphertext,
+             const std::vector<std::size_t>& prime_start_indices,
+             TransformDirection direction = TransformDirection::Decrypt,
+             const InterruptPolicy& interrupt = InterruptPolicy::none()) {
         if (prime_start_indices.empty()) {
             return Status::error(
                 "gen_totient_offsets requires a non-empty prime_start_indices list");
@@ -62,21 +61,15 @@ public:
             if (!plain.ok()) {
                 return plain.status();
             }
-            out.emplace_back(
-                make_candidate_id(start),
-                TransformId::totient_prime_stream(),
-                direction,
-                params,
-                std::move(plain.value()),
-                interrupt_json);
+            out.emplace_back(make_candidate_id(start), TransformId::totient_prime_stream(),
+                             direction, params, std::move(plain.value()), interrupt_json);
         }
         return out;
     }
 
     [[nodiscard]] static std::string make_candidate_id(std::size_t prime_start_index) {
-        return "totient_prime_stream:prime_start_index=" +
-               std::to_string(prime_start_index);
+        return "totient_prime_stream:prime_start_index=" + std::to_string(prime_start_index);
     }
 };
 
-#endif  // TOTIENT_OFFSET_CANDIDATE_GENERATOR_HPP
+#endif // TOTIENT_OFFSET_CANDIDATE_GENERATOR_HPP

@@ -1,41 +1,22 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/bench/bench_formatter.hpp>
 #include <parcae/bench/bench_report.hpp>
 #include <parcae/bench/bench_tier_spec.hpp>
 #include <parcae/core/version.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
 
 [[nodiscard]] static BenchReport::Document make_fixture_doc() {
     BenchReport::Document doc(BenchReport::Suite::Slo, "0.9.0-test");
-    const bool t1_pass = BenchTierSpec::pass_tier(
-        0.95 * BenchTierSpec::t1.estimated_peak,
-        BenchTierSpec::t1.slo_min,
-        BenchTierSpec::t1.estimated_peak);
-    doc.add_row(BenchReport::Row::from_tier_spec(
-        BenchTierSpec::t1,
-        BenchReport::Backend::Cuda,
-        0.95 * BenchTierSpec::t1.estimated_peak,
-        1.0e6,
-        0.42,
-        t1_pass));
-    doc.add_row(BenchReport::Row::make(
-        "A.score_parity",
-        "CPU vs CUDA chi2 digest",
-        BenchReport::Suite::Accuracy,
-        BenchReport::Backend::Both,
-        BenchReport::RowStatus::Pass,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0,
-        0,
-        0,
-        "epsilon ok"));
+    const bool t1_pass =
+        BenchTierSpec::pass_tier(0.95 * BenchTierSpec::t1.estimated_peak, BenchTierSpec::t1.slo_min,
+                                 BenchTierSpec::t1.estimated_peak);
+    doc.add_row(BenchReport::Row::from_tier_spec(BenchTierSpec::t1, BenchReport::Backend::Cuda,
+                                                 0.95 * BenchTierSpec::t1.estimated_peak, 1.0e6,
+                                                 0.42, t1_pass));
+    doc.add_row(BenchReport::Row::make("A.score_parity", "CPU vs CUDA chi2 digest",
+                                       BenchReport::Suite::Accuracy, BenchReport::Backend::Both,
+                                       BenchReport::RowStatus::Pass, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                       0, 0, 0, "epsilon ok"));
     return doc;
 }
 TEST_CASE("BenchReport suite backend status strings", "[bench][report]") {
@@ -86,13 +67,9 @@ TEST_CASE("BenchReport omit_timing dump is stable across calls", "[bench][report
 
 TEST_CASE("BenchReport fail row clears all_pass", "[bench][report]") {
     BenchReport::Document doc(BenchReport::Suite::Slo);
-    doc.add_row(BenchReport::Row::from_tier_spec(
-        BenchTierSpec::t3,
-        BenchReport::Backend::Cuda,
-        0.1e9,  // below SLO
-        0.0,
-        1.0,
-        false));
+    doc.add_row(BenchReport::Row::from_tier_spec(BenchTierSpec::t3, BenchReport::Backend::Cuda,
+                                                 0.1e9, // below SLO
+                                                 0.0, 1.0, false));
     REQUIRE_FALSE(doc.all_pass());
     REQUIRE(doc.to_json(true).at("ok").get<bool>() == false);
 }
@@ -100,21 +77,10 @@ TEST_CASE("BenchReport fail row clears all_pass", "[bench][report]") {
 TEST_CASE("BenchReport skipped rows do not fail all_pass", "[bench][report]") {
     BenchReport::Document doc(BenchReport::Suite::Hardware);
     doc.add_row(BenchReport::Row::make(
-        "T1",
-        "cpu scaled",
-        BenchReport::Suite::Hardware,
-        BenchReport::Backend::Cpu,
-        BenchReport::RowStatus::Skipped,
-        0.0,
-        0.0,
-        0.0,
-        BenchTierSpec::t1.slo_min,
-        BenchTierSpec::t1.slo_max,
-        BenchTierSpec::t1.estimated_peak,
-        BenchTierSpec::t1.candidates,
-        BenchTierSpec::t1.tokens,
-        BenchTierSpec::t1.repeats,
-        "cuda not built"));
+        "T1", "cpu scaled", BenchReport::Suite::Hardware, BenchReport::Backend::Cpu,
+        BenchReport::RowStatus::Skipped, 0.0, 0.0, 0.0, BenchTierSpec::t1.slo_min,
+        BenchTierSpec::t1.slo_max, BenchTierSpec::t1.estimated_peak, BenchTierSpec::t1.candidates,
+        BenchTierSpec::t1.tokens, BenchTierSpec::t1.repeats, "cuda not built"));
     REQUIRE(doc.all_pass());
 }
 

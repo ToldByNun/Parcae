@@ -1,3 +1,7 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <parcae/core/index29.hpp>
 #include <parcae/core/sha256.hpp>
 #include <parcae/generate/transform_candidate.hpp>
@@ -16,12 +20,6 @@
 #include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <cstdint>
-#include <filesystem>
-#include <fstream>
 #include <string>
 #include <vector>
 
@@ -51,71 +49,49 @@ namespace {
     std::filesystem::create_directories(root / "workspaces", ec);
     std::filesystem::create_directories(root / "profiles" / "scores", ec);
     std::filesystem::create_directories(root / "profiles" / "gematria", ec);
-    std::filesystem::copy_file(
-        repo_data() / "profiles" / "scores" / "english-gp-expected-v0.json",
-        root / "profiles" / "scores" / "english-gp-expected-v0.json",
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    std::filesystem::copy_file(repo_data() / "profiles" / "scores" / "english-gp-expected-v0.json",
+                               root / "profiles" / "scores" / "english-gp-expected-v0.json",
+                               std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE(!ec);
-    std::filesystem::copy_file(
-        repo_data() / "profiles" / "gematria" / "gematria-primus-v0.json",
-        root / "profiles" / "gematria" / "gematria-primus-v0.json",
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    std::filesystem::copy_file(repo_data() / "profiles" / "gematria" / "gematria-primus-v0.json",
+                               root / "profiles" / "gematria" / "gematria-primus-v0.json",
+                               std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE(!ec);
     return root;
 }
 
-[[nodiscard]] TransformCandidate caesar_candidate(
-    std::uint8_t shift,
-    const std::vector<Index29>& output) {
-    return TransformCandidate(
-        "caesar:shift=" + std::to_string(shift),
-        TransformId::caesar(),
-        TransformDirection::Decrypt,
-        nlohmann::json{{"shift", static_cast<int>(shift)}},
-        output);
+[[nodiscard]] TransformCandidate caesar_candidate(std::uint8_t shift,
+                                                  const std::vector<Index29>& output) {
+    return TransformCandidate("caesar:shift=" + std::to_string(shift), TransformId::caesar(),
+                              TransformDirection::Decrypt,
+                              nlohmann::json{{"shift", static_cast<int>(shift)}}, output);
 }
 
-[[nodiscard]] StatusOr<BatchArtifact> make_batch(
-    std::string_view workspace_id,
-    std::string_view batch_id,
-    std::vector<nlohmann::json> lines) {
+[[nodiscard]] StatusOr<BatchArtifact> make_batch(std::string_view workspace_id,
+                                                 std::string_view batch_id,
+                                                 std::vector<nlohmann::json> lines) {
     const std::size_t k = lines.empty() ? 1 : lines.size();
-    StatusOr<SearchJob> job = SearchJob::make(
-        workspace_id, "caesar", "chi2_english_gp_v0", k, 1, Backend::Cpu, 64);
+    StatusOr<SearchJob> job =
+        SearchJob::make(workspace_id, "caesar", "chi2_english_gp_v0", k, 1, Backend::Cpu, 64);
     if (!job.ok()) {
         return job.status();
     }
-    StatusOr<SearchPrior> prior =
-        SearchPrior::make(workspace_id, {}, {}, "2026-09-22T12:00:00Z");
+    StatusOr<SearchPrior> prior = SearchPrior::make(workspace_id, {}, {}, "2026-09-22T12:00:00Z");
     if (!prior.ok()) {
         return prior.status();
     }
-    return BatchArtifact::make(
-        workspace_id,
-        batch_id,
-        "2026-09-22T12:00:01Z",
-        job.value().job_digest_sha256(),
-        prior.value().prior_digest_sha256(),
-        "caesar",
-        "chi2_english_gp_v0",
-        "v0",
-        Backend::Cpu,
-        k,
-        1,
-        std::move(lines));
+    return BatchArtifact::make(workspace_id, batch_id, "2026-09-22T12:00:01Z",
+                               job.value().job_digest_sha256(), prior.value().prior_digest_sha256(),
+                               "caesar", "chi2_english_gp_v0", "v0", Backend::Cpu, k, 1,
+                               std::move(lines));
 }
 
 /// Mirror `parcae-hypothesis score` library path (search-loop post-pass).
-[[nodiscard]] Status score_hypothesis_like_cli(
-    const std::filesystem::path& data_root,
-    const Context& ctx,
-    std::string_view workspace_id,
-    std::string_view hypothesis_id,
-    std::span<const Index29> cipher,
-    std::string_view score_id,
-    std::string_view utc) {
+[[nodiscard]] Status score_hypothesis_like_cli(const std::filesystem::path& data_root,
+                                               const Context& ctx, std::string_view workspace_id,
+                                               std::string_view hypothesis_id,
+                                               std::span<const Index29> cipher,
+                                               std::string_view score_id, std::string_view utc) {
     StatusOr<HypothesisRecord> loaded =
         HypothesisRecord::load(data_root, workspace_id, hypothesis_id);
     if (!loaded.ok()) {
@@ -123,13 +99,11 @@ namespace {
     }
     HypothesisRecord record = std::move(loaded.value());
 
-    StatusOr<TransformEnvelope> envelope =
-        TransformEnvelope::from_json(record.method());
+    StatusOr<TransformEnvelope> envelope = TransformEnvelope::from_json(record.method());
     if (!envelope.ok()) {
         return envelope.status();
     }
-    StatusOr<std::vector<Index29>> plain =
-        ToolApi::apply_to_indices(cipher, envelope.value());
+    StatusOr<std::vector<Index29>> plain = ToolApi::apply_to_indices(cipher, envelope.value());
     if (!plain.ok()) {
         return plain.status();
     }
@@ -183,8 +157,7 @@ namespace {
     return std::string("\"") + arg + '"';
 }
 
-[[nodiscard]] std::pair<int, std::string> run_hypothesis_cli(
-    const std::vector<std::string>& args) {
+[[nodiscard]] std::pair<int, std::string> run_hypothesis_cli(const std::vector<std::string>& args) {
     const auto tmp = std::filesystem::temp_directory_path();
     const std::filesystem::path out_path = tmp / "parcae_f22_hyp_out.json";
     const std::filesystem::path err_path = tmp / "parcae_f22_hyp_err.txt";
@@ -198,8 +171,8 @@ namespace {
         for (const std::string& arg : args) {
             script << ' ' << quote_arg(arg);
         }
-        script << " >" << quote_arg(out_path.string()) << " 2>"
-               << quote_arg(err_path.string()) << "\r\n";
+        script << " >" << quote_arg(out_path.string()) << " 2>" << quote_arg(err_path.string())
+               << "\r\n";
         script << "exit /B %ERRORLEVEL%\r\n";
     }
 
@@ -221,11 +194,10 @@ namespace {
 }
 #endif
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "ingest → hypothesis_score path → set-status rejected/promoted",
-    "[search][bridge][score]") {
+TEST_CASE("ingest → hypothesis_score path → set-status rejected/promoted",
+          "[search][bridge][score]") {
     const auto root = make_sandbox("parcae_hypothesis_bridge_f22_score");
     const Context ctx{root};
 
@@ -234,12 +206,12 @@ TEST_CASE(
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
-    const std::vector<Index29> plain = {
-        Index29{0}, Index29{1}, Index29{2}, Index29{3}, Index29{4}, Index29{5}, Index29{6},
-        Index29{7}, Index29{8}, Index29{9}, Index29{10}, Index29{11}, Index29{12},
-        Index29{13}, Index29{14}, Index29{15}};
-    StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-        plain, nlohmann::json{{"shift", 7}}, TransformDirection::Encrypt);
+    const std::vector<Index29> plain = {Index29{0},  Index29{1},  Index29{2},  Index29{3},
+                                        Index29{4},  Index29{5},  Index29{6},  Index29{7},
+                                        Index29{8},  Index29{9},  Index29{10}, Index29{11},
+                                        Index29{12}, Index29{13}, Index29{14}, Index29{15}};
+    StatusOr<std::vector<Index29>> cipher =
+        CaesarTransform{}.apply(plain, nlohmann::json{{"shift", 7}}, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
 
     StatusOr<std::vector<Index29>> out7 = CaesarTransform{}.apply(
@@ -251,48 +223,34 @@ TEST_CASE(
 
     std::vector<nlohmann::json> lines;
     lines.push_back(BatchArtifact::candidate_wire(
-        caesar_candidate(7, out7.value()),
-        "chi2_english_gp_v0",
-        "v0",
-        1.0,
-        Backend::Cpu,
-        0));
+        caesar_candidate(7, out7.value()), "chi2_english_gp_v0", "v0", 1.0, Backend::Cpu, 0));
     lines.push_back(BatchArtifact::candidate_wire(
-        caesar_candidate(3, out3.value()),
-        "chi2_english_gp_v0",
-        "v0",
-        9.0,
-        Backend::Cpu,
-        1));
+        caesar_candidate(3, out3.value()), "chi2_english_gp_v0", "v0", 9.0, Backend::Cpu, 1));
 
     StatusOr<BatchArtifact> art = make_batch("f22-ws", "b-f22-0001", std::move(lines));
     REQUIRE(art.ok());
     REQUIRE(art.value().store(root).ok());
 
-    StatusOr<HypothesisBridge::Result> ingested =
-        HypothesisBridge::ingest(root, art.value());
+    StatusOr<HypothesisBridge::Result> ingested = HypothesisBridge::ingest(root, art.value());
     REQUIRE(ingested.ok());
     REQUIRE(ingested.value().created_ids().size() == 2);
 
-    const std::string id7 = HypothesisBridge::hypothesis_id_for(
-        "f22-ws", "b-f22-0001", "caesar:shift=7");
-    const std::string id3 = HypothesisBridge::hypothesis_id_for(
-        "f22-ws", "b-f22-0001", "caesar:shift=3");
+    const std::string id7 =
+        HypothesisBridge::hypothesis_id_for("f22-ws", "b-f22-0001", "caesar:shift=7");
+    const std::string id3 =
+        HypothesisBridge::hypothesis_id_for("f22-ws", "b-f22-0001", "caesar:shift=3");
 
-    StatusOr<HypothesisRecord> before =
-        HypothesisRecord::load(root, "f22-ws", id7);
+    StatusOr<HypothesisRecord> before = HypothesisRecord::load(root, "f22-ws", id7);
     REQUIRE(before.ok());
     REQUIRE(before.value().status() == HypothesisStatus::Proposed);
     REQUIRE(before.value().scores().empty());
     REQUIRE(before.value().source().at("batch_id").get<std::string>() == "b-f22-0001");
 
-    REQUIRE(score_hypothesis_like_cli(
-                root, ctx, "f22-ws", id7, cipher.value(), "chi2_english_gp_v0",
-                "2026-09-22T12:01:00Z")
+    REQUIRE(score_hypothesis_like_cli(root, ctx, "f22-ws", id7, cipher.value(),
+                                      "chi2_english_gp_v0", "2026-09-22T12:01:00Z")
                 .ok());
-    REQUIRE(score_hypothesis_like_cli(
-                root, ctx, "f22-ws", id3, cipher.value(), "chi2_english_gp_v0",
-                "2026-09-22T12:01:00Z")
+    REQUIRE(score_hypothesis_like_cli(root, ctx, "f22-ws", id3, cipher.value(),
+                                      "chi2_english_gp_v0", "2026-09-22T12:01:00Z")
                 .ok());
 
     StatusOr<HypothesisRecord> scored7 = HypothesisRecord::load(root, "f22-ws", id7);
@@ -337,9 +295,7 @@ TEST_CASE(
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
 
-TEST_CASE(
-    "CLI hypothesis_score + set-status after bridge ingest",
-    "[search][bridge][score][cli]") {
+TEST_CASE("CLI hypothesis_score + set-status after bridge ingest", "[search][bridge][score][cli]") {
     const auto root = make_sandbox("parcae_hypothesis_bridge_f22_cli");
 
     StatusOr<WorkspaceManifest> ws =
@@ -347,10 +303,10 @@ TEST_CASE(
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
-    const std::vector<Index29> plain = {
-        Index29{19}, Index29{7}, Index29{4}, Index29{0}, Index29{13}, Index29{6}};
-    StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-        plain, nlohmann::json{{"shift", 5}}, TransformDirection::Encrypt);
+    const std::vector<Index29> plain = {Index29{19}, Index29{7},  Index29{4},
+                                        Index29{0},  Index29{13}, Index29{6}};
+    StatusOr<std::vector<Index29>> cipher =
+        CaesarTransform{}.apply(plain, nlohmann::json{{"shift", 5}}, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
     StatusOr<std::vector<Index29>> out = CaesarTransform{}.apply(
         cipher.value(), nlohmann::json{{"shift", 5}}, TransformDirection::Decrypt);
@@ -371,33 +327,18 @@ TEST_CASE(
 
     std::vector<nlohmann::json> lines;
     lines.push_back(BatchArtifact::candidate_wire(
-        caesar_candidate(5, out.value()),
-        "chi2_english_gp_v0",
-        "v0",
-        1.0,
-        Backend::Cpu,
-        0));
+        caesar_candidate(5, out.value()), "chi2_english_gp_v0", "v0", 1.0, Backend::Cpu, 0));
     StatusOr<BatchArtifact> art = make_batch("f22-cli-ws", "b-f22-cli", std::move(lines));
     REQUIRE(art.ok());
     REQUIRE(HypothesisBridge::ingest(root, art.value()).ok());
 
-    const std::string hid = HypothesisBridge::hypothesis_id_for(
-        "f22-cli-ws", "b-f22-cli", "caesar:shift=5");
+    const std::string hid =
+        HypothesisBridge::hypothesis_id_for("f22-cli-ws", "b-f22-cli", "caesar:shift=5");
 
-    const auto [score_exit, score_out] = run_hypothesis_cli(
-        {"--data-dir",
-         root.string(),
-         "score",
-         "--workspace",
-         "f22-cli-ws",
-         "--id",
-         hid,
-         "--indices",
-         "--input",
-         cipher_path.string(),
-         "--score-id",
-         "chi2_english_gp_v0",
-         "--json"});
+    const auto [score_exit, score_out] =
+        run_hypothesis_cli({"--data-dir", root.string(), "score", "--workspace", "f22-cli-ws",
+                            "--id", hid, "--indices", "--input", cipher_path.string(), "--score-id",
+                            "chi2_english_gp_v0", "--json"});
     INFO(score_out);
     REQUIRE(score_exit == 0);
 
@@ -406,17 +347,9 @@ TEST_CASE(
     REQUIRE(scored.value().status() == HypothesisStatus::Scored);
     REQUIRE(scored.value().scores().size() == 1);
 
-    const auto [status_exit, status_out] = run_hypothesis_cli(
-        {"--data-dir",
-         root.string(),
-         "set-status",
-         "--workspace",
-         "f22-cli-ws",
-         "--id",
-         hid,
-         "--status",
-         "rejected",
-         "--json"});
+    const auto [status_exit, status_out] =
+        run_hypothesis_cli({"--data-dir", root.string(), "set-status", "--workspace", "f22-cli-ws",
+                            "--id", hid, "--status", "rejected", "--json"});
     INFO(status_out);
     REQUIRE(status_exit == 0);
 
@@ -430,9 +363,8 @@ TEST_CASE(
 
 #else
 
-TEST_CASE(
-    "CLI hypothesis_score after ingest skipped (no CLI goldens)",
-    "[search][bridge][score][cli]") {
+TEST_CASE("CLI hypothesis_score after ingest skipped (no CLI goldens)",
+          "[search][bridge][score][cli]") {
     SUCCEED("PARCAE_HAS_CLI_GOLDENS unset — library score path covered above");
 }
 

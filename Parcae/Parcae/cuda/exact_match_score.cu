@@ -1,17 +1,14 @@
-#include "exact_match_score.hpp"
-
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
+#include "exact_match_score.hpp"
 
 #include <cuda_runtime_api.h>
 
 constexpr int kExactMatchThreads = 256;
 
-static __global__ void exact_match_mismatch_kernel(
-    const std::uint8_t* candidate,
-    const std::uint8_t* reference,
-    std::size_t count,
-    unsigned long long* mismatch_count) {
+static __global__ void exact_match_mismatch_kernel(const std::uint8_t* candidate,
+                                                   const std::uint8_t* reference, std::size_t count,
+                                                   unsigned long long* mismatch_count) {
     __shared__ unsigned long long shared[kExactMatchThreads];
 
     unsigned long long local = 0;
@@ -20,8 +17,7 @@ static __global__ void exact_match_mismatch_kernel(
     for (std::size_t i =
              static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
              static_cast<std::size_t>(threadIdx.x);
-         i < count;
-         i += stride) {
+         i < count; i += stride) {
         if (candidate[i] != reference[i]) {
             ++local;
         }
@@ -42,11 +38,10 @@ static __global__ void exact_match_mismatch_kernel(
     }
 }
 
-Status ExactMatchScore::count_mismatches_device(
-    const std::uint8_t* device_candidate,
-    const std::uint8_t* device_reference,
-    std::size_t count,
-    unsigned long long* device_mismatch_count) {
+Status ExactMatchScore::count_mismatches_device(const std::uint8_t* device_candidate,
+                                                const std::uint8_t* device_reference,
+                                                std::size_t count,
+                                                unsigned long long* device_mismatch_count) {
     if (count == 0) {
         return Status::success();
     }
@@ -55,24 +50,23 @@ Status ExactMatchScore::count_mismatches_device(
         return Status::error("ExactMatchScore::count_mismatches_device null device pointer");
     }
 
-    const int blocks = static_cast<int>(
-        (count + static_cast<std::size_t>(kExactMatchThreads) - 1u) /
-        static_cast<std::size_t>(kExactMatchThreads));
-    exact_match_mismatch_kernel<<<blocks, kExactMatchThreads>>>(
-        device_candidate, device_reference, count, device_mismatch_count);
+    const int blocks =
+        static_cast<int>((count + static_cast<std::size_t>(kExactMatchThreads) - 1u) /
+                         static_cast<std::size_t>(kExactMatchThreads));
+    exact_match_mismatch_kernel<<<blocks, kExactMatchThreads>>>(device_candidate, device_reference,
+                                                                count, device_mismatch_count);
 
     Status launch =
         CudaError::to_status(cudaGetLastError(), "ExactMatchScore::count_mismatches_device");
     if (!launch.ok()) {
         return launch;
     }
-    return CudaError::to_status(
-        cudaDeviceSynchronize(), "ExactMatchScore::count_mismatches_device sync");
+    return CudaError::to_status(cudaDeviceSynchronize(),
+                                "ExactMatchScore::count_mismatches_device sync");
 }
 
-StatusOr<double> ExactMatchScore::score_host(
-    std::span<const std::uint8_t> candidate,
-    std::span<const std::uint8_t> reference) {
+StatusOr<double> ExactMatchScore::score_host(std::span<const std::uint8_t> candidate,
+                                             std::span<const std::uint8_t> reference) {
     if (candidate.size() != reference.size()) {
         return 0.0;
     }
@@ -97,16 +91,14 @@ StatusOr<double> ExactMatchScore::score_host(
         return device_count.status();
     }
     const unsigned long long zero = 0;
-    Status cleared = device_count.value().copy_from_host(std::span<const unsigned long long>(&zero, 1));
+    Status cleared =
+        device_count.value().copy_from_host(std::span<const unsigned long long>(&zero, 1));
     if (!cleared.ok()) {
         return cleared;
     }
 
-    Status counted = count_mismatches_device(
-        device_cand.value().data(),
-        device_ref.value().data(),
-        candidate.size(),
-        device_count.value().data());
+    Status counted = count_mismatches_device(device_cand.value().data(), device_ref.value().data(),
+                                             candidate.size(), device_count.value().data());
     if (!counted.ok()) {
         return counted;
     }

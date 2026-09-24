@@ -1,22 +1,16 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_exec_scope.hpp>
 #include <parcae/dsl/dsl_scope_analyzer.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
 
 namespace {
 
 [[nodiscard]] std::string minimal_success_doc(const std::string& module_json) {
-    return std::string("{") +
-           R"("schema":"parcae.dsl_ast_json.v0",)" +
-           R"("dsl_ast_json_version":"1.0.0",)" +
-           R"("source_path":"theories/x.py",)" +
+    return std::string("{") + R"("schema":"parcae.dsl_ast_json.v0",)" +
+           R"("dsl_ast_json_version":"1.0.0",)" + R"("source_path":"theories/x.py",)" +
            R"("source_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",)" +
-           R"("python_version":"3.12.0",)" +
-           R"("ok":true,)" +
-           R"("module":)" + module_json + "}";
+           R"("python_version":"3.12.0",)" + R"("ok":true,)" + R"("module":)" + module_json + "}";
 }
 
 [[nodiscard]] DslAstDocument ingest_or_fail(const std::string& module_json) {
@@ -26,9 +20,7 @@ namespace {
     return doc.value();
 }
 
-[[nodiscard]] const DslAstNode* require_body_stmt(
-    const DslAstNode& parent,
-    std::size_t index) {
+[[nodiscard]] const DslAstNode* require_body_stmt(const DslAstNode& parent, std::size_t index) {
     const DslAstValue* body = parent.find_field("body");
     REQUIRE(body);
     REQUIRE(body->type() == DslAstValue::Type::Array);
@@ -46,7 +38,7 @@ namespace {
     return scope.value();
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("DslExecScope defaults and enter_loop", "[dsl][scope]") {
     const DslExecScope outer;
@@ -92,9 +84,7 @@ TEST_CASE("DslScopeAnalyzer marks module Assign as OuterControl", "[dsl][scope]"
     REQUIRE(scope.loop_depth() == 0);
 }
 
-TEST_CASE(
-    "DslScopeAnalyzer marks define_primitive body as HotLoop",
-    "[dsl][scope]") {
+TEST_CASE("DslScopeAnalyzer marks define_primitive body as HotLoop", "[dsl][scope]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,
       "body":[{
@@ -125,9 +115,8 @@ TEST_CASE(
     REQUIRE(body.loop_depth() == 0);
 }
 
-TEST_CASE(
-    "DslScopeAnalyzer Theory encrypt_step HotLoop vs step_params OuterControl",
-    "[dsl][scope]") {
+TEST_CASE("DslScopeAnalyzer Theory encrypt_step HotLoop vs step_params OuterControl",
+          "[dsl][scope]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,
       "body":[{
@@ -170,9 +159,7 @@ TEST_CASE(
     REQUIRE(require_scope(map.value(), require_body_stmt(*encrypt, 0)).is_hot_loop());
 }
 
-TEST_CASE(
-    "DslScopeAnalyzer OuterControl for increases loop_depth",
-    "[dsl][scope]") {
+TEST_CASE("DslScopeAnalyzer OuterControl for increases loop_depth", "[dsl][scope]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,
       "body":[{
@@ -196,9 +183,7 @@ TEST_CASE(
     REQUIRE(pass_scope.loop_depth() == 1);
 }
 
-TEST_CASE(
-    "DslScopeAnalyzer HotLoop nested While depth accumulates",
-    "[dsl][scope]") {
+TEST_CASE("DslScopeAnalyzer HotLoop nested While depth accumulates", "[dsl][scope]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,
       "body":[{
@@ -244,9 +229,7 @@ TEST_CASE(
     REQUIRE(pass_s.loop_depth() == 2);
 }
 
-TEST_CASE(
-    "DslScopeAnalyzer interrupt_policy body is HotLoop",
-    "[dsl][scope]") {
+TEST_CASE("DslScopeAnalyzer interrupt_policy body is HotLoop", "[dsl][scope]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,
       "body":[{

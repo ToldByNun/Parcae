@@ -10,14 +10,13 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Persist / load CPU-dispatch IR for a compiled theory (`apply_ir.json`).
 /// Schema: `parcae.theory_apply_ir.v0` — encrypt/decrypt Z29Expr trees + params.
@@ -26,9 +25,8 @@ class TheoryApplyIr {
 public:
     static constexpr std::string_view schema_id = "parcae.theory_apply_ir.v0";
 
-    [[nodiscard]] static StatusOr<nlohmann::json> to_json(
-        const TheoryIr& theory,
-        std::string_view cipher_var = "x") {
+    [[nodiscard]] static StatusOr<nlohmann::json> to_json(const TheoryIr& theory,
+                                                          std::string_view cipher_var = "x") {
         if (cipher_var.empty()) {
             return Status::error("TheoryApplyIr cipher_var must be non-empty");
         }
@@ -73,8 +71,7 @@ public:
         }
         if (!root.contains("schema") || !root.at("schema").is_string() ||
             root.at("schema").get<std::string>() != schema_id) {
-            return Status::error(
-                "TheoryApplyIr.schema must be " + std::string(schema_id));
+            return Status::error("TheoryApplyIr.schema must be " + std::string(schema_id));
         }
         if (!root.contains("name") || !root.at("name").is_string()) {
             return Status::error("TheoryApplyIr.name is required");
@@ -90,8 +87,7 @@ public:
         if (!family.ok()) {
             return family.status();
         }
-        StatusOr<TheoryIr::Tier> tier =
-            TheoryIr::parse_tier(root.at("tier").get<std::string>());
+        StatusOr<TheoryIr::Tier> tier = TheoryIr::parse_tier(root.at("tier").get<std::string>());
         if (!tier.ok()) {
             return tier.status();
         }
@@ -119,10 +115,9 @@ public:
                     !row.contains("max") || !row.at("max").is_number_integer()) {
                     return Status::error("TheoryApplyIr.params entries must be {name,min,max}");
                 }
-                StatusOr<ParamIr> p = ParamIr::make(
-                    row.at("name").get<std::string>(),
-                    row.at("min").get<std::int64_t>(),
-                    row.at("max").get<std::int64_t>());
+                StatusOr<ParamIr> p = ParamIr::make(row.at("name").get<std::string>(),
+                                                    row.at("min").get<std::int64_t>(),
+                                                    row.at("max").get<std::int64_t>());
                 if (!p.ok()) {
                     return p.status();
                 }
@@ -150,15 +145,9 @@ public:
             claim = root.at("structural_claim").get<std::string>();
         }
 
-        return TheoryIr::make(
-            root.at("name").get<std::string>(),
-            family.value(),
-            tier.value(),
-            interrupts,
-            std::move(params),
-            std::move(enc.value()),
-            std::move(dec.value()),
-            std::move(claim));
+        return TheoryIr::make(root.at("name").get<std::string>(), family.value(), tier.value(),
+                              interrupts, std::move(params), std::move(enc.value()),
+                              std::move(dec.value()), std::move(claim));
     }
 
     [[nodiscard]] static StatusOr<std::string> cipher_var_from_json(const nlohmann::json& root) {
@@ -172,10 +161,8 @@ public:
         return v;
     }
 
-    [[nodiscard]] static Status write(
-        const std::filesystem::path& path,
-        const TheoryIr& theory,
-        std::string_view cipher_var = "x") {
+    [[nodiscard]] static Status write(const std::filesystem::path& path, const TheoryIr& theory,
+                                      std::string_view cipher_var = "x") {
         StatusOr<nlohmann::json> json = to_json(theory, cipher_var);
         if (!json.ok()) {
             return json.status();
@@ -210,8 +197,7 @@ public:
         return from_json(root);
     }
 
-    [[nodiscard]] static StatusOr<std::string> load_cipher_var(
-        const std::filesystem::path& path) {
+    [[nodiscard]] static StatusOr<std::string> load_cipher_var(const std::filesystem::path& path) {
         std::ifstream in(path, std::ios::binary);
         if (!in) {
             return Status::error("failed to open apply_ir: " + path.string());
@@ -230,8 +216,8 @@ public:
 private:
     TheoryApplyIr() = delete;
 
-    [[nodiscard]] static constexpr std::string_view interrupt_str(
-        TheoryIr::InterruptMode m) noexcept {
+    [[nodiscard]] static constexpr std::string_view
+    interrupt_str(TheoryIr::InterruptMode m) noexcept {
         switch (m) {
         case TheoryIr::InterruptMode::PolicyMethod:
             return "policy_method";
@@ -243,8 +229,7 @@ private:
         return "elementwise_default";
     }
 
-    [[nodiscard]] static StatusOr<TheoryIr::InterruptMode> parse_interrupt(
-        std::string_view text) {
+    [[nodiscard]] static StatusOr<TheoryIr::InterruptMode> parse_interrupt(std::string_view text) {
         if (text == "policy_method") {
             return TheoryIr::InterruptMode::PolicyMethod;
         }
@@ -451,11 +436,10 @@ private:
             if (!f.ok()) {
                 return f.status();
             }
-            nlohmann::json out{
-                {"kind", kind.value()},
-                {"cond", std::move(c.value())},
-                {"if_true", std::move(t.value())},
-                {"if_false", std::move(f.value())}};
+            nlohmann::json out{{"kind", kind.value()},
+                               {"cond", std::move(c.value())},
+                               {"if_true", std::move(t.value())},
+                               {"if_false", std::move(f.value())}};
             if (node->prefer_branch()) {
                 out["prefer_branch"] = true;
             }
@@ -477,10 +461,9 @@ private:
             if (!right.ok()) {
                 return right.status();
             }
-            return nlohmann::json{
-                {"kind", kind.value()},
-                {"left", std::move(left.value())},
-                {"right", std::move(right.value())}};
+            return nlohmann::json{{"kind", kind.value()},
+                                  {"left", std::move(left.value())},
+                                  {"right", std::move(right.value())}};
         }
         return Status::error("unsupported Z29Expr kind in TheoryApplyIr");
     }
@@ -510,8 +493,8 @@ private:
             return Z29Expr::var(root.at("name").get<std::string>());
         }
         if (kind.value() == Z29Expr::Kind::Call) {
-            if (!root.contains("name") || !root.at("name").is_string() ||
-                !root.contains("args") || !root.at("args").is_array()) {
+            if (!root.contains("name") || !root.at("name").is_string() || !root.contains("args") ||
+                !root.at("args").is_array()) {
                 return Status::error("call Z29Expr requires name and args");
             }
             std::vector<Z29Expr::Ptr> args;
@@ -540,11 +523,8 @@ private:
             if (!f.ok()) {
                 return f.status();
             }
-            return Z29Expr::make_select(
-                std::move(c.value()),
-                std::move(t.value()),
-                std::move(f.value()),
-                root.value("prefer_branch", false));
+            return Z29Expr::make_select(std::move(c.value()), std::move(t.value()),
+                                        std::move(f.value()), root.value("prefer_branch", false));
         }
         if (Z29Expr::is_unary(kind.value())) {
             if (!root.contains("arg")) {
@@ -568,8 +548,8 @@ private:
             if (!right.ok()) {
                 return right.status();
             }
-            return Z29Expr::make_binary(
-                kind.value(), std::move(left.value()), std::move(right.value()));
+            return Z29Expr::make_binary(kind.value(), std::move(left.value()),
+                                        std::move(right.value()));
         }
         return Status::error("unsupported Z29Expr kind in TheoryApplyIr");
     }

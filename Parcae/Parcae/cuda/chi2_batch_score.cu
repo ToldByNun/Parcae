@@ -1,14 +1,11 @@
 #include "chi2_batch_score.hpp"
-
 #include "cuda_error.hpp"
 #include "hist_fast.hpp"
 
 #include <cuda_runtime_api.h>
 
-__global__ void chi2_hist_from_out_kernel(
-    const std::uint8_t* out,
-    std::uint32_t* counts,
-    std::size_t token_count) {
+__global__ void chi2_hist_from_out_kernel(const std::uint8_t* out, std::uint32_t* counts,
+                                          std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     HistFast::clear_private(priv);
 
@@ -18,22 +15,18 @@ __global__ void chi2_hist_from_out_kernel(
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     const std::uint8_t* lane = out + candidate * token_count;
 
-    for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
-                         static_cast<std::size_t>(threadIdx.x);
-         t < token_count;
-         t += stride) {
+    for (std::size_t t =
+             tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
+         t < token_count; t += stride) {
         HistFast::add_private(priv, lane[t]);
     }
-    HistFast::flush_private(
-        priv, counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
+    HistFast::flush_private(priv,
+                            counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
-__global__ void chi2_finalize_kernel(
-    const std::uint32_t* counts,
-    const double* probabilities,
-    double* scores,
-    std::size_t candidate_count,
-    std::size_t token_count) {
+__global__ void chi2_finalize_kernel(const std::uint32_t* counts, const double* probabilities,
+                                     double* scores, std::size_t candidate_count,
+                                     std::size_t token_count) {
     const std::size_t c =
         static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
         static_cast<std::size_t>(threadIdx.x);
@@ -44,7 +37,7 @@ __global__ void chi2_finalize_kernel(
     const double n_d = static_cast<double>(token_count);
     double chi2 = 0.0;
     const std::uint32_t* obs = counts + c * HistFast::alphabet;
-    #pragma unroll
+#pragma unroll
     for (int i = 0; i < HistFast::alphabet; ++i) {
         const double e = probabilities[i] * n_d;
         const double diff = static_cast<double>(obs[i]) - e;
@@ -57,11 +50,10 @@ int Chi2BatchScore::tiles_for(std::size_t token_count) {
     return HistFast::tiles_for(token_count);
 }
 
-Status Chi2BatchScore::histogram_from_out_async(
-    const std::uint8_t* device_out,
-    std::uint32_t* device_counts,
-    std::size_t candidate_count,
-    std::size_t token_count) {
+Status Chi2BatchScore::histogram_from_out_async(const std::uint8_t* device_out,
+                                                std::uint32_t* device_counts,
+                                                std::size_t candidate_count,
+                                                std::size_t token_count) {
     if (candidate_count == 0 || candidate_count > kMaxCandidates) {
         return Status::error("Chi2BatchScore::histogram_from_out_async bad C");
     }
@@ -72,20 +64,15 @@ Status Chi2BatchScore::histogram_from_out_async(
         return Status::error("Chi2BatchScore::histogram_from_out_async null");
     }
 
-    const dim3 grid(
-        static_cast<unsigned>(candidate_count),
-        static_cast<unsigned>(tiles_for(token_count)));
-    chi2_hist_from_out_kernel<<<grid, HistFast::threads>>>(
-        device_out, device_counts, token_count);
+    const dim3 grid(static_cast<unsigned>(candidate_count),
+                    static_cast<unsigned>(tiles_for(token_count)));
+    chi2_hist_from_out_kernel<<<grid, HistFast::threads>>>(device_out, device_counts, token_count);
     return CudaError::to_status(cudaGetLastError(), "Chi2BatchScore::histogram_from_out");
 }
 
-Status Chi2BatchScore::finalize_async(
-    const std::uint32_t* device_counts,
-    const double* device_probabilities,
-    double* device_scores,
-    std::size_t candidate_count,
-    std::size_t token_count) {
+Status Chi2BatchScore::finalize_async(const std::uint32_t* device_counts,
+                                      const double* device_probabilities, double* device_scores,
+                                      std::size_t candidate_count, std::size_t token_count) {
     if (candidate_count == 0 || candidate_count > kMaxCandidates) {
         return Status::error("Chi2BatchScore::finalize_async bad C");
     }
@@ -94,33 +81,27 @@ Status Chi2BatchScore::finalize_async(
     }
 
     const int threads = 128;
-    const int blocks = static_cast<int>(
-        (candidate_count + static_cast<std::size_t>(threads) - 1u) /
-        static_cast<std::size_t>(threads));
-    chi2_finalize_kernel<<<blocks, threads>>>(
-        device_counts, device_probabilities, device_scores, candidate_count, token_count);
+    const int blocks = static_cast<int>((candidate_count + static_cast<std::size_t>(threads) - 1u) /
+                                        static_cast<std::size_t>(threads));
+    chi2_finalize_kernel<<<blocks, threads>>>(device_counts, device_probabilities, device_scores,
+                                              candidate_count, token_count);
     return CudaError::to_status(cudaGetLastError(), "Chi2BatchScore::finalize");
 }
 
-Status Chi2BatchScore::score_from_out_async(
-    const std::uint8_t* device_out,
-    const double* device_probabilities,
-    std::uint32_t* device_counts,
-    double* device_scores,
-    std::size_t candidate_count,
-    std::size_t token_count) {
+Status Chi2BatchScore::score_from_out_async(const std::uint8_t* device_out,
+                                            const double* device_probabilities,
+                                            std::uint32_t* device_counts, double* device_scores,
+                                            std::size_t candidate_count, std::size_t token_count) {
     const std::size_t hist_bytes = candidate_count * alphabet_size * sizeof(std::uint32_t);
-    Status cleared = CudaError::to_status(
-        cudaMemsetAsync(device_counts, 0, hist_bytes, 0),
-        "Chi2BatchScore::clear counts");
+    Status cleared = CudaError::to_status(cudaMemsetAsync(device_counts, 0, hist_bytes, 0),
+                                          "Chi2BatchScore::clear counts");
     if (!cleared.ok()) {
         return cleared;
     }
-    Status hist =
-        histogram_from_out_async(device_out, device_counts, candidate_count, token_count);
+    Status hist = histogram_from_out_async(device_out, device_counts, candidate_count, token_count);
     if (!hist.ok()) {
         return hist;
     }
-    return finalize_async(
-        device_counts, device_probabilities, device_scores, candidate_count, token_count);
+    return finalize_async(device_counts, device_probabilities, device_scores, candidate_count,
+                          token_count);
 }

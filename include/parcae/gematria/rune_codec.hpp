@@ -39,10 +39,8 @@ public:
     }
 
     /// Decode one Gematria rune starting at `offset`. Unknown runes fail in strict mode.
-    [[nodiscard]] StatusOr<DecodeResult> decode_at(
-        const std::string& text,
-        std::size_t offset,
-        bool strict = true) const {
+    [[nodiscard]] StatusOr<DecodeResult> decode_at(const std::string& text, std::size_t offset,
+                                                   bool strict = true) const {
         StatusOr<Utf8::Codepoint> cp = Utf8::decode_at(text, offset);
         if (!cp.ok()) {
             return cp.status();
@@ -64,9 +62,8 @@ public:
         return result;
     }
 
-    [[nodiscard]] StatusOr<std::vector<Index29>> decode_all(
-        const std::string& text,
-        bool strict = true) const {
+    [[nodiscard]] StatusOr<std::vector<Index29>> decode_all(const std::string& text,
+                                                            bool strict = true) const {
         std::vector<Index29> out;
         std::size_t offset = 0;
         while (offset < text.size()) {

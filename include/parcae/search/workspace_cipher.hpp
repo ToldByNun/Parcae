@@ -13,13 +13,12 @@
 
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Resolve `parcae.workspace.v0` input → consumable `Index29` ciphertext stream.
 ///
@@ -35,31 +34,19 @@ public:
 
     WorkspaceCipher() = default;
 
-    [[nodiscard]] const std::string& workspace_id() const noexcept {
-        return workspace_id_;
-    }
+    [[nodiscard]] const std::string& workspace_id() const noexcept { return workspace_id_; }
 
-    [[nodiscard]] SourceKind source_kind() const noexcept {
-        return source_kind_;
-    }
+    [[nodiscard]] SourceKind source_kind() const noexcept { return source_kind_; }
 
-    [[nodiscard]] const std::vector<Index29>& indices() const noexcept {
-        return indices_;
-    }
+    [[nodiscard]] const std::vector<Index29>& indices() const noexcept { return indices_; }
 
-    [[nodiscard]] std::size_t size() const noexcept {
-        return indices_.size();
-    }
+    [[nodiscard]] std::size_t size() const noexcept { return indices_.size(); }
 
     /// Fixture id when `source_kind == FixtureCiphertext`; otherwise empty.
-    [[nodiscard]] const std::string& fixture_id() const noexcept {
-        return fixture_id_;
-    }
+    [[nodiscard]] const std::string& fixture_id() const noexcept { return fixture_id_; }
 
     /// Workspace-relative path when `source_kind == WorkspaceFile`; otherwise empty.
-    [[nodiscard]] const std::string& source_path() const noexcept {
-        return source_path_;
-    }
+    [[nodiscard]] const std::string& source_path() const noexcept { return source_path_; }
 
     /// SHA-256 hex of newline-normalized UTF-8 ciphertext bytes before tokenize.
     [[nodiscard]] const std::string& ciphertext_sha256() const noexcept {
@@ -79,9 +66,8 @@ public:
     }
 
     /// Load `workspace.json` and resolve ciphertext to consumable Index29 runes.
-    [[nodiscard]] static StatusOr<WorkspaceCipher> load(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id) {
+    [[nodiscard]] static StatusOr<WorkspaceCipher> load(const std::filesystem::path& data_root,
+                                                        std::string_view workspace_id) {
         StatusOr<WorkspaceManifest> manifest = WorkspaceManifest::load(data_root, workspace_id);
         if (!manifest.ok()) {
             return manifest.status();
@@ -89,9 +75,8 @@ public:
         return from_manifest(data_root, manifest.value());
     }
 
-    [[nodiscard]] static StatusOr<WorkspaceCipher> from_manifest(
-        const std::filesystem::path& data_root,
-        const WorkspaceManifest& manifest) {
+    [[nodiscard]] static StatusOr<WorkspaceCipher>
+    from_manifest(const std::filesystem::path& data_root, const WorkspaceManifest& manifest) {
         const nlohmann::json& input = manifest.input();
         if (!input.contains("kind") || !input.at("kind").is_string()) {
             return Status::error("WorkspaceCipher: input.kind must be a string");
@@ -102,27 +87,26 @@ public:
                 return Status::error(
                     "WorkspaceCipher: fixture_ciphertext requires input.fixture_id");
             }
-            return from_fixture(data_root, manifest.id(), input.at("fixture_id").get<std::string>());
+            return from_fixture(data_root, manifest.id(),
+                                input.at("fixture_id").get<std::string>());
         }
         if (kind == "workspace_file") {
             if (!input.contains("path") || !input.at("path").is_string()) {
                 return Status::error("WorkspaceCipher: workspace_file requires input.path");
             }
-            return from_workspace_file(
-                data_root, manifest.id(), input.at("path").get<std::string>());
+            return from_workspace_file(data_root, manifest.id(),
+                                       input.at("path").get<std::string>());
         }
         if (kind == "inline_pending") {
-            return Status::error(
-                "WorkspaceCipher: inline_pending requires explicit indices "
-                "(use WorkspaceCipher::from_indices)");
+            return Status::error("WorkspaceCipher: inline_pending requires explicit indices "
+                                 "(use WorkspaceCipher::from_indices)");
         }
         return Status::error("WorkspaceCipher: unknown input.kind: " + kind);
     }
 
     /// CLI / agent override when the workspace is `inline_pending` (or tests).
-    [[nodiscard]] static StatusOr<WorkspaceCipher> from_indices(
-        std::string_view workspace_id,
-        std::vector<Index29> indices) {
+    [[nodiscard]] static StatusOr<WorkspaceCipher> from_indices(std::string_view workspace_id,
+                                                                std::vector<Index29> indices) {
         StatusOr<std::string> wid = WorkspacePaths::validate_id(workspace_id);
         if (!wid.ok()) {
             return wid.status();
@@ -138,10 +122,9 @@ public:
         return out;
     }
 
-    [[nodiscard]] static StatusOr<WorkspaceCipher> from_fixture(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id,
-        std::string_view fixture_id) {
+    [[nodiscard]] static StatusOr<WorkspaceCipher>
+    from_fixture(const std::filesystem::path& data_root, std::string_view workspace_id,
+                 std::string_view fixture_id) {
         StatusOr<std::string> wid = WorkspacePaths::validate_id(workspace_id);
         if (!wid.ok()) {
             return wid.status();
@@ -167,10 +150,9 @@ public:
         return cipher;
     }
 
-    [[nodiscard]] static StatusOr<WorkspaceCipher> from_workspace_file(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id,
-        std::string_view relative_path) {
+    [[nodiscard]] static StatusOr<WorkspaceCipher>
+    from_workspace_file(const std::filesystem::path& data_root, std::string_view workspace_id,
+                        std::string_view relative_path) {
         StatusOr<std::string> wid = WorkspacePaths::validate_id(workspace_id);
         if (!wid.ok()) {
             return wid.status();
@@ -186,8 +168,8 @@ public:
             return resolved.status();
         }
         if (!std::filesystem::is_regular_file(resolved.value())) {
-            return Status::error(
-                "WorkspaceCipher: workspace_file missing: " + resolved.value().string());
+            return Status::error("WorkspaceCipher: workspace_file missing: " +
+                                 resolved.value().string());
         }
         StatusOr<std::string> text = read_text_file(resolved.value());
         if (!text.ok()) {
@@ -203,11 +185,9 @@ public:
     }
 
 private:
-    [[nodiscard]] static StatusOr<WorkspaceCipher> from_utf8_runes(
-        const std::filesystem::path& data_root,
-        std::string workspace_id,
-        std::string utf8_text,
-        SourceKind kind) {
+    [[nodiscard]] static StatusOr<WorkspaceCipher>
+    from_utf8_runes(const std::filesystem::path& data_root, std::string workspace_id,
+                    std::string utf8_text, SourceKind kind) {
         const std::string normalized = normalize_newlines(std::move(utf8_text));
         if (normalized.empty()) {
             return Status::error("WorkspaceCipher: ciphertext text is empty");
@@ -252,9 +232,8 @@ private:
         return std::string(fixture_id);
     }
 
-    [[nodiscard]] static StatusOr<std::filesystem::path> resolve_fixture_dir(
-        const std::filesystem::path& data_root,
-        std::string_view fixture_id) {
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    resolve_fixture_dir(const std::filesystem::path& data_root, std::string_view fixture_id) {
         const std::filesystem::path solved =
             data_root / "fixtures" / "solved" / std::string(fixture_id);
         if (std::filesystem::is_directory(solved)) {
@@ -265,26 +244,25 @@ private:
         if (std::filesystem::is_directory(draft)) {
             return draft;
         }
-        return Status::error(
-            "WorkspaceCipher: fixture not found under fixtures/solved|draft: " +
-            std::string(fixture_id));
+        return Status::error("WorkspaceCipher: fixture not found under fixtures/solved|draft: " +
+                             std::string(fixture_id));
     }
 
     /// Read only `files.ciphertext` from the fixture manifest — never plaintext.
-    [[nodiscard]] static StatusOr<std::string> read_fixture_ciphertext_only(
-        const std::filesystem::path& fixture_dir) {
+    [[nodiscard]] static StatusOr<std::string>
+    read_fixture_ciphertext_only(const std::filesystem::path& fixture_dir) {
         const std::filesystem::path manifest_path = fixture_dir / "manifest.json";
         std::ifstream in(manifest_path, std::ios::binary);
         if (!in) {
-            return Status::error(
-                "WorkspaceCipher: failed to open fixture manifest: " + manifest_path.string());
+            return Status::error("WorkspaceCipher: failed to open fixture manifest: " +
+                                 manifest_path.string());
         }
         nlohmann::json root;
         try {
             in >> root;
         } catch (const nlohmann::json::exception& ex) {
-            return Status::error(
-                std::string("WorkspaceCipher: invalid fixture manifest: ") + ex.what());
+            return Status::error(std::string("WorkspaceCipher: invalid fixture manifest: ") +
+                                 ex.what());
         }
         if (!root.contains("schema") || !root.at("schema").is_string() ||
             root.at("schema").get<std::string>() != "parcae.fixture_manifest.v0") {

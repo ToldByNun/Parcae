@@ -5,10 +5,9 @@
 #include "parcae/tool/tool_backend.hpp"
 
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <string_view>
-
-#include <nlohmann/json.hpp>
 
 /// Help / status helpers for `parcae-bench`.
 class BenchCli {
@@ -34,10 +33,13 @@ public:
             << "\n"
             << "  --status              Toolkit / suite / CUDA readiness (no measurement)\n"
             << "  --suite slo           Fused CUDA SLO tiers T1–T3 (default when not --status)\n"
-            << "  --suite accuracy      Statistical validation (CPU; CUDA extras with --allow-cuda)\n"
+            << "  --suite accuracy      Statistical validation (CPU; CUDA extras with "
+               "--allow-cuda)\n"
             << "  --suite hardware      CPU vs CUDA T1–T3 compare (scaled CPU smoke by default)\n"
-            << "  --suite probe         External JSON subprocess probes (see docs/spec/bench-probe.md)\n"
-            << "  --suite all           accuracy → slo → hardware → probe (probe only if --probe-cmd)\n"
+            << "  --suite probe         External JSON subprocess probes (see "
+               "docs/spec/bench-probe.md)\n"
+            << "  --suite all           accuracy → slo → hardware → probe (probe only if "
+               "--probe-cmd)\n"
             << "  --extended            Also run F.* and C.* rows (with --suite slo)\n"
             << "  --backend MODE        hardware only: cpu|cuda|both (default both)\n"
             << "  --allow-cuda          Required for slo; CUDA leg for accuracy/hardware\n"
@@ -69,8 +71,7 @@ public:
                  {"all", true},
              }},
             {"data_dir", std::string(data_dir)},
-            {"message",
-             "parcae-bench ready: --status | --suite slo|accuracy|hardware|probe|all"},
+            {"message", "parcae-bench ready: --status | --suite slo|accuracy|hardware|probe|all"},
         };
     }
 

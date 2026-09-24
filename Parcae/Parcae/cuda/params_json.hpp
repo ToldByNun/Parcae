@@ -1,17 +1,16 @@
 #ifndef PARAMS_JSON_HPP
 #define PARAMS_JSON_HPP
 
-#include "params.hpp"
-
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 
+#include "params.hpp"
+
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Host-side key bytes (Index29 values as uint8) plus KeyParams view.
 class KeyParamsHost {
@@ -177,8 +176,8 @@ public:
         return nlohmann::json{{"prime_start_index", params.prime_start_index}};
     }
 
-    [[nodiscard]] static StatusOr<ComposeParamsHost> compose_from_json(
-        const nlohmann::json& params) {
+    [[nodiscard]] static StatusOr<ComposeParamsHost>
+    compose_from_json(const nlohmann::json& params) {
         if (!params.is_object() || !params.contains("stages") || !params.at("stages").is_array()) {
             return Status::error("compose params.stages must be an array");
         }
@@ -226,52 +225,52 @@ public:
             pod.direction = direction.value();
 
             switch (family.value()) {
-                case CudaFamilyId::Identity:
-                case CudaFamilyId::Atbash: {
-                    StatusOr<EmptyParams> empty = empty_from_json(stage_params);
-                    if (!empty.ok()) {
-                        return empty.status();
-                    }
-                    break;
+            case CudaFamilyId::Identity:
+            case CudaFamilyId::Atbash: {
+                StatusOr<EmptyParams> empty = empty_from_json(stage_params);
+                if (!empty.ok()) {
+                    return empty.status();
                 }
-                case CudaFamilyId::Caesar: {
-                    StatusOr<CaesarParams> caesar = caesar_from_json(stage_params);
-                    if (!caesar.ok()) {
-                        return caesar.status();
-                    }
-                    pod.caesar = caesar.value();
-                    break;
+                break;
+            }
+            case CudaFamilyId::Caesar: {
+                StatusOr<CaesarParams> caesar = caesar_from_json(stage_params);
+                if (!caesar.ok()) {
+                    return caesar.status();
                 }
-                case CudaFamilyId::Affine: {
-                    StatusOr<AffineParams> affine = affine_from_json(stage_params);
-                    if (!affine.ok()) {
-                        return affine.status();
-                    }
-                    pod.affine = affine.value();
-                    break;
+                pod.caesar = caesar.value();
+                break;
+            }
+            case CudaFamilyId::Affine: {
+                StatusOr<AffineParams> affine = affine_from_json(stage_params);
+                if (!affine.ok()) {
+                    return affine.status();
                 }
-                case CudaFamilyId::VigenereKey:
-                case CudaFamilyId::BeaufortKey: {
-                    StatusOr<KeyParamsHost> key = key_from_json(stage_params);
-                    if (!key.ok()) {
-                        return key.status();
-                    }
-                    pod.key_begin = static_cast<std::uint32_t>(out.key_arena.size());
-                    pod.key_len = static_cast<std::uint32_t>(key.value().key.size());
-                    out.key_arena.insert(
-                        out.key_arena.end(), key.value().key.begin(), key.value().key.end());
-                    break;
+                pod.affine = affine.value();
+                break;
+            }
+            case CudaFamilyId::VigenereKey:
+            case CudaFamilyId::BeaufortKey: {
+                StatusOr<KeyParamsHost> key = key_from_json(stage_params);
+                if (!key.ok()) {
+                    return key.status();
                 }
-                case CudaFamilyId::TotientPrimeStream: {
-                    StatusOr<TotientParams> totient = totient_from_json(stage_params);
-                    if (!totient.ok()) {
-                        return totient.status();
-                    }
-                    pod.totient = totient.value();
-                    break;
+                pod.key_begin = static_cast<std::uint32_t>(out.key_arena.size());
+                pod.key_len = static_cast<std::uint32_t>(key.value().key.size());
+                out.key_arena.insert(out.key_arena.end(), key.value().key.begin(),
+                                     key.value().key.end());
+                break;
+            }
+            case CudaFamilyId::TotientPrimeStream: {
+                StatusOr<TotientParams> totient = totient_from_json(stage_params);
+                if (!totient.ok()) {
+                    return totient.status();
                 }
-                case CudaFamilyId::Compose:
-                    return Status::error("compose nesting not expanded in params_json");
+                pod.totient = totient.value();
+                break;
+            }
+            case CudaFamilyId::Compose:
+                return Status::error("compose nesting not expanded in params_json");
             }
 
             out.stages.push_back(pod);
@@ -283,9 +282,8 @@ public:
 private:
     CudaParamsJson() = delete;
 
-    [[nodiscard]] static StatusOr<CudaDir> dir_from_stage(
-        const nlohmann::json& stage,
-        CudaDir default_dir) {
+    [[nodiscard]] static StatusOr<CudaDir> dir_from_stage(const nlohmann::json& stage,
+                                                          CudaDir default_dir) {
         if (!stage.contains("direction")) {
             return default_dir;
         }

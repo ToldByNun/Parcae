@@ -1,24 +1,18 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_host_glue.hpp>
 #include <parcae/dsl/dsl_rule_id.hpp>
 #include <parcae/dsl/dsl_semantic_gate.hpp>
 #include <parcae/dsl/host_glue_ir.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
 
 namespace {
 
 [[nodiscard]] std::string minimal_success_doc(const std::string& module_json) {
-    return std::string("{") +
-           R"("schema":"parcae.dsl_ast_json.v0",)" +
-           R"("dsl_ast_json_version":"1.0.0",)" +
-           R"("source_path":"theories/host.py",)" +
+    return std::string("{") + R"("schema":"parcae.dsl_ast_json.v0",)" +
+           R"("dsl_ast_json_version":"1.0.0",)" + R"("source_path":"theories/host.py",)" +
            R"("source_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",)" +
-           R"("python_version":"3.12.0",)" +
-           R"("ok":true,)" +
-           R"("module":)" + module_json + "}";
+           R"("python_version":"3.12.0",)" + R"("ok":true,)" + R"("module":)" + module_json + "}";
 }
 
 [[nodiscard]] DslAstDocument ingest_or_fail(const std::string& module_json) {
@@ -28,11 +22,9 @@ namespace {
     return doc.value();
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "DslHostGlue lowers const range for to ForRange ConstUnroll",
-    "[dsl][hostglue]") {
+TEST_CASE("DslHostGlue lowers const range for to ForRange ConstUnroll", "[dsl][hostglue]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"For","lineno":2,"col_offset":0,
@@ -58,9 +50,7 @@ TEST_CASE(
     REQUIRE(prog.value().root()->children()[1]->int_value() == 3);
 }
 
-TEST_CASE(
-    "DslHostGlue lowers Param range for to HostKnown",
-    "[dsl][hostglue]") {
+TEST_CASE("DslHostGlue lowers Param range for to HostKnown", "[dsl][hostglue]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"For","lineno":2,"col_offset":0,
@@ -82,9 +72,7 @@ TEST_CASE(
     REQUIRE(prog.value().root()->children()[1]->name() == "n");
 }
 
-TEST_CASE(
-    "DslHostGlue rejects non-range for with E035",
-    "[dsl][hostglue][E035]") {
+TEST_CASE("DslHostGlue rejects non-range for with E035", "[dsl][hostglue][E035]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"For","lineno":2,"col_offset":0,
@@ -101,9 +89,7 @@ TEST_CASE(
     REQUIRE(st.message().find("E035") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslHostGlue rejects unbounded while with E035",
-    "[dsl][hostglue][E035]") {
+TEST_CASE("DslHostGlue rejects unbounded while with E035", "[dsl][hostglue][E035]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"While","lineno":2,"col_offset":0,
@@ -120,9 +106,7 @@ TEST_CASE(
     REQUIRE(st.message().find("finite bound") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslHostGlue accepts while i < N const as WhileBounded",
-    "[dsl][hostglue]") {
+TEST_CASE("DslHostGlue accepts while i < N const as WhileBounded", "[dsl][hostglue]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"While","lineno":2,"col_offset":0,
@@ -144,9 +128,7 @@ TEST_CASE(
     REQUIRE(prog.value().root()->bound_kind() == HostGlueIr::BoundKind::ConstUnroll);
 }
 
-TEST_CASE(
-    "DslHostGlue skips HotLoop for (E034 is SemanticGate)",
-    "[dsl][hostglue]") {
+TEST_CASE("DslHostGlue skips HotLoop for (E034 is SemanticGate)", "[dsl][hostglue]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"FunctionDef","name":"poly","lineno":3,"col_offset":0,
@@ -179,11 +161,7 @@ TEST_CASE("HostGlueIr kind strings", "[dsl][hostglue]") {
     const HostGlueIr::Ptr n = HostGlueIr::make_const_int(2);
     REQUIRE(n->kind_string() == "ConstInt");
     const HostGlueIr::Ptr f = HostGlueIr::make_for_range(
-        "i",
-        HostGlueIr::make_const_int(0),
-        HostGlueIr::make_const_int(1),
-        HostGlueIr::make_const_int(1),
-        HostGlueIr::make_pass(),
-        HostGlueIr::BoundKind::HostKnown);
+        "i", HostGlueIr::make_const_int(0), HostGlueIr::make_const_int(1),
+        HostGlueIr::make_const_int(1), HostGlueIr::make_pass(), HostGlueIr::BoundKind::HostKnown);
     REQUIRE(f->bound_kind_string() == "HostKnown");
 }

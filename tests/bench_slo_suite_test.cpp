@@ -1,14 +1,12 @@
+#include <array>
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
+#include <filesystem>
 #include <parcae/bench/bench_formatter.hpp>
 #include <parcae/bench/bench_slo_suite.hpp>
 #include <parcae/bench/bench_tier_spec.hpp>
 #include <parcae/score/expected_frequency_table.hpp>
 #include <parcae/tool/context.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <array>
-#include <cstdint>
-#include <filesystem>
 #include <string>
 
 #ifndef PARCAE_TEST_DATA_DIR
@@ -28,15 +26,7 @@ TEST_CASE("BenchSloSuite make_measured_row derives keys and wall", "[bench][slo]
     // runes/s = 512; C=4, T=16, reps=2 → keys/s = 512/16 = 32
     // wall = reps*C*T / rps = 2*4*16 / 512 = 0.25
     const BenchReport::Row row = BenchSloSuite::make_measured_row(
-        "T1",
-        "test",
-        512.0,
-        BenchTierSpec::t1.slo_min,
-        BenchTierSpec::t1.slo_max,
-        true,
-        4,
-        16,
-        2);
+        "T1", "test", 512.0, BenchTierSpec::t1.slo_min, BenchTierSpec::t1.slo_max, true, 4, 16, 2);
     REQUIRE(row.name() == "T1");
     REQUIRE(row.suite() == BenchReport::Suite::Slo);
     REQUIRE(row.backend() == BenchReport::Backend::Cuda);
@@ -51,8 +41,8 @@ TEST_CASE("BenchSloSuite make_measured_row derives keys and wall", "[bench][slo]
 }
 
 TEST_CASE("BenchSloSuite make_measured_row zero rps keeps keys and wall zero", "[bench][slo]") {
-    const BenchReport::Row row = BenchSloSuite::make_measured_row(
-        "T2", "x", 0.0, 3.0e9, 10.0e9, false, 4096, 262144, 8);
+    const BenchReport::Row row =
+        BenchSloSuite::make_measured_row("T2", "x", 0.0, 3.0e9, 10.0e9, false, 4096, 262144, 8);
     REQUIRE_FALSE(row.passed());
     REQUIRE(row.keys_per_sec() == 0.0);
     REQUIRE(row.wall_seconds() == 0.0);

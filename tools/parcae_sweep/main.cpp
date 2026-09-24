@@ -1,16 +1,15 @@
+#include "parcae/dsl/theory_sweep.hpp"
+
 #include "cli_io.hpp"
 #include "tool_cli_json.hpp"
 
-#include "parcae/dsl/theory_sweep.hpp"
-
 #include <cstdlib>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #ifndef PARCAE_DEFAULT_DATA_DIR
 #define PARCAE_DEFAULT_DATA_DIR ""
@@ -21,27 +20,22 @@ namespace {
 constexpr std::string_view kTool = "sweep";
 
 void print_help() {
-    std::cerr
-        << "Usage: parcae-sweep --theory <uri|name@version> [--limit <n>] [--json]\n"
-        << "\n"
-        << "Expand TheoryArtifact.sweep.param_grid into a candidate plan.\n"
-        << "Loads via TheoryRegistry (stale dsl_spec_version → fail).\n"
-        << "Plan-only in v0 — does not apply/score (TheoryDispatch comes later).\n"
-        << "Normative: docs/spec/theory-artifact.md\n"
-        << "\n"
-        << "  --theory <ref>  parcae://theories/<name>@<ver> or <name>@<ver>\n"
-        << "  --limit <n>     Cap expanded candidates (default 100000; 0 = unlimited)\n"
-        << "  --json          JSON envelope on stdout (parcae.tool_response.v0)\n"
-        << "  --data-dir      Parcae data/ root (theories under <data>/theories/)\n"
-        << "  -h, --help      Show this help\n";
+    std::cerr << "Usage: parcae-sweep --theory <uri|name@version> [--limit <n>] [--json]\n"
+              << "\n"
+              << "Expand TheoryArtifact.sweep.param_grid into a candidate plan.\n"
+              << "Loads via TheoryRegistry (stale dsl_spec_version → fail).\n"
+              << "Plan-only in v0 — does not apply/score (TheoryDispatch comes later).\n"
+              << "Normative: docs/spec/theory-artifact.md\n"
+              << "\n"
+              << "  --theory <ref>  parcae://theories/<name>@<ver> or <name>@<ver>\n"
+              << "  --limit <n>     Cap expanded candidates (default 100000; 0 = unlimited)\n"
+              << "  --json          JSON envelope on stdout (parcae.tool_response.v0)\n"
+              << "  --data-dir      Parcae data/ root (theories under <data>/theories/)\n"
+              << "  -h, --help      Show this help\n";
 }
 
-[[nodiscard]] int fail(
-    bool json_mode,
-    ToolErrorCode code,
-    std::string message,
-    int plain_exit,
-    nlohmann::json details = nlohmann::json(nullptr)) {
+[[nodiscard]] int fail(bool json_mode, ToolErrorCode code, std::string message, int plain_exit,
+                       nlohmann::json details = nlohmann::json(nullptr)) {
     if (json_mode) {
         return ToolCliJson::err(kTool, std::nullopt, code, std::move(message), std::move(details));
     }
@@ -49,7 +43,7 @@ void print_help() {
     return plain_exit;
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
@@ -72,10 +66,12 @@ int main(int argc, char** argv) {
         }
         if (!arg.empty() && arg[0] == '-') {
             print_help();
-            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + arg, CliIo::kExitUsage);
+            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + arg,
+                        CliIo::kExitUsage);
         }
         print_help();
-        return fail(json_mode, ToolErrorCode::Usage, "Unexpected argument: " + arg, CliIo::kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage, "Unexpected argument: " + arg,
+                    CliIo::kExitUsage);
     }
 
     StatusOr<std::string> theory = CliIo::require_option(args, "--theory");
@@ -104,8 +100,7 @@ int main(int argc, char** argv) {
     }
 
     const std::filesystem::path theories_root = ctx.value().data_root() / "theories";
-    StatusOr<TheorySweep::Plan> plan =
-        TheorySweep::plan_uri(theories_root, theory.value(), opt);
+    StatusOr<TheorySweep::Plan> plan = TheorySweep::plan_uri(theories_root, theory.value(), opt);
     if (!plan.ok()) {
         const std::string& msg = plan.status().message();
         ToolErrorCode code = ToolErrorCode::Validation;
@@ -120,11 +115,7 @@ int main(int argc, char** argv) {
                    msg.find("invalid") != std::string::npos) {
             code = ToolErrorCode::Schema;
         }
-        return fail(
-            json_mode,
-            code,
-            msg,
-            ToolErrorCodeUtil::exit_status(code));
+        return fail(json_mode, code, msg, ToolErrorCodeUtil::exit_status(code));
     }
 
     if (json_mode) {

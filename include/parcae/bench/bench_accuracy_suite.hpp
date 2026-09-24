@@ -25,13 +25,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <nlohmann/json.hpp>
 #include <span>
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #if defined(PARCAE_HAS_CUDA)
 #include "caesar_chi2_batch.hpp"
@@ -59,53 +58,30 @@ public:
     public:
         Options() = default;
 
-        [[nodiscard]] bool allow_cuda() const noexcept {
-            return allow_cuda_;
-        }
+        [[nodiscard]] bool allow_cuda() const noexcept { return allow_cuda_; }
 
-        void set_allow_cuda(bool enabled) noexcept {
-            allow_cuda_ = enabled;
-        }
+        void set_allow_cuda(bool enabled) noexcept { allow_cuda_ = enabled; }
 
-        [[nodiscard]] std::uint32_t seed() const noexcept {
-            return seed_;
-        }
+        [[nodiscard]] std::uint32_t seed() const noexcept { return seed_; }
 
-        void set_seed(std::uint32_t seed) noexcept {
-            seed_ = seed;
-        }
+        void set_seed(std::uint32_t seed) noexcept { seed_ = seed; }
 
     private:
         bool allow_cuda_ = false;
         std::uint32_t seed_ = 2109016688u;
     };
 
-    [[nodiscard]] static BenchReport::Row make_check_row(
-        std::string name,
-        std::string workload,
-        BenchReport::Backend backend,
-        BenchReport::RowStatus status,
-        std::string detail = {}) {
-        return BenchReport::Row::make(
-            std::move(name),
-            std::move(workload),
-            BenchReport::Suite::Accuracy,
-            backend,
-            status,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0,
-            0,
-            0,
-            std::move(detail));
+    [[nodiscard]] static BenchReport::Row make_check_row(std::string name, std::string workload,
+                                                         BenchReport::Backend backend,
+                                                         BenchReport::RowStatus status,
+                                                         std::string detail = {}) {
+        return BenchReport::Row::make(std::move(name), std::move(workload),
+                                      BenchReport::Suite::Accuracy, backend, status, 0.0, 0.0, 0.0,
+                                      0.0, 0.0, 0.0, 0, 0, 0, std::move(detail));
     }
 
-    [[nodiscard]] static StatusOr<BenchReport::Document> run(
-        const Context& ctx, const Options& options = Options{}) {
+    [[nodiscard]] static StatusOr<BenchReport::Document> run(const Context& ctx,
+                                                             const Options& options = Options{}) {
         StatusOr<ExpectedFrequencyTable> freqs = ctx.load_english_gp_expected();
         if (!freqs.ok()) {
             return freqs.status();
@@ -134,24 +110,15 @@ public:
         if (options.allow_cuda()) {
 #if defined(PARCAE_HAS_CUDA)
             if (!BackendUtil::cuda_built() || !ParcaeCuda::available()) {
-                doc.add_row(make_check_row(
-                    "A.fused_parity",
-                    "CaesarChi2Batch vs CPU chi2",
-                    BenchReport::Backend::Cuda,
-                    BenchReport::RowStatus::Skipped,
-                    "CUDA unavailable"));
-                doc.add_row(make_check_row(
-                    "A.planted_caesar",
-                    "planted Caesar chi2 argmin",
-                    BenchReport::Backend::Cuda,
-                    BenchReport::RowStatus::Skipped,
-                    "CUDA unavailable"));
-                doc.add_row(make_check_row(
-                    "A.planted_bigram",
-                    "planted Caesar bigram-LL argmin",
-                    BenchReport::Backend::Cuda,
-                    BenchReport::RowStatus::Skipped,
-                    "CUDA unavailable"));
+                doc.add_row(make_check_row("A.fused_parity", "CaesarChi2Batch vs CPU chi2",
+                                           BenchReport::Backend::Cuda,
+                                           BenchReport::RowStatus::Skipped, "CUDA unavailable"));
+                doc.add_row(make_check_row("A.planted_caesar", "planted Caesar chi2 argmin",
+                                           BenchReport::Backend::Cuda,
+                                           BenchReport::RowStatus::Skipped, "CUDA unavailable"));
+                doc.add_row(make_check_row("A.planted_bigram", "planted Caesar bigram-LL argmin",
+                                           BenchReport::Backend::Cuda,
+                                           BenchReport::RowStatus::Skipped, "CUDA unavailable"));
             } else {
                 StatusOr<BenchReport::Row> fused = check_fused_parity(freqs.value());
                 if (!fused.ok()) {
@@ -172,24 +139,15 @@ public:
                 doc.add_row(std::move(bigram.value()));
             }
 #else
-            doc.add_row(make_check_row(
-                "A.fused_parity",
-                "CaesarChi2Batch vs CPU chi2",
-                BenchReport::Backend::Cuda,
-                BenchReport::RowStatus::Skipped,
-                "CUDA not built"));
-            doc.add_row(make_check_row(
-                "A.planted_caesar",
-                "planted Caesar chi2 argmin",
-                BenchReport::Backend::Cuda,
-                BenchReport::RowStatus::Skipped,
-                "CUDA not built"));
-            doc.add_row(make_check_row(
-                "A.planted_bigram",
-                "planted Caesar bigram-LL argmin",
-                BenchReport::Backend::Cuda,
-                BenchReport::RowStatus::Skipped,
-                "CUDA not built"));
+            doc.add_row(make_check_row("A.fused_parity", "CaesarChi2Batch vs CPU chi2",
+                                       BenchReport::Backend::Cuda, BenchReport::RowStatus::Skipped,
+                                       "CUDA not built"));
+            doc.add_row(make_check_row("A.planted_caesar", "planted Caesar chi2 argmin",
+                                       BenchReport::Backend::Cuda, BenchReport::RowStatus::Skipped,
+                                       "CUDA not built"));
+            doc.add_row(make_check_row("A.planted_bigram", "planted Caesar bigram-LL argmin",
+                                       BenchReport::Backend::Cuda, BenchReport::RowStatus::Skipped,
+                                       "CUDA not built"));
 #endif
         }
 
@@ -200,8 +158,8 @@ public:
 private:
     BenchAccuracySuite() = delete;
 
-    [[nodiscard]] static StatusOr<std::vector<Index29>> plaintext_indices_of(
-        const Context& ctx, std::string_view fixture_id) {
+    [[nodiscard]] static StatusOr<std::vector<Index29>>
+    plaintext_indices_of(const Context& ctx, std::string_view fixture_id) {
         StatusOr<GematriaProfile> profile = ctx.load_gematria();
         if (!profile.ok()) {
             return profile.status();
@@ -224,10 +182,9 @@ private:
         return codec.delatinize(normalized.value());
     }
 
-    [[nodiscard]] static StatusOr<BenchReport::Row> check_fixture_eval(
-        const Context& ctx,
-        const ExpectedFrequencyTable& freqs,
-        std::uint32_t seed) {
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    check_fixture_eval(const Context& ctx, const ExpectedFrequencyTable& freqs,
+                       std::uint32_t seed) {
         StatusOr<SearchRun::EvalResult> eval =
             SearchRun::run_fixture_eval(ctx, "chi2_english_gp_v0", freqs, seed);
         if (!eval.ok()) {
@@ -235,18 +192,14 @@ private:
         }
         const bool pass = eval.value().passed == eval.value().total && eval.value().total > 0;
         std::ostringstream detail;
-        detail << "passed=" << eval.value().passed << "/" << eval.value().total
-               << " seed=" << seed;
+        detail << "passed=" << eval.value().passed << "/" << eval.value().total << " seed=" << seed;
         return make_check_row(
-            "A.fixture_eval",
-            "locked plaintext vs LCG noise (chi2)",
-            BenchReport::Backend::Cpu,
-            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail,
-            detail.str());
+            "A.fixture_eval", "locked plaintext vs LCG noise (chi2)", BenchReport::Backend::Cpu,
+            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail, detail.str());
     }
 
-    [[nodiscard]] static StatusOr<BenchReport::Row> check_chi2_sanity(
-        const Context& ctx, const ExpectedFrequencyTable& freqs) {
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    check_chi2_sanity(const Context& ctx, const ExpectedFrequencyTable& freqs) {
         StatusOr<std::vector<Index29>> welcome = plaintext_indices_of(ctx, "welcome");
         if (!welcome.ok()) {
             return welcome.status();
@@ -274,28 +227,20 @@ private:
         std::ostringstream detail;
         detail << "chi_plain=" << chi_plain.value() << " chi_uniform=" << chi_uniform.value();
         return make_check_row(
-            "A.chi2_sanity",
-            "welcome plaintext chi2 < uniform",
-            BenchReport::Backend::Cpu,
-            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail,
-            detail.str());
+            "A.chi2_sanity", "welcome plaintext chi2 < uniform", BenchReport::Backend::Cpu,
+            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail, detail.str());
     }
 
-    [[nodiscard]] static StatusOr<BenchReport::Row> check_oracle_rank(
-        const Context& ctx) {
+    [[nodiscard]] static StatusOr<BenchReport::Row> check_oracle_rank(const Context& ctx) {
         StatusOr<WorkspaceCipher> cipher =
             WorkspaceCipher::from_fixture(ctx.data_root(), "bench-acc", "a-warning");
         if (!cipher.ok()) {
             return cipher.status();
         }
 
-        StatusOr<CpuCandidateExport::Result> ranked = CpuCandidateExport::run(
-            cipher.value().indices(),
-            "atbash",
-            "chi2_english_gp_v0",
-            /*k=*/1,
-            ctx,
-            TransformDirection::Decrypt);
+        StatusOr<CpuCandidateExport::Result> ranked =
+            CpuCandidateExport::run(cipher.value().indices(), "atbash", "chi2_english_gp_v0",
+                                    /*k=*/1, ctx, TransformDirection::Decrypt);
         if (!ranked.ok()) {
             return ranked.status();
         }
@@ -303,23 +248,18 @@ private:
             return Status::error("BenchAccuracySuite: oracle rank empty");
         }
 
-        const std::string top_id =
-            ranked.value().rows().front().candidate().transform_id().str();
+        const std::string top_id = ranked.value().rows().front().candidate().transform_id().str();
         const bool pass = (top_id == "atbash");
         std::ostringstream detail;
-        detail << "top_transform=" << top_id
-               << " score=" << ranked.value().rows().front().score();
+        detail << "top_transform=" << top_id << " score=" << ranked.value().rows().front().score();
         return make_check_row(
-            "A.oracle_rank",
-            "a-warning ciphertext ranks atbash top-1",
-            BenchReport::Backend::Cpu,
-            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail,
-            detail.str());
+            "A.oracle_rank", "a-warning ciphertext ranks atbash top-1", BenchReport::Backend::Cpu,
+            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail, detail.str());
     }
 
 #if defined(PARCAE_HAS_CUDA)
-    [[nodiscard]] static StatusOr<BenchReport::Row> check_fused_parity(
-        const ExpectedFrequencyTable& freqs) {
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    check_fused_parity(const ExpectedFrequencyTable& freqs) {
         std::vector<Index29> plain;
         plain.reserve(128);
         for (std::uint8_t i = 0; i < 128; ++i) {
@@ -374,14 +314,9 @@ private:
         }
 
         Status launched = CaesarChi2Batch::launch(
-            device_in.value().data(),
-            device_shifts.value().data(),
-            device_dirs.value().data(),
-            device_probs.value().data(),
-            device_counts.value().data(),
-            device_scores.value().data(),
-            C,
-            T);
+            device_in.value().data(), device_shifts.value().data(), device_dirs.value().data(),
+            device_probs.value().data(), device_counts.value().data(), device_scores.value().data(),
+            C, T);
         if (!launched.ok()) {
             return launched;
         }
@@ -397,14 +332,13 @@ private:
         std::size_t mismatches = 0;
         for (std::size_t shift = 0; shift < C; ++shift) {
             StatusOr<std::vector<Index29>> dec = CaesarTransform{}.apply(
-                cipher.value(),
-                nlohmann::json{{"shift", static_cast<int>(shift)}},
+                cipher.value(), nlohmann::json{{"shift", static_cast<int>(shift)}},
                 TransformDirection::Decrypt);
             if (!dec.ok()) {
                 return dec.status();
             }
-            StatusOr<double> cpu = ScoreRegistry::score(
-                "chi2_english_gp_v0", dec.value(), "v0", nlohmann::json::object(), request);
+            StatusOr<double> cpu = ScoreRegistry::score("chi2_english_gp_v0", dec.value(), "v0",
+                                                        nlohmann::json::object(), request);
             if (!cpu.ok()) {
                 return cpu.status();
             }
@@ -417,15 +351,12 @@ private:
         std::ostringstream detail;
         detail << "mismatches=" << mismatches << "/" << C;
         return make_check_row(
-            "A.fused_parity",
-            "CaesarChi2Batch vs CPU chi2",
-            BenchReport::Backend::Cuda,
-            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail,
-            detail.str());
+            "A.fused_parity", "CaesarChi2Batch vs CPU chi2", BenchReport::Backend::Cuda,
+            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail, detail.str());
     }
 
-    [[nodiscard]] static StatusOr<BenchReport::Row> check_planted_caesar(
-        const ExpectedFrequencyTable& freqs) {
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    check_planted_caesar(const ExpectedFrequencyTable& freqs) {
         constexpr std::uint8_t kPlanted = 11;
         std::vector<Index29> plain;
         plain.reserve(256);
@@ -433,8 +364,9 @@ private:
             // Mild English-GP-ish bias toward low indices.
             plain.push_back(Index29{static_cast<std::uint8_t>((i * 3 + 1) % 17)});
         }
-        StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-            plain, nlohmann::json{{"shift", static_cast<int>(kPlanted)}}, TransformDirection::Encrypt);
+        StatusOr<std::vector<Index29>> cipher =
+            CaesarTransform{}.apply(plain, nlohmann::json{{"shift", static_cast<int>(kPlanted)}},
+                                    TransformDirection::Encrypt);
         if (!cipher.ok()) {
             return cipher.status();
         }
@@ -476,13 +408,8 @@ private:
         }
 
         Status launched = CaesarChi2Batch::launch_decrypt_async(
-            device_in.value().data(),
-            device_shifts.value().data(),
-            device_probs.value().data(),
-            device_counts.value().data(),
-            device_scores.value().data(),
-            C,
-            T);
+            device_in.value().data(), device_shifts.value().data(), device_probs.value().data(),
+            device_counts.value().data(), device_scores.value().data(), C, T);
         if (!launched.ok()) {
             return launched;
         }
@@ -507,11 +434,8 @@ private:
         std::ostringstream detail;
         detail << "planted=" << static_cast<int>(kPlanted) << " argmin=" << best;
         return make_check_row(
-            "A.planted_caesar",
-            "planted Caesar chi2 argmin",
-            BenchReport::Backend::Cuda,
-            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail,
-            detail.str());
+            "A.planted_caesar", "planted Caesar chi2 argmin", BenchReport::Backend::Cuda,
+            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail, detail.str());
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Row> check_planted_bigram() {
@@ -523,8 +447,9 @@ private:
         for (std::size_t i = 0; i < 200; ++i) {
             plain.push_back(Index29{(i % 2 == 0) ? kA : kB});
         }
-        StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-            plain, nlohmann::json{{"shift", static_cast<int>(kPlanted)}}, TransformDirection::Encrypt);
+        StatusOr<std::vector<Index29>> cipher =
+            CaesarTransform{}.apply(plain, nlohmann::json{{"shift", static_cast<int>(kPlanted)}},
+                                    TransformDirection::Encrypt);
         if (!cipher.ok()) {
             return cipher.status();
         }
@@ -565,12 +490,8 @@ private:
         }
 
         Status launched = DeepScoreBatch::launch_caesar_bigram_ll_async(
-            device_in.value().data(),
-            device_shifts.value().data(),
-            device_bigram.value().data(),
-            device_scores.value().data(),
-            C,
-            T);
+            device_in.value().data(), device_shifts.value().data(), device_bigram.value().data(),
+            device_scores.value().data(), C, T);
         if (!launched.ok()) {
             return launched;
         }
@@ -595,11 +516,8 @@ private:
         std::ostringstream detail;
         detail << "planted=" << static_cast<int>(kPlanted) << " argmin=" << best;
         return make_check_row(
-            "A.planted_bigram",
-            "planted Caesar bigram-LL argmin",
-            BenchReport::Backend::Cuda,
-            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail,
-            detail.str());
+            "A.planted_bigram", "planted Caesar bigram-LL argmin", BenchReport::Backend::Cuda,
+            pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail, detail.str());
     }
 #endif
 };

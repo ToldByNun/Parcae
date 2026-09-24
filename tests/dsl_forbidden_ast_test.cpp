@@ -1,24 +1,18 @@
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_rule_id.hpp>
 #include <parcae/dsl/dsl_semantic_gate.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators.hpp>
-
 #include <string>
 #include <utility>
 
 namespace {
 
 [[nodiscard]] std::string minimal_success_doc(const std::string& module_json) {
-    return std::string("{") +
-           R"("schema":"parcae.dsl_ast_json.v0",)" +
-           R"("dsl_ast_json_version":"1.0.0",)" +
-           R"("source_path":"theories/x.py",)" +
+    return std::string("{") + R"("schema":"parcae.dsl_ast_json.v0",)" +
+           R"("dsl_ast_json_version":"1.0.0",)" + R"("source_path":"theories/x.py",)" +
            R"("source_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",)" +
-           R"("python_version":"3.12.0",)" +
-           R"("ok":true,)" +
-           R"("module":)" + module_json + "}";
+           R"("python_version":"3.12.0",)" + R"("ok":true,)" + R"("module":)" + module_json + "}";
 }
 
 [[nodiscard]] DslAstDocument ingest_or_fail(const std::string& module_json) {
@@ -40,11 +34,10 @@ namespace {
 
 /// Module wrapping `Expr(value=…)` for expression-level forbidden kinds.
 [[nodiscard]] std::string module_with_expr_value(const std::string& value_json) {
-    return module_with_stmt(
-        std::string(R"({
+    return module_with_stmt(std::string(R"({
         "kind":"Expr","lineno":7,"col_offset":0,
-        "value":)") +
-        value_json + "}");
+        "value":)") + value_json +
+                            "}");
 }
 
 void require_e031_forbidden(const Status& st, const std::string& kind_substr) {
@@ -54,45 +47,42 @@ void require_e031_forbidden(const Status& st, const std::string& kind_substr) {
     REQUIRE(st.message().find("theories/x.py:7:") != std::string::npos);
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("forbidden statement kinds → stable E031", "[dsl][gate][forbidden]") {
-    const auto row = GENERATE(
-        table<std::string, std::string>(
-            {// kind substring expected in message, statement JSON
-             {"AsyncFunctionDef",
-              R"({"kind":"AsyncFunctionDef","name":"f","lineno":7,"col_offset":0,
+    const auto row = GENERATE(table<std::string, std::string>(
+        {// kind substring expected in message, statement JSON
+         {"AsyncFunctionDef",
+          R"({"kind":"AsyncFunctionDef","name":"f","lineno":7,"col_offset":0,
                   "args":{"kind":"arguments","posonlyargs":[],"args":[],"kwonlyargs":[],
                           "kw_defaults":[],"defaults":[]},
                   "body":[{"kind":"Pass","lineno":8,"col_offset":4}],
                   "decorator_list":[],"returns":null})"},
-             {"AsyncFor",
-              R"({"kind":"AsyncFor","lineno":7,"col_offset":0,
+         {"AsyncFor",
+          R"({"kind":"AsyncFor","lineno":7,"col_offset":0,
                   "target":{"kind":"Name","id":"i","ctx":"Store","lineno":7,"col_offset":10},
                   "iter":{"kind":"Name","id":"xs","ctx":"Load","lineno":7,"col_offset":15},
                   "body":[{"kind":"Pass","lineno":8,"col_offset":4}],"orelse":[]})"},
-             {"With",
-              R"({"kind":"With","lineno":7,"col_offset":0,
+         {"With",
+          R"({"kind":"With","lineno":7,"col_offset":0,
                   "items":[],"body":[{"kind":"Pass","lineno":8,"col_offset":4}]})"},
-             {"AsyncWith",
-              R"({"kind":"AsyncWith","lineno":7,"col_offset":0,
+         {"AsyncWith",
+          R"({"kind":"AsyncWith","lineno":7,"col_offset":0,
                   "items":[],"body":[{"kind":"Pass","lineno":8,"col_offset":4}]})"},
-             {"Try",
-              R"({"kind":"Try","lineno":7,"col_offset":0,
+         {"Try",
+          R"({"kind":"Try","lineno":7,"col_offset":0,
                   "body":[{"kind":"Pass","lineno":8,"col_offset":4}],
                   "handlers":[{"kind":"ExceptHandler","lineno":9,"col_offset":0,
                                "type":null,"name":null,
                                "body":[{"kind":"Pass","lineno":10,"col_offset":4}]}],
                   "orelse":[],"finalbody":[]})"},
-             {"Global",
-              R"({"kind":"Global","lineno":7,"col_offset":0,"names":["x"]})"},
-             {"Nonlocal",
-              R"({"kind":"Nonlocal","lineno":7,"col_offset":0,"names":["x"]})"},
-             {"Delete",
-              R"({"kind":"Delete","lineno":7,"col_offset":0,
+         {"Global", R"({"kind":"Global","lineno":7,"col_offset":0,"names":["x"]})"},
+         {"Nonlocal", R"({"kind":"Nonlocal","lineno":7,"col_offset":0,"names":["x"]})"},
+         {"Delete",
+          R"({"kind":"Delete","lineno":7,"col_offset":0,
                   "targets":[{"kind":"Name","id":"x","ctx":"Del","lineno":7,"col_offset":4}]})"},
-             {"Assert",
-              R"({"kind":"Assert","lineno":7,"col_offset":0,
+         {"Assert",
+          R"({"kind":"Assert","lineno":7,"col_offset":0,
                   "test":{"kind":"Constant","value":true,"lineno":7,"col_offset":7},
                   "msg":null})"}}));
 
@@ -104,36 +94,35 @@ TEST_CASE("forbidden statement kinds → stable E031", "[dsl][gate][forbidden]")
 
 TEST_CASE("forbidden expression kinds → stable E031", "[dsl][gate][forbidden]") {
     const auto row = GENERATE(
-        table<std::string, std::string>(
-            {{"Await",
-              R"({"kind":"Await","lineno":7,"col_offset":0,
+        table<std::string, std::string>({{"Await",
+                                          R"({"kind":"Await","lineno":7,"col_offset":0,
                   "value":{"kind":"Name","id":"x","ctx":"Load","lineno":7,"col_offset":6}})"},
-             {"Yield",
-              R"({"kind":"Yield","lineno":7,"col_offset":0,
+                                         {"Yield",
+                                          R"({"kind":"Yield","lineno":7,"col_offset":0,
                   "value":{"kind":"Constant","value":1,"lineno":7,"col_offset":6}})"},
-             {"YieldFrom",
-              R"({"kind":"YieldFrom","lineno":7,"col_offset":0,
+                                         {"YieldFrom",
+                                          R"({"kind":"YieldFrom","lineno":7,"col_offset":0,
                   "value":{"kind":"Name","id":"xs","ctx":"Load","lineno":7,"col_offset":11}})"},
-             {"Lambda",
-              R"({"kind":"Lambda","lineno":7,"col_offset":0,
+                                         {"Lambda",
+                                          R"({"kind":"Lambda","lineno":7,"col_offset":0,
                   "args":{"kind":"arguments","posonlyargs":[],"args":[],"kwonlyargs":[],
                           "kw_defaults":[],"defaults":[]},
                   "body":{"kind":"Constant","value":1,"lineno":7,"col_offset":7}})"},
-             {"ListComp",
-              R"({"kind":"ListComp","lineno":7,"col_offset":0,
+                                         {"ListComp",
+                                          R"({"kind":"ListComp","lineno":7,"col_offset":0,
                   "elt":{"kind":"Name","id":"x","ctx":"Load","lineno":7,"col_offset":1},
                   "generators":[]})"},
-             {"SetComp",
-              R"({"kind":"SetComp","lineno":7,"col_offset":0,
+                                         {"SetComp",
+                                          R"({"kind":"SetComp","lineno":7,"col_offset":0,
                   "elt":{"kind":"Name","id":"x","ctx":"Load","lineno":7,"col_offset":1},
                   "generators":[]})"},
-             {"DictComp",
-              R"({"kind":"DictComp","lineno":7,"col_offset":0,
+                                         {"DictComp",
+                                          R"({"kind":"DictComp","lineno":7,"col_offset":0,
                   "key":{"kind":"Name","id":"k","ctx":"Load","lineno":7,"col_offset":1},
                   "value":{"kind":"Name","id":"v","ctx":"Load","lineno":7,"col_offset":3},
                   "generators":[]})"},
-             {"GeneratorExp",
-              R"({"kind":"GeneratorExp","lineno":7,"col_offset":0,
+                                         {"GeneratorExp",
+                                          R"({"kind":"GeneratorExp","lineno":7,"col_offset":0,
                   "elt":{"kind":"Name","id":"x","ctx":"Load","lineno":7,"col_offset":1},
                   "generators":[]})"}}));
 

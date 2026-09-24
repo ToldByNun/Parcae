@@ -8,22 +8,16 @@
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
 
+#include <nlohmann/json.hpp>
 #include <string>
 #include <utility>
-
-#include <nlohmann/json.hpp>
 
 /// Serializable transform call: id + direction + params + optional interrupt.
 class TransformEnvelope {
 public:
-    TransformEnvelope(
-        TransformId transform_id,
-        TransformDirection direction,
-        nlohmann::json params,
-        InterruptPolicy interrupt = InterruptPolicy::none())
-        : transform_id_(std::move(transform_id)),
-          direction_(direction),
-          params_(std::move(params)),
+    TransformEnvelope(TransformId transform_id, TransformDirection direction, nlohmann::json params,
+                      InterruptPolicy interrupt = InterruptPolicy::none())
+        : transform_id_(std::move(transform_id)), direction_(direction), params_(std::move(params)),
           interrupt_(std::move(interrupt)) {}
 
     [[nodiscard]] static StatusOr<TransformEnvelope> from_json(const nlohmann::json& root) {
@@ -98,21 +92,13 @@ public:
         return root;
     }
 
-    [[nodiscard]] const TransformId& transform_id() const noexcept {
-        return transform_id_;
-    }
+    [[nodiscard]] const TransformId& transform_id() const noexcept { return transform_id_; }
 
-    [[nodiscard]] TransformDirection direction() const noexcept {
-        return direction_;
-    }
+    [[nodiscard]] TransformDirection direction() const noexcept { return direction_; }
 
-    [[nodiscard]] const nlohmann::json& params() const noexcept {
-        return params_;
-    }
+    [[nodiscard]] const nlohmann::json& params() const noexcept { return params_; }
 
-    [[nodiscard]] const InterruptPolicy& interrupt() const noexcept {
-        return interrupt_;
-    }
+    [[nodiscard]] const InterruptPolicy& interrupt() const noexcept { return interrupt_; }
 
 private:
     TransformId transform_id_;

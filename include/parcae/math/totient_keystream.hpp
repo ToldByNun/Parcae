@@ -25,9 +25,8 @@ public:
     }
 
     /// `count` consecutive shifts starting at `prime_start_index` (inclusive).
-    [[nodiscard]] static StatusOr<std::vector<Index29>> shifts(
-        std::size_t count,
-        std::size_t prime_start_index = 0) {
+    [[nodiscard]] static StatusOr<std::vector<Index29>> shifts(std::size_t count,
+                                                               std::size_t prime_start_index = 0) {
         std::vector<Index29> out(count);
         Status status = shifts_into(out, prime_start_index);
         if (!status.ok()) {
@@ -38,15 +37,13 @@ public:
 
     /// Fill caller-owned `out` with consecutive shifts (no output allocation).
     /// May allocate internally for the prime sieve (setup, not the Index29 write).
-    [[nodiscard]] static Status shifts_into(
-        std::span<Index29> out,
-        std::size_t prime_start_index = 0) {
+    [[nodiscard]] static Status shifts_into(std::span<Index29> out,
+                                            std::size_t prime_start_index = 0) {
         if (out.empty()) {
             return Status::success();
         }
 
-        StatusOr<std::vector<std::uint64_t>> primes =
-            Primes::first(prime_start_index + out.size());
+        StatusOr<std::vector<std::uint64_t>> primes = Primes::first(prime_start_index + out.size());
         if (!primes.ok()) {
             return primes.status();
         }
@@ -58,8 +55,7 @@ public:
     }
 
     [[nodiscard]] static Index29 from_prime(std::uint64_t prime) noexcept {
-        const auto reduced =
-            static_cast<std::uint8_t>((prime - 1) % Index29::modulus);
+        const auto reduced = static_cast<std::uint8_t>((prime - 1) % Index29::modulus);
         return Index29{reduced};
     }
 };

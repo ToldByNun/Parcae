@@ -9,12 +9,11 @@
 
 #include <cstdint>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 class GematriaProfileLoader {
 public:

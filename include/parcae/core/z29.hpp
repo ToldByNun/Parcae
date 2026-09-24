@@ -10,8 +10,7 @@
 class Z29 {
 public:
     [[nodiscard]] static constexpr Index29 add(Index29 x, Index29 y) noexcept {
-        const auto sum =
-            static_cast<std::uint8_t>((x.value() + y.value()) % Index29::modulus);
+        const auto sum = static_cast<std::uint8_t>((x.value() + y.value()) % Index29::modulus);
         return Index29::unchecked(sum);
     }
 
@@ -27,8 +26,7 @@ public:
     }
 
     [[nodiscard]] static constexpr Index29 mul(Index29 x, Index29 y) noexcept {
-        const auto product =
-            static_cast<std::uint8_t>((x.value() * y.value()) % Index29::modulus);
+        const auto product = static_cast<std::uint8_t>((x.value() * y.value()) % Index29::modulus);
         return Index29::unchecked(product);
     }
 
@@ -82,17 +80,14 @@ public:
     }
 
     /// Python-style `~x` reduced mod 29: `(-x-1) mod 29` == `28 - x` (Atbash).
-    [[nodiscard]] static constexpr Index29 bit_not(Index29 x) noexcept {
-        return atbash(x);
-    }
+    [[nodiscard]] static constexpr Index29 bit_not(Index29 x) noexcept { return atbash(x); }
 
     [[nodiscard]] static constexpr Index29 lshift(Index29 x, Index29 y) noexcept {
         const unsigned shift = y.value();
         if (shift >= 64u) {
             return Index29::unchecked(0);
         }
-        const unsigned long long v =
-            static_cast<unsigned long long>(x.value()) << shift;
+        const unsigned long long v = static_cast<unsigned long long>(x.value()) << shift;
         return Index29::unchecked(static_cast<std::uint8_t>(v % Index29::modulus));
     }
 
@@ -160,9 +155,7 @@ private:
         return table;
     }();
 
-    [[noreturn]] static void fatal_invalid() noexcept {
-        std::abort();
-    }
+    [[noreturn]] static void fatal_invalid() noexcept { std::abort(); }
 };
 
 #endif // Z29_HPP

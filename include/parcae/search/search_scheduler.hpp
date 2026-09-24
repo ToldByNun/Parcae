@@ -1,12 +1,12 @@
 #ifndef SEARCH_SCHEDULER_HPP
 #define SEARCH_SCHEDULER_HPP
 
-#include "parcae/core/sha256.hpp"
-#include "parcae/core/status.hpp"
-#include "parcae/core/status_or.hpp"
 #include "parcae/batch/batch_runner.hpp"
 #include "parcae/cli/console_progress_sink.hpp"
 #include "parcae/cli/console_progress_snapshot.hpp"
+#include "parcae/core/sha256.hpp"
+#include "parcae/core/status.hpp"
+#include "parcae/core/status_or.hpp"
 #include "parcae/hypothesis/hypothesis_record.hpp"
 #include "parcae/hypothesis/hypothesis_status.hpp"
 #include "parcae/hypothesis/workspace_paths.hpp"
@@ -27,14 +27,13 @@
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// One closed-loop search cycle or multi-iteration loop.
 /// Normative: `docs/spec/search-loop.md` (`SearchScheduler` / `parcae.search_cycle_result.v0`).
@@ -102,21 +101,14 @@ public:
     public:
         BatchSummary() = default;
 
-        BatchSummary(
-            std::string batch_id,
-            std::size_t candidate_count,
-            std::string job_digest_sha256)
-            : batch_id_(std::move(batch_id)),
-              candidate_count_(candidate_count),
+        BatchSummary(std::string batch_id, std::size_t candidate_count,
+                     std::string job_digest_sha256)
+            : batch_id_(std::move(batch_id)), candidate_count_(candidate_count),
               job_digest_sha256_(std::move(job_digest_sha256)) {}
 
-        [[nodiscard]] const std::string& batch_id() const noexcept {
-            return batch_id_;
-        }
+        [[nodiscard]] const std::string& batch_id() const noexcept { return batch_id_; }
 
-        [[nodiscard]] std::size_t candidate_count() const noexcept {
-            return candidate_count_;
-        }
+        [[nodiscard]] std::size_t candidate_count() const noexcept { return candidate_count_; }
 
         [[nodiscard]] const std::string& job_digest_sha256() const noexcept {
             return job_digest_sha256_;
@@ -141,29 +133,19 @@ public:
     public:
         CycleResult() = default;
 
-        [[nodiscard]] const std::string& workspace_id() const noexcept {
-            return workspace_id_;
-        }
+        [[nodiscard]] const std::string& workspace_id() const noexcept { return workspace_id_; }
 
-        [[nodiscard]] std::size_t iterations() const noexcept {
-            return iterations_;
-        }
+        [[nodiscard]] std::size_t iterations() const noexcept { return iterations_; }
 
-        [[nodiscard]] const std::string& stop_reason() const noexcept {
-            return stop_reason_;
-        }
+        [[nodiscard]] const std::string& stop_reason() const noexcept { return stop_reason_; }
 
-        [[nodiscard]] const std::vector<BatchSummary>& batches() const noexcept {
-            return batches_;
-        }
+        [[nodiscard]] const std::vector<BatchSummary>& batches() const noexcept { return batches_; }
 
         [[nodiscard]] std::size_t hypotheses_written() const noexcept {
             return hypotheses_written_;
         }
 
-        [[nodiscard]] bool omit_timing() const noexcept {
-            return omit_timing_;
-        }
+        [[nodiscard]] bool omit_timing() const noexcept { return omit_timing_; }
 
         [[nodiscard]] nlohmann::json to_json() const {
             nlohmann::json batches = nlohmann::json::array();
@@ -194,11 +176,9 @@ public:
     /// Run one cycle: cipher → prior (workspace or inline job) → export → batch → bridge.
     /// Each call rebuilds `SearchPrior` so promoted seeds / rejected exclusions from the
     /// workspace feed the next job (`search-loop.md` / search-engine cycle step 6).
-    [[nodiscard]] static StatusOr<CycleResult> run_once(
-        const std::filesystem::path& data_root,
-        const Context& ctx,
-        const SearchJob& job,
-        const Options& options) {
+    [[nodiscard]] static StatusOr<CycleResult> run_once(const std::filesystem::path& data_root,
+                                                        const Context& ctx, const SearchJob& job,
+                                                        const Options& options) {
         if (options.created_utc.empty()) {
             return Status::error("SearchScheduler::run_once requires Options.created_utc");
         }
@@ -215,30 +195,20 @@ public:
         if (!cipher.ok()) {
             return cipher.status();
         }
-        emit_stage(
-            options.progress,
-            "load",
-            1,
-            1,
-            cipher.value().indices().size());
+        emit_stage(options.progress, "load", 1, 1, cipher.value().indices().size());
 
         StatusOr<SearchPrior> prior = resolve_prior(data_root, job, options);
         if (!prior.ok()) {
             return prior.status();
         }
-        emit_stage(
-            options.progress,
-            "prior",
-            1,
-            1,
-            cipher.value().indices().size());
+        emit_stage(options.progress, "prior", 1, 1, cipher.value().indices().size());
 
         BatchRunner::Progress export_progress;
         export_progress.sink = options.progress;
         export_progress.rune_count = cipher.value().indices().size();
 
-        StatusOr<CpuCandidateExport::Result> exported = export_candidates(
-            cipher.value().indices(), job, ctx, prior.value(), export_progress);
+        StatusOr<CpuCandidateExport::Result> exported =
+            export_candidates(cipher.value().indices(), job, ctx, prior.value(), export_progress);
         if (!exported.ok()) {
             return exported.status();
         }
@@ -265,45 +235,30 @@ public:
             }
             batch_id = std::move(bid.value());
         } else {
-            batch_id = make_batch_id(
-                job.workspace_id(), job.family(), job_digest, prior_digest, options.created_utc);
+            batch_id = make_batch_id(job.workspace_id(), job.family(), job_digest, prior_digest,
+                                     options.created_utc);
         }
 
         std::vector<nlohmann::json> lines;
         lines.reserve(exported.value().size());
         for (const CpuCandidateExport::Row& row : exported.value().rows()) {
-            lines.push_back(BatchArtifact::candidate_wire(
-                row.candidate(),
-                job.score_id(),
-                job.score_version(),
-                row.score(),
-                exported.value().backend(),
-                row.rank()));
+            lines.push_back(BatchArtifact::candidate_wire(row.candidate(), job.score_id(),
+                                                          job.score_version(), row.score(),
+                                                          exported.value().backend(), row.rank()));
         }
 
         std::optional<nlohmann::json> report;
         if (!options.omit_timing) {
             report = nlohmann::json{
                 {"candidate_count", lines.size()},
-                {"backend",
-                 std::string(BackendUtil::to_string(exported.value().backend()))},
+                {"backend", std::string(BackendUtil::to_string(exported.value().backend()))},
             };
         }
 
         StatusOr<BatchArtifact> artifact = BatchArtifact::make(
-            job.workspace_id(),
-            batch_id,
-            options.created_utc,
-            job_digest,
-            prior_digest,
-            job.family(),
-            job.score_id(),
-            job.score_version(),
-            exported.value().backend(),
-            job.k(),
-            job.seed(),
-            std::move(lines),
-            std::move(report));
+            job.workspace_id(), batch_id, options.created_utc, job_digest, prior_digest,
+            job.family(), job.score_id(), job.score_version(), exported.value().backend(), job.k(),
+            job.seed(), std::move(lines), std::move(report));
         if (!artifact.ok()) {
             return artifact.status();
         }
@@ -312,40 +267,28 @@ public:
         if (!stored.ok()) {
             return stored;
         }
-        emit_stage(
-            options.progress,
-            "write",
-            artifact.value().candidate_count(),
-            artifact.value().candidate_count(),
-            cipher.value().indices().size());
+        emit_stage(options.progress, "write", artifact.value().candidate_count(),
+                   artifact.value().candidate_count(), cipher.value().indices().size());
 
         StatusOr<HypothesisBridge::Result> ingested =
             HypothesisBridge::ingest(data_root, artifact.value());
         if (!ingested.ok()) {
             return ingested.status();
         }
-        emit_stage(
-            options.progress,
-            "bridge",
-            ingested.value().written_count(),
-            ingested.value().written_count(),
-            cipher.value().indices().size());
+        emit_stage(options.progress, "bridge", ingested.value().written_count(),
+                   ingested.value().written_count(), cipher.value().indices().size());
 
-        result.batches_.emplace_back(
-            artifact.value().batch_id(),
-            artifact.value().candidate_count(),
-            job_digest);
+        result.batches_.emplace_back(artifact.value().batch_id(),
+                                     artifact.value().candidate_count(), job_digest);
         result.hypotheses_written_ = ingested.value().written_count();
         result.stop_reason_ = std::string(stop_completed_iterations);
         return result;
     }
 
     /// Repeat `run_once` until budget / stop reason (`search-loop.md` § `run_loop`).
-    [[nodiscard]] static StatusOr<CycleResult> run_loop(
-        const std::filesystem::path& data_root,
-        const Context& ctx,
-        const SearchJob& job,
-        const LoopOptions& options) {
+    [[nodiscard]] static StatusOr<CycleResult> run_loop(const std::filesystem::path& data_root,
+                                                        const Context& ctx, const SearchJob& job,
+                                                        const LoopOptions& options) {
         if (options.created_utc.empty() && options.created_utcs.empty()) {
             return Status::error("SearchScheduler::run_loop requires created_utc");
         }
@@ -363,8 +306,7 @@ public:
             return Status::error(
                 "SearchScheduler::run_loop: batch_ids must cover max_iterations when set");
         }
-        if (!options.created_utcs.empty() &&
-            options.created_utcs.size() < options.max_iterations) {
+        if (!options.created_utcs.empty() && options.created_utcs.size() < options.max_iterations) {
             return Status::error(
                 "SearchScheduler::run_loop: created_utcs must cover max_iterations when set");
         }
@@ -380,9 +322,8 @@ public:
             if (!options.max_wall_seconds.has_value()) {
                 return false;
             }
-            const double elapsed = std::chrono::duration<double>(
-                                       std::chrono::steady_clock::now() - wall0)
-                                       .count();
+            const double elapsed =
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count();
             return elapsed >= *options.max_wall_seconds;
         };
 
@@ -411,12 +352,8 @@ public:
                 once.batch_id = options.batch_ids[i];
             }
 
-            emit_stage(
-                options.progress,
-                "iteration",
-                i + 1,
-                options.max_iterations,
-                /*rune_count=*/0);
+            emit_stage(options.progress, "iteration", i + 1, options.max_iterations,
+                       /*rune_count=*/0);
 
             StatusOr<CycleResult> cycle = run_once(data_root, ctx, job, once);
             if (!cycle.ok()) {
@@ -441,8 +378,8 @@ public:
             }
 
             if (options.stop_on_promoted) {
-                StatusOr<bool> promoted = workspace_has_status(
-                    data_root, job.workspace_id(), HypothesisStatus::Promoted);
+                StatusOr<bool> promoted =
+                    workspace_has_status(data_root, job.workspace_id(), HypothesisStatus::Promoted);
                 if (!promoted.ok()) {
                     return promoted.status();
                 }
@@ -469,23 +406,21 @@ public:
     }
 
     /// Deterministic batch id: `b` + 32 hex of SHA-256(preimage).
-    [[nodiscard]] static std::string make_batch_id(
-        std::string_view workspace_id,
-        std::string_view family,
-        std::string_view job_digest_sha256,
-        std::string_view prior_digest_sha256,
-        std::string_view created_utc) {
-        const std::string material = std::string(workspace_id) + '\n' + std::string(family) +
-                                     '\n' + std::string(job_digest_sha256) + '\n' +
+    [[nodiscard]] static std::string make_batch_id(std::string_view workspace_id,
+                                                   std::string_view family,
+                                                   std::string_view job_digest_sha256,
+                                                   std::string_view prior_digest_sha256,
+                                                   std::string_view created_utc) {
+        const std::string material = std::string(workspace_id) + '\n' + std::string(family) + '\n' +
+                                     std::string(job_digest_sha256) + '\n' +
                                      std::string(prior_digest_sha256) + '\n' +
                                      std::string(created_utc);
         return std::string("b") + Sha256::hex_digest(material).substr(0, 32);
     }
 
     /// Advance an RFC 3339 UTC timestamp of the form `YYYY-MM-DDTHH:MM:SSZ` by `seconds`.
-    [[nodiscard]] static StatusOr<std::string> advance_utc_seconds(
-        std::string_view utc,
-        std::int64_t seconds) {
+    [[nodiscard]] static StatusOr<std::string> advance_utc_seconds(std::string_view utc,
+                                                                   std::int64_t seconds) {
         if (utc.size() != 20 || utc[10] != 'T' || utc[19] != 'Z') {
             return Status::error(
                 "SearchScheduler::advance_utc_seconds expects YYYY-MM-DDTHH:MM:SSZ");
@@ -501,46 +436,35 @@ public:
             return Status::error("SearchScheduler::advance_utc_seconds: invalid timestamp fields");
         }
 
-        const std::chrono::year_month_day ymd{
-            std::chrono::year{year},
-            std::chrono::month{static_cast<unsigned>(month)},
-            std::chrono::day{static_cast<unsigned>(day)}};
+        const std::chrono::year_month_day ymd{std::chrono::year{year},
+                                              std::chrono::month{static_cast<unsigned>(month)},
+                                              std::chrono::day{static_cast<unsigned>(day)}};
         if (!ymd.ok()) {
             return Status::error("SearchScheduler::advance_utc_seconds: invalid calendar day");
         }
 
         const std::chrono::sys_seconds tp =
-            std::chrono::sys_days{ymd} + std::chrono::hours{hour} +
-            std::chrono::minutes{minute} + std::chrono::seconds{second} +
-            std::chrono::seconds{seconds};
+            std::chrono::sys_days{ymd} + std::chrono::hours{hour} + std::chrono::minutes{minute} +
+            std::chrono::seconds{second} + std::chrono::seconds{seconds};
 
         const std::chrono::sys_days day_floor = std::chrono::floor<std::chrono::days>(tp);
         const std::chrono::year_month_day out_ymd{day_floor};
         const auto tod = std::chrono::hh_mm_ss{tp - day_floor};
 
         char buf[32];
-        std::snprintf(
-            buf,
-            sizeof(buf),
-            "%04d-%02u-%02uT%02d:%02d:%02dZ",
-            static_cast<int>(out_ymd.year()),
-            static_cast<unsigned>(out_ymd.month()),
-            static_cast<unsigned>(out_ymd.day()),
-            static_cast<int>(tod.hours().count()),
-            static_cast<int>(tod.minutes().count()),
-            static_cast<int>(tod.seconds().count()));
+        std::snprintf(buf, sizeof(buf), "%04d-%02u-%02uT%02d:%02d:%02dZ",
+                      static_cast<int>(out_ymd.year()), static_cast<unsigned>(out_ymd.month()),
+                      static_cast<unsigned>(out_ymd.day()), static_cast<int>(tod.hours().count()),
+                      static_cast<int>(tod.minutes().count()),
+                      static_cast<int>(tod.seconds().count()));
         return std::string(buf);
     }
 
 private:
     SearchScheduler() = delete;
 
-    static void emit_stage(
-        ConsoleProgressSink* sink,
-        std::string_view stage,
-        std::size_t done,
-        std::size_t total,
-        std::size_t rune_count) {
+    static void emit_stage(ConsoleProgressSink* sink, std::string_view stage, std::size_t done,
+                           std::size_t total, std::size_t rune_count) {
         if (sink == nullptr) {
             return;
         }
@@ -560,9 +484,8 @@ private:
         return v;
     }
 
-    [[nodiscard]] static StatusOr<std::string> utc_for_iteration(
-        const LoopOptions& options,
-        std::size_t iteration) {
+    [[nodiscard]] static StatusOr<std::string> utc_for_iteration(const LoopOptions& options,
+                                                                 std::size_t iteration) {
         if (!options.created_utcs.empty()) {
             return options.created_utcs[iteration];
         }
@@ -579,10 +502,9 @@ private:
         return msg.find("no candidates after prior") != std::string::npos;
     }
 
-    [[nodiscard]] static StatusOr<bool> workspace_has_status(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id,
-        HypothesisStatus want) {
+    [[nodiscard]] static StatusOr<bool> workspace_has_status(const std::filesystem::path& data_root,
+                                                             std::string_view workspace_id,
+                                                             HypothesisStatus want) {
         StatusOr<std::vector<std::string>> ids =
             HypothesisRecord::list_ids(data_root, workspace_id);
         if (!ids.ok()) {
@@ -602,23 +524,20 @@ private:
     }
 
     /// Inline `SearchJob.prior` wins; otherwise rebuild from workspace hypotheses.
-    [[nodiscard]] static StatusOr<SearchPrior> resolve_prior(
-        const std::filesystem::path& data_root,
-        const SearchJob& job,
-        const Options& options) {
+    [[nodiscard]] static StatusOr<SearchPrior> resolve_prior(const std::filesystem::path& data_root,
+                                                             const SearchJob& job,
+                                                             const Options& options) {
         if (job.prior().has_value() && !job.prior()->is_null()) {
             return SearchPrior::from_json(*job.prior());
         }
-        return SearchPrior::from_workspace(
-            data_root, job.workspace_id(), options.created_utc, options.prior_build);
+        return SearchPrior::from_workspace(data_root, job.workspace_id(), options.created_utc,
+                                           options.prior_build);
     }
 
-    [[nodiscard]] static StatusOr<CpuCandidateExport::Result> export_candidates(
-        std::span<const Index29> cipher,
-        const SearchJob& job,
-        const Context& ctx,
-        const SearchPrior& prior,
-        BatchRunner::Progress progress = BatchRunner::Progress{}) {
+    [[nodiscard]] static StatusOr<CpuCandidateExport::Result>
+    export_candidates(std::span<const Index29> cipher, const SearchJob& job, const Context& ctx,
+                      const SearchPrior& prior,
+                      BatchRunner::Progress progress = BatchRunner::Progress{}) {
         // Theory-URI jobs are CPU-only (TheoryDispatch / apply_ir); no fused CUDA path.
         if (job.backend() == Backend::Cpu || SearchJob::is_theory_family(job.family())) {
             return CpuCandidateExport::from_job(cipher, job, ctx, &prior, progress);
@@ -654,31 +573,27 @@ private:
         return fused;
     }
 
-    [[nodiscard]] static StatusOr<CpuCandidateExport::Result> export_cuda_fused(
-        std::span<const Index29> cipher,
-        const SearchJob& job,
-        const ExpectedFrequencyTable& freqs,
-        BatchRunner::Progress progress = BatchRunner::Progress{}) {
+    [[nodiscard]] static StatusOr<CpuCandidateExport::Result>
+    export_cuda_fused(std::span<const Index29> cipher, const SearchJob& job,
+                      const ExpectedFrequencyTable& freqs,
+                      BatchRunner::Progress progress = BatchRunner::Progress{}) {
         const std::string& family = job.family();
         if (family == "caesar") {
-            return GpuCandidateExport::caesar(
-                cipher, freqs, job.k(), job.direction(), progress);
+            return GpuCandidateExport::caesar(cipher, freqs, job.k(), job.direction(), progress);
         }
         if (family == "atbash") {
-            return GpuCandidateExport::atbash(
-                cipher, freqs, job.k(), job.direction(), progress);
+            return GpuCandidateExport::atbash(cipher, freqs, job.k(), job.direction(), progress);
         }
         if (family == "atbash_caesar") {
-            return GpuCandidateExport::atbash_caesar(
-                cipher, freqs, job.k(), job.direction(), progress);
+            return GpuCandidateExport::atbash_caesar(cipher, freqs, job.k(), job.direction(),
+                                                     progress);
         }
         if (family == "compose") {
-            return GpuCandidateExport::compose_from_param_grid(
-                cipher, freqs, job.param_grid(), job.k(), job.direction(), progress);
+            return GpuCandidateExport::compose_from_param_grid(cipher, freqs, job.param_grid(),
+                                                               job.k(), job.direction(), progress);
         }
         if (family == "affine") {
-            return GpuCandidateExport::affine(
-                cipher, freqs, job.k(), job.direction(), progress);
+            return GpuCandidateExport::affine(cipher, freqs, job.k(), job.direction(), progress);
         }
         if (family == "vigenere") {
             std::size_t max_len = GpuCandidateExport::default_vigenere_max_key_length;
@@ -690,13 +605,12 @@ private:
                 }
                 max_len = static_cast<std::size_t>(v);
             }
-            return GpuCandidateExport::vigenere_bounded(
-                cipher, freqs, job.k(), max_len, job.direction(), progress);
+            return GpuCandidateExport::vigenere_bounded(cipher, freqs, job.k(), max_len,
+                                                        job.direction(), progress);
         }
         if (family == "beaufort") {
             if (!job.allow_extended_families()) {
-                return Status::error(
-                    "SearchScheduler: beaufort requires allow_extended_families");
+                return Status::error("SearchScheduler: beaufort requires allow_extended_families");
             }
             std::size_t max_len = GpuCandidateExport::default_vigenere_max_key_length;
             if (job.param_grid().is_object() && job.param_grid().contains("max_key_length") &&
@@ -707,28 +621,24 @@ private:
                 }
                 max_len = static_cast<std::size_t>(v);
             }
-            return GpuCandidateExport::beaufort_bounded(
-                cipher, freqs, job.k(), max_len, job.direction(), progress);
+            return GpuCandidateExport::beaufort_bounded(cipher, freqs, job.k(), max_len,
+                                                        job.direction(), progress);
         }
         if (family == "totient") {
             if (!job.allow_extended_families()) {
-                return Status::error(
-                    "SearchScheduler: totient requires allow_extended_families");
+                return Status::error("SearchScheduler: totient requires allow_extended_families");
             }
             std::size_t count = GpuCandidateExport::default_totient_start_count;
-            if (job.param_grid().is_object() &&
-                job.param_grid().contains("prime_start_count") &&
+            if (job.param_grid().is_object() && job.param_grid().contains("prime_start_count") &&
                 job.param_grid().at("prime_start_count").is_number_integer()) {
-                const std::int64_t v =
-                    job.param_grid().at("prime_start_count").get<std::int64_t>();
+                const std::int64_t v = job.param_grid().at("prime_start_count").get<std::int64_t>();
                 if (v < 1) {
                     return Status::error(
                         "SearchScheduler: param_grid.prime_start_count must be >= 1");
                 }
                 count = static_cast<std::size_t>(v);
             }
-            if (job.param_grid().is_object() &&
-                job.param_grid().contains("prime_start_indices") &&
+            if (job.param_grid().is_object() && job.param_grid().contains("prime_start_indices") &&
                 job.param_grid().at("prime_start_indices").is_array()) {
                 std::vector<std::size_t> starts;
                 for (const auto& item : job.param_grid().at("prime_start_indices")) {
@@ -738,14 +648,13 @@ private:
                     }
                     starts.push_back(static_cast<std::size_t>(item.get<std::int64_t>()));
                 }
-                return GpuCandidateExport::totient(
-                    cipher, freqs, starts, job.k(), job.direction(), progress);
+                return GpuCandidateExport::totient(cipher, freqs, starts, job.k(), job.direction(),
+                                                   progress);
             }
-            return GpuCandidateExport::totient_bounded(
-                cipher, freqs, job.k(), count, job.direction(), progress);
+            return GpuCandidateExport::totient_bounded(cipher, freqs, job.k(), count,
+                                                       job.direction(), progress);
         }
-        return Status::error(
-            "SearchScheduler: unsupported family for cuda export: " + family);
+        return Status::error("SearchScheduler: unsupported family for cuda export: " + family);
     }
 };
-#endif  // SEARCH_SCHEDULER_HPP
+#endif // SEARCH_SCHEDULER_HPP

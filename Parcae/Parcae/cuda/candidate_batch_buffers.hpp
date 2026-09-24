@@ -1,11 +1,11 @@
 #ifndef CANDIDATE_BATCH_BUFFERS_HPP
 #define CANDIDATE_BATCH_BUFFERS_HPP
 
-#include "params.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
+
+#include "params.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -32,8 +32,8 @@ public:
     static constexpr std::size_t kMaxT = 4096;
 
     enum class TokenLayout : std::uint8_t {
-        Shared = 0,        ///< `token_index29[T]` + params SoA
-        PerCandidate = 1,  ///< `token_index29[C * T]`
+        Shared = 0,       ///< `token_index29[T]` + params SoA
+        PerCandidate = 1, ///< `token_index29[C * T]`
     };
 
     /// Options for `allocate`. Param lanes sized to `C` are always reserved for
@@ -48,16 +48,13 @@ public:
         std::size_t key_arena_capacity = 0;
     };
 
-    [[nodiscard]] static StatusOr<CandidateBatchBuffers> allocate(
-        std::size_t candidate_count,
-        std::size_t token_count) {
+    [[nodiscard]] static StatusOr<CandidateBatchBuffers> allocate(std::size_t candidate_count,
+                                                                  std::size_t token_count) {
         return allocate(candidate_count, token_count, AllocateOptions{});
     }
 
-    [[nodiscard]] static StatusOr<CandidateBatchBuffers> allocate(
-        std::size_t candidate_count,
-        std::size_t token_count,
-        AllocateOptions options) {
+    [[nodiscard]] static StatusOr<CandidateBatchBuffers>
+    allocate(std::size_t candidate_count, std::size_t token_count, AllocateOptions options) {
         if (candidate_count == 0) {
             return Status::error("CandidateBatchBuffers: C must be >= 1");
         }
@@ -88,7 +85,7 @@ public:
         reserve_param_lanes(buffers, options.family, candidate_count);
 
         if (options.with_consume_mask) {
-            buffers.consume_mask_.assign(flat, 1);  // 1 = consumable
+            buffers.consume_mask_.assign(flat, 1); // 1 = consumable
         }
         if (options.with_scores) {
             buffers.scores_.assign(candidate_count, 0.0);
@@ -102,114 +99,70 @@ public:
         return buffers;
     }
 
-    [[nodiscard]] std::size_t candidate_count() const noexcept {
-        return candidate_count_;
-    }
+    [[nodiscard]] std::size_t candidate_count() const noexcept { return candidate_count_; }
 
-    [[nodiscard]] std::size_t token_count() const noexcept {
-        return token_count_;
-    }
+    [[nodiscard]] std::size_t token_count() const noexcept { return token_count_; }
 
-    [[nodiscard]] TokenLayout token_layout() const noexcept {
-        return token_layout_;
-    }
+    [[nodiscard]] TokenLayout token_layout() const noexcept { return token_layout_; }
 
-    [[nodiscard]] CudaFamilyId family() const noexcept {
-        return family_;
-    }
+    [[nodiscard]] CudaFamilyId family() const noexcept { return family_; }
 
     /// Flat index for candidate-major `(c, t)`.
     [[nodiscard]] std::size_t flat_index(std::size_t candidate, std::size_t token) const {
         return candidate * token_count_ + token;
     }
 
-    [[nodiscard]] std::span<std::uint8_t> token_index29() noexcept {
-        return token_index29_;
-    }
+    [[nodiscard]] std::span<std::uint8_t> token_index29() noexcept { return token_index29_; }
 
     [[nodiscard]] std::span<const std::uint8_t> token_index29() const noexcept {
         return token_index29_;
     }
 
-    [[nodiscard]] std::span<std::uint8_t> out_index29() noexcept {
-        return out_index29_;
-    }
+    [[nodiscard]] std::span<std::uint8_t> out_index29() noexcept { return out_index29_; }
 
     [[nodiscard]] std::span<const std::uint8_t> out_index29() const noexcept {
         return out_index29_;
     }
 
-    [[nodiscard]] std::span<std::uint8_t> consume_mask() noexcept {
-        return consume_mask_;
-    }
+    [[nodiscard]] std::span<std::uint8_t> consume_mask() noexcept { return consume_mask_; }
 
     [[nodiscard]] std::span<const std::uint8_t> consume_mask() const noexcept {
         return consume_mask_;
     }
 
-    [[nodiscard]] std::span<double> scores() noexcept {
-        return scores_;
-    }
+    [[nodiscard]] std::span<double> scores() noexcept { return scores_; }
 
-    [[nodiscard]] std::span<const double> scores() const noexcept {
-        return scores_;
-    }
+    [[nodiscard]] std::span<const double> scores() const noexcept { return scores_; }
 
-    [[nodiscard]] std::span<std::uint8_t> directions() noexcept {
-        return directions_;
-    }
+    [[nodiscard]] std::span<std::uint8_t> directions() noexcept { return directions_; }
 
-    [[nodiscard]] std::span<const std::uint8_t> directions() const noexcept {
-        return directions_;
-    }
+    [[nodiscard]] std::span<const std::uint8_t> directions() const noexcept { return directions_; }
 
-    [[nodiscard]] std::span<std::uint8_t> caesar_shifts() noexcept {
-        return caesar_shifts_;
-    }
+    [[nodiscard]] std::span<std::uint8_t> caesar_shifts() noexcept { return caesar_shifts_; }
 
     [[nodiscard]] std::span<const std::uint8_t> caesar_shifts() const noexcept {
         return caesar_shifts_;
     }
 
-    [[nodiscard]] std::span<std::uint8_t> affine_a() noexcept {
-        return affine_a_;
-    }
+    [[nodiscard]] std::span<std::uint8_t> affine_a() noexcept { return affine_a_; }
 
-    [[nodiscard]] std::span<const std::uint8_t> affine_a() const noexcept {
-        return affine_a_;
-    }
+    [[nodiscard]] std::span<const std::uint8_t> affine_a() const noexcept { return affine_a_; }
 
-    [[nodiscard]] std::span<std::uint8_t> affine_b() noexcept {
-        return affine_b_;
-    }
+    [[nodiscard]] std::span<std::uint8_t> affine_b() noexcept { return affine_b_; }
 
-    [[nodiscard]] std::span<const std::uint8_t> affine_b() const noexcept {
-        return affine_b_;
-    }
+    [[nodiscard]] std::span<const std::uint8_t> affine_b() const noexcept { return affine_b_; }
 
-    [[nodiscard]] std::span<std::uint32_t> key_begin() noexcept {
-        return key_begin_;
-    }
+    [[nodiscard]] std::span<std::uint32_t> key_begin() noexcept { return key_begin_; }
 
-    [[nodiscard]] std::span<const std::uint32_t> key_begin() const noexcept {
-        return key_begin_;
-    }
+    [[nodiscard]] std::span<const std::uint32_t> key_begin() const noexcept { return key_begin_; }
 
-    [[nodiscard]] std::span<std::uint32_t> key_len() noexcept {
-        return key_len_;
-    }
+    [[nodiscard]] std::span<std::uint32_t> key_len() noexcept { return key_len_; }
 
-    [[nodiscard]] std::span<const std::uint32_t> key_len() const noexcept {
-        return key_len_;
-    }
+    [[nodiscard]] std::span<const std::uint32_t> key_len() const noexcept { return key_len_; }
 
-    [[nodiscard]] std::span<std::uint8_t> key_bytes() noexcept {
-        return key_bytes_;
-    }
+    [[nodiscard]] std::span<std::uint8_t> key_bytes() noexcept { return key_bytes_; }
 
-    [[nodiscard]] std::span<const std::uint8_t> key_bytes() const noexcept {
-        return key_bytes_;
-    }
+    [[nodiscard]] std::span<const std::uint8_t> key_bytes() const noexcept { return key_bytes_; }
 
     /// Pack shared ciphertext tokens (`TokenLayout::Shared` only).
     [[nodiscard]] Status set_shared_tokens(std::span<const Index29> tokens) {
@@ -226,15 +179,15 @@ public:
     }
 
     /// Pack one candidate's tokens (`TokenLayout::PerCandidate` only).
-    [[nodiscard]] Status set_candidate_tokens(
-        std::size_t candidate,
-        std::span<const Index29> tokens) {
+    [[nodiscard]] Status set_candidate_tokens(std::size_t candidate,
+                                              std::span<const Index29> tokens) {
         if (token_layout_ != TokenLayout::PerCandidate) {
             return Status::error(
                 "CandidateBatchBuffers::set_candidate_tokens requires PerCandidate layout");
         }
         if (candidate >= candidate_count_) {
-            return Status::error("CandidateBatchBuffers::set_candidate_tokens candidate out of range");
+            return Status::error(
+                "CandidateBatchBuffers::set_candidate_tokens candidate out of range");
         }
         if (tokens.size() != token_count_) {
             return Status::error("CandidateBatchBuffers::set_candidate_tokens size mismatch");
@@ -249,7 +202,8 @@ public:
     /// Read one candidate's `out_index29` lane into `Index29` (host-side D2H helper).
     [[nodiscard]] Status copy_out_candidate(std::size_t candidate, std::span<Index29> dest) const {
         if (candidate >= candidate_count_) {
-            return Status::error("CandidateBatchBuffers::copy_out_candidate candidate out of range");
+            return Status::error(
+                "CandidateBatchBuffers::copy_out_candidate candidate out of range");
         }
         if (dest.size() != token_count_) {
             return Status::error("CandidateBatchBuffers::copy_out_candidate size mismatch");
@@ -301,8 +255,7 @@ public:
 
     /// Pack caller-supplied Vigenère/Beaufort key lists into the key arena.
     /// Requires `key_arena_capacity` ≥ sum of key lengths and `keys.size() == C`.
-    [[nodiscard]] Status pack_explicit_keys(
-        const std::vector<std::vector<Index29>>& keys) {
+    [[nodiscard]] Status pack_explicit_keys(const std::vector<std::vector<Index29>>& keys) {
         if (family_ != CudaFamilyId::VigenereKey && family_ != CudaFamilyId::BeaufortKey) {
             return Status::error(
                 "CandidateBatchBuffers::pack_explicit_keys requires VigenereKey or BeaufortKey");
@@ -311,7 +264,8 @@ public:
             return Status::error("CandidateBatchBuffers::pack_explicit_keys size must equal C");
         }
         if (key_begin_.size() != candidate_count_ || key_len_.size() != candidate_count_) {
-            return Status::error("CandidateBatchBuffers: key lanes missing (set key_arena_capacity)");
+            return Status::error(
+                "CandidateBatchBuffers: key lanes missing (set key_arena_capacity)");
         }
 
         std::size_t cursor = 0;
@@ -322,7 +276,8 @@ public:
             if (cursor + keys[c].size() > key_bytes_.size()) {
                 return Status::error("CandidateBatchBuffers::pack_explicit_keys arena overflow");
             }
-            if (keys[c].size() > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) ||
+            if (keys[c].size() >
+                    static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) ||
                 cursor > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
                 return Status::error("CandidateBatchBuffers::pack_explicit_keys exceeds uint32_t");
             }
@@ -336,13 +291,11 @@ public:
     }
 
     /// Total key-byte capacity reserved at allocate time.
-    [[nodiscard]] std::size_t key_arena_capacity() const noexcept {
-        return key_bytes_.size();
-    }
+    [[nodiscard]] std::size_t key_arena_capacity() const noexcept { return key_bytes_.size(); }
 
     /// Sum of key lengths for sizing `AllocateOptions::key_arena_capacity`.
-    [[nodiscard]] static std::size_t key_arena_bytes_needed(
-        const std::vector<std::vector<Index29>>& keys) noexcept {
+    [[nodiscard]] static std::size_t
+    key_arena_bytes_needed(const std::vector<std::vector<Index29>>& keys) noexcept {
         std::size_t total = 0;
         for (const std::vector<Index29>& key : keys) {
             total += key.size();
@@ -353,10 +306,8 @@ public:
 private:
     CandidateBatchBuffers() = default;
 
-    static void reserve_param_lanes(
-        CandidateBatchBuffers& buffers,
-        CudaFamilyId family,
-        std::size_t candidate_count) {
+    static void reserve_param_lanes(CandidateBatchBuffers& buffers, CudaFamilyId family,
+                                    std::size_t candidate_count) {
         switch (family) {
         case CudaFamilyId::Caesar:
             buffers.caesar_shifts_.assign(candidate_count, 0);

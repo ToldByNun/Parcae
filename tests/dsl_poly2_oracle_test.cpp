@@ -1,13 +1,11 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
 #include <parcae/core/index29.hpp>
 #include <parcae/core/z29.hpp>
 #include <parcae/dsl/dsl_ir_applicator.hpp>
 #include <parcae/dsl/primitive_ir.hpp>
 #include <parcae/dsl/z29_expr.hpp>
 #include <parcae/interrupt/policy.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <cstdint>
 #include <random>
 #include <string>
 #include <vector>
@@ -16,8 +14,7 @@ namespace {
 
 /// Hand oracle: (c2·i·i + c1·i + c0) mod 29 via host Z29 (same as dsl.md poly2_mod29).
 [[nodiscard]] Index29 poly2_oracle(Index29 i, Index29 c2, Index29 c1, Index29 c0) {
-    return Z29::add(
-        Z29::add(Z29::mul(Z29::mul(c2, i), i), Z29::mul(c1, i)), c0);
+    return Z29::add(Z29::add(Z29::mul(Z29::mul(c2, i), i), Z29::mul(c1, i)), c0);
 }
 
 [[nodiscard]] Z29Expr::Ptr poly2_binop_body() {
@@ -25,8 +22,8 @@ namespace {
     const Z29Expr::Ptr c2 = Z29Expr::var("c2");
     const Z29Expr::Ptr c1 = Z29Expr::var("c1");
     const Z29Expr::Ptr c0 = Z29Expr::var("c0");
-    return Z29Expr::add(
-        Z29Expr::add(Z29Expr::mul(Z29Expr::mul(c2, i), i), Z29Expr::mul(c1, i)), c0);
+    return Z29Expr::add(Z29Expr::add(Z29Expr::mul(Z29Expr::mul(c2, i), i), Z29Expr::mul(c1, i)),
+                        c0);
 }
 
 [[nodiscard]] Z29Expr::Ptr poly2_call_body() {
@@ -42,15 +39,13 @@ namespace {
 }
 
 [[nodiscard]] PrimitiveIr make_poly2(const Z29Expr::Ptr& body) {
-    const StatusOr<PrimitiveIr> prim = PrimitiveIr::make(
-        "poly2_mod29",
-        "(i: Z29, c2: Z29, c1: Z29, c0: Z29) -> Z29",
-        body);
+    const StatusOr<PrimitiveIr> prim =
+        PrimitiveIr::make("poly2_mod29", "(i: Z29, c2: Z29, c1: Z29, c0: Z29) -> Z29", body);
     REQUIRE(prim.ok());
     return prim.value();
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("poly2 Z29Expr BinOp matches Z29 oracle exhaustively", "[dsl][oracle][poly2]") {
     const Z29Expr::Ptr body = poly2_binop_body();
@@ -89,12 +84,11 @@ TEST_CASE("poly2 Z29Expr BinOp matches Z29 oracle exhaustively", "[dsl][oracle][
             }
         }
     }
-    INFO(
-        "first mismatch i=" << static_cast<int>(bad_i) << " c2=" << static_cast<int>(bad_c2)
-                            << " c1=" << static_cast<int>(bad_c1) << " c0="
-                            << static_cast<int>(bad_c0) << " got="
-                            << static_cast<int>(first_bad_got.value()) << " expect="
-                            << static_cast<int>(first_bad_expect.value()));
+    INFO("first mismatch i=" << static_cast<int>(bad_i) << " c2=" << static_cast<int>(bad_c2)
+                             << " c1=" << static_cast<int>(bad_c1)
+                             << " c0=" << static_cast<int>(bad_c0)
+                             << " got=" << static_cast<int>(first_bad_got.value())
+                             << " expect=" << static_cast<int>(first_bad_expect.value()));
     REQUIRE(mismatches == 0);
 }
 
@@ -146,11 +140,7 @@ TEST_CASE("poly2 Call-shaped IR matches BinOp IR and oracle", "[dsl][oracle][pol
 TEST_CASE("poly2 DslIrApplicator stream matches oracle", "[dsl][oracle][poly2]") {
     const PrimitiveIr prim = make_poly2(poly2_binop_body());
     const std::vector<Index29> stream{
-        Index29{0},
-        Index29{1},
-        Index29{7},
-        Index29{14},
-        Index29{28},
+        Index29{0}, Index29{1}, Index29{7}, Index29{14}, Index29{28},
     };
     const std::vector<Index29> tail{Index29{3}, Index29{5}, Index29{2}}; // c2,c1,c0
 
@@ -159,9 +149,7 @@ TEST_CASE("poly2 DslIrApplicator stream matches oracle", "[dsl][oracle][poly2]")
     REQUIRE(out.ok());
     REQUIRE(out.value().size() == stream.size());
     for (std::size_t k = 0; k < stream.size(); ++k) {
-        REQUIRE(
-            out.value()[k] ==
-            poly2_oracle(stream[k], Index29{3}, Index29{5}, Index29{2}));
+        REQUIRE(out.value()[k] == poly2_oracle(stream[k], Index29{3}, Index29{5}, Index29{2}));
     }
 }
 

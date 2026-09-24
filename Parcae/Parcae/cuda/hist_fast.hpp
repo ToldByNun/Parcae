@@ -16,30 +16,28 @@ class HistFast {
 public:
     static constexpr int alphabet = 29;
     static constexpr int threads = 256;
-    static constexpr int warps = threads / 32;  // 8
+    static constexpr int warps = threads / 32; // 8
     static constexpr int priv_stride = 32;     // bins padded to 32
     static constexpr int max_tiles = 1024;
 
     /// Grid.y for uchar4-first hist kernels: one tile covers `threads` packs.
     [[nodiscard]] static int tiles_for(std::size_t token_count) {
-        const std::size_t packs =
-            (token_count + 3u) / 4u;  // scalar epilogue covers remainder
-        const int by_work = static_cast<int>(
-            (packs + static_cast<std::size_t>(threads) - 1u) /
-            static_cast<std::size_t>(threads));
+        const std::size_t packs = (token_count + 3u) / 4u; // scalar epilogue covers remainder
+        const int by_work = static_cast<int>((packs + static_cast<std::size_t>(threads) - 1u) /
+                                             static_cast<std::size_t>(threads));
         if (by_work < 1) {
             return 1;
         }
         return by_work < max_tiles ? by_work : max_tiles;
     }
-    [[nodiscard]] PARCAE_HD static std::uint8_t dec_caesar(
-        std::uint8_t x, std::uint8_t shift) noexcept {
+    [[nodiscard]] PARCAE_HD static std::uint8_t dec_caesar(std::uint8_t x,
+                                                           std::uint8_t shift) noexcept {
         const unsigned s = static_cast<unsigned>(x) + 29u - static_cast<unsigned>(shift);
         return static_cast<std::uint8_t>(s >= 29u ? s - 29u : s);
     }
 
-    [[nodiscard]] PARCAE_HD static std::uint8_t enc_caesar(
-        std::uint8_t x, std::uint8_t shift) noexcept {
+    [[nodiscard]] PARCAE_HD static std::uint8_t enc_caesar(std::uint8_t x,
+                                                           std::uint8_t shift) noexcept {
         const unsigned s = static_cast<unsigned>(x) + static_cast<unsigned>(shift);
         return static_cast<std::uint8_t>(s >= 29u ? s - 29u : s);
     }
@@ -48,8 +46,7 @@ public:
         return static_cast<std::uint8_t>(28u - x);
     }
 
-    [[nodiscard]] PARCAE_HD static std::uint8_t dec_sub(
-        std::uint8_t x, std::uint8_t key) noexcept {
+    [[nodiscard]] PARCAE_HD static std::uint8_t dec_sub(std::uint8_t x, std::uint8_t key) noexcept {
         const unsigned s = static_cast<unsigned>(x) + 29u - static_cast<unsigned>(key);
         return static_cast<std::uint8_t>(s >= 29u ? s - 29u : s);
     }
@@ -73,7 +70,7 @@ public:
         __syncthreads();
         if (threadIdx.x < alphabet) {
             std::uint32_t sum = 0u;
-            #pragma unroll
+#pragma unroll
             for (int w = 0; w < warps; ++w) {
                 sum += priv[w * priv_stride + threadIdx.x];
             }
@@ -89,4 +86,4 @@ private:
 #undef PARCAE_HD
 #undef PARCAE_D
 
-#endif  // HIST_FAST_HPP
+#endif // HIST_FAST_HPP

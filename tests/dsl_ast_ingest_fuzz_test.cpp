@@ -1,16 +1,13 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
+#include <nlohmann/json.hpp>
 #include <parcae/dsl/dsl_ast.hpp>
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_ast_limits.hpp>
 #include <parcae/dsl/dsl_rule_id.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <cstdint>
 #include <random>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 namespace {
 
@@ -18,14 +15,10 @@ namespace {
 constexpr std::uint32_t k_ingest_fuzz_seed = 0xC1CADAu;
 
 [[nodiscard]] std::string minimal_success_doc(const std::string& module_json) {
-    return std::string("{") +
-           R"("schema":"parcae.dsl_ast_json.v0",)" +
-           R"("dsl_ast_json_version":"1.0.0",)" +
-           R"("source_path":"fuzz.py",)" +
+    return std::string("{") + R"("schema":"parcae.dsl_ast_json.v0",)" +
+           R"("dsl_ast_json_version":"1.0.0",)" + R"("source_path":"fuzz.py",)" +
            R"("source_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",)" +
-           R"("python_version":"3.12.0",)" +
-           R"("ok":true,)" +
-           R"("module":)" + module_json + "}";
+           R"("python_version":"3.12.0",)" + R"("ok":true,)" + R"("module":)" + module_json + "}";
 }
 
 [[nodiscard]] nlohmann::json valid_root_json() {
@@ -33,8 +26,7 @@ constexpr std::uint32_t k_ingest_fuzz_seed = 0xC1CADAu;
         {"schema", "parcae.dsl_ast_json.v0"},
         {"dsl_ast_json_version", "1.0.0"},
         {"source_path", "fuzz.py"},
-        {"source_sha256",
-         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"},
+        {"source_sha256", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"},
         {"python_version", "3.12.0"},
         {"ok", true},
         {"module",
@@ -50,11 +42,7 @@ constexpr std::uint32_t k_ingest_fuzz_seed = 0xC1CADAu;
 [[nodiscard]] nlohmann::json bush_expr(int depth) {
     if (depth <= 0) {
         return nlohmann::json{
-            {"kind", "Name"},
-            {"id", "x"},
-            {"ctx", "Load"},
-            {"lineno", 1},
-            {"col_offset", 0},
+            {"kind", "Name"}, {"id", "x"}, {"ctx", "Load"}, {"lineno", 1}, {"col_offset", 0},
         };
     }
     nlohmann::json elts = nlohmann::json::array();
@@ -62,11 +50,8 @@ constexpr std::uint32_t k_ingest_fuzz_seed = 0xC1CADAu;
         elts.push_back(bush_expr(depth - 1));
     }
     return nlohmann::json{
-        {"kind", "Tuple"},
-        {"lineno", 1},
-        {"col_offset", 0},
-        {"elts", std::move(elts)},
-        {"ctx", "Load"},
+        {"kind", "Tuple"},         {"lineno", 1},   {"col_offset", 0},
+        {"elts", std::move(elts)}, {"ctx", "Load"},
     };
 }
 
@@ -119,7 +104,7 @@ void require_no_crash_ingest(std::string_view text) {
     }
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("ingest limit E103 node count reject (no crash)", "[dsl][ingest][fuzz]") {
     nlohmann::json root = valid_root_json();
@@ -127,14 +112,12 @@ TEST_CASE("ingest limit E103 node count reject (no crash)", "[dsl][ingest][fuzz]
         {"kind", "Module"},
         {"lineno", 1},
         {"col_offset", 0},
-        {"body",
-         nlohmann::json::array(
-             {nlohmann::json{
-                 {"kind", "Expr"},
-                 {"lineno", 1},
-                 {"col_offset", 0},
-                 {"value", bush_expr(/*depth=*/3)},
-             }})},
+        {"body", nlohmann::json::array({nlohmann::json{
+                     {"kind", "Expr"},
+                     {"lineno", 1},
+                     {"col_offset", 0},
+                     {"value", bush_expr(/*depth=*/3)},
+                 }})},
         {"type_ignores", nlohmann::json::array()},
     };
 
@@ -174,8 +157,7 @@ TEST_CASE("ingest limit E104 depth still rejects under fuzz tag", "[dsl][ingest]
 TEST_CASE("ingest limit E106 list length via parse_root", "[dsl][ingest][fuzz]") {
     nlohmann::json body = nlohmann::json::array();
     for (std::size_t i = 0; i < DslAstLimits::max_list_length + 1; ++i) {
-        body.push_back(
-            {{"kind", "Pass"}, {"lineno", 1}, {"col_offset", 0}});
+        body.push_back({{"kind", "Pass"}, {"lineno", 1}, {"col_offset", 0}});
     }
     nlohmann::json root = valid_root_json();
     root["module"]["body"] = std::move(body);
@@ -276,8 +258,7 @@ TEST_CASE("ingest random byte blobs never crash", "[dsl][ingest][fuzz]") {
 }
 
 TEST_CASE("ingest empty module still gates cleanly after fuzz helpers", "[dsl][ingest][fuzz]") {
-    const StatusOr<DslAstDocument> doc =
-        DslAstJsonIngest::parse_root(valid_root_json());
+    const StatusOr<DslAstDocument> doc = DslAstJsonIngest::parse_root(valid_root_json());
     REQUIRE(doc.ok());
     REQUIRE(doc.value().module()->kind() == "Module");
 }

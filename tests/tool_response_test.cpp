@@ -1,19 +1,13 @@
-#include <parcae/tool/tool_response.hpp>
-
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
-
+#include <parcae/tool/tool_response.hpp>
 #include <sstream>
 #include <string>
 
 TEST_CASE("ToolErrorCodeUtil round-trips stable codes", "[tool][response]") {
     const ToolErrorCode codes[] = {
-        ToolErrorCode::Usage,
-        ToolErrorCode::Io,
-        ToolErrorCode::Schema,
-        ToolErrorCode::Policy,
-        ToolErrorCode::NotBuilt,
-        ToolErrorCode::Validation,
+        ToolErrorCode::Usage,    ToolErrorCode::Io,       ToolErrorCode::Schema,
+        ToolErrorCode::Policy,   ToolErrorCode::NotBuilt, ToolErrorCode::Validation,
         ToolErrorCode::Internal,
     };
     for (const ToolErrorCode code : codes) {
@@ -35,14 +29,12 @@ TEST_CASE("ToolErrorCodeUtil exit_status maps validation soft vs hard", "[tool][
 }
 
 TEST_CASE("ToolResponse::success builds valid envelope", "[tool][response]") {
-    const nlohmann::json env = ToolResponse::success(
-        "score",
-        std::string("cpu"),
-        nlohmann::json{
-            {"score_id", "chi2_english_gp_v0"},
-            {"score_version", "v0"},
-            {"value", 12.34},
-        });
+    const nlohmann::json env = ToolResponse::success("score", std::string("cpu"),
+                                                     nlohmann::json{
+                                                         {"score_id", "chi2_english_gp_v0"},
+                                                         {"score_version", "v0"},
+                                                         {"value", 12.34},
+                                                     });
 
     REQUIRE(ToolResponse::validate(env).ok());
     REQUIRE(env.at("schema").get<std::string>() == ToolResponse::schema_id);
@@ -54,18 +46,15 @@ TEST_CASE("ToolResponse::success builds valid envelope", "[tool][response]") {
 }
 
 TEST_CASE("ToolResponse::success allows null backend", "[tool][response]") {
-    const nlohmann::json env =
-        ToolResponse::success("catalog", std::nullopt, nlohmann::json{{"transforms", nlohmann::json::array()}});
+    const nlohmann::json env = ToolResponse::success(
+        "catalog", std::nullopt, nlohmann::json{{"transforms", nlohmann::json::array()}});
     REQUIRE(ToolResponse::validate(env).ok());
     REQUIRE(env.at("backend").is_null());
 }
 
 TEST_CASE("ToolResponse::failure builds valid envelope", "[tool][response]") {
-    const nlohmann::json env = ToolResponse::failure(
-        "decode",
-        std::string("cpu"),
-        ToolErrorCode::Usage,
-        "missing --input");
+    const nlohmann::json env = ToolResponse::failure("decode", std::string("cpu"),
+                                                     ToolErrorCode::Usage, "missing --input");
 
     REQUIRE(ToolResponse::validate(env).ok());
     REQUIRE(env.at("ok").get<bool>() == false);
@@ -89,18 +78,16 @@ TEST_CASE("ToolResponse::write emits compact JSON line", "[tool][response]") {
 }
 
 TEST_CASE("ToolResponse::failure may carry optional details", "[tool][response]") {
-    const nlohmann::json env = ToolResponse::failure(
-        "validate",
-        std::nullopt,
-        ToolErrorCode::Validation,
-        "failed",
-        nlohmann::json{{"count", 1}});
+    const nlohmann::json env =
+        ToolResponse::failure("validate", std::nullopt, ToolErrorCode::Validation, "failed",
+                              nlohmann::json{{"count", 1}});
     REQUIRE(ToolResponse::validate(env).ok());
     REQUIRE(env.at("error").at("details").at("count").get<int>() == 1);
 }
 
 TEST_CASE("ToolResponse::validate rejects mismatched ok/error/result", "[tool][response]") {
-    nlohmann::json bad = ToolResponse::success("score", std::string("cpu"), nlohmann::json::object());
+    nlohmann::json bad =
+        ToolResponse::success("score", std::string("cpu"), nlohmann::json::object());
     bad["error"] = nlohmann::json{{"code", "usage"}, {"message", "x"}};
     REQUIRE_FALSE(ToolResponse::validate(bad).ok());
 

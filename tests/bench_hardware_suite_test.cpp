@@ -1,9 +1,7 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/bench/bench_formatter.hpp>
 #include <parcae/bench/bench_hardware_suite.hpp>
 #include <parcae/tool/context.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
 
 #ifndef PARCAE_TEST_DATA_DIR
@@ -20,12 +18,10 @@ TEST_CASE("BenchHardwareSuite Options defaults", "[bench][hardware]") {
     REQUIRE(opts.seed() == 0x48415244u);
 
     REQUIRE(BenchHardwareSuite::parse_backend("cpu").ok());
-    REQUIRE(
-        BenchHardwareSuite::parse_backend("cpu").value() ==
-        BenchHardwareSuite::BackendSelect::Cpu);
-    REQUIRE(
-        BenchHardwareSuite::parse_backend("both").value() ==
-        BenchHardwareSuite::BackendSelect::Both);
+    REQUIRE(BenchHardwareSuite::parse_backend("cpu").value() ==
+            BenchHardwareSuite::BackendSelect::Cpu);
+    REQUIRE(BenchHardwareSuite::parse_backend("both").value() ==
+            BenchHardwareSuite::BackendSelect::Both);
     REQUIRE_FALSE(BenchHardwareSuite::parse_backend("gpu").ok());
 }
 
@@ -58,9 +54,8 @@ TEST_CASE("BenchHardwareSuite CPU smoke rows for T1–T3", "[bench][hardware]") 
     REQUIRE(human.find("T1") != std::string::npos);
 }
 
-TEST_CASE(
-    "BenchHardwareSuite CUDA skipped_not_built when allow_cuda without device",
-    "[bench][hardware]") {
+TEST_CASE("BenchHardwareSuite CUDA skipped_not_built when allow_cuda without device",
+          "[bench][hardware]") {
     const Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
     BenchHardwareSuite::Options opts;
     opts.set_backend(BenchHardwareSuite::BackendSelect::Both);
@@ -97,8 +92,7 @@ TEST_CASE("BenchHardwareSuite require_cuda fails without device", "[bench][hardw
 #endif
 }
 
-TEST_CASE(
-    "BenchHardwareSuite cuda-only allow_skip yields skipped rows", "[bench][hardware]") {
+TEST_CASE("BenchHardwareSuite cuda-only allow_skip yields skipped rows", "[bench][hardware]") {
     const Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
     BenchHardwareSuite::Options opts;
     opts.set_backend(BenchHardwareSuite::BackendSelect::Cuda);

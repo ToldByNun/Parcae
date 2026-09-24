@@ -1,7 +1,9 @@
-#include <parcae/gematria/rune_codec.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/batch/batch_execution.hpp>
 #include <parcae/batch/batch_runner.hpp>
 #include <parcae/cli/console_progress_sink.hpp>
+#include <parcae/gematria/rune_codec.hpp>
 #include <parcae/tool/api.hpp>
 #include <parcae/tool/context.hpp>
 #include <parcae/tool/generate_candidates.hpp>
@@ -10,9 +12,6 @@
 #include <parcae/tool/transform_envelope.hpp>
 #include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
-
-#include <catch2/catch_approx.hpp>
-#include <catch2/catch_test_macros.hpp>
 
 #if defined(PARCAE_HAS_CUDA)
 #include "cuda_score.hpp"
@@ -42,13 +41,12 @@ namespace {
     return Index29{v};
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("tool::tokenize round-trips a-warning ciphertext", "[tool][tokenize]") {
     const auto ctx = test_ctx();
     StatusOr<std::string> ciphertext = [&]() -> StatusOr<std::string> {
-        const auto path =
-            ctx.data_root() / "fixtures" / "solved" / "a-warning" / "ciphertext.txt";
+        const auto path = ctx.data_root() / "fixtures" / "solved" / "a-warning" / "ciphertext.txt";
         std::ifstream in(path, std::ios::binary);
         if (!in) {
             return Status::error("missing ciphertext");
@@ -69,26 +67,23 @@ TEST_CASE("tool::tokenize round-trips a-warning ciphertext", "[tool][tokenize]")
 TEST_CASE("tool::apply_to_indices and apply_and_rebuild_text", "[tool][apply]") {
     const auto ctx = test_ctx();
 
-    StatusOr<TransformEnvelope> env = TransformEnvelope::from_json(
-        nlohmann::json{
-            {"transform_id", "caesar"},
-            {"direction", "encrypt"},
-            {"params", {{"shift", 3}}},
-        });
+    StatusOr<TransformEnvelope> env = TransformEnvelope::from_json(nlohmann::json{
+        {"transform_id", "caesar"},
+        {"direction", "encrypt"},
+        {"params", {{"shift", 3}}},
+    });
     REQUIRE(env.ok());
 
     const std::vector<Index29> plain = {I(0), I(1), I(2)};
-    StatusOr<std::vector<Index29>> cipher =
-        ToolApi::apply_to_indices(plain, env.value());
+    StatusOr<std::vector<Index29>> cipher = ToolApi::apply_to_indices(plain, env.value());
     REQUIRE(cipher.ok());
     REQUIRE(cipher.value() == std::vector<Index29>{I(3), I(4), I(5)});
 
-    StatusOr<TransformEnvelope> decrypt = TransformEnvelope::from_json(
-        nlohmann::json{
-            {"transform_id", "caesar"},
-            {"direction", "decrypt"},
-            {"params", {{"shift", 3}}},
-        });
+    StatusOr<TransformEnvelope> decrypt = TransformEnvelope::from_json(nlohmann::json{
+        {"transform_id", "caesar"},
+        {"direction", "decrypt"},
+        {"params", {{"shift", 3}}},
+    });
     REQUIRE(decrypt.ok());
     StatusOr<std::vector<Index29>> recovered =
         ToolApi::apply_to_indices(cipher.value(), decrypt.value());
@@ -127,12 +122,11 @@ TEST_CASE("tool::apply_to_indices Backend::Cuda matches CPU when available", "[t
     REQUIRE(BackendUtil::cuda_built());
     REQUIRE(BackendUtil::ensure_usable(Backend::Cuda).ok());
 
-    StatusOr<TransformEnvelope> env = TransformEnvelope::from_json(
-        nlohmann::json{
-            {"transform_id", "caesar"},
-            {"direction", "decrypt"},
-            {"params", {{"shift", 5}}},
-        });
+    StatusOr<TransformEnvelope> env = TransformEnvelope::from_json(nlohmann::json{
+        {"transform_id", "caesar"},
+        {"direction", "decrypt"},
+        {"params", {{"shift", 5}}},
+    });
     REQUIRE(env.ok());
 
     const std::vector<Index29> cipher = {I(5), I(6), I(7), I(10)};
@@ -154,24 +148,21 @@ TEST_CASE("tool::apply_to_indices Backend::Cuda matches CPU when available", "[t
 #else
     REQUIRE_FALSE(BackendUtil::cuda_built());
     REQUIRE_FALSE(BackendUtil::ensure_usable(Backend::Cuda).ok());
-    StatusOr<TransformEnvelope> env = TransformEnvelope::from_json(
-        nlohmann::json{
-            {"transform_id", "identity"},
-            {"direction", "decrypt"},
-            {"params", nlohmann::json::object()},
-        });
+    StatusOr<TransformEnvelope> env = TransformEnvelope::from_json(nlohmann::json{
+        {"transform_id", "identity"},
+        {"direction", "decrypt"},
+        {"params", nlohmann::json::object()},
+    });
     REQUIRE(env.ok());
     REQUIRE_FALSE(
-        ToolApi::apply_to_indices(std::vector<Index29>{I(1)}, env.value(), Backend::Cuda)
-            .ok());
+        ToolApi::apply_to_indices(std::vector<Index29>{I(1)}, env.value(), Backend::Cuda).ok());
 #endif
 }
 
 TEST_CASE("tool::to_latin preferred labels", "[tool][latin]") {
     const auto ctx = test_ctx();
     // Index 0 preferred is typically F; 1 is U — join without spaces.
-    StatusOr<std::string> latin =
-        ToolApi::to_latin(ctx, std::vector<Index29>{I(0), I(1)});
+    StatusOr<std::string> latin = ToolApi::to_latin(ctx, std::vector<Index29>{I(0), I(1)});
     REQUIRE(latin.ok());
     REQUIRE_FALSE(latin.value().empty());
     REQUIRE(latin.value().find(' ') == std::string::npos);
@@ -198,8 +189,7 @@ TEST_CASE("tool::validate_fixture by id and path", "[tool][validate]") {
     REQUIRE(by_id.ok());
 
     const auto path = (ctx.data_root() / "fixtures" / "solved" / "welcome").string();
-    const ValidationReport by_path =
-        ToolApi::validate_fixture(ctx, path, /*require_locked=*/true);
+    const ValidationReport by_path = ToolApi::validate_fixture(ctx, path, /*require_locked=*/true);
     REQUIRE(by_path.fixture_id() == "welcome");
     REQUIRE(by_path.ok());
 }
@@ -207,8 +197,7 @@ TEST_CASE("tool::validate_fixture by id and path", "[tool][validate]") {
 TEST_CASE("tool::list registries", "[tool]") {
     const auto transforms = ToolApi::list_transform_ids();
     REQUIRE(transforms.size() >= 8);
-    REQUIRE(
-        std::find(transforms.begin(), transforms.end(), "caesar") != transforms.end());
+    REQUIRE(std::find(transforms.begin(), transforms.end(), "caesar") != transforms.end());
 
     const auto scores = ToolApi::list_score_ids();
     REQUIRE(scores.size() == 5);
@@ -253,8 +242,7 @@ TEST_CASE("GenerateCandidates from_indices and from_source", "[tool][generate]")
     REQUIRE(from_stream.value().size() == 1);
 
     REQUIRE_FALSE(GenerateCandidates::from_indices("gen_nope", cipher).ok());
-    REQUIRE_FALSE(
-        GenerateCandidates::from_source(ctx, "gen_caesar", "", "indices").ok());
+    REQUIRE_FALSE(GenerateCandidates::from_source(ctx, "gen_caesar", "", "indices").ok());
 }
 
 TEST_CASE("RankCandidates top-k stable ties and JSON", "[tool][rank]") {
@@ -262,12 +250,11 @@ TEST_CASE("RankCandidates top-k stable ties and JSON", "[tool][rank]") {
 
     const std::vector<Index29> plain = {I(0), I(1), I(2), I(3)};
     StatusOr<std::vector<Index29>> cipher = [&]() {
-        StatusOr<TransformEnvelope> env =
-            TransformEnvelope::from_json(nlohmann::json{
-                {"transform_id", "caesar"},
-                {"direction", "encrypt"},
-                {"params", {{"shift", 7}}},
-            });
+        StatusOr<TransformEnvelope> env = TransformEnvelope::from_json(nlohmann::json{
+            {"transform_id", "caesar"},
+            {"direction", "encrypt"},
+            {"params", {{"shift", 7}}},
+        });
         REQUIRE(env.ok());
         return ToolApi::apply_to_indices(plain, env.value());
     }();
@@ -280,12 +267,8 @@ TEST_CASE("RankCandidates top-k stable ties and JSON", "[tool][rank]") {
     ScoreRequest request;
     request.reference = std::span<const Index29>(plain);
 
-    StatusOr<BatchResult> ranked = RankCandidates::run(
-        candidates.value(),
-        "exact_match",
-        /*k=*/3,
-        &ctx,
-        request);
+    StatusOr<BatchResult> ranked = RankCandidates::run(candidates.value(), "exact_match",
+                                                       /*k=*/3, &ctx, request);
     REQUIRE(ranked.ok());
     REQUIRE(ranked.value().top().size() == 3);
     REQUIRE(ranked.value().top()[0].score() == 1.0);
@@ -294,8 +277,7 @@ TEST_CASE("RankCandidates top-k stable ties and JSON", "[tool][rank]") {
     // Equal non-matches: stable order by candidate_id then source_index.
     REQUIRE(ranked.value().top()[1].score() == 0.0);
     REQUIRE(ranked.value().top()[2].score() == 0.0);
-    REQUIRE(
-        ranked.value().top()[1].candidate_id() < ranked.value().top()[2].candidate_id());
+    REQUIRE(ranked.value().top()[1].candidate_id() < ranked.value().top()[2].candidate_id());
 
     StatusOr<nlohmann::json> payload =
         RankCandidates::result_to_json(ranked.value(), candidates.value(), &ctx);
@@ -309,8 +291,7 @@ TEST_CASE("RankCandidates top-k stable ties and JSON", "[tool][rank]") {
 
     REQUIRE_FALSE(RankCandidates::run(candidates.value(), "exact_match", 0, &ctx, request).ok());
     REQUIRE_FALSE(RankCandidates::run({}, "ic_mod29", 1, &ctx).ok());
-    REQUIRE_FALSE(
-        RankCandidates::run(candidates.value(), "chi2_english_gp_v0", 1, nullptr).ok());
+    REQUIRE_FALSE(RankCandidates::run(candidates.value(), "chi2_english_gp_v0", 1, nullptr).ok());
 
     StatusOr<BatchResult> chi2 =
         RankCandidates::run(candidates.value(), "chi2_english_gp_v0", 2, &ctx);
@@ -322,10 +303,8 @@ TEST_CASE("RankCandidates CUDA backend path", "[tool][rank][cuda]") {
     const auto ctx = test_ctx();
 
     const std::vector<Index29> plain = {I(0), I(1), I(2), I(3)};
-    StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-        plain,
-        nlohmann::json{{"shift", 7}},
-        TransformDirection::Encrypt);
+    StatusOr<std::vector<Index29>> cipher =
+        CaesarTransform{}.apply(plain, nlohmann::json{{"shift", 7}}, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
 
     StatusOr<std::vector<TransformCandidate>> candidates =
@@ -336,16 +315,10 @@ TEST_CASE("RankCandidates CUDA backend path", "[tool][rank][cuda]") {
     request.reference = std::span<const Index29>(plain);
 
 #if !defined(PARCAE_HAS_CUDA)
-    StatusOr<BatchResult> no_cuda = RankCandidates::run(
-        candidates.value(),
-        "exact_match",
-        /*k=*/3,
-        &ctx,
-        request,
-        nlohmann::json::object(),
-        "v0",
-        BatchExecution::Serial,
-        Backend::Cuda);
+    StatusOr<BatchResult> no_cuda =
+        RankCandidates::run(candidates.value(), "exact_match",
+                            /*k=*/3, &ctx, request, nlohmann::json::object(), "v0",
+                            BatchExecution::Serial, Backend::Cuda);
     REQUIRE_FALSE(no_cuda.ok());
     REQUIRE(no_cuda.status().message().find("CUDA") != std::string::npos);
 #else
@@ -353,28 +326,16 @@ TEST_CASE("RankCandidates CUDA backend path", "[tool][rank][cuda]") {
         SKIP("No CUDA device");
     }
 
-    StatusOr<BatchResult> cpu = RankCandidates::run(
-        candidates.value(),
-        "exact_match",
-        /*k=*/3,
-        &ctx,
-        request,
-        nlohmann::json::object(),
-        "v0",
-        BatchExecution::Serial,
-        Backend::Cpu);
+    StatusOr<BatchResult> cpu =
+        RankCandidates::run(candidates.value(), "exact_match",
+                            /*k=*/3, &ctx, request, nlohmann::json::object(), "v0",
+                            BatchExecution::Serial, Backend::Cpu);
     REQUIRE(cpu.ok());
 
-    StatusOr<BatchResult> cuda = RankCandidates::run(
-        candidates.value(),
-        "exact_match",
-        /*k=*/3,
-        &ctx,
-        request,
-        nlohmann::json::object(),
-        "v0",
-        BatchExecution::Serial,
-        Backend::Cuda);
+    StatusOr<BatchResult> cuda =
+        RankCandidates::run(candidates.value(), "exact_match",
+                            /*k=*/3, &ctx, request, nlohmann::json::object(), "v0",
+                            BatchExecution::Serial, Backend::Cuda);
     REQUIRE(cuda.ok());
     REQUIRE(cuda.value().top().size() == cpu.value().top().size());
     for (std::size_t i = 0; i < cpu.value().top().size(); ++i) {
@@ -383,20 +344,15 @@ TEST_CASE("RankCandidates CUDA backend path", "[tool][rank][cuda]") {
         REQUIRE(cuda.value().top()[i].source_index() == cpu.value().top()[i].source_index());
     }
 
-    StatusOr<nlohmann::json> payload = RankCandidates::result_to_json(
-        cuda.value(),
-        candidates.value(),
-        &ctx,
-        64,
-        Backend::Cuda);
+    StatusOr<nlohmann::json> payload =
+        RankCandidates::result_to_json(cuda.value(), candidates.value(), &ctx, 64, Backend::Cuda);
     REQUIRE(payload.ok());
     REQUIRE(payload.value().at("backend").get<std::string>() == "cuda");
 #endif
 }
 
-TEST_CASE(
-    "generate+rank a-warning: atbash wins chi2 without plaintext reference",
-    "[tool][generate][rank][a-warning]") {
+TEST_CASE("generate+rank a-warning: atbash wins chi2 without plaintext reference",
+          "[tool][generate][rank][a-warning]") {
     const auto ctx = test_ctx();
     const auto cipher_path =
         ctx.data_root() / "fixtures" / "solved" / "a-warning" / "ciphertext.txt";
@@ -424,8 +380,7 @@ TEST_CASE(
     }
 
     // Unary language score only — no ScoreRequest.reference / params.reference.
-    StatusOr<BatchResult> ranked =
-        RankCandidates::run(pool, "chi2_english_gp_v0", /*k=*/3, &ctx);
+    StatusOr<BatchResult> ranked = RankCandidates::run(pool, "chi2_english_gp_v0", /*k=*/3, &ctx);
     REQUIRE(ranked.ok());
     REQUIRE(ranked.value().top().size() == 3);
     REQUIRE(ranked.value().top()[0].candidate_id() == "atbash");
@@ -436,8 +391,7 @@ TEST_CASE(
     REQUIRE(payload.ok());
     REQUIRE(payload.value().at("order").get<std::string>() == "asc");
     REQUIRE_FALSE(payload.value().contains("reference"));
-    const std::string latin =
-        payload.value().at("hits").at(0).at("latin").get<std::string>();
+    const std::string latin = payload.value().at("hits").at(0).at("latin").get<std::string>();
     REQUIRE(latin.rfind("AWARNING", 0) == 0);
 }
 
@@ -453,9 +407,7 @@ public:
         }
     }
 
-    void on_stage(
-        std::string_view stage,
-        const ConsoleProgressSnapshot& snapshot) override {
+    void on_stage(std::string_view stage, const ConsoleProgressSnapshot& snapshot) override {
         std::lock_guard<std::mutex> lock(mutex_);
         stages.emplace_back(stage);
         stage_total = snapshot.candidates_total();
@@ -474,10 +426,8 @@ TEST_CASE("RankCandidates forwards progress sink; top-k unchanged", "[tool][rank
     const auto ctx = test_ctx();
 
     const std::vector<Index29> plain = {I(0), I(1), I(2), I(3)};
-    StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-        plain,
-        nlohmann::json{{"shift", 7}},
-        TransformDirection::Encrypt);
+    StatusOr<std::vector<Index29>> cipher =
+        CaesarTransform{}.apply(plain, nlohmann::json{{"shift", 7}}, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
 
     StatusOr<std::vector<TransformCandidate>> candidates =
@@ -492,36 +442,23 @@ TEST_CASE("RankCandidates forwards progress sink; top-k unchanged", "[tool][rank
     progress.sink = &sink;
     // rune_count left 0 → RankCandidates fills from candidate length (4).
 
-    StatusOr<BatchResult> with_sink = RankCandidates::run(
-        candidates.value(),
-        "exact_match",
-        /*k=*/3,
-        &ctx,
-        request,
-        nlohmann::json::object(),
-        "v0",
-        BatchExecution::Serial,
-        Backend::Cpu,
-        progress);
+    StatusOr<BatchResult> with_sink =
+        RankCandidates::run(candidates.value(), "exact_match",
+                            /*k=*/3, &ctx, request, nlohmann::json::object(), "v0",
+                            BatchExecution::Serial, Backend::Cpu, progress);
     REQUIRE(with_sink.ok());
 
-    StatusOr<BatchResult> without = RankCandidates::run(
-        candidates.value(),
-        "exact_match",
-        /*k=*/3,
-        &ctx,
-        request);
+    StatusOr<BatchResult> without = RankCandidates::run(candidates.value(), "exact_match",
+                                                        /*k=*/3, &ctx, request);
     REQUIRE(without.ok());
 
     REQUIRE(with_sink.value().top().size() == without.value().top().size());
     for (std::size_t i = 0; i < without.value().top().size(); ++i) {
-        REQUIRE(
-            with_sink.value().top()[i].candidate_id() ==
-            without.value().top()[i].candidate_id());
+        REQUIRE(with_sink.value().top()[i].candidate_id() ==
+                without.value().top()[i].candidate_id());
         REQUIRE(with_sink.value().top()[i].score() == without.value().top()[i].score());
-        REQUIRE(
-            with_sink.value().top()[i].source_index() ==
-            without.value().top()[i].source_index());
+        REQUIRE(with_sink.value().top()[i].source_index() ==
+                without.value().top()[i].source_index());
     }
 
     REQUIRE(sink.stages.size() == 1);

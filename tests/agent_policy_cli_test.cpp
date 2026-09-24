@@ -1,11 +1,9 @@
-#include <parcae/tool/agent_policy.hpp>
-#include <parcae/tool/tool_response.hpp>
-
 #include <catch2/catch_test_macros.hpp>
-
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <parcae/tool/agent_policy.hpp>
+#include <parcae/tool/tool_response.hpp>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -18,9 +16,9 @@
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
 #include "parcae_cli_paths.h"
-#if !defined(PARCAE_CLI_HYPOTHESIS) || !defined(PARCAE_CLI_SCORE) || \
-    !defined(PARCAE_CLI_RANK) || !defined(PARCAE_CLI_SEARCH_CYCLE)
-#error \
+#if !defined(PARCAE_CLI_HYPOTHESIS) || !defined(PARCAE_CLI_SCORE) || !defined(PARCAE_CLI_RANK) ||  \
+    !defined(PARCAE_CLI_SEARCH_CYCLE)
+#error                                                                                             \
     "PARCAE_CLI_HYPOTHESIS, PARCAE_CLI_SCORE, PARCAE_CLI_RANK, and PARCAE_CLI_SEARCH_CYCLE required"
 #endif
 #endif
@@ -36,9 +34,8 @@ namespace {
     return std::string("\"") + arg + '"';
 }
 
-[[nodiscard]] std::pair<int, std::string> run_cli(
-    const std::filesystem::path& exe,
-    const std::vector<std::string>& args) {
+[[nodiscard]] std::pair<int, std::string> run_cli(const std::filesystem::path& exe,
+                                                  const std::vector<std::string>& args) {
     const auto tmp = std::filesystem::temp_directory_path();
     const std::filesystem::path out_path = tmp / "parcae_policy_e22_out.json";
     const std::filesystem::path err_path = tmp / "parcae_policy_e22_err.txt";
@@ -52,8 +49,8 @@ namespace {
         for (const std::string& arg : args) {
             script << ' ' << quote_arg(arg);
         }
-        script << " >" << quote_arg(out_path.string()) << " 2>"
-               << quote_arg(err_path.string()) << "\r\n";
+        script << " >" << quote_arg(out_path.string()) << " 2>" << quote_arg(err_path.string())
+               << "\r\n";
         script << "exit /B %ERRORLEVEL%\r\n";
     }
 
@@ -75,10 +72,8 @@ namespace {
     return {exit_code, stdout_text};
 }
 
-void expect_policy_denial(
-    const std::filesystem::path& exe,
-    const std::vector<std::string>& args,
-    std::string_view expected_tool) {
+void expect_policy_denial(const std::filesystem::path& exe, const std::vector<std::string>& args,
+                          std::string_view expected_tool) {
     const auto [exit_code, stdout_text] = run_cli(exe, args);
     INFO(stdout_text);
     REQUIRE(exit_code == 2);
@@ -93,13 +88,11 @@ void expect_policy_denial(
 }
 #endif
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "AgentPolicy refuses writes when data_root sits under fixtures/",
-    "[tool][policy][fixtures]") {
-    const auto fixture_as_root =
-        data_root() / "fixtures" / "solved" / "a-warning";
+TEST_CASE("AgentPolicy refuses writes when data_root sits under fixtures/",
+          "[tool][policy][fixtures]") {
+    const auto fixture_as_root = data_root() / "fixtures" / "solved" / "a-warning";
     REQUIRE(std::filesystem::is_directory(fixture_as_root));
 
     const AgentPolicy policy(fixture_as_root);
@@ -112,9 +105,8 @@ TEST_CASE(
     REQUIRE_FALSE(policy.allow_write(fixture_as_root / "workspaces" / "evil-ws" / "x.json").ok());
 }
 
-TEST_CASE(
-    "AgentPolicy still allows normal workspace writes under real data_root",
-    "[tool][policy][fixtures]") {
+TEST_CASE("AgentPolicy still allows normal workspace writes under real data_root",
+          "[tool][policy][fixtures]") {
     const AgentPolicy policy(data_root());
     REQUIRE(policy.allow_workspace_write("policy-ok-ws", "hypotheses/h-ok.json").ok());
     REQUIRE_FALSE(
@@ -122,27 +114,17 @@ TEST_CASE(
 }
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
-TEST_CASE(
-    "CLI hypothesis init with --data-dir inside fixtures yields policy envelope exit 2",
-    "[tool][policy][cli][fixtures]") {
+TEST_CASE("CLI hypothesis init with --data-dir inside fixtures yields policy envelope exit 2",
+          "[tool][policy][cli][fixtures]") {
     const auto fixture_dir = data_root() / "fixtures" / "solved" / "a-warning";
     const auto cipher_before = fixture_dir / "ciphertext.txt";
     REQUIRE(std::filesystem::exists(cipher_before));
     const auto size_before = std::filesystem::file_size(cipher_before);
 
-    expect_policy_denial(
-        PARCAE_CLI_HYPOTHESIS,
-        {"--data-dir",
-         fixture_dir.string(),
-         "init",
-         "--workspace",
-         "evil-ws",
-         "--id",
-         "h-evil",
-         "--utc",
-         "2026-09-20T00:00:00Z",
-         "--json"},
-        "hypothesis_init");
+    expect_policy_denial(PARCAE_CLI_HYPOTHESIS,
+                         {"--data-dir", fixture_dir.string(), "init", "--workspace", "evil-ws",
+                          "--id", "h-evil", "--utc", "2026-09-20T00:00:00Z", "--json"},
+                         "hypothesis_init");
 
     // Fixture corpus untouched — no workspaces/ tree created under a-warning.
     REQUIRE(std::filesystem::exists(cipher_before));
@@ -150,85 +132,48 @@ TEST_CASE(
     REQUIRE_FALSE(std::filesystem::exists(fixture_dir / "workspaces"));
 }
 
-TEST_CASE(
-    "CLI score --backend cuda without --allow-cuda yields policy envelope exit 2",
-    "[tool][policy][cli]") {
-    expect_policy_denial(
-        PARCAE_CLI_SCORE,
-        {"--data-dir",
-         std::string(PARCAE_TEST_DATA_DIR),
-         "--score-id",
-         "ic_mod29",
-         "--indices",
-         "--backend",
-         "cuda",
-         "--input",
-         (data_root() / "fixtures" / "cli" / "score-indices.txt").string(),
-         "--json"},
-        "score");
+TEST_CASE("CLI score --backend cuda without --allow-cuda yields policy envelope exit 2",
+          "[tool][policy][cli]") {
+    expect_policy_denial(PARCAE_CLI_SCORE,
+                         {"--data-dir", std::string(PARCAE_TEST_DATA_DIR), "--score-id", "ic_mod29",
+                          "--indices", "--backend", "cuda", "--input",
+                          (data_root() / "fixtures" / "cli" / "score-indices.txt").string(),
+                          "--json"},
+                         "score");
 }
 
-TEST_CASE(
-    "CLI rank --backend cuda without --allow-cuda yields policy envelope exit 2",
-    "[tool][policy][cli][rank]") {
-    expect_policy_denial(
-        PARCAE_CLI_RANK,
-        {"--data-dir",
-         std::string(PARCAE_TEST_DATA_DIR),
-         "--candidates",
-         (data_root() / "fixtures" / "cli" / "rank-candidates.json").string(),
-         "--score-id",
-         "ic_mod29",
-         "--k",
-         "3",
-         "--backend",
-         "cuda",
-         "--json"},
-        "rank");
+TEST_CASE("CLI rank --backend cuda without --allow-cuda yields policy envelope exit 2",
+          "[tool][policy][cli][rank]") {
+    expect_policy_denial(PARCAE_CLI_RANK,
+                         {"--data-dir", std::string(PARCAE_TEST_DATA_DIR), "--candidates",
+                          (data_root() / "fixtures" / "cli" / "rank-candidates.json").string(),
+                          "--score-id", "ic_mod29", "--k", "3", "--backend", "cuda", "--json"},
+                         "rank");
 }
 
-TEST_CASE(
-    "CLI search-cycle with --data-dir inside fixtures yields policy envelope exit 2",
-    "[tool][policy][cli][fixtures][search_cycle]") {
+TEST_CASE("CLI search-cycle with --data-dir inside fixtures yields policy envelope exit 2",
+          "[tool][policy][cli][fixtures][search_cycle]") {
     const auto fixture_dir = data_root() / "fixtures" / "solved" / "a-warning";
     const auto cipher_before = fixture_dir / "ciphertext.txt";
     REQUIRE(std::filesystem::exists(cipher_before));
     const auto size_before = std::filesystem::file_size(cipher_before);
 
-    expect_policy_denial(
-        PARCAE_CLI_SEARCH_CYCLE,
-        {"--data-dir",
-         fixture_dir.string(),
-         "--workspace",
-         "evil-ws",
-         "--family",
-         "atbash",
-         "--k",
-         "1",
-         "--json"},
-        "search_cycle");
+    expect_policy_denial(PARCAE_CLI_SEARCH_CYCLE,
+                         {"--data-dir", fixture_dir.string(), "--workspace", "evil-ws", "--family",
+                          "atbash", "--k", "1", "--json"},
+                         "search_cycle");
 
     REQUIRE(std::filesystem::exists(cipher_before));
     REQUIRE(std::filesystem::file_size(cipher_before) == size_before);
     REQUIRE_FALSE(std::filesystem::exists(fixture_dir / "workspaces"));
 }
 
-TEST_CASE(
-    "CLI search-cycle --backend cuda without --allow-cuda yields policy envelope exit 2",
-    "[tool][policy][cli][search_cycle]") {
-    expect_policy_denial(
-        PARCAE_CLI_SEARCH_CYCLE,
-        {"--data-dir",
-         std::string(PARCAE_TEST_DATA_DIR),
-         "--workspace",
-         "_example",
-         "--family",
-         "caesar",
-         "--k",
-         "1",
-         "--backend",
-         "cuda",
-         "--json"},
-        "search_cycle");
+TEST_CASE("CLI search-cycle --backend cuda without --allow-cuda yields policy envelope exit 2",
+          "[tool][policy][cli][search_cycle]") {
+    expect_policy_denial(PARCAE_CLI_SEARCH_CYCLE,
+                         {"--data-dir", std::string(PARCAE_TEST_DATA_DIR), "--workspace",
+                          "_example", "--family", "caesar", "--k", "1", "--backend", "cuda",
+                          "--json"},
+                         "search_cycle");
 }
 #endif

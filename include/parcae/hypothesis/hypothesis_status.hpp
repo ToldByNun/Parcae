@@ -77,13 +77,12 @@ public:
         if (can_transition(from, to)) {
             return Status::success();
         }
-        return Status::error(
-            "Illegal hypothesis status transition: " + std::string(to_string(from)) + " → " +
-            std::string(to_string(to)));
+        return Status::error("Illegal hypothesis status transition: " +
+                             std::string(to_string(from)) + " → " + std::string(to_string(to)));
     }
 
 private:
     HypothesisStatusUtil() = delete;
 };
 
-#endif  // HYPOTHESIS_STATUS_HPP
+#endif // HYPOTHESIS_STATUS_HPP

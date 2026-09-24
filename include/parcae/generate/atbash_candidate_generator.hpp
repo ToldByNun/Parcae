@@ -9,12 +9,11 @@
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
 
+#include <nlohmann/json.hpp>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Bounded generator `gen_atbash`: single involution candidate.
 class AtbashCandidateGenerator {
@@ -22,9 +21,9 @@ public:
     static constexpr std::string_view generator_id = "gen_atbash";
     static constexpr std::size_t candidate_count = 1;
 
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate(
-        std::span<const Index29> ciphertext,
-        TransformDirection direction = TransformDirection::Decrypt) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    generate(std::span<const Index29> ciphertext,
+             TransformDirection direction = TransformDirection::Decrypt) {
         const AtbashTransform transform;
         const nlohmann::json params = nlohmann::json::object();
         StatusOr<std::vector<Index29>> plain =
@@ -35,18 +34,12 @@ public:
 
         std::vector<TransformCandidate> out;
         out.reserve(1);
-        out.emplace_back(
-            make_candidate_id(),
-            TransformId::atbash(),
-            direction,
-            params,
-            std::move(plain.value()));
+        out.emplace_back(make_candidate_id(), TransformId::atbash(), direction, params,
+                         std::move(plain.value()));
         return out;
     }
 
-    [[nodiscard]] static std::string make_candidate_id() {
-        return "atbash";
-    }
+    [[nodiscard]] static std::string make_candidate_id() { return "atbash"; }
 };
 
 #endif // ATBASH_CANDIDATE_GENERATOR_HPP

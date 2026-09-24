@@ -1,5 +1,4 @@
 #include "caesar_kernel.hpp"
-
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
 
@@ -10,12 +9,8 @@ namespace {
 constexpr int kThreadsPerBlock = 256;
 constexpr std::uint8_t kModulus = 29;
 
-__global__ void caesar_kernel(
-    const std::uint8_t* in,
-    std::uint8_t* out,
-    std::size_t count,
-    std::uint8_t shift,
-    std::uint8_t encrypt) {
+__global__ void caesar_kernel(const std::uint8_t* in, std::uint8_t* out, std::size_t count,
+                              std::uint8_t shift, std::uint8_t encrypt) {
     const std::size_t i =
         static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
         static_cast<std::size_t>(threadIdx.x);
@@ -37,14 +32,10 @@ __global__ void caesar_kernel(
     return Status::success();
 }
 
-}  // namespace
+} // namespace
 
-Status CaesarKernel::launch_device(
-    const std::uint8_t* device_in,
-    std::uint8_t* device_out,
-    std::size_t count,
-    std::uint8_t shift,
-    CudaDir direction) {
+Status CaesarKernel::launch_device(const std::uint8_t* device_in, std::uint8_t* device_out,
+                                   std::size_t count, std::uint8_t shift, CudaDir direction) {
     Status shift_ok = validate_shift(shift);
     if (!shift_ok.ok()) {
         return shift_ok;
@@ -69,11 +60,9 @@ Status CaesarKernel::launch_device(
     return CudaError::to_status(cudaDeviceSynchronize(), "CaesarKernel::launch_device sync");
 }
 
-Status CaesarKernel::apply_host(
-    std::span<const std::uint8_t> host_in,
-    std::span<std::uint8_t> host_out,
-    std::uint8_t shift,
-    CudaDir direction) {
+Status CaesarKernel::apply_host(std::span<const std::uint8_t> host_in,
+                                std::span<std::uint8_t> host_out, std::uint8_t shift,
+                                CudaDir direction) {
     if (host_in.size() != host_out.size()) {
         return Status::error("CaesarKernel::apply_host size mismatch");
     }
@@ -84,8 +73,8 @@ Status CaesarKernel::apply_host(
         if (!device.ok()) {
             return device.status();
         }
-        Status launched = launch_device(
-            device.value().data(), device.value().data(), host_in.size(), shift, direction);
+        Status launched = launch_device(device.value().data(), device.value().data(),
+                                        host_in.size(), shift, direction);
         if (!launched.ok()) {
             return launched;
         }
@@ -103,12 +92,8 @@ Status CaesarKernel::apply_host(
         return device_out.status();
     }
 
-    Status launched = launch_device(
-        device_in.value().data(),
-        device_out.value().data(),
-        host_in.size(),
-        shift,
-        direction);
+    Status launched = launch_device(device_in.value().data(), device_out.value().data(),
+                                    host_in.size(), shift, direction);
     if (!launched.ok()) {
         return launched;
     }

@@ -1,18 +1,16 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
 #include <parcae/interrupt/policy.hpp>
 #include <parcae/transform/affine_transform.hpp>
 #include <parcae/transform/atbash_transform.hpp>
-#include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/beaufort_key_transform.hpp>
+#include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/compose_transform.hpp>
 #include <parcae/transform/identity_transform.hpp>
 #include <parcae/transform/totient_prime_stream_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
 #include <parcae/transform/vigenere_key_transform.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <cstdint>
 #include <vector>
 
 TEST_CASE("TransformId serializes known catalog ids", "[transform]") {
@@ -63,18 +61,13 @@ TEST_CASE("IdentityTransform copies Index29 span", "[transform]") {
     REQUIRE(transform.id() == TransformId::identity());
 
     const std::vector<Index29> input{Index29{0}, Index29{7}, Index29{28}, Index29{14}};
-    StatusOr<std::vector<Index29>> out = transform.apply(
-        input,
-        nlohmann::json::object(),
-        TransformDirection::Decrypt);
+    StatusOr<std::vector<Index29>> out =
+        transform.apply(input, nlohmann::json::object(), TransformDirection::Decrypt);
     REQUIRE(out.ok());
     REQUIRE(out.value() == input);
 
     StatusOr<std::vector<Index29>> encrypt = transform.apply(
-        input,
-        nlohmann::json::object(),
-        TransformDirection::Encrypt,
-        InterruptPolicy::none());
+        input, nlohmann::json::object(), TransformDirection::Encrypt, InterruptPolicy::none());
     REQUIRE(encrypt.ok());
     REQUIRE(encrypt.value() == input);
 }
@@ -82,10 +75,8 @@ TEST_CASE("IdentityTransform copies Index29 span", "[transform]") {
 TEST_CASE("IdentityTransform rejects non-empty params", "[transform]") {
     const IdentityTransform transform;
     const std::vector<Index29> input{Index29{1}};
-    StatusOr<std::vector<Index29>> bad = transform.apply(
-        input,
-        nlohmann::json{{"shift", 1}},
-        TransformDirection::Decrypt);
+    StatusOr<std::vector<Index29>> bad =
+        transform.apply(input, nlohmann::json{{"shift", 1}}, TransformDirection::Decrypt);
     REQUIRE_FALSE(bad.ok());
 }
 
@@ -107,27 +98,23 @@ TEST_CASE("AtbashTransform is 28 - x and an involution", "[transform]") {
     REQUIRE(transform.id() == TransformId::atbash());
 
     const std::vector<Index29> input{Index29{0}, Index29{1}, Index29{14}, Index29{28}};
-    StatusOr<std::vector<Index29>> once = transform.apply(
-        input,
-        nlohmann::json::object(),
-        TransformDirection::Decrypt);
+    StatusOr<std::vector<Index29>> once =
+        transform.apply(input, nlohmann::json::object(), TransformDirection::Decrypt);
     REQUIRE(once.ok());
-    REQUIRE(once.value() == std::vector<Index29>{Index29{28}, Index29{27}, Index29{14}, Index29{0}});
+    REQUIRE(once.value() ==
+            std::vector<Index29>{Index29{28}, Index29{27}, Index29{14}, Index29{0}});
 
-    StatusOr<std::vector<Index29>> twice = transform.apply(
-        once.value(),
-        nlohmann::json::object(),
-        TransformDirection::Encrypt);
+    StatusOr<std::vector<Index29>> twice =
+        transform.apply(once.value(), nlohmann::json::object(), TransformDirection::Encrypt);
     REQUIRE(twice.ok());
     REQUIRE(twice.value() == input);
 }
 
 TEST_CASE("AtbashTransform rejects non-empty params", "[transform]") {
     const AtbashTransform transform;
-    StatusOr<std::vector<Index29>> bad = transform.apply(
-        std::vector<Index29>{Index29{2}},
-        nlohmann::json{{"shift", 1}},
-        TransformDirection::Decrypt);
+    StatusOr<std::vector<Index29>> bad =
+        transform.apply(std::vector<Index29>{Index29{2}}, nlohmann::json{{"shift", 1}},
+                        TransformDirection::Decrypt);
     REQUIRE_FALSE(bad.ok());
 }
 
@@ -160,10 +147,8 @@ TEST_CASE("CaesarTransform validates shift range and params shape", "[transform]
     REQUIRE_FALSE(
         transform.apply(input, nlohmann::json{{"shift", -1}}, TransformDirection::Decrypt).ok());
     REQUIRE_FALSE(transform
-                      .apply(
-                          input,
-                          nlohmann::json{{"shift", 3}, {"extra", true}},
-                          TransformDirection::Decrypt)
+                      .apply(input, nlohmann::json{{"shift", 3}, {"extra", true}},
+                             TransformDirection::Decrypt)
                       .ok());
 
     StatusOr<std::vector<Index29>> zero =
@@ -185,7 +170,8 @@ TEST_CASE("AffineTransform encrypt/decrypt uses modular inverse", "[transform]")
     StatusOr<std::vector<Index29>> cipher =
         transform.apply(plain, params, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
-    REQUIRE(cipher.value() == std::vector<Index29>{Index29{5}, Index29{7}, Index29{25}, Index29{4}});
+    REQUIRE(cipher.value() ==
+            std::vector<Index29>{Index29{5}, Index29{7}, Index29{25}, Index29{4}});
 
     StatusOr<std::vector<Index29>> recovered =
         transform.apply(cipher.value(), params, TransformDirection::Decrypt);
@@ -231,31 +217,25 @@ TEST_CASE("ComposeTransform applies stages in order and reverses on encrypt", "[
 TEST_CASE("Compose atbash_then_caesar helper matches Koan 1 path", "[transform]") {
     // Decrypt: atbash then +3. Encrypt: -3 then atbash.
     const std::vector<Index29> cipher{Index29{0}, Index29{5}, Index29{28}};
-    StatusOr<std::vector<Index29>> plain = ComposeTransform::apply_atbash_then_caesar(
-        cipher,
-        3,
-        TransformDirection::Decrypt);
+    StatusOr<std::vector<Index29>> plain =
+        ComposeTransform::apply_atbash_then_caesar(cipher, 3, TransformDirection::Decrypt);
     REQUIRE(plain.ok());
     REQUIRE(plain.value() == std::vector<Index29>{Index29{2}, Index29{26}, Index29{3}});
 
     for (std::size_t i = 0; i < cipher.size(); ++i) {
-        const auto expected = static_cast<std::uint8_t>(
-            (28 - cipher[i].value() + 3) % Index29::modulus);
+        const auto expected =
+            static_cast<std::uint8_t>((28 - cipher[i].value() + 3) % Index29::modulus);
         REQUIRE(plain.value()[i].value() == expected);
     }
 
-    StatusOr<std::vector<Index29>> round_trip = ComposeTransform::apply_atbash_then_caesar(
-        plain.value(),
-        3,
-        TransformDirection::Encrypt);
+    StatusOr<std::vector<Index29>> round_trip =
+        ComposeTransform::apply_atbash_then_caesar(plain.value(), 3, TransformDirection::Encrypt);
     REQUIRE(round_trip.ok());
     REQUIRE(round_trip.value() == cipher);
 
     const ComposeTransform compose;
     StatusOr<std::vector<Index29>> via_params = compose.apply(
-        cipher,
-        ComposeTransform::atbash_then_caesar_params(3),
-        TransformDirection::Decrypt);
+        cipher, ComposeTransform::atbash_then_caesar_params(3), TransformDirection::Decrypt);
     REQUIRE(via_params.ok());
     REQUIRE(via_params.value() == plain.value());
 }
@@ -264,14 +244,11 @@ TEST_CASE("Synthetic primitives match hand vectors", "[transform][synth]") {
     SECTION("synth-atbash-01") {
         const AtbashTransform transform;
         const std::vector<Index29> input{Index29{0}, Index29{4}, Index29{14}, Index29{28}};
-        StatusOr<std::vector<Index29>> out = transform.apply(
-            input,
-            nlohmann::json::object(),
-            TransformDirection::Decrypt);
+        StatusOr<std::vector<Index29>> out =
+            transform.apply(input, nlohmann::json::object(), TransformDirection::Decrypt);
         REQUIRE(out.ok());
-        REQUIRE(
-            out.value() ==
-            std::vector<Index29>{Index29{28}, Index29{24}, Index29{14}, Index29{0}});
+        REQUIRE(out.value() ==
+                std::vector<Index29>{Index29{28}, Index29{24}, Index29{14}, Index29{0}});
     }
 
     SECTION("synth-caesar-b3") {
@@ -295,9 +272,8 @@ TEST_CASE("Synthetic primitives match hand vectors", "[transform][synth]") {
         StatusOr<std::vector<Index29>> cipher =
             transform.apply(plain, params, TransformDirection::Encrypt);
         REQUIRE(cipher.ok());
-        REQUIRE(
-            cipher.value() ==
-            std::vector<Index29>{Index29{5}, Index29{7}, Index29{25}, Index29{4}});
+        REQUIRE(cipher.value() ==
+                std::vector<Index29>{Index29{5}, Index29{7}, Index29{25}, Index29{4}});
         StatusOr<std::vector<Index29>> recovered =
             transform.apply(cipher.value(), params, TransformDirection::Decrypt);
         REQUIRE(recovered.ok());
@@ -306,16 +282,12 @@ TEST_CASE("Synthetic primitives match hand vectors", "[transform][synth]") {
 
     SECTION("synth-koan1-atbash-then-caesar-plus3") {
         const std::vector<Index29> cipher{Index29{4}, Index29{11}, Index29{20}};
-        StatusOr<std::vector<Index29>> plain = ComposeTransform::apply_atbash_then_caesar(
-            cipher,
-            3,
-            TransformDirection::Decrypt);
+        StatusOr<std::vector<Index29>> plain =
+            ComposeTransform::apply_atbash_then_caesar(cipher, 3, TransformDirection::Decrypt);
         REQUIRE(plain.ok());
         REQUIRE(plain.value() == std::vector<Index29>{Index29{27}, Index29{20}, Index29{11}});
         StatusOr<std::vector<Index29>> back = ComposeTransform::apply_atbash_then_caesar(
-            plain.value(),
-            3,
-            TransformDirection::Encrypt);
+            plain.value(), 3, TransformDirection::Encrypt);
         REQUIRE(back.ok());
         REQUIRE(back.value() == cipher);
     }
@@ -326,13 +298,15 @@ TEST_CASE("VigenereKeyTransform id and params", "[transform]") {
     REQUIRE(transform.id() == TransformId::vigenere_key());
 
     const std::vector<Index29> plain{Index29{0}};
-    REQUIRE_FALSE(transform.apply(plain, nlohmann::json::object(), TransformDirection::Encrypt).ok());
     REQUIRE_FALSE(
-        transform
-            .apply(plain, nlohmann::json{{"key_indices", nlohmann::json::array()}}, TransformDirection::Encrypt)
+        transform.apply(plain, nlohmann::json::object(), TransformDirection::Encrypt).ok());
+    REQUIRE_FALSE(transform
+                      .apply(plain, nlohmann::json{{"key_indices", nlohmann::json::array()}},
+                             TransformDirection::Encrypt)
+                      .ok());
+    REQUIRE_FALSE(
+        transform.apply(plain, nlohmann::json{{"key_indices", {29}}}, TransformDirection::Encrypt)
             .ok());
-    REQUIRE_FALSE(
-        transform.apply(plain, nlohmann::json{{"key_indices", {29}}}, TransformDirection::Encrypt).ok());
 }
 
 TEST_CASE("Synthetic Vigenere hand vectors with and without interrupts", "[transform]") {
@@ -345,9 +319,8 @@ TEST_CASE("Synthetic Vigenere hand vectors with and without interrupts", "[trans
             transform.apply(plain, params, TransformDirection::Encrypt);
         REQUIRE(cipher.ok());
         // (0+1), (1+2), (2+1), (3+2)
-        REQUIRE(
-            cipher.value() ==
-            std::vector<Index29>{Index29{1}, Index29{3}, Index29{3}, Index29{5}});
+        REQUIRE(cipher.value() ==
+                std::vector<Index29>{Index29{1}, Index29{3}, Index29{3}, Index29{5}});
 
         StatusOr<std::vector<Index29>> recovered =
             transform.apply(cipher.value(), params, TransformDirection::Decrypt);
@@ -363,9 +336,8 @@ TEST_CASE("Synthetic Vigenere hand vectors with and without interrupts", "[trans
             transform.apply(plain, params, TransformDirection::Encrypt, interrupt.value());
         REQUIRE(cipher.ok());
         // i=0 consume key[0]=1 → 1; i=1 skip → 1; i=2 consume key[1]=2 → 4; i=3 skip → 3
-        REQUIRE(
-            cipher.value() ==
-            std::vector<Index29>{Index29{1}, Index29{1}, Index29{4}, Index29{3}});
+        REQUIRE(cipher.value() ==
+                std::vector<Index29>{Index29{1}, Index29{1}, Index29{4}, Index29{3}});
 
         StatusOr<std::vector<Index29>> recovered =
             transform.apply(cipher.value(), params, TransformDirection::Decrypt, interrupt.value());
@@ -386,27 +358,23 @@ TEST_CASE("BeaufortKeyTransform involution, interrupts, Atbash identity", "[tran
 
     SECTION("params reject empty key") {
         const std::vector<Index29> plain{Index29{0}};
-        REQUIRE_FALSE(
-            transform
-                .apply(
-                    plain,
-                    nlohmann::json{{"key_indices", nlohmann::json::array()}},
-                    TransformDirection::Decrypt)
-                .ok());
+        REQUIRE_FALSE(transform
+                          .apply(plain, nlohmann::json{{"key_indices", nlohmann::json::array()}},
+                                 TransformDirection::Decrypt)
+                          .ok());
     }
 
     SECTION("synth-beaufort-involution") {
         const nlohmann::json params{{"key_indices", {5, 7, 11}}};
-        const std::vector<Index29> plain{Index29{0}, Index29{1}, Index29{10}, Index29{28}, Index29{14}};
+        const std::vector<Index29> plain{Index29{0}, Index29{1}, Index29{10}, Index29{28},
+                                         Index29{14}};
 
         StatusOr<std::vector<Index29>> once =
             transform.apply(plain, params, TransformDirection::Decrypt);
         REQUIRE(once.ok());
         // (5-0), (7-1), (11-10), (5-28), (7-14) → 5, 6, 1, 6, 22
-        REQUIRE(
-            once.value() ==
-            std::vector<Index29>{
-                Index29{5}, Index29{6}, Index29{1}, Index29{6}, Index29{22}});
+        REQUIRE(once.value() ==
+                std::vector<Index29>{Index29{5}, Index29{6}, Index29{1}, Index29{6}, Index29{22}});
 
         StatusOr<std::vector<Index29>> twice =
             transform.apply(once.value(), params, TransformDirection::Encrypt);
@@ -424,9 +392,8 @@ TEST_CASE("BeaufortKeyTransform involution, interrupts, Atbash identity", "[tran
             transform.apply(plain, params, TransformDirection::Decrypt, interrupt.value());
         REQUIRE(once.ok());
         // i=0: 1-0=1; i=1 skip→1; i=2: 2-2=0; i=3 skip→3
-        REQUIRE(
-            once.value() ==
-            std::vector<Index29>{Index29{1}, Index29{1}, Index29{0}, Index29{3}});
+        REQUIRE(once.value() ==
+                std::vector<Index29>{Index29{1}, Index29{1}, Index29{0}, Index29{3}});
 
         StatusOr<std::vector<Index29>> twice =
             transform.apply(once.value(), params, TransformDirection::Decrypt, interrupt.value());
@@ -438,8 +405,8 @@ TEST_CASE("BeaufortKeyTransform involution, interrupts, Atbash identity", "[tran
         // Wiki pitfall: Vigenère is (c-k); Beaufort is (k-c). Constant k=28 ⇒ 28-c.
         const AtbashTransform atbash;
         const nlohmann::json beaufort_params{{"key_indices", {28}}};
-        const std::vector<Index29> input{
-            Index29{0}, Index29{1}, Index29{14}, Index29{27}, Index29{28}};
+        const std::vector<Index29> input{Index29{0}, Index29{1}, Index29{14}, Index29{27},
+                                         Index29{28}};
 
         StatusOr<std::vector<Index29>> via_atbash =
             atbash.apply(input, nlohmann::json::object(), TransformDirection::Decrypt);
@@ -448,10 +415,8 @@ TEST_CASE("BeaufortKeyTransform involution, interrupts, Atbash identity", "[tran
         REQUIRE(via_atbash.ok());
         REQUIRE(via_beaufort.ok());
         REQUIRE(via_atbash.value() == via_beaufort.value());
-        REQUIRE(
-            via_atbash.value() ==
-            std::vector<Index29>{
-                Index29{28}, Index29{27}, Index29{14}, Index29{1}, Index29{0}});
+        REQUIRE(via_atbash.value() == std::vector<Index29>{Index29{28}, Index29{27}, Index29{14},
+                                                           Index29{1}, Index29{0}});
     }
 }
 
@@ -469,18 +434,12 @@ TEST_CASE("TotientPrimeStreamTransform with InterruptPolicy", "[transform]") {
         REQUIRE(transform.apply(plain, nlohmann::json::object(), TransformDirection::Decrypt).ok());
         REQUIRE_FALSE(
             transform
-                .apply(
-                    plain,
-                    nlohmann::json{{"shift_mode", "wrong"}},
-                    TransformDirection::Decrypt)
+                .apply(plain, nlohmann::json{{"shift_mode", "wrong"}}, TransformDirection::Decrypt)
                 .ok());
-        REQUIRE_FALSE(
-            transform
-                .apply(
-                    plain,
-                    nlohmann::json{{"prime_start_index", -1}},
-                    TransformDirection::Decrypt)
-                .ok());
+        REQUIRE_FALSE(transform
+                          .apply(plain, nlohmann::json{{"prime_start_index", -1}},
+                                 TransformDirection::Decrypt)
+                          .ok());
     }
 
     SECTION("synth-totient-round-trip-no-interrupt") {
@@ -489,9 +448,8 @@ TEST_CASE("TotientPrimeStreamTransform with InterruptPolicy", "[transform]") {
         StatusOr<std::vector<Index29>> cipher =
             transform.apply(plain, params, TransformDirection::Encrypt);
         REQUIRE(cipher.ok());
-        REQUIRE(
-            cipher.value() ==
-            std::vector<Index29>{Index29{1}, Index29{3}, Index29{6}, Index29{9}});
+        REQUIRE(cipher.value() ==
+                std::vector<Index29>{Index29{1}, Index29{3}, Index29{6}, Index29{9}});
 
         StatusOr<std::vector<Index29>> recovered =
             transform.apply(cipher.value(), params, TransformDirection::Decrypt);
@@ -508,9 +466,8 @@ TEST_CASE("TotientPrimeStreamTransform with InterruptPolicy", "[transform]") {
             transform.apply(plain, params, TransformDirection::Encrypt, interrupt.value());
         REQUIRE(cipher.ok());
         // i=0: +1 → 1; i=1 skip → 1; i=2: +2 → 4; i=3: +4 → 7
-        REQUIRE(
-            cipher.value() ==
-            std::vector<Index29>{Index29{1}, Index29{1}, Index29{4}, Index29{7}});
+        REQUIRE(cipher.value() ==
+                std::vector<Index29>{Index29{1}, Index29{1}, Index29{4}, Index29{7}});
 
         StatusOr<std::vector<Index29>> recovered =
             transform.apply(cipher.value(), params, TransformDirection::Decrypt, interrupt.value());
@@ -551,10 +508,7 @@ TEST_CASE("apply_into / kernel are span-based and match apply", "[transform][spa
             transform.apply(input, params, TransformDirection::Encrypt);
 
         std::vector<Index29> via_into(input.size());
-        REQUIRE(transform
-                    .apply_into(
-                        input, via_into, params, TransformDirection::Encrypt)
-                    .ok());
+        REQUIRE(transform.apply_into(input, via_into, params, TransformDirection::Encrypt).ok());
         REQUIRE(via_apply.ok());
         REQUIRE(via_into == via_apply.value());
     }
@@ -568,9 +522,8 @@ TEST_CASE("apply_into / kernel are span-based and match apply", "[transform][spa
         const std::vector<Index29> key{Index29{1}, Index29{2}};
         const std::vector<std::size_t> skips{1};
         std::vector<Index29> out(input.size());
-        REQUIRE(VigenereKeyTransform::kernel(
-                    input, out, key, skips, TransformDirection::Encrypt)
-                    .ok());
+        REQUIRE(
+            VigenereKeyTransform::kernel(input, out, key, skips, TransformDirection::Encrypt).ok());
         // i0: +1 → 1; i1 skip → 1; i2: +2 → 4; i3: +1 → 0
         REQUIRE(out == std::vector<Index29>{Index29{1}, Index29{1}, Index29{4}, Index29{0}});
     }

@@ -2,22 +2,11 @@
 
 #if defined(PARCAE_HAS_CUDA)
 
-#include "affine_batch_kernel.hpp"
-#include "atbash_batch_kernel.hpp"
-#include "atbash_caesar_batch_kernel.hpp"
-#include "caesar_batch_kernel.hpp"
-#include "candidate_batch_buffers.hpp"
-#include "cuda_batch_score.hpp"
-#include "interrupt_device_view.hpp"
-#include "parcae_cuda.hpp"
-#include "params.hpp"
-#include "vigenere_batch_kernel.hpp"
-
 #include "parcae/batch/batch_result.hpp"
 #include "parcae/core/index29.hpp"
 #include "parcae/generate/affine_candidate_generator.hpp"
-#include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
+#include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
 #include "parcae/interrupt/policy.hpp"
@@ -29,11 +18,21 @@
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/vigenere_key_transform.hpp"
 
+#include "affine_batch_kernel.hpp"
+#include "atbash_batch_kernel.hpp"
+#include "atbash_caesar_batch_kernel.hpp"
+#include "caesar_batch_kernel.hpp"
+#include "candidate_batch_buffers.hpp"
+#include "cuda_batch_score.hpp"
+#include "interrupt_device_view.hpp"
+#include "params.hpp"
+#include "parcae_cuda.hpp"
+#include "vigenere_batch_kernel.hpp"
+
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 namespace {
 
@@ -69,11 +68,9 @@ namespace {
     return hits;
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "CUDA batch rank-1 recovery under exact_match",
-    "[cuda][batch][rank1]") {
+TEST_CASE("CUDA batch rank-1 recovery under exact_match", "[cuda][batch][rank1]") {
     REQUIRE(ParcaeCuda::available());
     REQUIRE(CudaBatchScore::available());
 
@@ -83,9 +80,7 @@ TEST_CASE(
     SECTION("caesar") {
         constexpr int kShift = 7;
         StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-            plain,
-            nlohmann::json{{"shift", kShift}},
-            TransformDirection::Encrypt);
+            plain, nlohmann::json{{"shift", kShift}}, TransformDirection::Encrypt);
         REQUIRE(cipher.ok());
 
         CandidateBatchBuffers::AllocateOptions options;
@@ -115,8 +110,8 @@ TEST_CASE(
     }
 
     SECTION("atbash") {
-        StatusOr<std::vector<Index29>> cipher = AtbashTransform{}.apply(
-            plain, nlohmann::json::object(), TransformDirection::Encrypt);
+        StatusOr<std::vector<Index29>> cipher =
+            AtbashTransform{}.apply(plain, nlohmann::json::object(), TransformDirection::Encrypt);
         REQUIRE(cipher.ok());
 
         CandidateBatchBuffers::AllocateOptions options;
@@ -171,9 +166,7 @@ TEST_CASE(
         constexpr int kA = 2;
         constexpr int kB = 5;
         StatusOr<std::vector<Index29>> cipher = AffineTransform{}.apply(
-            plain,
-            nlohmann::json{{"a", kA}, {"b", kB}},
-            TransformDirection::Encrypt);
+            plain, nlohmann::json{{"a", kA}, {"b", kB}}, TransformDirection::Encrypt);
         REQUIRE(cipher.ok());
 
         CandidateBatchBuffers::AllocateOptions options;
@@ -196,19 +189,16 @@ TEST_CASE(
         }
 
         StatusOr<BatchResult> result = CudaBatchScore::score_and_top_k(
-            buffers.value(),
-            ids,
-            "exact_match",
-            /*k=*/AffineCandidateGenerator::candidate_count,
-            request);
+            buffers.value(), ids, "exact_match",
+            /*k=*/AffineCandidateGenerator::candidate_count, request);
         REQUIRE(result.ok());
         REQUIRE(count_perfect_scores(buffers.value().scores()) == 1);
         const std::size_t expected_index =
             static_cast<std::size_t>(kA - 1) * 29u + static_cast<std::size_t>(kB);
         REQUIRE(require_rank1_exact_match(result.value()) == expected_index);
         REQUIRE(result.value().top()[0].candidate_id() ==
-                AffineCandidateGenerator::make_candidate_id(
-                    static_cast<std::uint8_t>(kA), static_cast<std::uint8_t>(kB)));
+                AffineCandidateGenerator::make_candidate_id(static_cast<std::uint8_t>(kA),
+                                                            static_cast<std::uint8_t>(kB)));
     }
 
     SECTION("vigenere_explicit_keys") {
@@ -221,9 +211,7 @@ TEST_CASE(
         };
 
         StatusOr<std::vector<Index29>> cipher = VigenereKeyTransform{}.apply(
-            plain,
-            nlohmann::json{{"key_indices", {1, 2, 5}}},
-            TransformDirection::Encrypt);
+            plain, nlohmann::json{{"key_indices", {1, 2, 5}}}, TransformDirection::Encrypt);
         REQUIRE(cipher.ok());
 
         CandidateBatchBuffers::AllocateOptions options;
@@ -260,11 +248,9 @@ TEST_CASE(
         StatusOr<InterruptPolicy> policy = InterruptPolicy::from_skip_indices({1, 3});
         REQUIRE(policy.ok());
 
-        StatusOr<std::vector<Index29>> cipher = VigenereKeyTransform{}.apply(
-            plain,
-            nlohmann::json{{"key_indices", {1, 2}}},
-            TransformDirection::Encrypt,
-            policy.value());
+        StatusOr<std::vector<Index29>> cipher =
+            VigenereKeyTransform{}.apply(plain, nlohmann::json{{"key_indices", {1, 2}}},
+                                         TransformDirection::Encrypt, policy.value());
         REQUIRE(cipher.ok());
 
         const std::vector<std::vector<Index29>> key_list = {

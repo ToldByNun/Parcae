@@ -5,30 +5,29 @@
 #error "search_run_cuda.hpp requires PARCAE_HAS_CUDA"
 #endif
 
-#include "caesar_chi2_batch.hpp"
-#include "cuda_error.hpp"
-#include "device_buffer.hpp"
-#include "family_chi2_batch.hpp"
-#include "params.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/run/search_run_metrics.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
 
+#include "caesar_chi2_batch.hpp"
+#include "cuda_error.hpp"
+#include "device_buffer.hpp"
+#include "family_chi2_batch.hpp"
+#include "params.hpp"
+
 #include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cuda_runtime_api.h>
+#include <nlohmann/json.hpp>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
-#include <cuda_runtime_api.h>
 
 /// CUDA family sweeps for `SearchRun` (fused decrypt+χ², scores-only D2H).
 class SearchRunCuda {
@@ -42,11 +41,10 @@ public:
         std::string parameters_label;
     };
 
-    [[nodiscard]] static StatusOr<SweepResult> run(
-        std::string_view family,
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t throughput_repeats) {
+    [[nodiscard]] static StatusOr<SweepResult> run(std::string_view family,
+                                                   std::span<const Index29> cipher,
+                                                   const ExpectedFrequencyTable& freqs,
+                                                   std::size_t throughput_repeats) {
         if (family == "caesar") {
             return run_caesar(cipher, freqs, throughput_repeats);
         }
@@ -109,10 +107,9 @@ private:
         std::size_t T = 0;
     };
 
-    [[nodiscard]] static StatusOr<DeviceScoreScratch> make_scratch(
-        std::span<const std::uint8_t> host_in,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t C) {
+    [[nodiscard]] static StatusOr<DeviceScoreScratch>
+    make_scratch(std::span<const std::uint8_t> host_in, const ExpectedFrequencyTable& freqs,
+                 std::size_t C) {
         DeviceScoreScratch s;
         s.C = C;
         s.T = host_in.size();
@@ -142,13 +139,10 @@ private:
     }
 
     template <typename LaunchFn>
-    [[nodiscard]] static StatusOr<SweepResult> timed_loop(
-        DeviceScoreScratch& scratch,
-        std::size_t repeats,
-        LaunchFn&& launch,
-        std::string transform_id,
-        std::string parameters_label,
-        const std::vector<nlohmann::json>& step_params) {
+    [[nodiscard]] static StatusOr<SweepResult>
+    timed_loop(DeviceScoreScratch& scratch, std::size_t repeats, LaunchFn&& launch,
+               std::string transform_id, std::string parameters_label,
+               const std::vector<nlohmann::json>& step_params) {
         const auto t0 = std::chrono::steady_clock::now();
         for (std::size_t rep = 0; rep < repeats; ++rep) {
             Status launched = launch();
@@ -156,8 +150,7 @@ private:
                 return launched;
             }
         }
-        Status synced =
-            CudaError::to_status(cudaDeviceSynchronize(), "SearchRunCuda::sync");
+        Status synced = CudaError::to_status(cudaDeviceSynchronize(), "SearchRunCuda::sync");
         if (!synced.ok()) {
             return synced;
         }
@@ -168,9 +161,8 @@ private:
         }
         const auto t1 = std::chrono::steady_clock::now();
         const double seconds = std::chrono::duration<double>(t1 - t0).count();
-        const double runes =
-            static_cast<double>(repeats) * static_cast<double>(scratch.C) *
-            static_cast<double>(scratch.T);
+        const double runes = static_cast<double>(repeats) * static_cast<double>(scratch.C) *
+                             static_cast<double>(scratch.T);
 
         SweepResult result;
         result.tok_per_sec = seconds > 0.0 ? (runes / seconds) : 0.0;
@@ -180,19 +172,14 @@ private:
         result.parameters_label = std::move(parameters_label);
         result.steps.reserve(scratch.C);
         for (std::size_t c = 0; c < scratch.C; ++c) {
-            result.steps.emplace_back(
-                c,
-                transform_id,
-                step_params[c],
-                scores[c]);
+            result.steps.emplace_back(c, transform_id, step_params[c], scores[c]);
         }
         return result;
     }
 
-    [[nodiscard]] static StatusOr<SweepResult> run_caesar(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t repeats) {
+    [[nodiscard]] static StatusOr<SweepResult> run_caesar(std::span<const Index29> cipher,
+                                                          const ExpectedFrequencyTable& freqs,
+                                                          std::size_t repeats) {
         const std::size_t C = Index29::modulus;
         const auto host_in = to_bytes(cipher);
         StatusOr<DeviceScoreScratch> scratch = make_scratch(host_in, freqs, C);
@@ -222,27 +209,19 @@ private:
         }
 
         return timed_loop(
-            scratch.value(),
-            repeats,
+            scratch.value(), repeats,
             [&]() {
                 return CaesarChi2Batch::launch_decrypt_async(
-                    scratch.value().in.data(),
-                    device_shifts.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    scratch.value().T);
+                    scratch.value().in.data(), device_shifts.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, scratch.value().T);
             },
-            "caesar",
-            "shift 0-28",
-            params);
+            "caesar", "shift 0-28", params);
     }
 
-    [[nodiscard]] static StatusOr<SweepResult> run_atbash(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t repeats) {
+    [[nodiscard]] static StatusOr<SweepResult> run_atbash(std::span<const Index29> cipher,
+                                                          const ExpectedFrequencyTable& freqs,
+                                                          std::size_t repeats) {
         constexpr std::size_t C = 1;
         const auto host_in = to_bytes(cipher);
         StatusOr<DeviceScoreScratch> scratch = make_scratch(host_in, freqs, C);
@@ -251,26 +230,19 @@ private:
         }
         std::vector<nlohmann::json> params{nlohmann::json::object()};
         return timed_loop(
-            scratch.value(),
-            repeats,
+            scratch.value(), repeats,
             [&]() {
                 return FamilyChi2Batch::launch_atbash_async(
-                    scratch.value().in.data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
+                    scratch.value().in.data(), scratch.value().probs.data(),
+                    scratch.value().counts.data(), scratch.value().scores.data(), C,
                     scratch.value().T);
             },
-            "atbash",
-            "involutory",
-            params);
+            "atbash", "involutory", params);
     }
 
-    [[nodiscard]] static StatusOr<SweepResult> run_atbash_caesar(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t repeats) {
+    [[nodiscard]] static StatusOr<SweepResult>
+    run_atbash_caesar(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                      std::size_t repeats) {
         const std::size_t C = Index29::modulus;
         const auto host_in = to_bytes(cipher);
         StatusOr<DeviceScoreScratch> scratch = make_scratch(host_in, freqs, C);
@@ -292,27 +264,19 @@ private:
             params.push_back({{"shift", static_cast<int>(c)}});
         }
         return timed_loop(
-            scratch.value(),
-            repeats,
+            scratch.value(), repeats,
             [&]() {
                 return FamilyChi2Batch::launch_atbash_caesar_async(
-                    scratch.value().in.data(),
-                    device_shifts.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    scratch.value().T);
+                    scratch.value().in.data(), device_shifts.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, scratch.value().T);
             },
-            "atbash_caesar",
-            "atbash then caesar shift 0-28",
-            params);
+            "atbash_caesar", "atbash then caesar shift 0-28", params);
     }
 
-    [[nodiscard]] static StatusOr<SweepResult> run_affine(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t repeats) {
+    [[nodiscard]] static StatusOr<SweepResult> run_affine(std::span<const Index29> cipher,
+                                                          const ExpectedFrequencyTable& freqs,
+                                                          std::size_t repeats) {
         constexpr std::size_t C = 28u * 29u;
         const auto host_in = to_bytes(cipher);
         StatusOr<DeviceScoreScratch> scratch = make_scratch(host_in, freqs, C);
@@ -341,29 +305,20 @@ private:
             return device_b.status();
         }
         return timed_loop(
-            scratch.value(),
-            repeats,
+            scratch.value(), repeats,
             [&]() {
                 return FamilyChi2Batch::launch_affine_async(
-                    scratch.value().in.data(),
-                    device_a.value().data(),
-                    device_b.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    scratch.value().T);
+                    scratch.value().in.data(), device_a.value().data(), device_b.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, scratch.value().T);
             },
-            "affine",
-            "a=1..28, b=0..28 (812)",
-            params);
+            "affine", "a=1..28, b=0..28 (812)", params);
     }
 
-    [[nodiscard]] static StatusOr<SweepResult> run_vigenere(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t repeats) {
-        constexpr std::size_t C = 20;  // key lengths 1..20
+    [[nodiscard]] static StatusOr<SweepResult> run_vigenere(std::span<const Index29> cipher,
+                                                            const ExpectedFrequencyTable& freqs,
+                                                            std::size_t repeats) {
+        constexpr std::size_t C = 20; // key lengths 1..20
         const auto host_in = to_bytes(cipher);
         StatusOr<DeviceScoreScratch> scratch = make_scratch(host_in, freqs, C);
         if (!scratch.ok()) {
@@ -409,24 +364,16 @@ private:
         }
 
         return timed_loop(
-            scratch.value(),
-            repeats,
+            scratch.value(), repeats,
             [&]() {
                 return FamilyChi2Batch::launch_vigenere_async(
-                    scratch.value().in.data(),
-                    device_keys.value().data(),
-                    device_begin.value().data(),
-                    device_len.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    scratch.value().T);
+                    scratch.value().in.data(), device_keys.value().data(),
+                    device_begin.value().data(), device_len.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, scratch.value().T);
             },
-            "vigenere_key",
-            "key length 1-20",
-            params);
+            "vigenere_key", "key length 1-20", params);
     }
 };
 
-#endif  // SEARCH_RUN_CUDA_HPP
+#endif // SEARCH_RUN_CUDA_HPP

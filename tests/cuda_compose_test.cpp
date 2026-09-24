@@ -2,21 +2,20 @@
 
 #if defined(PARCAE_HAS_CUDA)
 
-#include "compose_driver.hpp"
-#include "interrupt_device_view.hpp"
-#include "parcae_cuda.hpp"
-#include "params.hpp"
-#include "params_json.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/interrupt/policy.hpp"
 #include "parcae/transform/compose_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
 
-#include <cstdint>
-#include <vector>
+#include "compose_driver.hpp"
+#include "interrupt_device_view.hpp"
+#include "params.hpp"
+#include "params_json.hpp"
+#include "parcae_cuda.hpp"
 
+#include <cstdint>
 #include <nlohmann/json.hpp>
+#include <vector>
 
 namespace {
 
@@ -38,13 +37,12 @@ namespace {
     return out;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("CUDA compose driver atbash_then_caesar matches CPU", "[cuda][parity][compose]") {
     REQUIRE(ParcaeCuda::available());
 
-    const std::vector<Index29> plain{
-        Index29{0}, Index29{1}, Index29{10}, Index29{28}, Index29{14}};
+    const std::vector<Index29> plain{Index29{0}, Index29{1}, Index29{10}, Index29{28}, Index29{14}};
     const nlohmann::json params = ComposeTransform::atbash_then_caesar_params(3);
 
     StatusOr<ComposeParamsHost> recipe = CudaParamsJson::compose_from_json(params);
@@ -60,16 +58,12 @@ TEST_CASE("CUDA compose driver atbash_then_caesar matches CPU", "[cuda][parity][
     SECTION("decrypt") {
         std::vector<Index29> cpu_out(plain.size());
         REQUIRE(ComposeTransform{}
-                    .apply_into(
-                        plain,
-                        cpu_out,
-                        params,
-                        TransformDirection::Decrypt)
+                    .apply_into(plain, cpu_out, params, TransformDirection::Decrypt)
                     .ok());
 
         std::vector<std::uint8_t> host_out(host_in.size(), 0xFFu);
-        REQUIRE(ComposeDriver::apply_host(
-                    host_in, host_out, recipe.value(), view.value(), CudaDir::Decrypt)
+        REQUIRE(ComposeDriver::apply_host(host_in, host_out, recipe.value(), view.value(),
+                                          CudaDir::Decrypt)
                     .ok());
         REQUIRE(from_bytes(host_out) == cpu_out);
     }
@@ -77,28 +71,23 @@ TEST_CASE("CUDA compose driver atbash_then_caesar matches CPU", "[cuda][parity][
     SECTION("encrypt") {
         std::vector<Index29> cpu_out(plain.size());
         REQUIRE(ComposeTransform{}
-                    .apply_into(
-                        plain,
-                        cpu_out,
-                        params,
-                        TransformDirection::Encrypt)
+                    .apply_into(plain, cpu_out, params, TransformDirection::Encrypt)
                     .ok());
 
         std::vector<std::uint8_t> host_out(host_in.size(), 0xFFu);
-        REQUIRE(ComposeDriver::apply_host(
-                    host_in, host_out, recipe.value(), view.value(), CudaDir::Encrypt)
+        REQUIRE(ComposeDriver::apply_host(host_in, host_out, recipe.value(), view.value(),
+                                          CudaDir::Encrypt)
                     .ok());
         REQUIRE(from_bytes(host_out) == cpu_out);
     }
 
     SECTION("round-trip") {
         std::vector<std::uint8_t> mid(host_in.size());
-        REQUIRE(ComposeDriver::apply_host(
-                    host_in, mid, recipe.value(), view.value(), CudaDir::Encrypt)
-                    .ok());
+        REQUIRE(
+            ComposeDriver::apply_host(host_in, mid, recipe.value(), view.value(), CudaDir::Encrypt)
+                .ok());
         std::vector<std::uint8_t> back(host_in.size());
-        REQUIRE(ComposeDriver::apply_host(
-                    mid, back, recipe.value(), view.value(), CudaDir::Decrypt)
+        REQUIRE(ComposeDriver::apply_host(mid, back, recipe.value(), view.value(), CudaDir::Decrypt)
                     .ok());
         REQUIRE(back == host_in);
     }
@@ -108,12 +97,10 @@ TEST_CASE("CUDA compose driver single identity stage", "[cuda][parity][compose]"
     REQUIRE(ParcaeCuda::available());
 
     const nlohmann::json params{
-        {"stages",
-         nlohmann::json::array(
-             {nlohmann::json{
-                 {"transform_id", "identity"},
-                 {"params", nlohmann::json::object()},
-             }})},
+        {"stages", nlohmann::json::array({nlohmann::json{
+                       {"transform_id", "identity"},
+                       {"params", nlohmann::json::object()},
+                   }})},
     };
     StatusOr<ComposeParamsHost> recipe = CudaParamsJson::compose_from_json(params);
     REQUIRE(recipe.ok());
@@ -124,9 +111,9 @@ TEST_CASE("CUDA compose driver single identity stage", "[cuda][parity][compose]"
     REQUIRE(view.ok());
 
     std::vector<std::uint8_t> host_out(host_in.size(), 0);
-    REQUIRE(ComposeDriver::apply_host(
-                host_in, host_out, recipe.value(), view.value(), CudaDir::Decrypt)
-                .ok());
+    REQUIRE(
+        ComposeDriver::apply_host(host_in, host_out, recipe.value(), view.value(), CudaDir::Decrypt)
+            .ok());
     REQUIRE(host_out == host_in);
 }
 
@@ -139,8 +126,7 @@ TEST_CASE("CUDA compose driver rejects empty stages and size mismatch", "[cuda][
     StatusOr<InterruptDeviceView> view =
         InterruptDeviceView::from_policy(InterruptPolicy::none(), 1);
     REQUIRE(view.ok());
-    REQUIRE_FALSE(
-        ComposeDriver::apply_host(in, out, empty, view.value(), CudaDir::Decrypt).ok());
+    REQUIRE_FALSE(ComposeDriver::apply_host(in, out, empty, view.value(), CudaDir::Decrypt).ok());
 
     StatusOr<ComposeParamsHost> recipe =
         CudaParamsJson::compose_from_json(ComposeTransform::atbash_then_caesar_params(1));

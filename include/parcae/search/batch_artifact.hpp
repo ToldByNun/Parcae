@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -25,8 +26,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// On-disk top-k batch under `workspaces/<id>/batches/<batch_id>/`
 /// (`parcae.batch_artifact.v0` — docs/spec/search-loop.md).
@@ -44,17 +43,11 @@ public:
 
     BatchArtifact() = default;
 
-    [[nodiscard]] const std::string& batch_id() const noexcept {
-        return batch_id_;
-    }
+    [[nodiscard]] const std::string& batch_id() const noexcept { return batch_id_; }
 
-    [[nodiscard]] const std::string& workspace_id() const noexcept {
-        return workspace_id_;
-    }
+    [[nodiscard]] const std::string& workspace_id() const noexcept { return workspace_id_; }
 
-    [[nodiscard]] const std::string& created_utc() const noexcept {
-        return created_utc_;
-    }
+    [[nodiscard]] const std::string& created_utc() const noexcept { return created_utc_; }
 
     [[nodiscard]] const std::string& job_digest_sha256() const noexcept {
         return job_digest_sha256_;
@@ -64,33 +57,19 @@ public:
         return prior_digest_sha256_;
     }
 
-    [[nodiscard]] const std::string& family() const noexcept {
-        return family_;
-    }
+    [[nodiscard]] const std::string& family() const noexcept { return family_; }
 
-    [[nodiscard]] const std::string& score_id() const noexcept {
-        return score_id_;
-    }
+    [[nodiscard]] const std::string& score_id() const noexcept { return score_id_; }
 
-    [[nodiscard]] const std::string& score_version() const noexcept {
-        return score_version_;
-    }
+    [[nodiscard]] const std::string& score_version() const noexcept { return score_version_; }
 
-    [[nodiscard]] Backend backend() const noexcept {
-        return backend_;
-    }
+    [[nodiscard]] Backend backend() const noexcept { return backend_; }
 
-    [[nodiscard]] std::size_t k() const noexcept {
-        return k_;
-    }
+    [[nodiscard]] std::size_t k() const noexcept { return k_; }
 
-    [[nodiscard]] std::size_t candidate_count() const noexcept {
-        return candidates_.size();
-    }
+    [[nodiscard]] std::size_t candidate_count() const noexcept { return candidates_.size(); }
 
-    [[nodiscard]] std::uint32_t seed() const noexcept {
-        return seed_;
-    }
+    [[nodiscard]] std::uint32_t seed() const noexcept { return seed_; }
 
     [[nodiscard]] const std::string& candidates_relpath() const noexcept {
         return candidates_relpath_;
@@ -105,18 +84,14 @@ public:
         return candidates_;
     }
 
-    [[nodiscard]] const std::optional<nlohmann::json>& report() const noexcept {
-        return report_;
-    }
+    [[nodiscard]] const std::optional<nlohmann::json>& report() const noexcept { return report_; }
 
     /// Wire object for one `candidates.jsonl` line (best-first `rank`).
-    [[nodiscard]] static nlohmann::json candidate_wire(
-        const TransformCandidate& candidate,
-        std::string_view score_id,
-        std::string_view score_version,
-        double score_value,
-        Backend backend,
-        std::size_t rank) {
+    [[nodiscard]] static nlohmann::json candidate_wire(const TransformCandidate& candidate,
+                                                       std::string_view score_id,
+                                                       std::string_view score_version,
+                                                       double score_value, Backend backend,
+                                                       std::size_t rank) {
         nlohmann::json base = candidate.to_json();
         base["rank"] = rank;
         base["score"] = nlohmann::json{
@@ -128,20 +103,12 @@ public:
         return base;
     }
 
-    [[nodiscard]] static StatusOr<BatchArtifact> make(
-        std::string_view workspace_id,
-        std::string_view batch_id,
-        std::string_view created_utc,
-        std::string_view job_digest_sha256,
-        std::string_view prior_digest_sha256,
-        std::string_view family,
-        std::string_view score_id,
-        std::string_view score_version,
-        Backend backend,
-        std::size_t k,
-        std::uint32_t seed,
-        std::vector<nlohmann::json> candidates,
-        std::optional<nlohmann::json> report = std::nullopt) {
+    [[nodiscard]] static StatusOr<BatchArtifact>
+    make(std::string_view workspace_id, std::string_view batch_id, std::string_view created_utc,
+         std::string_view job_digest_sha256, std::string_view prior_digest_sha256,
+         std::string_view family, std::string_view score_id, std::string_view score_version,
+         Backend backend, std::size_t k, std::uint32_t seed, std::vector<nlohmann::json> candidates,
+         std::optional<nlohmann::json> report = std::nullopt) {
         StatusOr<std::string> wid = WorkspacePaths::validate_id(workspace_id);
         if (!wid.ok()) {
             return wid.status();
@@ -182,9 +149,8 @@ public:
             return Status::error("BatchArtifact.candidate_count must be <= k");
         }
         if (candidates.size() > kMaxCandidatesPerBatch) {
-            return Status::error(
-                "BatchArtifact.candidate_count exceeds kMaxCandidatesPerBatch (" +
-                std::to_string(kMaxCandidatesPerBatch) + ")");
+            return Status::error("BatchArtifact.candidate_count exceeds kMaxCandidatesPerBatch (" +
+                                 std::to_string(kMaxCandidatesPerBatch) + ")");
         }
         if (report.has_value()) {
             Status report_ok = validate_report(*report);
@@ -219,22 +185,20 @@ public:
         return art;
     }
 
-    [[nodiscard]] static StatusOr<BatchArtifact> from_manifest_json(
-        const nlohmann::json& root,
-        std::vector<nlohmann::json> candidates,
-        std::optional<nlohmann::json> report = std::nullopt) {
+    [[nodiscard]] static StatusOr<BatchArtifact>
+    from_manifest_json(const nlohmann::json& root, std::vector<nlohmann::json> candidates,
+                       std::optional<nlohmann::json> report = std::nullopt) {
         if (!root.is_object()) {
             return Status::error("BatchArtifact manifest must be an object");
         }
         if (!root.contains("schema") || !root.at("schema").is_string() ||
             root.at("schema").get<std::string>() != schema_id) {
-            return Status::error(
-                "BatchArtifact.schema must be \"" + std::string(schema_id) + "\"");
+            return Status::error("BatchArtifact.schema must be \"" + std::string(schema_id) + "\"");
         }
         if (!root.contains("ordering") || !root.at("ordering").is_string() ||
             root.at("ordering").get<std::string>() != ordering_id) {
-            return Status::error(
-                "BatchArtifact.ordering must be \"" + std::string(ordering_id) + "\"");
+            return Status::error("BatchArtifact.ordering must be \"" + std::string(ordering_id) +
+                                 "\"");
         }
 
         StatusOr<std::string> workspace_id = require_string(root, "workspace_id");
@@ -272,8 +236,7 @@ public:
         if (!root.contains("backend") || !root.at("backend").is_string()) {
             return Status::error("BatchArtifact.backend must be a string");
         }
-        StatusOr<Backend> backend =
-            BackendUtil::from_string(root.at("backend").get<std::string>());
+        StatusOr<Backend> backend = BackendUtil::from_string(root.at("backend").get<std::string>());
         if (!backend.ok()) {
             return backend.status();
         }
@@ -334,25 +297,15 @@ public:
             }
             report_rel = std::move(rel.value());
             if (!report.has_value()) {
-                return Status::error(
-                    "BatchArtifact.paths.report set but report.json is missing");
+                return Status::error("BatchArtifact.paths.report set but report.json is missing");
             }
         }
 
-        StatusOr<BatchArtifact> art = make(
-            workspace_id.value(),
-            batch_id.value(),
-            created_utc.value(),
-            job_digest.value(),
-            prior_digest.value(),
-            family.value(),
-            score_id.value(),
-            score_version.value(),
-            backend.value(),
-            static_cast<std::size_t>(k_i),
-            static_cast<std::uint32_t>(seed_i),
-            std::move(candidates),
-            std::move(report));
+        StatusOr<BatchArtifact> art =
+            make(workspace_id.value(), batch_id.value(), created_utc.value(), job_digest.value(),
+                 prior_digest.value(), family.value(), score_id.value(), score_version.value(),
+                 backend.value(), static_cast<std::size_t>(k_i), static_cast<std::uint32_t>(seed_i),
+                 std::move(candidates), std::move(report));
         if (!art.ok()) {
             return art.status();
         }
@@ -403,24 +356,23 @@ public:
             return Status::error("Failed to create batch directory: " + ec.message());
         }
 
-        StatusOr<std::filesystem::path> candidates_path = WorkspacePaths::resolve_under(
-            dir.value(), std::filesystem::path(candidates_relpath_));
+        StatusOr<std::filesystem::path> candidates_path =
+            WorkspacePaths::resolve_under(dir.value(), std::filesystem::path(candidates_relpath_));
         if (!candidates_path.ok()) {
             return candidates_path.status();
         }
         {
             std::ofstream out(candidates_path.value(), std::ios::binary | std::ios::trunc);
             if (!out) {
-                return Status::error(
-                    "Failed to write candidates.jsonl: " + candidates_path.value().string());
+                return Status::error("Failed to write candidates.jsonl: " +
+                                     candidates_path.value().string());
             }
             for (const nlohmann::json& line : candidates_) {
                 out << line.dump() << '\n';
             }
             if (!out) {
-                return Status::error(
-                    "Failed while writing candidates.jsonl: " +
-                    candidates_path.value().string());
+                return Status::error("Failed while writing candidates.jsonl: " +
+                                     candidates_path.value().string());
             }
         }
 
@@ -428,20 +380,20 @@ public:
             if (!report_.has_value()) {
                 return Status::error("BatchArtifact report path set but report body missing");
             }
-            StatusOr<std::filesystem::path> report_path = WorkspacePaths::resolve_under(
-                dir.value(), std::filesystem::path(*report_relpath_));
+            StatusOr<std::filesystem::path> report_path =
+                WorkspacePaths::resolve_under(dir.value(), std::filesystem::path(*report_relpath_));
             if (!report_path.ok()) {
                 return report_path.status();
             }
             std::ofstream out(report_path.value(), std::ios::binary | std::ios::trunc);
             if (!out) {
-                return Status::error(
-                    "Failed to write report.json: " + report_path.value().string());
+                return Status::error("Failed to write report.json: " +
+                                     report_path.value().string());
             }
             out << report_.value().dump(2);
             if (!out) {
-                return Status::error(
-                    "Failed while writing report.json: " + report_path.value().string());
+                return Status::error("Failed while writing report.json: " +
+                                     report_path.value().string());
             }
         }
 
@@ -453,17 +405,16 @@ public:
             }
             out << manifest_to_json().dump(2);
             if (!out) {
-                return Status::error(
-                    "Failed while writing manifest.json: " + manifest_path.string());
+                return Status::error("Failed while writing manifest.json: " +
+                                     manifest_path.string());
             }
         }
         return Status::success();
     }
 
-    [[nodiscard]] static StatusOr<BatchArtifact> load(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id,
-        std::string_view batch_id) {
+    [[nodiscard]] static StatusOr<BatchArtifact> load(const std::filesystem::path& data_root,
+                                                      std::string_view workspace_id,
+                                                      std::string_view batch_id) {
         StatusOr<std::filesystem::path> dir =
             WorkspacePaths::batch_dir(data_root, workspace_id, batch_id);
         if (!dir.ok()) {
@@ -482,8 +433,7 @@ public:
         try {
             manifest_in >> manifest;
         } catch (const nlohmann::json::exception& ex) {
-            return Status::error(
-                std::string("Invalid BatchArtifact manifest.json: ") + ex.what());
+            return Status::error(std::string("Invalid BatchArtifact manifest.json: ") + ex.what());
         }
 
         if (!manifest.contains("paths") || !manifest.at("paths").is_object()) {
@@ -516,8 +466,7 @@ public:
             }
             std::ifstream report_in(report_path.value(), std::ios::binary);
             if (!report_in) {
-                return Status::error(
-                    "Failed to open report.json: " + report_path.value().string());
+                return Status::error("Failed to open report.json: " + report_path.value().string());
             }
             try {
                 report_in >> report.emplace();
@@ -541,9 +490,8 @@ public:
     }
 
 private:
-    [[nodiscard]] static StatusOr<std::string> require_string(
-        const nlohmann::json& root,
-        std::string_view key) {
+    [[nodiscard]] static StatusOr<std::string> require_string(const nlohmann::json& root,
+                                                              std::string_view key) {
         if (!root.contains(key) || !root.at(std::string(key)).is_string()) {
             return Status::error("BatchArtifact." + std::string(key) + " must be a string");
         }
@@ -552,27 +500,25 @@ private:
 
     [[nodiscard]] static Status require_sha256_hex(std::string_view field, std::string_view hex) {
         if (hex.size() != 64) {
-            return Status::error(
-                "BatchArtifact." + std::string(field) + " must be 64 lowercase hex digits");
+            return Status::error("BatchArtifact." + std::string(field) +
+                                 " must be 64 lowercase hex digits");
         }
         for (char ch : hex) {
             const unsigned char c = static_cast<unsigned char>(ch);
             if (!std::isxdigit(c) || (std::isalpha(c) && !std::islower(c))) {
-                return Status::error(
-                    "BatchArtifact." + std::string(field) + " must be 64 lowercase hex digits");
+                return Status::error("BatchArtifact." + std::string(field) +
+                                     " must be 64 lowercase hex digits");
             }
         }
         return Status::success();
     }
 
-    [[nodiscard]] static StatusOr<std::string> validate_rel_filename(
-        std::string_view name,
-        std::string_view label) {
+    [[nodiscard]] static StatusOr<std::string> validate_rel_filename(std::string_view name,
+                                                                     std::string_view label) {
         if (name.empty() || name.find('/') != std::string_view::npos ||
             name.find('\\') != std::string_view::npos || name == "." || name == "..") {
-            return Status::error(
-                "BatchArtifact.paths." + std::string(label) +
-                " must be a single relative filename");
+            return Status::error("BatchArtifact.paths." + std::string(label) +
+                                 " must be a single relative filename");
         }
         return std::string(name);
     }
@@ -582,32 +528,22 @@ private:
             return Status::error("BatchArtifact report must be an object");
         }
         static constexpr std::string_view kForbidden[] = {
-            "tok_per_sec",
-            "tokens_per_sec",
-            "wall_ms",
-            "wall_s",
-            "duration_ms",
-            "duration_s",
-            "elapsed_ms",
-            "device_ms",
-            "gpu_ms",
-            "cuda_ms",
-            "device_clock",
+            "tok_per_sec", "tokens_per_sec", "wall_ms", "wall_s",  "duration_ms",  "duration_s",
+            "elapsed_ms",  "device_ms",      "gpu_ms",  "cuda_ms", "device_clock",
         };
         for (std::string_view key : kForbidden) {
             if (report.contains(key)) {
-                return Status::error(
-                    "BatchArtifact report must not include timing field: " + std::string(key));
+                return Status::error("BatchArtifact report must not include timing field: " +
+                                     std::string(key));
             }
         }
         return Status::success();
     }
 
-    [[nodiscard]] static Status validate_candidates(
-        const std::vector<nlohmann::json>& candidates,
-        std::string_view expected_score_id,
-        std::string_view expected_score_version,
-        Backend expected_backend) {
+    [[nodiscard]] static Status validate_candidates(const std::vector<nlohmann::json>& candidates,
+                                                    std::string_view expected_score_id,
+                                                    std::string_view expected_score_version,
+                                                    Backend expected_backend) {
         std::unordered_set<std::string> seen_ids;
         seen_ids.reserve(candidates.size());
 
@@ -621,107 +557,89 @@ private:
         for (std::size_t i = 0; i < candidates.size(); ++i) {
             const nlohmann::json& row = candidates[i];
             if (!row.is_object()) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) + "] must be an object");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "] must be an object");
             }
             const std::string dumped = row.dump();
             if (dumped.size() > kMaxCandidateLineBytes) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "] line exceeds kMaxCandidateLineBytes (" +
-                    std::to_string(kMaxCandidateLineBytes) + ")");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "] line exceeds kMaxCandidateLineBytes (" +
+                                     std::to_string(kMaxCandidateLineBytes) + ")");
             }
             if (!row.contains("candidate_id") || !row.at("candidate_id").is_string()) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "].candidate_id must be a string");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "].candidate_id must be a string");
             }
             const std::string cid = row.at("candidate_id").get<std::string>();
             if (cid.empty()) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "].candidate_id must be non-empty");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "].candidate_id must be non-empty");
             }
             if (!seen_ids.insert(cid).second) {
-                return Status::error(
-                    "BatchArtifact candidate_id not unique within batch: " + cid);
+                return Status::error("BatchArtifact candidate_id not unique within batch: " + cid);
             }
             if (!row.contains("envelope") || !row.at("envelope").is_object()) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "].envelope must be an object");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "].envelope must be an object");
             }
-            StatusOr<TransformEnvelope> envelope =
-                TransformEnvelope::from_json(row.at("envelope"));
+            StatusOr<TransformEnvelope> envelope = TransformEnvelope::from_json(row.at("envelope"));
             if (!envelope.ok()) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "].envelope invalid: " + envelope.status().message());
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "].envelope invalid: " + envelope.status().message());
             }
             if (!row.contains("output_indices") || !row.at("output_indices").is_array()) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "].output_indices must be an array");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "].output_indices must be an array");
             }
             for (std::size_t j = 0; j < row.at("output_indices").size(); ++j) {
                 const auto& idx = row.at("output_indices")[j];
                 if (!idx.is_number_integer()) {
-                    return Status::error(
-                        "BatchArtifact candidates[" + std::to_string(i) +
-                        "].output_indices must be integers");
+                    return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                         "].output_indices must be integers");
                 }
                 const auto v = idx.get<std::int64_t>();
                 if (v < 0 || v > 28) {
-                    return Status::error(
-                        "BatchArtifact candidates[" + std::to_string(i) +
-                        "].output_indices must be in 0..28");
+                    return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                         "].output_indices must be in 0..28");
                 }
             }
             if (!row.contains("score") || !row.at("score").is_object()) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "].score must be an object");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "].score must be an object");
             }
             const nlohmann::json& score = row.at("score");
             if (!score.contains("score_id") || !score.at("score_id").is_string() ||
                 score.at("score_id").get<std::string>() != expected_score_id) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "].score.score_id must match manifest");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "].score.score_id must match manifest");
             }
             if (!score.contains("score_version") || !score.at("score_version").is_string() ||
                 score.at("score_version").get<std::string>() != expected_score_version) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "].score.score_version must match manifest");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "].score.score_version must match manifest");
             }
             if (!score.contains("value") || !score.at("value").is_number()) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "].score.value must be a number");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "].score.value must be a number");
             }
             if (!score.contains("backend") || !score.at("backend").is_string()) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "].score.backend must be a string");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "].score.backend must be a string");
             }
             StatusOr<Backend> backend =
                 BackendUtil::from_string(score.at("backend").get<std::string>());
             if (!backend.ok() || backend.value() != expected_backend) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "].score.backend must match manifest");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "].score.backend must match manifest");
             }
             if (!row.contains("rank") || !row.at("rank").is_number_integer()) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "].rank must be an integer");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "].rank must be an integer");
             }
             const auto rank = row.at("rank").get<std::int64_t>();
             if (rank < 0 || static_cast<std::size_t>(rank) != i) {
-                return Status::error(
-                    "BatchArtifact candidates[" + std::to_string(i) +
-                    "].rank must equal line index (best-first)");
+                return Status::error("BatchArtifact candidates[" + std::to_string(i) +
+                                     "].rank must equal line index (best-first)");
             }
 
             const double value = score.at("value").get<double>();
@@ -736,8 +654,8 @@ private:
         return Status::success();
     }
 
-    [[nodiscard]] static StatusOr<std::vector<nlohmann::json>> load_candidates_jsonl(
-        const std::filesystem::path& path) {
+    [[nodiscard]] static StatusOr<std::vector<nlohmann::json>>
+    load_candidates_jsonl(const std::filesystem::path& path) {
         std::ifstream in(path, std::ios::binary);
         if (!in) {
             return Status::error("Failed to open candidates.jsonl: " + path.string());
@@ -758,22 +676,19 @@ private:
                 continue;
             }
             if (line.size() > kMaxCandidateLineBytes) {
-                return Status::error(
-                    "candidates.jsonl line " + std::to_string(line_no) +
-                    " exceeds kMaxCandidateLineBytes (" +
-                    std::to_string(kMaxCandidateLineBytes) + ")");
+                return Status::error("candidates.jsonl line " + std::to_string(line_no) +
+                                     " exceeds kMaxCandidateLineBytes (" +
+                                     std::to_string(kMaxCandidateLineBytes) + ")");
             }
             if (out.size() >= kMaxCandidatesPerBatch) {
-                return Status::error(
-                    "candidates.jsonl exceeds kMaxCandidatesPerBatch (" +
-                    std::to_string(kMaxCandidatesPerBatch) + ")");
+                return Status::error("candidates.jsonl exceeds kMaxCandidatesPerBatch (" +
+                                     std::to_string(kMaxCandidatesPerBatch) + ")");
             }
             try {
                 out.push_back(nlohmann::json::parse(line));
             } catch (const nlohmann::json::exception& ex) {
-                return Status::error(
-                    "Invalid candidates.jsonl line " + std::to_string(line_no) + ": " +
-                    ex.what());
+                return Status::error("Invalid candidates.jsonl line " + std::to_string(line_no) +
+                                     ": " + ex.what());
             }
         }
         return out;

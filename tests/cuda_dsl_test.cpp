@@ -1,17 +1,14 @@
 #include <catch2/catch_test_macros.hpp>
-
+#include <cstdint>
+#include <nlohmann/json.hpp>
 #include <parcae/dsl/dsl_emit_cuda.hpp>
 #include <parcae/dsl/dsl_ir_applicator.hpp>
 #include <parcae/dsl/param_ir.hpp>
 #include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/z29_expr.hpp>
 #include <parcae/transform/transform_direction.hpp>
-
-#include <cstdint>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 namespace {
 
@@ -20,14 +17,10 @@ namespace {
     REQUIRE(shift.ok());
     const Z29Expr::Ptr x = Z29Expr::var("x");
     const Z29Expr::Ptr s = Z29Expr::var("shift");
-    const StatusOr<TheoryIr> theory = TheoryIr::make(
-        "dsl_smoke_caesar",
-        TheoryIr::Family::Elementwise,
-        TheoryIr::Tier::A,
-        TheoryIr::InterruptMode::ElementwiseDefault,
-        {shift.value()},
-        Z29Expr::add(x, s),
-        Z29Expr::sub(x, s));
+    const StatusOr<TheoryIr> theory =
+        TheoryIr::make("dsl_smoke_caesar", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+                       TheoryIr::InterruptMode::ElementwiseDefault, {shift.value()},
+                       Z29Expr::add(x, s), Z29Expr::sub(x, s));
     REQUIRE(theory.ok());
     return theory.value();
 }
@@ -59,11 +52,9 @@ namespace {
     return out;
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "DslEmitCuda smoke theory text matches golden twin shape",
-    "[cuda][dsl][smoke]") {
+TEST_CASE("DslEmitCuda smoke theory text matches golden twin shape", "[cuda][dsl][smoke]") {
     const TheoryIr theory = make_dsl_smoke_caesar();
 
     const StatusOr<std::string> header = DslEmitCuda::emit_theory_header(theory);
@@ -86,15 +77,14 @@ TEST_CASE(
     REQUIRE(cu.value().find("DslSmokeCaesarKernel::apply_host(") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslEmitCuda smoke encrypt/decrypt cuda_mirror matches CPU applicator",
-    "[cuda][dsl][smoke]") {
+TEST_CASE("DslEmitCuda smoke encrypt/decrypt cuda_mirror matches CPU applicator",
+          "[cuda][dsl][smoke]") {
     const TheoryIr theory = make_dsl_smoke_caesar();
     const auto input = stream_of({0, 1, 14, 27, 28});
     const nlohmann::json params{{"shift", 5}};
 
-    StatusOr<std::vector<Index29>> cpu = DslIrApplicator::apply(
-        theory, input, params, TransformDirection::Encrypt);
+    StatusOr<std::vector<Index29>> cpu =
+        DslIrApplicator::apply(theory, input, params, TransformDirection::Encrypt);
     REQUIRE(cpu.ok());
 
     for (std::size_t i = 0; i < input.size(); ++i) {
@@ -106,8 +96,8 @@ TEST_CASE(
         REQUIRE(mirrored.value() == cpu.value()[i]);
     }
 
-    StatusOr<std::vector<Index29>> back = DslIrApplicator::apply(
-        theory, cpu.value(), params, TransformDirection::Decrypt);
+    StatusOr<std::vector<Index29>> back =
+        DslIrApplicator::apply(theory, cpu.value(), params, TransformDirection::Decrypt);
     REQUIRE(back.ok());
     REQUIRE(back.value() == input);
 }
@@ -115,12 +105,10 @@ TEST_CASE(
 #if defined(PARCAE_HAS_CUDA)
 
 #include "dsl_smoke_caesar_kernel.hpp"
-#include "parcae_cuda.hpp"
 #include "params.hpp"
+#include "parcae_cuda.hpp"
 
-TEST_CASE(
-    "CUDA DSL smoke kernel parity vs DslIrApplicator",
-    "[cuda][dsl][smoke]") {
+TEST_CASE("CUDA DSL smoke kernel parity vs DslIrApplicator", "[cuda][dsl][smoke]") {
     REQUIRE(ParcaeCuda::available());
 
     const TheoryIr theory = make_dsl_smoke_caesar();
@@ -128,8 +116,8 @@ TEST_CASE(
     const std::uint8_t shift = 7;
     const nlohmann::json params{{"shift", static_cast<int>(shift)}};
 
-    StatusOr<std::vector<Index29>> cpu_enc = DslIrApplicator::apply(
-        theory, input, params, TransformDirection::Encrypt);
+    StatusOr<std::vector<Index29>> cpu_enc =
+        DslIrApplicator::apply(theory, input, params, TransformDirection::Encrypt);
     REQUIRE(cpu_enc.ok());
 
     const std::vector<std::uint8_t> host_in = to_bytes(input);
@@ -137,8 +125,8 @@ TEST_CASE(
     REQUIRE(DslSmokeCaesarKernel::apply_host(host_in, host_enc, shift, CudaDir::Encrypt).ok());
     REQUIRE(from_bytes(host_enc) == cpu_enc.value());
 
-    StatusOr<std::vector<Index29>> cpu_dec = DslIrApplicator::apply(
-        theory, cpu_enc.value(), params, TransformDirection::Decrypt);
+    StatusOr<std::vector<Index29>> cpu_dec =
+        DslIrApplicator::apply(theory, cpu_enc.value(), params, TransformDirection::Decrypt);
     REQUIRE(cpu_dec.ok());
 
     std::vector<std::uint8_t> host_dec(host_enc.size());
@@ -147,9 +135,7 @@ TEST_CASE(
     REQUIRE(host_dec == host_in);
 }
 
-TEST_CASE(
-    "CUDA DSL smoke kernel empty and null guards",
-    "[cuda][dsl][smoke]") {
+TEST_CASE("CUDA DSL smoke kernel empty and null guards", "[cuda][dsl][smoke]") {
     REQUIRE(ParcaeCuda::available());
     REQUIRE(DslSmokeCaesarKernel::launch_device(nullptr, nullptr, 0, 0, CudaDir::Encrypt).ok());
     REQUIRE_FALSE(

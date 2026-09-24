@@ -1,3 +1,6 @@
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <fstream>
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_build_ir.hpp>
 #include <parcae/dsl/dsl_compile.hpp>
@@ -7,11 +10,6 @@
 #include <parcae/dsl/theory_envelope_bridge.hpp>
 #include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/theory_registry.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <filesystem>
-#include <fstream>
 #include <string>
 
 #ifndef PARCAE_DSL_FIXTURES_DIR
@@ -38,7 +36,7 @@ namespace {
     return opt;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("DslCompile pipeline_ready when python package present", "[dsl][compile]") {
     REQUIRE(DslCompile::pipeline_ready(compile_options()));
@@ -46,8 +44,7 @@ TEST_CASE("DslCompile pipeline_ready when python package present", "[dsl][compil
 }
 
 TEST_CASE("DslCompile end-to-end quadratic_polynomial_stream", "[dsl][compile]") {
-    const auto root =
-        std::filesystem::temp_directory_path() / "parcae_dsl_compile_h34";
+    const auto root = std::filesystem::temp_directory_path() / "parcae_dsl_compile_h34";
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
     std::filesystem::create_directories(root, ec);
@@ -56,9 +53,8 @@ TEST_CASE("DslCompile end-to-end quadratic_polynomial_stream", "[dsl][compile]")
         DslCompile::compile_file(fixture_theory(), root, compile_options());
     REQUIRE(result.ok());
     REQUIRE(result.value().artifacts().size() == 1);
-    REQUIRE(
-        result.value().artifacts().front().uri().to_string() ==
-        "parcae://theories/quadratic_polynomial_stream@1");
+    REQUIRE(result.value().artifacts().front().uri().to_string() ==
+            "parcae://theories/quadratic_polynomial_stream@1");
     REQUIRE(result.value().artifacts().front().dsl_spec_version() ==
             DslSpecVersion::current_string);
     REQUIRE(result.value().artifacts().front().tier() == TheoryIr::Tier::B);
@@ -72,33 +68,28 @@ TEST_CASE("DslCompile end-to-end quadratic_polynomial_stream", "[dsl][compile]")
     const std::filesystem::path manifest =
         root / "quadratic_polynomial_stream" / "1" / "manifest.json";
     REQUIRE(std::filesystem::is_regular_file(manifest));
-    REQUIRE(std::filesystem::is_regular_file(
-        root / "quadratic_polynomial_stream" / "1" / "cpu_reference.hpp"));
-    REQUIRE(std::filesystem::is_regular_file(
-        root / "quadratic_polynomial_stream" / "1" / "emitted" /
-        "QuadraticPolynomialStreamKernel.hpp"));
-    REQUIRE(std::filesystem::is_regular_file(
-        root / "quadratic_polynomial_stream" / "1" / "emitted" /
-        "QuadraticPolynomialStreamKernel.cu"));
-    REQUIRE(std::filesystem::is_regular_file(
-        root / "quadratic_polynomial_stream" / "1" / "envelope.json"));
+    REQUIRE(std::filesystem::is_regular_file(root / "quadratic_polynomial_stream" / "1" /
+                                             "cpu_reference.hpp"));
+    REQUIRE(std::filesystem::is_regular_file(root / "quadratic_polynomial_stream" / "1" /
+                                             "emitted" / "QuadraticPolynomialStreamKernel.hpp"));
+    REQUIRE(std::filesystem::is_regular_file(root / "quadratic_polynomial_stream" / "1" /
+                                             "emitted" / "QuadraticPolynomialStreamKernel.cu"));
+    REQUIRE(std::filesystem::is_regular_file(root / "quadratic_polynomial_stream" / "1" /
+                                             "envelope.json"));
 
-    StatusOr<TheoryArtifact> loaded =
-        TheoryRegistry::load(root, "quadratic_polynomial_stream", 1);
+    StatusOr<TheoryArtifact> loaded = TheoryRegistry::load(root, "quadratic_polynomial_stream", 1);
     REQUIRE(loaded.ok());
     REQUIRE(loaded.value().paths().cuda_source().has_value());
-    REQUIRE(*loaded.value().paths().cuda_source() ==
-            "emitted/QuadraticPolynomialStreamKernel.cu");
+    REQUIRE(*loaded.value().paths().cuda_source() == "emitted/QuadraticPolynomialStreamKernel.cu");
     REQUIRE(loaded.value().paths().envelope_template().has_value());
     REQUIRE(*loaded.value().paths().envelope_template() == "envelope.json");
     REQUIRE_FALSE(TheoryRegistry::is_stale_spec(loaded.value()));
 
-    StatusOr<TheoryEnvelopeBridge::Envelope> env = TheoryEnvelopeBridge::load(
-        root / "quadratic_polynomial_stream" / "1" / "envelope.json");
+    StatusOr<TheoryEnvelopeBridge::Envelope> env =
+        TheoryEnvelopeBridge::load(root / "quadratic_polynomial_stream" / "1" / "envelope.json");
     REQUIRE(env.ok());
     REQUIRE(env.value().is_theory());
-    REQUIRE(
-        env.value().transform_id() == "parcae://theories/quadratic_polynomial_stream@1");
+    REQUIRE(env.value().transform_id() == "parcae://theories/quadratic_polynomial_stream@1");
     REQUIRE(TheoryEnvelopeBridge::check_against_artifact(env.value(), loaded.value()).ok());
     REQUIRE_FALSE(env.value().to_catalog_envelope().ok());
 
@@ -107,8 +98,7 @@ TEST_CASE("DslCompile end-to-end quadratic_polynomial_stream", "[dsl][compile]")
 
 TEST_CASE("DslBuildIr lowers poly2 primitive from ingested AST", "[dsl][compile][build]") {
     // Compile path covers spawn; this case isolates IR build via a fresh dump.
-    const auto root =
-        std::filesystem::temp_directory_path() / "parcae_dsl_build_ir_h34";
+    const auto root = std::filesystem::temp_directory_path() / "parcae_dsl_build_ir_h34";
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
     std::filesystem::create_directories(root, ec);

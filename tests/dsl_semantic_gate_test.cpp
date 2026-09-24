@@ -1,22 +1,16 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_rule_id.hpp>
 #include <parcae/dsl/dsl_semantic_gate.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
 
 namespace {
 
 [[nodiscard]] std::string minimal_success_doc(const std::string& module_json) {
-    return std::string("{") +
-           R"("schema":"parcae.dsl_ast_json.v0",)" +
-           R"("dsl_ast_json_version":"1.0.0",)" +
-           R"("source_path":"theories/x.py",)" +
+    return std::string("{") + R"("schema":"parcae.dsl_ast_json.v0",)" +
+           R"("dsl_ast_json_version":"1.0.0",)" + R"("source_path":"theories/x.py",)" +
            R"("source_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",)" +
-           R"("python_version":"3.12.0",)" +
-           R"("ok":true,)" +
-           R"("module":)" + module_json + "}";
+           R"("python_version":"3.12.0",)" + R"("ok":true,)" + R"("module":)" + module_json + "}";
 }
 
 [[nodiscard]] DslAstDocument ingest_or_fail(const std::string& module_json) {
@@ -26,7 +20,7 @@ namespace {
     return doc.value();
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("DslSemanticGate accepts empty Module", "[dsl][gate]") {
     const DslAstDocument doc = ingest_or_fail(
@@ -138,9 +132,7 @@ TEST_CASE("DslSemanticGate accepts OuterControl If and While", "[dsl][gate][scop
     REQUIRE(DslSemanticGate::check(doc).ok());
 }
 
-TEST_CASE(
-    "DslSemanticGate rejects HotLoop For with E034",
-    "[dsl][gate][scope]") {
+TEST_CASE("DslSemanticGate rejects HotLoop For with E034", "[dsl][gate][scope]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"FunctionDef","name":"poly","lineno":3,"col_offset":0,
@@ -167,9 +159,7 @@ TEST_CASE(
     REQUIRE(st.message().find("HotLoop") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslSemanticGate rejects HotLoop While with E034",
-    "[dsl][gate][scope]") {
+TEST_CASE("DslSemanticGate rejects HotLoop While with E034", "[dsl][gate][scope]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"FunctionDef","name":"poly","lineno":3,"col_offset":0,
@@ -196,9 +186,7 @@ TEST_CASE(
     REQUIRE(st.message().find("While") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslSemanticGate accepts HotLoop If (divergence is E033 later)",
-    "[dsl][gate][scope]") {
+TEST_CASE("DslSemanticGate accepts HotLoop If (divergence is E033 later)", "[dsl][gate][scope]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"FunctionDef","name":"poly","lineno":3,"col_offset":0,
@@ -223,9 +211,7 @@ TEST_CASE(
     REQUIRE(DslSemanticGate::check(doc).ok());
 }
 
-TEST_CASE(
-    "DslSemanticGate rejects HotLoop Break with E034",
-    "[dsl][gate][scope]") {
+TEST_CASE("DslSemanticGate rejects HotLoop Break with E034", "[dsl][gate][scope]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"FunctionDef","name":"poly","lineno":3,"col_offset":0,
@@ -251,9 +237,7 @@ TEST_CASE(
     REQUIRE(st.message().find("E034") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslSemanticGate accepts OuterControl Break inside For",
-    "[dsl][gate][scope]") {
+TEST_CASE("DslSemanticGate accepts OuterControl Break inside For", "[dsl][gate][scope]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"For","lineno":2,"col_offset":0,

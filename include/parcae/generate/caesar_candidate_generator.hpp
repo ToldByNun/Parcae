@@ -10,23 +10,22 @@
 #include "parcae/transform/transform_id.hpp"
 
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Bounded generator `gen_caesar`: decrypt/encrypt with every shift in `0..28`.
 /// Enumeration order is ascending shift (deterministic).
 class CaesarCandidateGenerator {
 public:
     static constexpr std::string_view generator_id = "gen_caesar";
-    static constexpr std::size_t candidate_count = Index29::modulus;  // 29
+    static constexpr std::size_t candidate_count = Index29::modulus; // 29
 
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate(
-        std::span<const Index29> ciphertext,
-        TransformDirection direction = TransformDirection::Decrypt) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    generate(std::span<const Index29> ciphertext,
+             TransformDirection direction = TransformDirection::Decrypt) {
         const CaesarTransform transform;
         std::vector<TransformCandidate> out;
         out.reserve(candidate_count);
@@ -39,12 +38,8 @@ public:
                 return plain.status();
             }
 
-            out.emplace_back(
-                make_candidate_id(shift),
-                TransformId::caesar(),
-                direction,
-                params,
-                std::move(plain.value()));
+            out.emplace_back(make_candidate_id(shift), TransformId::caesar(), direction, params,
+                             std::move(plain.value()));
         }
         return out;
     }

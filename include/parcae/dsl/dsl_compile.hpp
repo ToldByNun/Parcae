@@ -81,21 +81,13 @@ public:
             return *this;
         }
 
-        [[nodiscard]] const std::string& python_exe() const noexcept {
-            return python_exe_;
-        }
+        [[nodiscard]] const std::string& python_exe() const noexcept { return python_exe_; }
 
-        [[nodiscard]] const std::string& python_path() const noexcept {
-            return python_path_;
-        }
+        [[nodiscard]] const std::string& python_path() const noexcept { return python_path_; }
 
-        [[nodiscard]] std::uint32_t artifact_version() const noexcept {
-            return artifact_version_;
-        }
+        [[nodiscard]] std::uint32_t artifact_version() const noexcept { return artifact_version_; }
 
-        [[nodiscard]] bool allow_dsl_ignores() const noexcept {
-            return allow_dsl_ignores_;
-        }
+        [[nodiscard]] bool allow_dsl_ignores() const noexcept { return allow_dsl_ignores_; }
 
     private:
         std::string python_exe_ = "python";
@@ -112,13 +104,9 @@ public:
             return artifacts_;
         }
 
-        [[nodiscard]] const std::string& source_sha256() const noexcept {
-            return source_sha256_;
-        }
+        [[nodiscard]] const std::string& source_sha256() const noexcept { return source_sha256_; }
 
-        [[nodiscard]] const std::vector<DslDiag>& warnings() const noexcept {
-            return warnings_;
-        }
+        [[nodiscard]] const std::vector<DslDiag>& warnings() const noexcept { return warnings_; }
 
         [[nodiscard]] const std::vector<std::string>& dsl_ignores_applied() const noexcept {
             return dsl_ignores_applied_;
@@ -132,9 +120,7 @@ public:
         std::vector<std::string> dsl_ignores_applied_;
     };
 
-    [[nodiscard]] static bool pipeline_ready() {
-        return pipeline_ready(Options{});
-    }
+    [[nodiscard]] static bool pipeline_ready() { return pipeline_ready(Options{}); }
 
     [[nodiscard]] static bool pipeline_ready(const Options& options) {
         if (options.python_path().empty()) {
@@ -147,23 +133,20 @@ public:
     }
 
     /// Compile `theory_py` into `theories_root/<name>/<version>/`.
-    [[nodiscard]] static StatusOr<Result> compile_file(
-        const std::filesystem::path& theory_py,
-        const std::filesystem::path& theories_root) {
+    [[nodiscard]] static StatusOr<Result> compile_file(const std::filesystem::path& theory_py,
+                                                       const std::filesystem::path& theories_root) {
         return compile_file(theory_py, theories_root, Options{});
     }
 
-    [[nodiscard]] static StatusOr<Result> compile_file(
-        const std::filesystem::path& theory_py,
-        const std::filesystem::path& theories_root,
-        const Options& options) {
+    [[nodiscard]] static StatusOr<Result> compile_file(const std::filesystem::path& theory_py,
+                                                       const std::filesystem::path& theories_root,
+                                                       const Options& options) {
         if (!std::filesystem::is_regular_file(theory_py)) {
             return Status::error("theory source is not a readable file: " + theory_py.string());
         }
         if (!pipeline_ready(options)) {
-            return Status::error(
-                "ast_dump frontend not found under PYTHONPATH=" + options.python_path() +
-                " (expected parcae/dsl/ast_dump.py)");
+            return Status::error("ast_dump frontend not found under PYTHONPATH=" +
+                                 options.python_path() + " (expected parcae/dsl/ast_dump.py)");
         }
 
         StatusOr<std::string> json_text = spawn_ast_dump(theory_py, options);
@@ -217,8 +200,8 @@ public:
                 return vr.status();
             }
             if (!vr.value().passed()) {
-                return Status::error(
-                    "E050 verify failed for primitive '" + prim.name() + "': " + vr.value().detail());
+                return Status::error("E050 verify failed for primitive '" + prim.name() +
+                                     "': " + vr.value().detail());
             }
         }
 
@@ -248,10 +231,8 @@ public:
 
             std::vector<TheoryArtifact::Param> params;
             for (const ParamIr& p : theory.params()) {
-                params.emplace_back(
-                    p.name(),
-                    static_cast<std::int64_t>((p.min)()),
-                    static_cast<std::int64_t>((p.max)()));
+                params.emplace_back(p.name(), static_cast<std::int64_t>((p.min)()),
+                                    static_cast<std::int64_t>((p.max)()));
             }
             std::vector<std::string> prim_names;
             for (const PrimitiveIr& prim : unit.value().primitives()) {
@@ -270,19 +251,13 @@ public:
             }
 
             StatusOr<TheoryArtifact> artifact = TheoryArtifact::make(
-                theory.name(),
-                options.artifact_version(),
-                theory.tier(),
-                theory.family(),
+                theory.name(), options.artifact_version(), theory.tier(), theory.family(),
                 unit.value().source_sha256(),
                 TheoryArtifact::Verification{mode, true, seed, completed},
                 TheoryArtifact::FusionStatus::NotApplicable,
                 TheoryArtifact::interrupt_mode_from_theory(theory.interrupt_mode()),
-                std::move(params),
-                std::move(prim_names),
-                theory.structural_claim(),
-                theory_py.generic_string(),
-                std::move(paths));
+                std::move(params), std::move(prim_names), theory.structural_claim(),
+                theory_py.generic_string(), std::move(paths));
             if (!artifact.ok()) {
                 return artifact.status();
             }
@@ -342,13 +317,10 @@ public:
             catalog.push_back(theory);
         }
         for (const ComposeIr& compose : unit.value().composes()) {
-            StatusOr<DslFuse::EmitBundle> bundle = DslFuse::emit_compose_auto(
-                compose,
-                catalog,
-                unit.value().composes(),
-                {},
-                /*stream_len=*/256,
-                /*reps=*/4);
+            StatusOr<DslFuse::EmitBundle> bundle =
+                DslFuse::emit_compose_auto(compose, catalog, unit.value().composes(), {},
+                                           /*stream_len=*/256,
+                                           /*reps=*/4);
             if (!bundle.ok()) {
                 return bundle.status();
             }
@@ -365,10 +337,8 @@ public:
 
             std::vector<TheoryArtifact::Param> params;
             for (const ParamIr& p : compose.params()) {
-                params.emplace_back(
-                    p.name(),
-                    static_cast<std::int64_t>((p.min)()),
-                    static_cast<std::int64_t>((p.max)()));
+                params.emplace_back(p.name(), static_cast<std::int64_t>((p.min)()),
+                                    static_cast<std::int64_t>((p.max)()));
             }
 
             TheoryArtifact::FusionStatus fusion =
@@ -377,20 +347,12 @@ public:
                     : TheoryArtifact::FusionStatus::FallbackStaged;
 
             StatusOr<TheoryArtifact> artifact = TheoryArtifact::make(
-                compose.name(),
-                options.artifact_version(),
-                compose.tier(),
-                TheoryIr::Family::Compose,
-                unit.value().source_sha256(),
-                TheoryArtifact::Verification{
-                    DslVerifier::Mode::Exhaustive, true, std::nullopt, completed},
-                fusion,
-                TheoryArtifact::InterruptMode::ElementwiseDefault,
-                std::move(params),
-                {},
-                compose.structural_claim(),
-                theory_py.generic_string(),
-                std::move(paths));
+                compose.name(), options.artifact_version(), compose.tier(),
+                TheoryIr::Family::Compose, unit.value().source_sha256(),
+                TheoryArtifact::Verification{DslVerifier::Mode::Exhaustive, true, std::nullopt,
+                                             completed},
+                fusion, TheoryArtifact::InterruptMode::ElementwiseDefault, std::move(params), {},
+                compose.structural_claim(), theory_py.generic_string(), std::move(paths));
             if (!artifact.ok()) {
                 return artifact.status();
             }
@@ -411,16 +373,14 @@ public:
             if (ec) {
                 return Status::error("failed to create emitted/: " + ec.message());
             }
-            w = write_text(
-                dir / "emitted" / (class_stem + "Kernel.hpp"),
-                bundle.value().selected_cuda_header());
+            w = write_text(dir / "emitted" / (class_stem + "Kernel.hpp"),
+                           bundle.value().selected_cuda_header());
             if (!w.ok()) {
                 return w;
             }
             if (bundle.value().status() == DslFuse::FusionStatus::Fused) {
-                w = write_text(
-                    dir / "emitted" / (class_stem + "Kernel.cu"),
-                    bundle.value().fused_cuda_cu());
+                w = write_text(dir / "emitted" / (class_stem + "Kernel.cu"),
+                               bundle.value().fused_cuda_cu());
                 if (!w.ok()) {
                     return w;
                 }
@@ -437,8 +397,8 @@ public:
                 return env_written;
             }
             // Runtime apply uses fused IR even when emit selected staged (CPU IR path).
-            Status ir_written = TheoryApplyIr::write(
-                dir / "apply_ir.json", bundle.value().fused().theory());
+            Status ir_written =
+                TheoryApplyIr::write(dir / "apply_ir.json", bundle.value().fused().theory());
             if (!ir_written.ok()) {
                 return ir_written;
             }
@@ -489,9 +449,8 @@ private:
         return out;
     }
 
-    [[nodiscard]] static Status write_text(
-        const std::filesystem::path& path,
-        const std::string& text) {
+    [[nodiscard]] static Status write_text(const std::filesystem::path& path,
+                                           const std::string& text) {
         std::ofstream out(path, std::ios::binary | std::ios::trunc);
         if (!out) {
             return Status::error("failed to write " + path.string());
@@ -503,31 +462,23 @@ private:
         return Status::success();
     }
 
-    [[nodiscard]] static StatusOr<std::string> spawn_ast_dump(
-        const std::filesystem::path& theory_py,
-        const Options& options) {
+    [[nodiscard]] static StatusOr<std::string>
+    spawn_ast_dump(const std::filesystem::path& theory_py, const Options& options) {
         const auto tmp_dir = std::filesystem::temp_directory_path();
         const std::filesystem::path out_json =
-            tmp_dir / ("parcae_ast_dump_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) +
-                       ".json");
+            tmp_dir /
+            ("parcae_ast_dump_" +
+             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".json");
 
 #ifdef _WIN32
         StatusOr<int> rc = run_process_win(
             options.python_exe(),
-            {"-m",
-             "parcae.dsl.ast_dump",
-             theory_py.string(),
-             "-o",
-             out_json.string()},
+            {"-m", "parcae.dsl.ast_dump", theory_py.string(), "-o", out_json.string()},
             options.python_path());
 #else
         StatusOr<int> rc = run_process_posix(
             options.python_exe(),
-            {"-m",
-             "parcae.dsl.ast_dump",
-             theory_py.string(),
-             "-o",
-             out_json.string()},
+            {"-m", "parcae.dsl.ast_dump", theory_py.string(), "-o", out_json.string()},
             options.python_path());
 #endif
         if (!rc.ok()) {
@@ -535,8 +486,8 @@ private:
         }
         std::ifstream in(out_json, std::ios::binary);
         if (!in) {
-            return Status::error(
-                "ast_dump produced no output file (exit " + std::to_string(rc.value()) + ")");
+            return Status::error("ast_dump produced no output file (exit " +
+                                 std::to_string(rc.value()) + ")");
         }
         std::ostringstream buf;
         buf << in.rdbuf();
@@ -544,17 +495,16 @@ private:
         std::error_code ec;
         std::filesystem::remove(out_json, ec);
         if (rc.value() != 0) {
-            return Status::error(
-                "ast_dump failed (exit " + std::to_string(rc.value()) + "): " + text);
+            return Status::error("ast_dump failed (exit " + std::to_string(rc.value()) +
+                                 "): " + text);
         }
         return text;
     }
 
 #ifdef _WIN32
-    [[nodiscard]] static StatusOr<int> run_process_win(
-        const std::string& exe,
-        const std::vector<std::string>& args,
-        const std::string& python_path) {
+    [[nodiscard]] static StatusOr<int> run_process_win(const std::string& exe,
+                                                       const std::vector<std::string>& args,
+                                                       const std::string& python_path) {
         std::ostringstream cmdline;
         cmdline << '"' << exe << '"';
         for (const std::string& a : args) {
@@ -573,26 +523,16 @@ private:
         STARTUPINFOA si{};
         si.cb = sizeof(si);
         PROCESS_INFORMATION pi{};
-        const BOOL ok = CreateProcessA(
-            nullptr,
-            mutable_cmd.data(),
-            nullptr,
-            nullptr,
-            FALSE,
-            CREATE_NO_WINDOW,
-            nullptr,
-            nullptr,
-            &si,
-            &pi);
+        const BOOL ok = CreateProcessA(nullptr, mutable_cmd.data(), nullptr, nullptr, FALSE,
+                                       CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
         if (had_prev) {
             SetEnvironmentVariableA("PYTHONPATH", prev_pythonpath);
         } else {
             SetEnvironmentVariableA("PYTHONPATH", nullptr);
         }
         if (!ok) {
-            return Status::error(
-                "failed to spawn ast_dump (" + exe + "); GetLastError=" +
-                std::to_string(GetLastError()));
+            return Status::error("failed to spawn ast_dump (" + exe +
+                                 "); GetLastError=" + std::to_string(GetLastError()));
         }
         WaitForSingleObject(pi.hProcess, INFINITE);
         DWORD code = 1;
@@ -602,10 +542,9 @@ private:
         return static_cast<int>(code);
     }
 #else
-    [[nodiscard]] static StatusOr<int> run_process_posix(
-        const std::string& exe,
-        const std::vector<std::string>& args,
-        const std::string& python_path) {
+    [[nodiscard]] static StatusOr<int> run_process_posix(const std::string& exe,
+                                                         const std::vector<std::string>& args,
+                                                         const std::string& python_path) {
         std::vector<std::string> storage;
         storage.push_back(exe);
         for (const std::string& a : args) {

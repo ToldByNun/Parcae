@@ -1,11 +1,9 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
 #include <parcae/core/index29.hpp>
 #include <parcae/core/z29.hpp>
 #include <parcae/dsl/dsl_rule_id.hpp>
 #include <parcae/dsl/z29_expr.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <cstdint>
 #include <string>
 
 TEST_CASE("Z29Expr constant and var eval", "[dsl][z29expr]") {
@@ -28,9 +26,12 @@ TEST_CASE("Z29Expr rejects out-of-domain constant with E040", "[dsl][z29expr]") 
 TEST_CASE("Z29Expr add/sub/mul match Z29", "[dsl][z29expr]") {
     const auto a = Z29Expr::constant(28).value();
     const auto b = Z29Expr::constant(1).value();
-    REQUIRE(Z29Expr::add(a, b)->eval({}).value().value() == Z29::add(Index29{28}, Index29{1}).value());
-    REQUIRE(Z29Expr::sub(b, a)->eval({}).value().value() == Z29::sub(Index29{1}, Index29{28}).value());
-    REQUIRE(Z29Expr::mul(a, b)->eval({}).value().value() == Z29::mul(Index29{28}, Index29{1}).value());
+    REQUIRE(Z29Expr::add(a, b)->eval({}).value().value() ==
+            Z29::add(Index29{28}, Index29{1}).value());
+    REQUIRE(Z29Expr::sub(b, a)->eval({}).value().value() ==
+            Z29::sub(Index29{1}, Index29{28}).value());
+    REQUIRE(Z29Expr::mul(a, b)->eval({}).value().value() ==
+            Z29::mul(Index29{28}, Index29{1}).value());
 }
 
 TEST_CASE("Z29Expr inv and inv(0) domain error", "[dsl][z29expr]") {
@@ -57,8 +58,8 @@ TEST_CASE("Z29Expr unbound var is E032", "[dsl][z29expr]") {
 }
 
 TEST_CASE("Z29Expr builtin call z29_mul", "[dsl][z29expr]") {
-    const auto expr = Z29Expr::call(
-        "z29_mul", {Z29Expr::constant(3).value(), Z29Expr::constant(5).value()});
+    const auto expr =
+        Z29Expr::call("z29_mul", {Z29Expr::constant(3).value(), Z29Expr::constant(5).value()});
     REQUIRE(expr->eval({}).value().value() == 15);
 }
 
@@ -75,8 +76,8 @@ TEST_CASE("Z29Expr poly2 matches Z29 oracle", "[dsl][z29expr]") {
     const Z29Expr::Ptr c2 = Z29Expr::var("c2");
     const Z29Expr::Ptr c1 = Z29Expr::var("c1");
     const Z29Expr::Ptr c0 = Z29Expr::var("c0");
-    const Z29Expr::Ptr body = Z29Expr::add(
-        Z29Expr::add(Z29Expr::mul(Z29Expr::mul(c2, i), i), Z29Expr::mul(c1, i)), c0);
+    const Z29Expr::Ptr body =
+        Z29Expr::add(Z29Expr::add(Z29Expr::mul(Z29Expr::mul(c2, i), i), Z29Expr::mul(c1, i)), c0);
 
     const std::uint8_t i_v = 7;
     const std::uint8_t c2_v = 3;
@@ -89,11 +90,10 @@ TEST_CASE("Z29Expr poly2 matches Z29 oracle", "[dsl][z29expr]") {
         {"c0", Index29{c0_v}},
     };
 
-    const Index29 expect = Z29::add(
-        Z29::add(
-            Z29::mul(Z29::mul(Index29{c2_v}, Index29{i_v}), Index29{i_v}),
-            Z29::mul(Index29{c1_v}, Index29{i_v})),
-        Index29{c0_v});
+    const Index29 expect =
+        Z29::add(Z29::add(Z29::mul(Z29::mul(Index29{c2_v}, Index29{i_v}), Index29{i_v}),
+                          Z29::mul(Index29{c1_v}, Index29{i_v})),
+                 Index29{c0_v});
     REQUIRE(body->eval(env).value() == expect);
 }
 
@@ -103,9 +103,8 @@ TEST_CASE("Z29Expr bitwise shift compare bool match Z29 and cuda mirror", "[dsl]
     const auto c = Z29Expr::constant(3).value();
 
     REQUIRE(Z29Expr::bit_xor(a, b)->eval({}).value() == Z29::bit_xor(Index29{28}, Index29{7}));
-    REQUIRE(
-        Z29Expr::bit_xor(a, b)->eval_cuda_mirror({}).value() ==
-        Z29Expr::bit_xor(a, b)->eval({}).value());
+    REQUIRE(Z29Expr::bit_xor(a, b)->eval_cuda_mirror({}).value() ==
+            Z29Expr::bit_xor(a, b)->eval({}).value());
 
     REQUIRE(Z29Expr::bit_and(a, b)->eval({}).value() == Z29::bit_and(Index29{28}, Index29{7}));
     REQUIRE(Z29Expr::bit_or(a, b)->eval({}).value() == Z29::bit_or(Index29{28}, Index29{7}));
@@ -119,9 +118,7 @@ TEST_CASE("Z29Expr bitwise shift compare bool match Z29 and cuda mirror", "[dsl]
     REQUIRE(Z29Expr::floor_div(a, c)->eval({}).value() == Z29::floor_div(Index29{28}, Index29{3}));
 
     // Modular / : 3 / 7 == 3 * inv(7)
-    REQUIRE(
-        Z29Expr::div(c, b)->eval({}).value() ==
-        Z29::mul(Index29{3}, Z29::inv(Index29{7})));
+    REQUIRE(Z29Expr::div(c, b)->eval({}).value() == Z29::mul(Index29{3}, Z29::inv(Index29{7})));
     REQUIRE_FALSE(Z29Expr::div(c, Z29Expr::constant(0).value())->eval({}).ok());
 
     REQUIRE(Z29Expr::lt(c, b)->eval({}).value().value() == 1);
@@ -144,45 +141,36 @@ TEST_CASE("Z29Expr bitwise shift compare bool match Z29 and cuda mirror", "[dsl]
 TEST_CASE("Z29Expr Select picks arms by nonzero cond", "[dsl][z29expr][select]") {
     const Z29Expr::Ptr t = Z29Expr::constant(7).value();
     const Z29Expr::Ptr f = Z29Expr::constant(11).value();
-    REQUIRE(
-        Z29Expr::select(Z29Expr::constant(1).value(), t, f)->eval({}).value().value() == 7);
-    REQUIRE(
-        Z29Expr::select(Z29Expr::constant(0).value(), t, f)->eval({}).value().value() == 11);
+    REQUIRE(Z29Expr::select(Z29Expr::constant(1).value(), t, f)->eval({}).value().value() == 7);
+    REQUIRE(Z29Expr::select(Z29Expr::constant(0).value(), t, f)->eval({}).value().value() == 11);
     // Nonzero non-1 also takes true arm (bool-ish).
-    REQUIRE(
-        Z29Expr::select(Z29Expr::constant(5).value(), t, f)->eval({}).value().value() == 7);
+    REQUIRE(Z29Expr::select(Z29Expr::constant(5).value(), t, f)->eval({}).value().value() == 7);
 }
 
 TEST_CASE("Z29Expr Select with compare cond and vars", "[dsl][z29expr][select]") {
     const Z29Expr::Ptr x = Z29Expr::var("x");
-    const Z29Expr::Ptr expr = Z29Expr::select(
-        Z29Expr::eq(x, Z29Expr::constant(3).value()),
-        Z29Expr::constant(10).value(),
-        Z29Expr::add(x, Z29Expr::constant(1).value()));
+    const Z29Expr::Ptr expr =
+        Z29Expr::select(Z29Expr::eq(x, Z29Expr::constant(3).value()), Z29Expr::constant(10).value(),
+                        Z29Expr::add(x, Z29Expr::constant(1).value()));
     REQUIRE(expr->eval({{"x", Index29{3}}}).value().value() == 10);
     REQUIRE(expr->eval({{"x", Index29{4}}}).value().value() == 5);
-    REQUIRE(
-        expr->eval({{"x", Index29{4}}}).value() ==
-        expr->eval_cuda_mirror({{"x", Index29{4}}}).value());
+    REQUIRE(expr->eval({{"x", Index29{4}}}).value() ==
+            expr->eval_cuda_mirror({{"x", Index29{4}}}).value());
 }
 
 TEST_CASE("Z29Expr z29_select call builtin", "[dsl][z29expr][select]") {
-    const auto expr = Z29Expr::call(
-        "z29_select",
-        {Z29Expr::constant(0).value(),
-         Z29Expr::constant(1).value(),
-         Z29Expr::constant(2).value()});
+    const auto expr =
+        Z29Expr::call("z29_select", {Z29Expr::constant(0).value(), Z29Expr::constant(1).value(),
+                                     Z29Expr::constant(2).value()});
     REQUIRE(expr->eval({}).value().value() == 2);
 }
 
 TEST_CASE("Z29Expr Select remap", "[dsl][z29expr][select]") {
-    const Z29Expr::Ptr expr = Z29Expr::select(
-        Z29Expr::var("c"), Z29Expr::var("a"), Z29Expr::var("b"));
-    const auto remapped = expr->remap(
-        {{"c", Z29Expr::constant(1).value()},
-         {"a", Z29Expr::constant(9).value()},
-         {"b", Z29Expr::constant(8).value()}});
+    const Z29Expr::Ptr expr =
+        Z29Expr::select(Z29Expr::var("c"), Z29Expr::var("a"), Z29Expr::var("b"));
+    const auto remapped = expr->remap({{"c", Z29Expr::constant(1).value()},
+                                       {"a", Z29Expr::constant(9).value()},
+                                       {"b", Z29Expr::constant(8).value()}});
     REQUIRE(remapped->kind() == Z29Expr::Kind::Select);
     REQUIRE(remapped->eval({}).value().value() == 9);
 }
-

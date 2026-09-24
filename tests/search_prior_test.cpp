@@ -1,13 +1,11 @@
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <fstream>
 #include <parcae/core/status_or.hpp>
 #include <parcae/hypothesis/hypothesis_record.hpp>
 #include <parcae/hypothesis/hypothesis_status.hpp>
 #include <parcae/hypothesis/workspace_paths.hpp>
 #include <parcae/search/search_prior.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <filesystem>
-#include <fstream>
 #include <string>
 
 #ifndef PARCAE_TEST_DATA_DIR
@@ -28,7 +26,7 @@ namespace {
     };
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("SearchPrior param_hash is key-order stable", "[search][prior]") {
     const nlohmann::json a{{"shift", 3}, {"note", "x"}};
@@ -40,21 +38,20 @@ TEST_CASE("SearchPrior param_hash is key-order stable", "[search][prior]") {
 
 TEST_CASE("SearchPrior make / to_json round-trip", "[search][prior]") {
     const std::string hash = SearchPrior::param_hash_of(nlohmann::json{{"shift", 7}});
-    StatusOr<SearchPrior> prior = SearchPrior::make(
-        "_example",
-        {
-            SearchPrior::Seed(
-                "h-caesar-3",
-                nlohmann::json{
-                    {"transform_id", "caesar"},
-                    {"direction", "decrypt"},
-                    {"params", {{"shift", 3}}},
-                }),
-        },
-        {
-            SearchPrior::Exclusion(hash, "h-caesar-7", "rejected"),
-        },
-        "2026-09-21T18:00:00Z");
+    StatusOr<SearchPrior> prior =
+        SearchPrior::make("_example",
+                          {
+                              SearchPrior::Seed("h-caesar-3",
+                                                nlohmann::json{
+                                                    {"transform_id", "caesar"},
+                                                    {"direction", "decrypt"},
+                                                    {"params", {{"shift", 3}}},
+                                                }),
+                          },
+                          {
+                              SearchPrior::Exclusion(hash, "h-caesar-7", "rejected"),
+                          },
+                          "2026-09-21T18:00:00Z");
     REQUIRE(prior.ok());
     REQUIRE(prior.value().workspace_id() == "_example");
     REQUIRE(prior.value().seeds().size() == 1);
@@ -71,10 +68,8 @@ TEST_CASE("SearchPrior make / to_json round-trip", "[search][prior]") {
 
 TEST_CASE("SearchPrior from_json rejects soft weights and bad schema", "[search][prior]") {
     nlohmann::json valid{
-        {"schema", "parcae.search_prior.v0"},
-        {"workspace_id", "_example"},
-        {"seeds", nlohmann::json::array()},
-        {"exclusions", nlohmann::json::array()},
+        {"schema", "parcae.search_prior.v0"},  {"workspace_id", "_example"},
+        {"seeds", nlohmann::json::array()},    {"exclusions", nlohmann::json::array()},
         {"built_utc", "2026-09-21T18:00:00Z"},
     };
     REQUIRE(SearchPrior::from_json(valid).ok());
@@ -109,33 +104,21 @@ TEST_CASE("SearchPrior from_workspace maps promoted and rejected", "[search][pri
     std::filesystem::create_directories(tmp / "workspaces", ec);
 
     StatusOr<HypothesisRecord> promoted = HypothesisRecord::make_draft(
-        "prior-ws",
-        "h-promoted",
-        "2026-09-21T18:00:00Z",
-        "promoted seed",
-        caesar_method(3));
+        "prior-ws", "h-promoted", "2026-09-21T18:00:00Z", "promoted seed", caesar_method(3));
     REQUIRE(promoted.ok());
     REQUIRE(promoted.value().set_status(HypothesisStatus::Proposed).ok());
     REQUIRE(promoted.value().set_status(HypothesisStatus::Promoted).ok());
     REQUIRE(promoted.value().store(tmp).ok());
 
     StatusOr<HypothesisRecord> rejected = HypothesisRecord::make_draft(
-        "prior-ws",
-        "h-rejected",
-        "2026-09-21T18:00:00Z",
-        "rejected exclusion",
-        caesar_method(7));
+        "prior-ws", "h-rejected", "2026-09-21T18:00:00Z", "rejected exclusion", caesar_method(7));
     REQUIRE(rejected.ok());
     REQUIRE(rejected.value().set_status(HypothesisStatus::Proposed).ok());
     REQUIRE(rejected.value().set_status(HypothesisStatus::Rejected).ok());
     REQUIRE(rejected.value().store(tmp).ok());
 
     StatusOr<HypothesisRecord> proposed = HypothesisRecord::make_draft(
-        "prior-ws",
-        "h-proposed",
-        "2026-09-21T18:00:00Z",
-        "ignored proposed",
-        caesar_method(5));
+        "prior-ws", "h-proposed", "2026-09-21T18:00:00Z", "ignored proposed", caesar_method(5));
     REQUIRE(proposed.ok());
     REQUIRE(proposed.value().set_status(HypothesisStatus::Proposed).ok());
     REQUIRE(proposed.value().store(tmp).ok());
@@ -152,11 +135,7 @@ TEST_CASE("SearchPrior from_workspace maps promoted and rejected", "[search][pri
     REQUIRE_FALSE(prior.value().excludes_params(nlohmann::json{{"shift", 5}}));
 
     StatusOr<HypothesisRecord> scored = HypothesisRecord::make_draft(
-        "prior-ws",
-        "h-scored",
-        "2026-09-21T18:00:00Z",
-        "optional scored seed",
-        caesar_method(11));
+        "prior-ws", "h-scored", "2026-09-21T18:00:00Z", "optional scored seed", caesar_method(11));
     REQUIRE(scored.ok());
     REQUIRE(scored.value().set_status(HypothesisStatus::Proposed).ok());
     REQUIRE(scored.value().set_status(HypothesisStatus::Scored).ok());
@@ -189,11 +168,7 @@ TEST_CASE("SearchPrior load_file round-trip", "[search][prior]") {
     std::filesystem::remove_all(tmp, ec);
     std::filesystem::create_directories(tmp, ec);
 
-    StatusOr<SearchPrior> prior = SearchPrior::make(
-        "_example",
-        {},
-        {},
-        "2026-09-21T18:00:00Z");
+    StatusOr<SearchPrior> prior = SearchPrior::make("_example", {}, {}, "2026-09-21T18:00:00Z");
     REQUIRE(prior.ok());
     const auto path = tmp / "prior.json";
     {

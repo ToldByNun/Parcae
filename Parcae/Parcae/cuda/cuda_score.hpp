@@ -20,12 +20,11 @@
 #endif
 
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// CUDA twin of `ScoreRegistry::score` — same `score_id` catalog, device kernels.
 ///
@@ -46,9 +45,7 @@ public:
         return ScoreRegistry::catalog();
     }
 
-    [[nodiscard]] static std::vector<std::string> known_ids() {
-        return ScoreRegistry::known_ids();
-    }
+    [[nodiscard]] static std::vector<std::string> known_ids() { return ScoreRegistry::known_ids(); }
 
     [[nodiscard]] static bool is_known(std::string_view score_id) {
         return ScoreRegistry::is_known(score_id);
@@ -58,12 +55,11 @@ public:
         return ScoreRegistry::order_of(score_id);
     }
 
-    [[nodiscard]] static StatusOr<double> score(
-        std::string_view score_id,
-        [[maybe_unused]] std::span<const Index29> candidate,
-        std::string_view score_version = "v0",
-        [[maybe_unused]] const nlohmann::json& params = nlohmann::json::object(),
-        const ScoreRequest& request = ScoreRequest()) {
+    [[nodiscard]] static StatusOr<double>
+    score(std::string_view score_id, [[maybe_unused]] std::span<const Index29> candidate,
+          std::string_view score_version = "v0",
+          [[maybe_unused]] const nlohmann::json& params = nlohmann::json::object(),
+          const ScoreRequest& request = ScoreRequest()) {
         if (score_version != "v0") {
             return Status::error("Unsupported score_version (only v0 is registered)");
         }
@@ -93,8 +89,8 @@ public:
                 return Status::error(
                     "chi2_english_gp_v0 requires ScoreRequest.expected_frequencies");
             }
-            return Chi2EnglishGpScore::score_host(
-                cand_bytes, request.expected_frequencies->probabilities());
+            return Chi2EnglishGpScore::score_host(cand_bytes,
+                                                  request.expected_frequencies->probabilities());
         }
         if (id.value() == ScoreId::exact_match()) {
             StatusOr<std::vector<Index29>> reference =
@@ -128,19 +124,17 @@ private:
         return bytes;
     }
 
-    [[nodiscard]] static StatusOr<std::vector<Index29>> resolve_reference(
-        const ScoreRequest& request,
-        const nlohmann::json& params,
-        std::string_view score_name) {
+    [[nodiscard]] static StatusOr<std::vector<Index29>>
+    resolve_reference(const ScoreRequest& request, const nlohmann::json& params,
+                      std::string_view score_name) {
         if (request.reference.has_value()) {
             const std::span<const Index29> ref = request.reference.value();
             return std::vector<Index29>(ref.begin(), ref.end());
         }
 
         if (!params.contains("reference")) {
-            return Status::error(
-                std::string(score_name) +
-                " requires ScoreRequest.reference or params.reference");
+            return Status::error(std::string(score_name) +
+                                 " requires ScoreRequest.reference or params.reference");
         }
         if (!params.at("reference").is_array()) {
             return Status::error(std::string(score_name) + " params.reference must be an array");
@@ -150,13 +144,13 @@ private:
         out.reserve(params.at("reference").size());
         for (const auto& item : params.at("reference")) {
             if (!item.is_number_integer()) {
-                return Status::error(
-                    std::string(score_name) + " params.reference entries must be integers");
+                return Status::error(std::string(score_name) +
+                                     " params.reference entries must be integers");
             }
             const int value = item.get<int>();
             if (value < 0 || value >= static_cast<int>(Index29::modulus)) {
-                return Status::error(
-                    std::string(score_name) + " params.reference entry out of range [0,28]");
+                return Status::error(std::string(score_name) +
+                                     " params.reference entry out of range [0,28]");
             }
             out.push_back(Index29{static_cast<std::uint8_t>(value)});
         }
@@ -164,4 +158,4 @@ private:
     }
 };
 
-#endif  // CUDA_SCORE_HPP
+#endif // CUDA_SCORE_HPP

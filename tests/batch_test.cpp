@@ -1,3 +1,10 @@
+#include <algorithm>
+#include <atomic>
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
+#include <mutex>
+#include <nlohmann/json.hpp>
+#include <optional>
 #include <parcae/batch/batch_execution.hpp>
 #include <parcae/batch/batch_ordering.hpp>
 #include <parcae/batch/batch_runner.hpp>
@@ -10,19 +17,9 @@
 #include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <algorithm>
-#include <atomic>
-#include <cstdint>
-#include <mutex>
-#include <optional>
 #include <span>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 namespace {
 
@@ -30,18 +27,12 @@ namespace {
     return Index29{v};
 }
 
-[[nodiscard]] TransformCandidate make_candidate(
-    std::string id,
-    std::vector<Index29> indices) {
-    return TransformCandidate(
-        std::move(id),
-        TransformId::identity(),
-        TransformDirection::Decrypt,
-        nlohmann::json::object(),
-        std::move(indices));
+[[nodiscard]] TransformCandidate make_candidate(std::string id, std::vector<Index29> indices) {
+    return TransformCandidate(std::move(id), TransformId::identity(), TransformDirection::Decrypt,
+                              nlohmann::json::object(), std::move(indices));
 }
 
-}  // namespace
+} // namespace
 
 /// Thread-safe recording sink for BatchRunner progress tests.
 class BatchProgressRecordingSink : public ConsoleProgressSink {
@@ -60,9 +51,7 @@ public:
         max_done = std::max(max_done, snapshot.candidates_done());
     }
 
-    void on_stage(
-        std::string_view stage,
-        const ConsoleProgressSnapshot& snapshot) override {
+    void on_stage(std::string_view stage, const ConsoleProgressSnapshot& snapshot) override {
         std::lock_guard<std::mutex> lock(mutex_);
         stages.emplace_back(stage);
         stage_total = snapshot.candidates_total();
@@ -85,10 +74,10 @@ TEST_CASE("BatchOrdering tie-breaks by score then candidate_id then source_index
     const BatchHit c{"a", 1.0, 2};
     const BatchHit d{"z", 2.0, 0};
 
-    REQUIRE(BatchOrdering::better(d, a, ScoreOrder::Desc));   // higher score
-    REQUIRE(BatchOrdering::better(b, a, ScoreOrder::Desc));   // same score, id "a" < "b"
-    REQUIRE(BatchOrdering::better(c, b, ScoreOrder::Desc));   // same score+id, lower index
-    REQUIRE(BatchOrdering::better(a, d, ScoreOrder::Asc));    // lower score wins for Asc
+    REQUIRE(BatchOrdering::better(d, a, ScoreOrder::Desc)); // higher score
+    REQUIRE(BatchOrdering::better(b, a, ScoreOrder::Desc)); // same score, id "a" < "b"
+    REQUIRE(BatchOrdering::better(c, b, ScoreOrder::Desc)); // same score+id, lower index
+    REQUIRE(BatchOrdering::better(a, d, ScoreOrder::Asc));  // lower score wins for Asc
 }
 
 TEST_CASE("BatchRunner rejects k=0 and unknown score", "[batch]") {
@@ -104,9 +93,7 @@ TEST_CASE("BatchRunner serial top-k with exact_match on caesar sweep", "[batch]"
     constexpr int kShift = 11;
 
     StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-        plain,
-        nlohmann::json{{"shift", kShift}},
-        TransformDirection::Encrypt);
+        plain, nlohmann::json{{"shift", kShift}}, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
 
     StatusOr<std::vector<TransformCandidate>> candidates =
@@ -116,12 +103,8 @@ TEST_CASE("BatchRunner serial top-k with exact_match on caesar sweep", "[batch]"
     ScoreRequest request;
     request.reference = std::span<const Index29>(plain);
 
-    StatusOr<BatchResult> result = BatchRunner::run(
-        candidates.value(),
-        "exact_match",
-        /*k=*/3,
-        request,
-        BatchExecution::Serial);
+    StatusOr<BatchResult> result = BatchRunner::run(candidates.value(), "exact_match",
+                                                    /*k=*/3, request, BatchExecution::Serial);
     REQUIRE(result.ok());
     REQUIRE(result.value().scored_count() == 29);
     REQUIRE(result.value().top().size() == 3);
@@ -136,10 +119,8 @@ TEST_CASE("BatchRunner serial top-k with exact_match on caesar sweep", "[batch]"
 
 TEST_CASE("BatchRunner parallel matches serial under BatchOrdering", "[batch][parallel]") {
     const std::vector<Index29> plain = {I(3), I(5), I(7), I(9), I(11), I(13), I(15)};
-    StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-        plain,
-        nlohmann::json{{"shift", 4}},
-        TransformDirection::Encrypt);
+    StatusOr<std::vector<Index29>> cipher =
+        CaesarTransform{}.apply(plain, nlohmann::json{{"shift", 4}}, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
 
     StatusOr<std::vector<TransformCandidate>> candidates =
@@ -149,18 +130,10 @@ TEST_CASE("BatchRunner parallel matches serial under BatchOrdering", "[batch][pa
     ScoreRequest request;
     request.reference = std::span<const Index29>(plain);
 
-    StatusOr<BatchResult> serial = BatchRunner::run(
-        candidates.value(),
-        "exact_match",
-        5,
-        request,
-        BatchExecution::Serial);
-    StatusOr<BatchResult> parallel = BatchRunner::run(
-        candidates.value(),
-        "exact_match",
-        5,
-        request,
-        BatchExecution::Parallel);
+    StatusOr<BatchResult> serial =
+        BatchRunner::run(candidates.value(), "exact_match", 5, request, BatchExecution::Serial);
+    StatusOr<BatchResult> parallel =
+        BatchRunner::run(candidates.value(), "exact_match", 5, request, BatchExecution::Parallel);
     REQUIRE(serial.ok());
     REQUIRE(parallel.ok());
     REQUIRE(serial.value().top().size() == parallel.value().top().size());
@@ -194,10 +167,8 @@ TEST_CASE("BatchExecutionUtil stringifies modes", "[batch]") {
 
 TEST_CASE("BatchRunner serial progress sink sees monotonic done", "[batch][progress]") {
     const std::vector<Index29> plain = {I(0), I(1), I(2), I(3), I(10), I(14), I(28)};
-    StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-        plain,
-        nlohmann::json{{"shift", 11}},
-        TransformDirection::Encrypt);
+    StatusOr<std::vector<Index29>> cipher =
+        CaesarTransform{}.apply(plain, nlohmann::json{{"shift", 11}}, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
 
     StatusOr<std::vector<TransformCandidate>> candidates =
@@ -212,34 +183,22 @@ TEST_CASE("BatchRunner serial progress sink sees monotonic done", "[batch][progr
     progress.sink = &sink;
     progress.rune_count = plain.size();
 
-    StatusOr<BatchResult> with_sink = BatchRunner::run(
-        candidates.value(),
-        "exact_match",
-        3,
-        request,
-        BatchExecution::Serial,
-        "v0",
-        nlohmann::json::object(),
-        progress);
+    StatusOr<BatchResult> with_sink =
+        BatchRunner::run(candidates.value(), "exact_match", 3, request, BatchExecution::Serial,
+                         "v0", nlohmann::json::object(), progress);
     REQUIRE(with_sink.ok());
 
-    StatusOr<BatchResult> without = BatchRunner::run(
-        candidates.value(),
-        "exact_match",
-        3,
-        request,
-        BatchExecution::Serial);
+    StatusOr<BatchResult> without =
+        BatchRunner::run(candidates.value(), "exact_match", 3, request, BatchExecution::Serial);
     REQUIRE(without.ok());
 
     REQUIRE(with_sink.value().top().size() == without.value().top().size());
     for (std::size_t i = 0; i < without.value().top().size(); ++i) {
-        REQUIRE(
-            with_sink.value().top()[i].candidate_id() ==
-            without.value().top()[i].candidate_id());
+        REQUIRE(with_sink.value().top()[i].candidate_id() ==
+                without.value().top()[i].candidate_id());
         REQUIRE(with_sink.value().top()[i].score() == without.value().top()[i].score());
-        REQUIRE(
-            with_sink.value().top()[i].source_index() ==
-            without.value().top()[i].source_index());
+        REQUIRE(with_sink.value().top()[i].source_index() ==
+                without.value().top()[i].source_index());
     }
 
     REQUIRE(sink.stages.size() == 1);
@@ -254,14 +213,11 @@ TEST_CASE("BatchRunner serial progress sink sees monotonic done", "[batch][progr
     REQUIRE(sink.last_best_label == "caesar:shift=11");
 }
 
-TEST_CASE(
-    "BatchRunner parallel progress sink matches serial scores",
-    "[batch][progress][parallel]") {
+TEST_CASE("BatchRunner parallel progress sink matches serial scores",
+          "[batch][progress][parallel]") {
     const std::vector<Index29> plain = {I(3), I(5), I(7), I(9), I(11), I(13), I(15)};
-    StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-        plain,
-        nlohmann::json{{"shift", 4}},
-        TransformDirection::Encrypt);
+    StatusOr<std::vector<Index29>> cipher =
+        CaesarTransform{}.apply(plain, nlohmann::json{{"shift", 4}}, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
 
     StatusOr<std::vector<TransformCandidate>> candidates =
@@ -276,27 +232,16 @@ TEST_CASE(
     progress.sink = &sink;
     progress.rune_count = plain.size();
 
-    StatusOr<BatchResult> parallel = BatchRunner::run(
-        candidates.value(),
-        "exact_match",
-        5,
-        request,
-        BatchExecution::Parallel,
-        "v0",
-        nlohmann::json::object(),
-        progress);
-    StatusOr<BatchResult> serial = BatchRunner::run(
-        candidates.value(),
-        "exact_match",
-        5,
-        request,
-        BatchExecution::Serial);
+    StatusOr<BatchResult> parallel =
+        BatchRunner::run(candidates.value(), "exact_match", 5, request, BatchExecution::Parallel,
+                         "v0", nlohmann::json::object(), progress);
+    StatusOr<BatchResult> serial =
+        BatchRunner::run(candidates.value(), "exact_match", 5, request, BatchExecution::Serial);
     REQUIRE(parallel.ok());
     REQUIRE(serial.ok());
     REQUIRE(parallel.value().top().size() == serial.value().top().size());
     for (std::size_t i = 0; i < serial.value().top().size(); ++i) {
-        REQUIRE(
-            parallel.value().top()[i].candidate_id() == serial.value().top()[i].candidate_id());
+        REQUIRE(parallel.value().top()[i].candidate_id() == serial.value().top()[i].candidate_id());
         REQUIRE(parallel.value().top()[i].score() == serial.value().top()[i].score());
     }
 

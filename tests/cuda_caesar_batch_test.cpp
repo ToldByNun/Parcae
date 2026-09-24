@@ -2,21 +2,20 @@
 
 #if defined(PARCAE_HAS_CUDA)
 
-#include "caesar_batch_kernel.hpp"
-#include "candidate_batch_buffers.hpp"
-#include "parcae_cuda.hpp"
-#include "params.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
 #include "parcae/transform/caesar_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
 
+#include "caesar_batch_kernel.hpp"
+#include "candidate_batch_buffers.hpp"
+#include "params.hpp"
+#include "parcae_cuda.hpp"
+
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <random>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 namespace {
 
@@ -28,7 +27,7 @@ namespace {
     return {I(0), I(1), I(2), I(3), I(10), I(14), I(28)};
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("CUDA caesar batch 29 shifts matches CaesarCandidateGenerator", "[cuda][batch][caesar]") {
     REQUIRE(ParcaeCuda::available());
@@ -84,8 +83,7 @@ TEST_CASE("CUDA caesar batch encrypt sweep matches CPU kernel", "[cuda][batch][c
 
     for (std::uint8_t shift = 0; shift < Index29::modulus; ++shift) {
         std::vector<Index29> cpu_out(plain.size());
-        REQUIRE(CaesarTransform::kernel(
-                    plain, cpu_out, Index29{shift}, TransformDirection::Encrypt)
+        REQUIRE(CaesarTransform::kernel(plain, cpu_out, Index29{shift}, TransformDirection::Encrypt)
                     .ok());
 
         std::vector<Index29> cuda_out(plain.size());

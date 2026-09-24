@@ -8,10 +8,9 @@
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
 
+#include <nlohmann/json.hpp>
 #include <span>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Pure Index29 kernel: same length out, deterministic in params + interrupt policy.
 ///
@@ -28,19 +27,16 @@ public:
     /// CUDA-ready signature: write `output[i]` for each `input[i]`.
     /// `output.size()` MUST equal `input.size()`. In-place (`output.data() ==
     /// input.data()`) is allowed for single-pass families.
-    [[nodiscard]] virtual Status apply_into(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        const nlohmann::json& params,
-        TransformDirection direction,
-        const InterruptPolicy& interrupt = InterruptPolicy::none()) const = 0;
+    [[nodiscard]] virtual Status
+    apply_into(std::span<const Index29> input, std::span<Index29> output,
+               const nlohmann::json& params, TransformDirection direction,
+               const InterruptPolicy& interrupt = InterruptPolicy::none()) const = 0;
 
     /// Allocating convenience wrapper over `apply_into`.
-    [[nodiscard]] StatusOr<std::vector<Index29>> apply(
-        std::span<const Index29> input,
-        const nlohmann::json& params,
-        TransformDirection direction,
-        const InterruptPolicy& interrupt = InterruptPolicy::none()) const {
+    [[nodiscard]] StatusOr<std::vector<Index29>>
+    apply(std::span<const Index29> input, const nlohmann::json& params,
+          TransformDirection direction,
+          const InterruptPolicy& interrupt = InterruptPolicy::none()) const {
         std::vector<Index29> out(input.size());
         Status status = apply_into(input, out, params, direction, interrupt);
         if (!status.ok()) {

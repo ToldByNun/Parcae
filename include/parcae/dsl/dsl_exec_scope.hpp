@@ -20,25 +20,15 @@ public:
     explicit DslExecScope(Kind kind, std::size_t loop_depth = 0) noexcept
         : kind_(kind), loop_depth_(loop_depth) {}
 
-    [[nodiscard]] Kind kind() const noexcept {
-        return kind_;
-    }
+    [[nodiscard]] Kind kind() const noexcept { return kind_; }
 
-    [[nodiscard]] std::size_t loop_depth() const noexcept {
-        return loop_depth_;
-    }
+    [[nodiscard]] std::size_t loop_depth() const noexcept { return loop_depth_; }
 
-    [[nodiscard]] bool is_outer_control() const noexcept {
-        return kind_ == Kind::OuterControl;
-    }
+    [[nodiscard]] bool is_outer_control() const noexcept { return kind_ == Kind::OuterControl; }
 
-    [[nodiscard]] bool is_hot_loop() const noexcept {
-        return kind_ == Kind::HotLoop;
-    }
+    [[nodiscard]] bool is_hot_loop() const noexcept { return kind_ == Kind::HotLoop; }
 
-    [[nodiscard]] bool in_loop() const noexcept {
-        return loop_depth_ > 0;
-    }
+    [[nodiscard]] bool in_loop() const noexcept { return loop_depth_ > 0; }
 
     [[nodiscard]] DslExecScope with_kind(Kind kind) const noexcept {
         return DslExecScope{kind, loop_depth_};

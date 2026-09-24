@@ -44,22 +44,14 @@ public:
           bar_width_(options.bar_width == 0 ? 1 : options.bar_width),
           out_(options.out == nullptr ? &std::cerr : options.out) {}
 
-    [[nodiscard]] ConsoleProgressMode mode() const noexcept {
-        return mode_;
-    }
+    [[nodiscard]] ConsoleProgressMode mode() const noexcept { return mode_; }
 
-    [[nodiscard]] ConsoleProgressClock& clock() noexcept {
-        return clock_;
-    }
+    [[nodiscard]] ConsoleProgressClock& clock() noexcept { return clock_; }
 
-    [[nodiscard]] const ConsoleProgressClock& clock() const noexcept {
-        return clock_;
-    }
+    [[nodiscard]] const ConsoleProgressClock& clock() const noexcept { return clock_; }
 
     /// How many panel body lines `format_panel_lines` emits (fixed layout).
-    [[nodiscard]] static constexpr std::size_t panel_line_count() noexcept {
-        return 6;
-    }
+    [[nodiscard]] static constexpr std::size_t panel_line_count() noexcept { return 6; }
 
     void on_progress(const ConsoleProgressSnapshot& snapshot) override {
         if (mode_.is_off()) {
@@ -73,9 +65,7 @@ public:
         paint_unlocked(snapshot);
     }
 
-    void on_stage(
-        std::string_view stage,
-        const ConsoleProgressSnapshot& snapshot) override {
+    void on_stage(std::string_view stage, const ConsoleProgressSnapshot& snapshot) override {
         if (mode_.is_off()) {
             return;
         }
@@ -137,9 +127,8 @@ public:
     }
 
     /// Fixed 6-line panel body (no ANSI, no trailing newline after last line).
-    [[nodiscard]] static std::vector<std::string> format_panel_lines(
-        const ConsoleProgressSnapshot& snap,
-        std::size_t bar_width) {
+    [[nodiscard]] static std::vector<std::string>
+    format_panel_lines(const ConsoleProgressSnapshot& snap, std::size_t bar_width) {
         if (bar_width == 0) {
             bar_width = 1;
         }
@@ -179,8 +168,8 @@ public:
                 snap.fraction_done().has_value() ? snap.fraction_done().value() : 0.0;
             row << '[' << ConsoleAnsi::ascii_bar(frac, bar_width) << "] ";
             if (snap.candidates_total().has_value()) {
-                row << format_fixed(100.0 * frac, 1) << "%  " << snap.candidates_done()
-                    << '/' << snap.candidates_total().value();
+                row << format_fixed(100.0 * frac, 1) << "%  " << snap.candidates_done() << '/'
+                    << snap.candidates_total().value();
             } else {
                 row << "?%  " << snap.candidates_done() << "/?";
             }
@@ -189,9 +178,8 @@ public:
 
         {
             std::ostringstream row;
-            row << "runes=" << snap.rune_count() << "  "
-                << format_throughput(snap.runes_per_sec()) << "  "
-                << format_fixed(snap.candidates_per_sec(), 2) << " cand/s";
+            row << "runes=" << snap.rune_count() << "  " << format_throughput(snap.runes_per_sec())
+                << "  " << format_fixed(snap.candidates_per_sec(), 2) << " cand/s";
             if (snap.eta_seconds().has_value()) {
                 row << "  eta=" << format_fixed(snap.eta_seconds().value(), 1) << 's';
             } else {
@@ -223,9 +211,8 @@ public:
         return lines;
     }
 
-    [[nodiscard]] static std::string format_panel(
-        const ConsoleProgressSnapshot& snap,
-        std::size_t bar_width) {
+    [[nodiscard]] static std::string format_panel(const ConsoleProgressSnapshot& snap,
+                                                  std::size_t bar_width) {
         const std::vector<std::string> lines = format_panel_lines(snap, bar_width);
         std::ostringstream out;
         for (std::size_t i = 0; i < lines.size(); ++i) {
@@ -280,8 +267,8 @@ private:
         }
     }
 
-    [[nodiscard]] bool should_paint_progress_unlocked(
-        const ConsoleProgressSnapshot& snapshot) const {
+    [[nodiscard]] bool
+    should_paint_progress_unlocked(const ConsoleProgressSnapshot& snapshot) const {
         if (!have_painted_) {
             return true;
         }
@@ -308,8 +295,7 @@ private:
     }
 
     void paint_panel_unlocked(const ConsoleProgressSnapshot& snapshot) {
-        const std::vector<std::string> lines =
-            format_panel_lines(snapshot, bar_width_);
+        const std::vector<std::string> lines = format_panel_lines(snapshot, bar_width_);
         if (panel_rows_painted_ > 0) {
             (*out_) << ConsoleAnsi::cursor_up(panel_rows_painted_);
         }

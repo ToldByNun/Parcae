@@ -1,9 +1,8 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/core/status_or.hpp>
 #include <parcae/dsl/dsl.hpp>
 #include <parcae/dsl/dsl_ast_json_version.hpp>
 #include <parcae/dsl/dsl_spec_version.hpp>
-
-#include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("DslSpecVersion current matches dsl.md 1.0.0", "[dsl][spec_version]") {
     REQUIRE(DslSpecVersion::current_major == 1);

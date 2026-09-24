@@ -28,20 +28,19 @@ public:
             if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-') {
                 continue;
             }
-            return Status::error(
-                "workspace/hypothesis id has illegal character: " + std::string(id));
+            return Status::error("workspace/hypothesis id has illegal character: " +
+                                 std::string(id));
         }
         return std::string(id);
     }
 
-    [[nodiscard]] static std::filesystem::path workspaces_root(
-        const std::filesystem::path& data_root) {
+    [[nodiscard]] static std::filesystem::path
+    workspaces_root(const std::filesystem::path& data_root) {
         return data_root / "workspaces";
     }
 
-    [[nodiscard]] static StatusOr<std::filesystem::path> workspace_root(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id) {
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    workspace_root(const std::filesystem::path& data_root, std::string_view workspace_id) {
         StatusOr<std::string> id = validate_id(workspace_id);
         if (!id.ok()) {
             return id.status();
@@ -49,9 +48,8 @@ public:
         return workspaces_root(data_root) / id.value();
     }
 
-    [[nodiscard]] static StatusOr<std::filesystem::path> hypotheses_dir(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id) {
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    hypotheses_dir(const std::filesystem::path& data_root, std::string_view workspace_id) {
         StatusOr<std::filesystem::path> root = workspace_root(data_root, workspace_id);
         if (!root.ok()) {
             return root.status();
@@ -59,10 +57,9 @@ public:
         return root.value() / "hypotheses";
     }
 
-    [[nodiscard]] static StatusOr<std::filesystem::path> hypothesis_file(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id,
-        std::string_view hypothesis_id) {
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    hypothesis_file(const std::filesystem::path& data_root, std::string_view workspace_id,
+                    std::string_view hypothesis_id) {
         StatusOr<std::string> hid = validate_id(hypothesis_id);
         if (!hid.ok()) {
             return hid.status();
@@ -74,9 +71,8 @@ public:
         return dir.value() / (hid.value() + ".json");
     }
 
-    [[nodiscard]] static StatusOr<std::filesystem::path> batches_dir(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id) {
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    batches_dir(const std::filesystem::path& data_root, std::string_view workspace_id) {
         StatusOr<std::filesystem::path> root = workspace_root(data_root, workspace_id);
         if (!root.ok()) {
             return root.status();
@@ -84,10 +80,9 @@ public:
         return root.value() / "batches";
     }
 
-    [[nodiscard]] static StatusOr<std::filesystem::path> batch_dir(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id,
-        std::string_view batch_id) {
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    batch_dir(const std::filesystem::path& data_root, std::string_view workspace_id,
+              std::string_view batch_id) {
         StatusOr<std::string> bid = validate_id(batch_id);
         if (!bid.ok()) {
             return bid.status();
@@ -100,9 +95,8 @@ public:
     }
 
     /// Reject absolute paths and any `..` segment; require result under `root`.
-    [[nodiscard]] static StatusOr<std::filesystem::path> resolve_under(
-        const std::filesystem::path& root,
-        const std::filesystem::path& relative) {
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    resolve_under(const std::filesystem::path& root, const std::filesystem::path& relative) {
         if (relative.empty()) {
             return Status::error("relative path must be non-empty");
         }
@@ -116,8 +110,7 @@ public:
         }
 
         std::error_code ec;
-        const std::filesystem::path root_canon =
-            std::filesystem::weakly_canonical(root, ec);
+        const std::filesystem::path root_canon = std::filesystem::weakly_canonical(root, ec);
         if (ec) {
             return Status::error("Failed to canonicalize workspace root: " + ec.message());
         }
@@ -140,9 +133,8 @@ public:
         return resolved;
     }
 
-    [[nodiscard]] static Status require_under(
-        const std::filesystem::path& root_canon,
-        const std::filesystem::path& candidate) {
+    [[nodiscard]] static Status require_under(const std::filesystem::path& root_canon,
+                                              const std::filesystem::path& candidate) {
         const std::filesystem::path rel = candidate.lexically_relative(root_canon);
         if (rel.empty() || rel == ".") {
             return Status::success();
@@ -154,9 +146,8 @@ public:
     }
 
     /// Writes MUST NOT land under `data_root/fixtures/`.
-    [[nodiscard]] static Status deny_fixtures_write(
-        const std::filesystem::path& data_root,
-        const std::filesystem::path& write_path) {
+    [[nodiscard]] static Status deny_fixtures_write(const std::filesystem::path& data_root,
+                                                    const std::filesystem::path& write_path) {
         std::error_code ec;
         const std::filesystem::path fixtures =
             std::filesystem::weakly_canonical(data_root / "fixtures", ec);
@@ -180,4 +171,4 @@ private:
     WorkspacePaths() = delete;
 };
 
-#endif  // WORKSPACE_PATHS_HPP
+#endif // WORKSPACE_PATHS_HPP

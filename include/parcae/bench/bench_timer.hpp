@@ -11,6 +11,7 @@
 
 #if defined(PARCAE_HAS_CUDA)
 #include "cuda_error.hpp"
+
 #include <cuda_runtime_api.h>
 #endif
 
@@ -33,11 +34,9 @@ public:
 
     /// One CPU timed window: `repeats` launches, no warmup.
     template <typename LaunchFn>
-    [[nodiscard]] static StatusOr<BenchMetric::Sample> time_cpu_once(
-        std::size_t repeats,
-        std::size_t candidates,
-        std::size_t tokens,
-        LaunchFn&& launch) {
+    [[nodiscard]] static StatusOr<BenchMetric::Sample>
+    time_cpu_once(std::size_t repeats, std::size_t candidates, std::size_t tokens,
+                  LaunchFn&& launch) {
         using clock = std::chrono::steady_clock;
         const clock::time_point t0 = clock::now();
         for (std::size_t r = 0; r < repeats; ++r) {
@@ -53,11 +52,8 @@ public:
 
     /// CPU protocol: `warmup_launches` + median-of-`timed_samples`.
     template <typename LaunchFn>
-    [[nodiscard]] static StatusOr<BenchMetric::Sample> time_cpu(
-        std::size_t repeats,
-        std::size_t candidates,
-        std::size_t tokens,
-        LaunchFn&& launch) {
+    [[nodiscard]] static StatusOr<BenchMetric::Sample>
+    time_cpu(std::size_t repeats, std::size_t candidates, std::size_t tokens, LaunchFn&& launch) {
         for (int w = 0; w < warmup_launches; ++w) {
             Status warm = launch();
             if (!warm.ok()) {
@@ -67,8 +63,7 @@ public:
 
         BenchMetric::Sample samples[timed_samples]{};
         for (int i = 0; i < timed_samples; ++i) {
-            StatusOr<BenchMetric::Sample> one =
-                time_cpu_once(repeats, candidates, tokens, launch);
+            StatusOr<BenchMetric::Sample> one = time_cpu_once(repeats, candidates, tokens, launch);
             if (!one.ok()) {
                 return one.status();
             }
@@ -80,11 +75,9 @@ public:
 #if defined(PARCAE_HAS_CUDA)
     /// One CUDA timed window via `cudaEvent` (stream 0). No warmup.
     template <typename LaunchFn>
-    [[nodiscard]] static StatusOr<BenchMetric::Sample> time_cuda_once(
-        std::size_t repeats,
-        std::size_t candidates,
-        std::size_t tokens,
-        LaunchFn&& launch) {
+    [[nodiscard]] static StatusOr<BenchMetric::Sample>
+    time_cuda_once(std::size_t repeats, std::size_t candidates, std::size_t tokens,
+                   LaunchFn&& launch) {
         cudaEvent_t start{};
         cudaEvent_t stop{};
         Status ev0 = CudaError::to_status(cudaEventCreate(&start), "BenchTimer event create start");
@@ -119,16 +112,15 @@ public:
             cudaEventDestroy(stop);
             return rec1;
         }
-        Status synced =
-            CudaError::to_status(cudaEventSynchronize(stop), "BenchTimer event sync");
+        Status synced = CudaError::to_status(cudaEventSynchronize(stop), "BenchTimer event sync");
         if (!synced.ok()) {
             cudaEventDestroy(start);
             cudaEventDestroy(stop);
             return synced;
         }
         float ms = 0.0f;
-        Status elapsed = CudaError::to_status(
-            cudaEventElapsedTime(&ms, start, stop), "BenchTimer event elapsed");
+        Status elapsed = CudaError::to_status(cudaEventElapsedTime(&ms, start, stop),
+                                              "BenchTimer event elapsed");
         cudaEventDestroy(start);
         cudaEventDestroy(stop);
         if (!elapsed.ok()) {
@@ -140,27 +132,22 @@ public:
 
     /// CUDA protocol: 4 warmups + device sync + median-of-3 cudaEvent samples.
     template <typename LaunchFn>
-    [[nodiscard]] static StatusOr<BenchMetric::Sample> time_cuda(
-        std::size_t repeats,
-        std::size_t candidates,
-        std::size_t tokens,
-        LaunchFn&& launch) {
+    [[nodiscard]] static StatusOr<BenchMetric::Sample>
+    time_cuda(std::size_t repeats, std::size_t candidates, std::size_t tokens, LaunchFn&& launch) {
         for (int w = 0; w < warmup_launches; ++w) {
             Status warm = launch();
             if (!warm.ok()) {
                 return warm;
             }
         }
-        Status warm_sync =
-            CudaError::to_status(cudaDeviceSynchronize(), "BenchTimer warmup sync");
+        Status warm_sync = CudaError::to_status(cudaDeviceSynchronize(), "BenchTimer warmup sync");
         if (!warm_sync.ok()) {
             return warm_sync;
         }
 
         BenchMetric::Sample samples[timed_samples]{};
         for (int i = 0; i < timed_samples; ++i) {
-            StatusOr<BenchMetric::Sample> one =
-                time_cuda_once(repeats, candidates, tokens, launch);
+            StatusOr<BenchMetric::Sample> one = time_cuda_once(repeats, candidates, tokens, launch);
             if (!one.ok()) {
                 return one.status();
             }

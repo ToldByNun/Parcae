@@ -2,17 +2,17 @@
 
 #if defined(PARCAE_HAS_CUDA)
 
+#include "parcae/core/index29.hpp"
+#include "parcae/generate/atbash_caesar_candidate_generator.hpp"
+#include "parcae/generate/atbash_candidate_generator.hpp"
+#include "parcae/transform/compose_transform.hpp"
+#include "parcae/transform/transform_direction.hpp"
+
 #include "atbash_batch_kernel.hpp"
 #include "atbash_caesar_batch_kernel.hpp"
 #include "candidate_batch_buffers.hpp"
-#include "parcae_cuda.hpp"
 #include "params.hpp"
-
-#include "parcae/core/index29.hpp"
-#include "parcae/generate/atbash_candidate_generator.hpp"
-#include "parcae/generate/atbash_caesar_candidate_generator.hpp"
-#include "parcae/transform/compose_transform.hpp"
-#include "parcae/transform/transform_direction.hpp"
+#include "parcae_cuda.hpp"
 
 #include <cstdint>
 #include <random>
@@ -28,7 +28,7 @@ namespace {
     return {I(0), I(1), I(2), I(3), I(10), I(14), I(28)};
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("CUDA atbash batch matches AtbashCandidateGenerator", "[cuda][batch][atbash]") {
     REQUIRE(ParcaeCuda::available());
@@ -54,9 +54,8 @@ TEST_CASE("CUDA atbash batch matches AtbashCandidateGenerator", "[cuda][batch][a
     REQUIRE(cuda_out == cpu.value()[0].output_indices());
 }
 
-TEST_CASE(
-    "CUDA atbash_caesar batch 29 shifts matches AtbashCaesarCandidateGenerator",
-    "[cuda][batch][atbash]") {
+TEST_CASE("CUDA atbash_caesar batch 29 shifts matches AtbashCaesarCandidateGenerator",
+          "[cuda][batch][atbash]") {
     REQUIRE(ParcaeCuda::available());
 
     const std::vector<Index29> cipher = cipher_fixture();

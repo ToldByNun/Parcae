@@ -29,8 +29,8 @@ public:
 
     /// How a loop was accepted / will be emitted.
     enum class BoundKind : std::uint8_t {
-        ConstUnroll = 0,  // fully constant → unroll / static IR
-        HostKnown,        // Param / launch-time host-known finite range
+        ConstUnroll = 0, // fully constant → unroll / static IR
+        HostKnown,       // Param / launch-time host-known finite range
     };
 
     using Ptr = std::shared_ptr<HostGlueIr>;
@@ -66,13 +66,8 @@ public:
         return n;
     }
 
-    [[nodiscard]] static Ptr make_for_range(
-        std::string target,
-        Ptr start,
-        Ptr stop,
-        Ptr step,
-        Ptr body,
-        BoundKind bound) {
+    [[nodiscard]] static Ptr make_for_range(std::string target, Ptr start, Ptr stop, Ptr step,
+                                            Ptr body, BoundKind bound) {
         auto n = std::shared_ptr<HostGlueIr>(new HostGlueIr(Kind::ForRange));
         n->name_ = std::move(target);
         n->bound_kind_ = bound;
@@ -83,11 +78,8 @@ public:
         return n;
     }
 
-    [[nodiscard]] static Ptr make_while_bounded(
-        Ptr cond,
-        Ptr body,
-        std::int64_t max_iters,
-        BoundKind bound) {
+    [[nodiscard]] static Ptr make_while_bounded(Ptr cond, Ptr body, std::int64_t max_iters,
+                                                BoundKind bound) {
         auto n = std::shared_ptr<HostGlueIr>(new HostGlueIr(Kind::WhileBounded));
         n->bound_kind_ = bound;
         n->int_value_ = max_iters;
@@ -109,33 +101,19 @@ public:
         return n;
     }
 
-    [[nodiscard]] Kind kind() const noexcept {
-        return kind_;
-    }
+    [[nodiscard]] Kind kind() const noexcept { return kind_; }
 
-    [[nodiscard]] BoundKind bound_kind() const noexcept {
-        return bound_kind_;
-    }
+    [[nodiscard]] BoundKind bound_kind() const noexcept { return bound_kind_; }
 
-    [[nodiscard]] const std::string& name() const noexcept {
-        return name_;
-    }
+    [[nodiscard]] const std::string& name() const noexcept { return name_; }
 
-    [[nodiscard]] std::int64_t int_value() const noexcept {
-        return int_value_;
-    }
+    [[nodiscard]] std::int64_t int_value() const noexcept { return int_value_; }
 
-    [[nodiscard]] const std::vector<Ptr>& children() const noexcept {
-        return children_;
-    }
+    [[nodiscard]] const std::vector<Ptr>& children() const noexcept { return children_; }
 
-    [[nodiscard]] std::optional<int> lineno() const noexcept {
-        return lineno_;
-    }
+    [[nodiscard]] std::optional<int> lineno() const noexcept { return lineno_; }
 
-    [[nodiscard]] std::optional<int> col_offset() const noexcept {
-        return col_offset_;
-    }
+    [[nodiscard]] std::optional<int> col_offset() const noexcept { return col_offset_; }
 
     void set_location(std::optional<int> lineno, std::optional<int> col) {
         lineno_ = lineno;

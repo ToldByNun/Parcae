@@ -25,22 +25,23 @@ public:
     /// ASCII separator grammar first.
     /// Each token keeps source byte `[begin, end)` and runes get contiguous
     /// `consumable_index` values among consumable runes only (separators do not advance it).
-    [[nodiscard]] StatusOr<TokenStream> tokenize(const std::string& text, bool strict = true) const {
+    [[nodiscard]] StatusOr<TokenStream> tokenize(const std::string& text,
+                                                 bool strict = true) const {
         std::vector<Token> tokens;
         std::size_t offset = 0;
         std::size_t consumable = 0;
 
         while (offset < text.size()) {
             if (const auto newline = match_newline(text, offset)) {
-                tokens.push_back(Token::non_rune(
-                    TokenKind::Newline, offset, offset + newline->size(), *newline));
+                tokens.push_back(Token::non_rune(TokenKind::Newline, offset,
+                                                 offset + newline->size(), *newline));
                 offset += newline->size();
                 continue;
             }
 
             if (const auto whitespace = match_whitespace(text, offset)) {
-                tokens.push_back(Token::non_rune(
-                    TokenKind::Whitespace, offset, offset + whitespace->size(), *whitespace));
+                tokens.push_back(Token::non_rune(TokenKind::Whitespace, offset,
+                                                 offset + whitespace->size(), *whitespace));
                 offset += whitespace->size();
                 continue;
             }
@@ -50,8 +51,8 @@ public:
                 if (!kind.ok()) {
                     return kind.status();
                 }
-                tokens.push_back(Token::non_rune(
-                    kind.value(), offset, offset + separator->size(), *separator));
+                tokens.push_back(
+                    Token::non_rune(kind.value(), offset, offset + separator->size(), *separator));
                 offset += separator->size();
                 continue;
             }
@@ -69,19 +70,16 @@ public:
                 // Pure digit runs stay Number (wisdom/instruction grids); mixed
                 // 0-9a-f runs are Hex (An End deep-web hash chunks).
                 const TokenKind kind = saw_hex_letter ? TokenKind::Hex : TokenKind::Number;
-                tokens.push_back(Token::non_rune(
-                    kind, begin, offset, text.substr(begin, offset - begin)));
+                tokens.push_back(
+                    Token::non_rune(kind, begin, offset, text.substr(begin, offset - begin)));
                 continue;
             }
 
             StatusOr<RuneCodec::DecodeResult> rune = rune_codec_.decode_at(text, offset, false);
             if (rune.ok()) {
-                tokens.push_back(Token::rune(
-                    rune.value().index,
-                    offset,
-                    offset + rune.value().byte_size,
-                    rune.value().utf8,
-                    consumable));
+                tokens.push_back(Token::rune(rune.value().index, offset,
+                                             offset + rune.value().byte_size, rune.value().utf8,
+                                             consumable));
                 ++consumable;
                 offset += rune.value().byte_size;
                 continue;
@@ -97,8 +95,8 @@ public:
                 return Status::error("Unknown symbol in strict tokenizer mode");
             }
 
-            tokens.push_back(Token::non_rune(
-                TokenKind::Unknown, offset, offset + cp.value().size, unknown));
+            tokens.push_back(
+                Token::non_rune(TokenKind::Unknown, offset, offset + cp.value().size, unknown));
             offset += cp.value().size;
         }
 
@@ -106,9 +104,8 @@ public:
     }
 
 private:
-    [[nodiscard]] std::optional<std::string> match_newline(
-        const std::string& text,
-        std::size_t offset) const {
+    [[nodiscard]] std::optional<std::string> match_newline(const std::string& text,
+                                                           std::size_t offset) const {
         if (offset + 1 < text.size() && text[offset] == '\r' && text[offset + 1] == '\n' &&
             grammar_->is_newline("\r\n")) {
             return std::string("\r\n");
@@ -119,9 +116,8 @@ private:
         return std::nullopt;
     }
 
-    [[nodiscard]] std::optional<std::string> match_whitespace(
-        const std::string& text,
-        std::size_t offset) const {
+    [[nodiscard]] std::optional<std::string> match_whitespace(const std::string& text,
+                                                              std::size_t offset) const {
         if (offset >= text.size()) {
             return std::nullopt;
         }
@@ -132,9 +128,8 @@ private:
         return std::nullopt;
     }
 
-    [[nodiscard]] std::optional<std::string> match_separator(
-        const std::string& text,
-        std::size_t offset) const {
+    [[nodiscard]] std::optional<std::string> match_separator(const std::string& text,
+                                                             std::size_t offset) const {
         for (const std::string& token : grammar_->separator_tokens_by_length_desc()) {
             if (offset + token.size() <= text.size() &&
                 text.compare(offset, token.size(), token) == 0) {

@@ -13,13 +13,12 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
-
-#include <nlohmann/json.hpp>
 
 /// Theory-aware envelope bridge (docs/spec/theory-artifact.md § Envelope bridge).
 ///
@@ -39,47 +38,26 @@ public:
 
     class Envelope {
     public:
-        Envelope(
-            Kind kind,
-            std::string transform_id,
-            TransformDirection direction,
-            nlohmann::json params,
-            InterruptPolicy interrupt,
-            std::optional<TheoryUri> theory_uri = std::nullopt)
-            : kind_(kind),
-              transform_id_(std::move(transform_id)),
-              direction_(direction),
-              params_(std::move(params)),
-              interrupt_(std::move(interrupt)),
+        Envelope(Kind kind, std::string transform_id, TransformDirection direction,
+                 nlohmann::json params, InterruptPolicy interrupt,
+                 std::optional<TheoryUri> theory_uri = std::nullopt)
+            : kind_(kind), transform_id_(std::move(transform_id)), direction_(direction),
+              params_(std::move(params)), interrupt_(std::move(interrupt)),
               theory_uri_(std::move(theory_uri)) {}
 
-        [[nodiscard]] Kind kind() const noexcept {
-            return kind_;
-        }
+        [[nodiscard]] Kind kind() const noexcept { return kind_; }
 
-        [[nodiscard]] bool is_catalog() const noexcept {
-            return kind_ == Kind::Catalog;
-        }
+        [[nodiscard]] bool is_catalog() const noexcept { return kind_ == Kind::Catalog; }
 
-        [[nodiscard]] bool is_theory() const noexcept {
-            return kind_ == Kind::Theory;
-        }
+        [[nodiscard]] bool is_theory() const noexcept { return kind_ == Kind::Theory; }
 
-        [[nodiscard]] const std::string& transform_id() const noexcept {
-            return transform_id_;
-        }
+        [[nodiscard]] const std::string& transform_id() const noexcept { return transform_id_; }
 
-        [[nodiscard]] TransformDirection direction() const noexcept {
-            return direction_;
-        }
+        [[nodiscard]] TransformDirection direction() const noexcept { return direction_; }
 
-        [[nodiscard]] const nlohmann::json& params() const noexcept {
-            return params_;
-        }
+        [[nodiscard]] const nlohmann::json& params() const noexcept { return params_; }
 
-        [[nodiscard]] const InterruptPolicy& interrupt() const noexcept {
-            return interrupt_;
-        }
+        [[nodiscard]] const InterruptPolicy& interrupt() const noexcept { return interrupt_; }
 
         [[nodiscard]] const std::optional<TheoryUri>& theory_uri() const noexcept {
             return theory_uri_;
@@ -95,12 +73,10 @@ public:
             }
             StatusOr<TransformId> id = TransformId::from_string(transform_id_);
             if (!id.ok()) {
-                return Status::error(
-                    "envelope transform_id is not a catalog id: " + transform_id_ + " (" +
-                    id.status().message() + ")");
+                return Status::error("envelope transform_id is not a catalog id: " + transform_id_ +
+                                     " (" + id.status().message() + ")");
             }
-            return TransformEnvelope{
-                id.value(), direction_, params_, interrupt_};
+            return TransformEnvelope{id.value(), direction_, params_, interrupt_};
         }
 
         [[nodiscard]] nlohmann::json to_json() const {
@@ -176,29 +152,19 @@ public:
                     uri.status().message());
             }
             return Envelope{
-                Kind::Theory,
-                id_text,
-                direction,
-                std::move(params),
-                std::move(interrupt),
+                Kind::Theory,          id_text, direction, std::move(params), std::move(interrupt),
                 std::move(uri.value())};
         }
 
         // Frozen catalog id.
         StatusOr<TransformId> catalog = TransformId::from_string(id_text);
         if (!catalog.ok()) {
-            return Status::error(
-                "TheoryEnvelope.transform_id is neither a catalog id nor a "
-                "parcae://theories/ URI: " +
-                id_text);
+            return Status::error("TheoryEnvelope.transform_id is neither a catalog id nor a "
+                                 "parcae://theories/ URI: " +
+                                 id_text);
         }
-        return Envelope{
-            Kind::Catalog,
-            catalog.value().str(),
-            direction,
-            std::move(params),
-            std::move(interrupt),
-            std::nullopt};
+        return Envelope{Kind::Catalog,     catalog.value().str(), direction,
+                        std::move(params), std::move(interrupt),  std::nullopt};
     }
 
     [[nodiscard]] static StatusOr<Envelope> from_string(const std::string& json_text) {
@@ -224,9 +190,7 @@ public:
         return from_string(ss.str());
     }
 
-    [[nodiscard]] static Status write(
-        const std::filesystem::path& path,
-        const Envelope& envelope) {
+    [[nodiscard]] static Status write(const std::filesystem::path& path, const Envelope& envelope) {
         std::ofstream out(path, std::ios::binary | std::ios::trunc);
         if (!out) {
             return Status::error("failed to write envelope: " + path.string());
@@ -240,27 +204,21 @@ public:
 
     /// Default compile-time template: `transform_id` = artifact URI, params at
     /// each declared param's `min` (placeholder binding for sweep/dispatch).
-    [[nodiscard]] static StatusOr<Envelope> template_for(
-        const TheoryArtifact& artifact,
-        TransformDirection direction = TransformDirection::Decrypt) {
+    [[nodiscard]] static StatusOr<Envelope>
+    template_for(const TheoryArtifact& artifact,
+                 TransformDirection direction = TransformDirection::Decrypt) {
         nlohmann::json params = nlohmann::json::object();
         for (const TheoryArtifact::Param& p : artifact.params()) {
             params[p.name()] = p.min();
         }
-        return Envelope{
-            Kind::Theory,
-            artifact.uri().to_string(),
-            direction,
-            std::move(params),
-            InterruptPolicy::none(),
-            artifact.uri()};
+        return Envelope{Kind::Theory,      artifact.uri().to_string(), direction,
+                        std::move(params), InterruptPolicy::none(),    artifact.uri()};
     }
 
     /// Validate that a loaded envelope is consistent with a compiled artifact
     /// (theory URI must match; catalog envelopes are accepted as-is).
-    [[nodiscard]] static Status check_against_artifact(
-        const Envelope& envelope,
-        const TheoryArtifact& artifact) {
+    [[nodiscard]] static Status check_against_artifact(const Envelope& envelope,
+                                                       const TheoryArtifact& artifact) {
         if (envelope.is_catalog()) {
             StatusOr<TransformEnvelope> lowered = envelope.to_catalog_envelope();
             if (!lowered.ok()) {
@@ -272,27 +230,24 @@ public:
             return Status::error("theory envelope missing parsed TheoryUri");
         }
         if (envelope.theory_uri()->to_string() != artifact.uri().to_string()) {
-            return Status::error(
-                "envelope theory URI does not match artifact URI: envelope=" +
-                envelope.theory_uri()->to_string() + " artifact=" + artifact.uri().to_string());
+            return Status::error("envelope theory URI does not match artifact URI: envelope=" +
+                                 envelope.theory_uri()->to_string() +
+                                 " artifact=" + artifact.uri().to_string());
         }
         // Every declared artifact param MUST appear in params (extra keys allowed
         // for forward-compat metadata; unknown required names fail).
         for (const TheoryArtifact::Param& p : artifact.params()) {
             if (!envelope.params().contains(p.name())) {
-                return Status::error(
-                    "envelope params missing theory param '" + p.name() + "'");
+                return Status::error("envelope params missing theory param '" + p.name() + "'");
             }
             const nlohmann::json& v = envelope.params().at(p.name());
             if (!v.is_number_integer()) {
-                return Status::error(
-                    "envelope params." + p.name() + " must be an integer");
+                return Status::error("envelope params." + p.name() + " must be an integer");
             }
             const std::int64_t iv = v.get<std::int64_t>();
             if (iv < p.min() || iv > p.max()) {
-                return Status::error(
-                    "envelope params." + p.name() + " out of declared domain [" +
-                    std::to_string(p.min()) + "," + std::to_string(p.max()) + "]");
+                return Status::error("envelope params." + p.name() + " out of declared domain [" +
+                                     std::to_string(p.min()) + "," + std::to_string(p.max()) + "]");
             }
         }
         return Status::success();

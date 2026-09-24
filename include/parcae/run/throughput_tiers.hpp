@@ -5,23 +5,24 @@
 #error "throughput_tiers.hpp requires PARCAE_HAS_CUDA"
 #endif
 
-#include "caesar_chi2_batch.hpp"
-#include "cuda_error.hpp"
-#include "deep_score_batch.hpp"
-#include "device_buffer.hpp"
-#include "family_chi2_batch.hpp"
-#include "params.hpp"
-#include "atbash_kernel.hpp"
-
 #include "parcae/bench/bench_tier_spec.hpp"
 #include "parcae/core/index29.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
 
+#include "atbash_kernel.hpp"
+#include "caesar_chi2_batch.hpp"
+#include "cuda_error.hpp"
+#include "deep_score_batch.hpp"
+#include "device_buffer.hpp"
+#include "family_chi2_batch.hpp"
+#include "params.hpp"
+
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cuda_runtime_api.h>
 #include <iomanip>
 #include <random>
 #include <sstream>
@@ -29,8 +30,6 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <cuda_runtime_api.h>
 
 /// Gated CUDA throughput tiers matching the search-stack SLO targets.
 class ThroughputTiers {
@@ -40,7 +39,7 @@ public:
         std::string workload;
         double runes_per_sec = 0.0;
         double target_min = 0.0;
-        double target_max = 0.0;  // 0 = no upper bound
+        double target_max = 0.0; // 0 = no upper bound
         bool pass = false;
         std::size_t candidates = 0;
         std::size_t tokens = 0;
@@ -55,8 +54,8 @@ public:
     /// Run SLO tiers. When `extended` is true (default), also includes F.* and
     /// C.* rows (historical `parcae-throughput-tiers` behavior). When false,
     /// only primary T1–T3 (`BenchSloSuite` default).
-    [[nodiscard]] static StatusOr<Report> run(
-        const ExpectedFrequencyTable& freqs, bool extended = true) {
+    [[nodiscard]] static StatusOr<Report> run(const ExpectedFrequencyTable& freqs,
+                                              bool extended = true) {
         Report report;
         StatusOr<TierResult> t1 = tier1_simple_sub(freqs);
         if (!t1.ok()) {
@@ -152,11 +151,11 @@ public:
                     target << ">=" << format_rps(t.target_min);
                 }
                 out << std::left << std::setw(17) << t.name << " " << std::setw(27) << t.workload
-                    << " " << std::right << std::setw(10) << format_rps(t.runes_per_sec)
-                    << "  " << std::left << std::setw(11) << target.str()
-                    << "  " << std::right << std::setw(8) << format_rps(peak)
-                    << "  " << std::setw(5) << std::fixed << std::setprecision(0) << pct << "%"
-                    << "  " << (t.pass ? "PASS" : "FAIL") << '\n';
+                    << " " << std::right << std::setw(10) << format_rps(t.runes_per_sec) << "  "
+                    << std::left << std::setw(11) << target.str() << "  " << std::right
+                    << std::setw(8) << format_rps(peak) << "  " << std::setw(5) << std::fixed
+                    << std::setprecision(0) << pct << "%" << "  " << (t.pass ? "PASS" : "FAIL")
+                    << '\n';
                 out << "      C=" << t.candidates << " T=" << t.tokens << " reps=" << t.repeats
                     << '\n';
             }
@@ -164,9 +163,8 @@ public:
                    "------------------------\n\n";
         };
 
-        emit_section("SLO TIERS", [](const std::string& n) {
-            return n == "T1" || n == "T2" || n == "T3";
-        });
+        emit_section("SLO TIERS",
+                     [](const std::string& n) { return n == "T1" || n == "T2" || n == "T3"; });
         emit_section("TRANSFORM FAMILIES", [](const std::string& n) {
             return n.size() >= 2 && n[0] == 'F' && n[1] == '.';
         });
@@ -202,8 +200,8 @@ private:
         std::size_t T = 0;
     };
 
-    [[nodiscard]] static std::vector<std::uint8_t> random_stream(
-        std::size_t n, std::uint32_t seed) {
+    [[nodiscard]] static std::vector<std::uint8_t> random_stream(std::size_t n,
+                                                                 std::uint32_t seed) {
         std::mt19937 rng(seed);
         std::uniform_int_distribution<int> dist(0, 28);
         std::vector<std::uint8_t> out(n);
@@ -213,10 +211,9 @@ private:
         return out;
     }
 
-    [[nodiscard]] static StatusOr<Scratch> make_scratch(
-        std::span<const std::uint8_t> host_in,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t C) {
+    [[nodiscard]] static StatusOr<Scratch> make_scratch(std::span<const std::uint8_t> host_in,
+                                                        const ExpectedFrequencyTable& freqs,
+                                                        std::size_t C) {
         Scratch s;
         s.C = C;
         s.T = host_in.size();
@@ -249,8 +246,8 @@ private:
     }
 
     template <typename LaunchFn>
-    [[nodiscard]] static StatusOr<double> timed_rps_once(
-        Scratch& scratch, std::size_t repeats, LaunchFn&& launch) {
+    [[nodiscard]] static StatusOr<double> timed_rps_once(Scratch& scratch, std::size_t repeats,
+                                                         LaunchFn&& launch) {
         cudaEvent_t start{};
         cudaEvent_t stop{};
         Status ev0 = CudaError::to_status(cudaEventCreate(&start), "event create start");
@@ -304,8 +301,8 @@ private:
     }
 
     template <typename LaunchFn>
-    [[nodiscard]] static StatusOr<double> timed_rps(
-        Scratch& scratch, std::size_t repeats, LaunchFn&& launch) {
+    [[nodiscard]] static StatusOr<double> timed_rps(Scratch& scratch, std::size_t repeats,
+                                                    LaunchFn&& launch) {
         // Extra warmups so clocks / caches settle before the timed window.
         for (int w = 0; w < 4; ++w) {
             Status warm = launch();
@@ -351,8 +348,8 @@ private:
     }
 
     /// Tier 1: simple Caesar fused χ² — config from `BenchTierSpec::t1`.
-    [[nodiscard]] static StatusOr<TierResult> tier1_simple_sub(
-        const ExpectedFrequencyTable& freqs) {
+    [[nodiscard]] static StatusOr<TierResult>
+    tier1_simple_sub(const ExpectedFrequencyTable& freqs) {
         constexpr std::size_t C = BenchTierSpec::t1.candidates;
         constexpr std::size_t T = BenchTierSpec::t1.tokens;
         constexpr std::size_t reps = BenchTierSpec::t1.repeats;
@@ -375,12 +372,8 @@ private:
 
         StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
             return CaesarChi2Batch::launch_decrypt_async(
-                scratch.value().in.data(),
-                d_shifts.value().data(),
-                scratch.value().probs.data(),
-                scratch.value().counts.data(),
-                scratch.value().scores.data(),
-                scratch.value().C,
+                scratch.value().in.data(), d_shifts.value().data(), scratch.value().probs.data(),
+                scratch.value().counts.data(), scratch.value().scores.data(), scratch.value().C,
                 scratch.value().T);
         });
         if (!rps.ok()) {
@@ -401,8 +394,8 @@ private:
     }
 
     /// Tier 2: multi-key Vigenère + autokey + dynamic-shift — `BenchTierSpec::t2`.
-    [[nodiscard]] static StatusOr<TierResult> tier2_filtered_multikey(
-        const ExpectedFrequencyTable& freqs) {
+    [[nodiscard]] static StatusOr<TierResult>
+    tier2_filtered_multikey(const ExpectedFrequencyTable& freqs) {
         constexpr std::size_t C = BenchTierSpec::t2.candidates;
         constexpr std::size_t key_len = 8;
         constexpr std::size_t T = BenchTierSpec::t2.tokens;
@@ -425,8 +418,7 @@ private:
             for (std::size_t c = 0; c < C; ++c) {
                 begin[c] = static_cast<std::uint32_t>(c * key_len);
                 for (std::size_t j = 0; j < key_len; ++j) {
-                    keys[c * key_len + j] =
-                        static_cast<std::uint8_t>((c * 3 + j * 7 + 1) % 29);
+                    keys[c * key_len + j] = static_cast<std::uint8_t>((c * 3 + j * 7 + 1) % 29);
                 }
             }
             StatusOr<DeviceBuffer<std::uint8_t>> d_keys =
@@ -446,15 +438,9 @@ private:
             }
             StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
                 return FamilyChi2Batch::launch_vigenere_async(
-                    scratch.value().in.data(),
-                    d_keys.value().data(),
-                    d_begin.value().data(),
-                    d_len.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    T);
+                    scratch.value().in.data(), d_keys.value().data(), d_begin.value().data(),
+                    d_len.value().data(), scratch.value().probs.data(),
+                    scratch.value().counts.data(), scratch.value().scores.data(), C, T);
             });
             if (!rps.ok()) {
                 return rps.status();
@@ -477,8 +463,7 @@ private:
             for (std::size_t c = 0; c < C; ++c) {
                 begin[c] = static_cast<std::uint32_t>(c * key_len);
                 for (std::size_t j = 0; j < key_len; ++j) {
-                    keys[c * key_len + j] =
-                        static_cast<std::uint8_t>((c + j * 5 + 2) % 29);
+                    keys[c * key_len + j] = static_cast<std::uint8_t>((c + j * 5 + 2) % 29);
                 }
             }
             StatusOr<DeviceBuffer<std::uint8_t>> d_keys =
@@ -498,15 +483,9 @@ private:
             }
             StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
                 return DeepScoreBatch::launch_autokey_chi2_async(
-                    scratch.value().in.data(),
-                    d_keys.value().data(),
-                    d_begin.value().data(),
-                    d_len.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    T);
+                    scratch.value().in.data(), d_keys.value().data(), d_begin.value().data(),
+                    d_len.value().data(), scratch.value().probs.data(),
+                    scratch.value().counts.data(), scratch.value().scores.data(), C, T);
             });
             if (!rps.ok()) {
                 return rps.status();
@@ -541,14 +520,9 @@ private:
             }
             StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
                 return DeepScoreBatch::launch_dynamic_shift_chi2_async(
-                    scratch.value().in.data(),
-                    d_base.value().data(),
-                    d_step.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    T);
+                    scratch.value().in.data(), d_base.value().data(), d_step.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, T);
             });
             if (!rps.ok()) {
                 return rps.status();
@@ -611,8 +585,7 @@ private:
             return d_lens.status();
         }
 
-        StatusOr<DeviceBuffer<std::uint8_t>> d_in =
-            DeviceBuffer<std::uint8_t>::from_host(host_in);
+        StatusOr<DeviceBuffer<std::uint8_t>> d_in = DeviceBuffer<std::uint8_t>::from_host(host_in);
         if (!d_in.ok()) {
             return d_in.status();
         }
@@ -638,15 +611,8 @@ private:
 
         StatusOr<double> rps = timed_rps(scratch, reps, [&]() {
             return DeepScoreBatch::launch_caesar_ngram_dict_async(
-                scratch.in.data(),
-                d_shifts.value().data(),
-                d_bigram.value().data(),
-                d_words.value().data(),
-                d_lens.value().data(),
-                scratch.scores.data(),
-                C,
-                T,
-                dict_n);
+                scratch.in.data(), d_shifts.value().data(), d_bigram.value().data(),
+                d_words.value().data(), d_lens.value().data(), scratch.scores.data(), C, T, dict_n);
         });
         if (!rps.ok()) {
             return rps.status();
@@ -665,14 +631,10 @@ private:
         return out;
     }
 
-    [[nodiscard]] static StatusOr<TierResult> make_family_result(
-        std::string name,
-        std::string workload,
-        double rps,
-        double slo_min,
-        std::size_t C,
-        std::size_t T,
-        std::size_t reps) {
+    [[nodiscard]] static StatusOr<TierResult> make_family_result(std::string name,
+                                                                 std::string workload, double rps,
+                                                                 double slo_min, std::size_t C,
+                                                                 std::size_t T, std::size_t reps) {
         TierResult out;
         out.name = std::move(name);
         out.workload = std::move(workload);
@@ -687,8 +649,8 @@ private:
     }
 
     /// Per-family fused χ² gates (search-stack transform catalog).
-    [[nodiscard]] static StatusOr<std::vector<TierResult>> family_suite(
-        const ExpectedFrequencyTable& freqs) {
+    [[nodiscard]] static StatusOr<std::vector<TierResult>>
+    family_suite(const ExpectedFrequencyTable& freqs) {
         std::vector<TierResult> out;
         out.reserve(5);
 
@@ -704,24 +666,15 @@ private:
             }
             StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
                 return FamilyChi2Batch::launch_atbash_async(
-                    scratch.value().in.data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    T);
+                    scratch.value().in.data(), scratch.value().probs.data(),
+                    scratch.value().counts.data(), scratch.value().scores.data(), C, T);
             });
             if (!rps.ok()) {
                 return rps.status();
             }
-            StatusOr<TierResult> row = make_family_result(
-                "F.atbash",
-                "Atbash fused chi2",
-                rps.value(),
-                BenchTierSpec::slo_floor("F.atbash"),
-                C,
-                T,
-                reps);
+            StatusOr<TierResult> row =
+                make_family_result("F.atbash", "Atbash fused chi2", rps.value(),
+                                   BenchTierSpec::slo_floor("F.atbash"), C, T, reps);
             if (!row.ok()) {
                 return row.status();
             }
@@ -758,26 +711,16 @@ private:
             }
             StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
                 return FamilyChi2Batch::launch_affine_async(
-                    scratch.value().in.data(),
-                    d_a.value().data(),
-                    d_b.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    T);
+                    scratch.value().in.data(), d_a.value().data(), d_b.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, T);
             });
             if (!rps.ok()) {
                 return rps.status();
             }
-            StatusOr<TierResult> row = make_family_result(
-                "F.affine",
-                "Affine fused chi2 (812)",
-                rps.value(),
-                BenchTierSpec::slo_floor("F.affine"),
-                C,
-                T,
-                reps);
+            StatusOr<TierResult> row =
+                make_family_result("F.affine", "Affine fused chi2 (812)", rps.value(),
+                                   BenchTierSpec::slo_floor("F.affine"), C, T, reps);
             if (!row.ok()) {
                 return row.status();
             }
@@ -797,8 +740,7 @@ private:
             for (std::size_t c = 0; c < C; ++c) {
                 begin[c] = static_cast<std::uint32_t>(c * key_len);
                 for (std::size_t j = 0; j < key_len; ++j) {
-                    keys[c * key_len + j] =
-                        static_cast<std::uint8_t>((c * 3 + j * 7 + 1) % 29);
+                    keys[c * key_len + j] = static_cast<std::uint8_t>((c * 3 + j * 7 + 1) % 29);
                 }
             }
             StatusOr<DeviceBuffer<std::uint8_t>> d_keys =
@@ -824,27 +766,16 @@ private:
                 }
                 StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
                     return FamilyChi2Batch::launch_vigenere_async(
-                        scratch.value().in.data(),
-                        d_keys.value().data(),
-                        d_begin.value().data(),
-                        d_len.value().data(),
-                        scratch.value().probs.data(),
-                        scratch.value().counts.data(),
-                        scratch.value().scores.data(),
-                        C,
-                        T);
+                        scratch.value().in.data(), d_keys.value().data(), d_begin.value().data(),
+                        d_len.value().data(), scratch.value().probs.data(),
+                        scratch.value().counts.data(), scratch.value().scores.data(), C, T);
                 });
                 if (!rps.ok()) {
                     return rps.status();
                 }
-                StatusOr<TierResult> row = make_family_result(
-                    "F.vigenere",
-                    "Vigenere fused chi2 (key=8)",
-                    rps.value(),
-                    BenchTierSpec::slo_floor("F.vigenere"),
-                    C,
-                    T,
-                    reps);
+                StatusOr<TierResult> row =
+                    make_family_result("F.vigenere", "Vigenere fused chi2 (key=8)", rps.value(),
+                                       BenchTierSpec::slo_floor("F.vigenere"), C, T, reps);
                 if (!row.ok()) {
                     return row.status();
                 }
@@ -857,27 +788,16 @@ private:
                 }
                 StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
                     return FamilyChi2Batch::launch_beaufort_async(
-                        scratch.value().in.data(),
-                        d_keys.value().data(),
-                        d_begin.value().data(),
-                        d_len.value().data(),
-                        scratch.value().probs.data(),
-                        scratch.value().counts.data(),
-                        scratch.value().scores.data(),
-                        C,
-                        T);
+                        scratch.value().in.data(), d_keys.value().data(), d_begin.value().data(),
+                        d_len.value().data(), scratch.value().probs.data(),
+                        scratch.value().counts.data(), scratch.value().scores.data(), C, T);
                 });
                 if (!rps.ok()) {
                     return rps.status();
                 }
-                StatusOr<TierResult> row = make_family_result(
-                    "F.beaufort",
-                    "Beaufort fused chi2 (key=8)",
-                    rps.value(),
-                    BenchTierSpec::slo_floor("F.beaufort"),
-                    C,
-                    T,
-                    reps);
+                StatusOr<TierResult> row =
+                    make_family_result("F.beaufort", "Beaufort fused chi2 (key=8)", rps.value(),
+                                       BenchTierSpec::slo_floor("F.beaufort"), C, T, reps);
                 if (!row.ok()) {
                     return row.status();
                 }
@@ -912,26 +832,16 @@ private:
             }
             StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
                 return FamilyChi2Batch::launch_totient_async(
-                    scratch.value().in.data(),
-                    d_shifts.value().data(),
-                    d_begin.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    T);
+                    scratch.value().in.data(), d_shifts.value().data(), d_begin.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, T);
             });
             if (!rps.ok()) {
                 return rps.status();
             }
-            StatusOr<TierResult> row = make_family_result(
-                "F.totient",
-                "Totient stream fused chi2",
-                rps.value(),
-                BenchTierSpec::slo_floor("F.totient"),
-                C,
-                T,
-                reps);
+            StatusOr<TierResult> row =
+                make_family_result("F.totient", "Totient stream fused chi2", rps.value(),
+                                   BenchTierSpec::slo_floor("F.totient"), C, T, reps);
             if (!row.ok()) {
                 return row.status();
             }
@@ -942,8 +852,8 @@ private:
     }
 
     /// Compose recipes (catalog `compose` / Koan-1 atbash→caesar+shift).
-    [[nodiscard]] static StatusOr<std::vector<TierResult>> compose_suite(
-        const ExpectedFrequencyTable& freqs) {
+    [[nodiscard]] static StatusOr<std::vector<TierResult>>
+    compose_suite(const ExpectedFrequencyTable& freqs) {
         std::vector<TierResult> out;
         out.reserve(2);
 
@@ -953,7 +863,7 @@ private:
         const auto host_in = random_stream(T, 0xC0A1u);
 
         std::vector<std::uint8_t> shifts(C);
-        std::vector<std::uint8_t> dirs(C, 1u);  // caesar stage encrypt = +shift
+        std::vector<std::uint8_t> dirs(C, 1u); // caesar stage encrypt = +shift
         for (std::size_t c = 0; c < C; ++c) {
             shifts[c] = static_cast<std::uint8_t>(c);
         }
@@ -962,8 +872,7 @@ private:
         if (!d_shifts.ok()) {
             return d_shifts.status();
         }
-        StatusOr<DeviceBuffer<std::uint8_t>> d_dirs =
-            DeviceBuffer<std::uint8_t>::from_host(dirs);
+        StatusOr<DeviceBuffer<std::uint8_t>> d_dirs = DeviceBuffer<std::uint8_t>::from_host(dirs);
         if (!d_dirs.ok()) {
             return d_dirs.status();
         }
@@ -976,25 +885,16 @@ private:
             }
             StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
                 return FamilyChi2Batch::launch_atbash_caesar_async(
-                    scratch.value().in.data(),
-                    d_shifts.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    T);
+                    scratch.value().in.data(), d_shifts.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, T);
             });
             if (!rps.ok()) {
                 return rps.status();
             }
-            StatusOr<TierResult> row = make_family_result(
-                "C.koan1_fused",
-                "Atbash→Caesar+shift fused",
-                rps.value(),
-                BenchTierSpec::slo_floor("C.koan1_fused"),
-                C,
-                T,
-                reps);
+            StatusOr<TierResult> row =
+                make_family_result("C.koan1_fused", "Atbash→Caesar+shift fused", rps.value(),
+                                   BenchTierSpec::slo_floor("C.koan1_fused"), C, T, reps);
             if (!row.ok()) {
                 return row.status();
             }
@@ -1007,38 +907,27 @@ private:
             if (!scratch.ok()) {
                 return scratch.status();
             }
-            StatusOr<DeviceBuffer<std::uint8_t>> mid =
-                DeviceBuffer<std::uint8_t>::allocate(T);
+            StatusOr<DeviceBuffer<std::uint8_t>> mid = DeviceBuffer<std::uint8_t>::allocate(T);
             if (!mid.ok()) {
                 return mid.status();
             }
             StatusOr<double> rps = timed_rps(scratch.value(), reps, [&]() {
-                Status atb = AtbashKernel::launch_device_async(
-                    scratch.value().in.data(), mid.value().data(), T);
+                Status atb = AtbashKernel::launch_device_async(scratch.value().in.data(),
+                                                               mid.value().data(), T);
                 if (!atb.ok()) {
                     return atb;
                 }
                 return CaesarChi2Batch::launch_async(
-                    mid.value().data(),
-                    d_shifts.value().data(),
-                    d_dirs.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    T);
+                    mid.value().data(), d_shifts.value().data(), d_dirs.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, T);
             });
             if (!rps.ok()) {
                 return rps.status();
             }
-            StatusOr<TierResult> row = make_family_result(
-                "C.koan1_stages",
-                "Atbash kern + Caesar chi2",
-                rps.value(),
-                BenchTierSpec::slo_floor("C.koan1_stages"),
-                C,
-                T,
-                reps);
+            StatusOr<TierResult> row =
+                make_family_result("C.koan1_stages", "Atbash kern + Caesar chi2", rps.value(),
+                                   BenchTierSpec::slo_floor("C.koan1_stages"), C, T, reps);
             if (!row.ok()) {
                 return row.status();
             }
@@ -1049,4 +938,4 @@ private:
     }
 };
 
-#endif  // THROUGHPUT_TIERS_HPP
+#endif // THROUGHPUT_TIERS_HPP

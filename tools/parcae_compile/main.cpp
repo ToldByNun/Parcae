@@ -1,19 +1,18 @@
-#include "cli_io.hpp"
-#include "tool_cli_json.hpp"
-
 #include "parcae/core/version.hpp"
 #include "parcae/dsl/dsl_ast_json_version.hpp"
 #include "parcae/dsl/dsl_compile.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
 
+#include "cli_io.hpp"
+#include "tool_cli_json.hpp"
+
 #include <filesystem>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #ifndef PARCAE_DEFAULT_DATA_DIR
 #define PARCAE_DEFAULT_DATA_DIR ""
@@ -32,28 +31,23 @@ namespace {
 constexpr std::string_view kTool = "compile";
 
 void print_help() {
-    std::cerr
-        << "Usage: parcae-compile --status [--json] [--data-dir <path>]\n"
-        << "       parcae-compile <theory.py> [--json] [--data-dir <path>] "
-           "[--allow-dsl-ignores]\n"
-        << "\n"
-        << "Compile a theory DSL source into a versioned artifact under data/theories/.\n"
-        << "Pipeline: ast_dump → ingest → gate → IR → verify → emit → TheoryArtifact.\n"
-        << "Normative: docs/spec/dsl.md, docs/spec/theory-artifact.md\n"
-        << "\n"
-        << "  --status             Report toolchain / DSL versions (no compile)\n"
-        << "  --json               JSON envelope on stdout (parcae.tool_response.v0)\n"
-        << "  --data-dir           Parcae data/ root (theories land under <data>/theories/)\n"
-        << "  --allow-dsl-ignores  Honor #ignore DSL_FLAG (emits W010; off by default)\n"
-        << "  -h, --help           Show this help\n";
+    std::cerr << "Usage: parcae-compile --status [--json] [--data-dir <path>]\n"
+              << "       parcae-compile <theory.py> [--json] [--data-dir <path>] "
+                 "[--allow-dsl-ignores]\n"
+              << "\n"
+              << "Compile a theory DSL source into a versioned artifact under data/theories/.\n"
+              << "Pipeline: ast_dump → ingest → gate → IR → verify → emit → TheoryArtifact.\n"
+              << "Normative: docs/spec/dsl.md, docs/spec/theory-artifact.md\n"
+              << "\n"
+              << "  --status             Report toolchain / DSL versions (no compile)\n"
+              << "  --json               JSON envelope on stdout (parcae.tool_response.v0)\n"
+              << "  --data-dir           Parcae data/ root (theories land under <data>/theories/)\n"
+              << "  --allow-dsl-ignores  Honor #ignore DSL_FLAG (emits W010; off by default)\n"
+              << "  -h, --help           Show this help\n";
 }
 
-[[nodiscard]] int fail(
-    bool json_mode,
-    ToolErrorCode code,
-    std::string message,
-    int plain_exit,
-    nlohmann::json details = nlohmann::json(nullptr)) {
+[[nodiscard]] int fail(bool json_mode, ToolErrorCode code, std::string message, int plain_exit,
+                       nlohmann::json details = nlohmann::json(nullptr)) {
     if (json_mode) {
         return ToolCliJson::err(kTool, std::nullopt, code, std::move(message), std::move(details));
     }
@@ -84,9 +78,8 @@ void print_help() {
         {"theories_dir", (data_root / "theories").string()},
         {"python_exe", opt.python_exe()},
         {"python_path", opt.python_path()},
-        {"message",
-         ready ? "parcae-compile pipeline ready (ast_dump → IR → verify → artifact)"
-               : "parcae-compile: ast_dump frontend missing; check PARCAE_PYTHON_DIR"},
+        {"message", ready ? "parcae-compile pipeline ready (ast_dump → IR → verify → artifact)"
+                          : "parcae-compile: ast_dump frontend missing; check PARCAE_PYTHON_DIR"},
     };
 }
 
@@ -112,7 +105,7 @@ void print_help() {
     return out;
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
@@ -137,11 +130,7 @@ int main(int argc, char** argv) {
             continue;
         }
         if (!a.empty() && a[0] == '-') {
-            return fail(
-                json_mode,
-                ToolErrorCode::Usage,
-                "Unknown option: " + a,
-                CliIo::kExitUsage);
+            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + a, CliIo::kExitUsage);
         }
     }
 
@@ -153,11 +142,8 @@ int main(int argc, char** argv) {
 
     if (want_status) {
         if (!positionals.empty()) {
-            return fail(
-                json_mode,
-                ToolErrorCode::Usage,
-                "--status does not take a theory path",
-                CliIo::kExitUsage);
+            return fail(json_mode, ToolErrorCode::Usage, "--status does not take a theory path",
+                        CliIo::kExitUsage);
         }
         nlohmann::json result = status_result(data_root);
         if (json_mode) {
@@ -177,8 +163,7 @@ int main(int argc, char** argv) {
     if (positionals.empty()) {
         if (json_mode) {
             return fail(
-                json_mode,
-                ToolErrorCode::Usage,
+                json_mode, ToolErrorCode::Usage,
                 "Usage: parcae-compile --status [--json] | parcae-compile <theory.py> [--json]",
                 CliIo::kExitUsage);
         }
@@ -187,49 +172,38 @@ int main(int argc, char** argv) {
     }
 
     if (positionals.size() != 1) {
-        return fail(
-            json_mode,
-            ToolErrorCode::Usage,
-            "Expected exactly one theory.py path",
-            CliIo::kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage, "Expected exactly one theory.py path",
+                    CliIo::kExitUsage);
     }
 
     const std::filesystem::path theory_path = positionals[0];
     if (!std::filesystem::is_regular_file(theory_path)) {
-        return fail(
-            json_mode,
-            ToolErrorCode::Io,
-            "Theory source is not a readable file: " + theory_path.string(),
-            CliIo::kExitFail,
-            nlohmann::json{{"path", theory_path.string()}});
+        return fail(json_mode, ToolErrorCode::Io,
+                    "Theory source is not a readable file: " + theory_path.string(),
+                    CliIo::kExitFail, nlohmann::json{{"path", theory_path.string()}});
     }
 
     const DslCompile::Options opt = make_compile_options(allow_dsl_ignores);
     if (!DslCompile::pipeline_ready(opt)) {
-        return fail(
-            json_mode,
-            ToolErrorCode::NotBuilt,
-            "parcae-compile: ast_dump frontend not found (PYTHONPATH / PARCAE_PYTHON_DIR)",
-            ToolErrorCodeUtil::exit_status(ToolErrorCode::NotBuilt),
-            nlohmann::json{
-                {"path", theory_path.string()},
-                {"python_path", opt.python_path()},
-                {"pipeline_ready", false},
-            });
+        return fail(json_mode, ToolErrorCode::NotBuilt,
+                    "parcae-compile: ast_dump frontend not found (PYTHONPATH / PARCAE_PYTHON_DIR)",
+                    ToolErrorCodeUtil::exit_status(ToolErrorCode::NotBuilt),
+                    nlohmann::json{
+                        {"path", theory_path.string()},
+                        {"python_path", opt.python_path()},
+                        {"pipeline_ready", false},
+                    });
     }
 
     StatusOr<DslCompile::Result> compiled =
         DslCompile::compile_file(theory_path, data_root / "theories", opt);
     if (!compiled.ok()) {
-        return fail(
-            json_mode,
-            ToolErrorCode::Validation,
-            compiled.status().message(),
-            ToolErrorCodeUtil::exit_status(ToolErrorCode::Validation),
-            nlohmann::json{
-                {"path", theory_path.string()},
-                {"dsl_spec_version", std::string(DslSpecVersion::current_string)},
-            });
+        return fail(json_mode, ToolErrorCode::Validation, compiled.status().message(),
+                    ToolErrorCodeUtil::exit_status(ToolErrorCode::Validation),
+                    nlohmann::json{
+                        {"path", theory_path.string()},
+                        {"dsl_spec_version", std::string(DslSpecVersion::current_string)},
+                    });
     }
 
     for (const DslDiag& w : compiled.value().warnings()) {

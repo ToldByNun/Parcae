@@ -12,13 +12,10 @@
 class Sha256 {
 public:
     [[nodiscard]] static std::string hex_digest(std::string_view data) {
-        return hex_digest(
-            reinterpret_cast<const std::uint8_t*>(data.data()), data.size());
+        return hex_digest(reinterpret_cast<const std::uint8_t*>(data.data()), data.size());
     }
 
-    [[nodiscard]] static std::string hex_digest(
-        const std::uint8_t* data,
-        std::size_t size) {
+    [[nodiscard]] static std::string hex_digest(const std::uint8_t* data, std::size_t size) {
         Hasher hasher;
         hasher.update(data, size);
         const std::array<std::uint8_t, 32> digest = hasher.finalize();
@@ -36,14 +33,8 @@ private:
     public:
         Hasher() {
             state_ = {
-                0x6a09e667u,
-                0xbb67ae85u,
-                0x3c6ef372u,
-                0xa54ff53au,
-                0x510e527fu,
-                0x9b05688cu,
-                0x1f83d9abu,
-                0x5be0cd19u,
+                0x6a09e667u, 0xbb67ae85u, 0x3c6ef372u, 0xa54ff53au,
+                0x510e527fu, 0x9b05688cu, 0x1f83d9abu, 0x5be0cd19u,
             };
         }
 
@@ -116,8 +107,7 @@ private:
             for (std::size_t i = 16; i < 64; ++i) {
                 const std::uint32_t s0 =
                     rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >> 3);
-                const std::uint32_t s1 =
-                    rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >> 10);
+                const std::uint32_t s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >> 10);
                 w[i] = w[i - 16] + s0 + w[i - 7] + s1;
             }
 

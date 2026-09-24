@@ -12,14 +12,13 @@
 #include "parcae/transform/transform_id.hpp"
 
 #include <cstddef>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Bounded generator `gen_beaufort_explicit_keys`.
 ///
@@ -30,11 +29,10 @@ class BeaufortExplicitKeyCandidateGenerator {
 public:
     static constexpr std::string_view generator_id = "gen_beaufort_explicit_keys";
 
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate(
-        std::span<const Index29> ciphertext,
-        const std::vector<ExplicitVigenereKey>& keys,
-        TransformDirection direction = TransformDirection::Decrypt,
-        const InterruptPolicy& interrupt = InterruptPolicy::none()) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    generate(std::span<const Index29> ciphertext, const std::vector<ExplicitVigenereKey>& keys,
+             TransformDirection direction = TransformDirection::Decrypt,
+             const InterruptPolicy& interrupt = InterruptPolicy::none()) {
         if (keys.empty()) {
             return Status::error(
                 "gen_beaufort_explicit_keys requires a non-empty caller-supplied key list");
@@ -52,8 +50,7 @@ public:
         for (std::size_t i = 0; i < keys.size(); ++i) {
             const ExplicitVigenereKey& key = keys[i];
             if (key.key_indices.empty()) {
-                return Status::error(
-                    "gen_beaufort_explicit_keys key_indices must be non-empty");
+                return Status::error("gen_beaufort_explicit_keys key_indices must be non-empty");
             }
 
             StatusOr<nlohmann::json> params = make_params(key);
@@ -67,22 +64,18 @@ public:
                 return plain.status();
             }
 
-            out.emplace_back(
-                make_candidate_id(key.key_indices, i),
-                TransformId::beaufort_key(),
-                direction,
-                std::move(params.value()),
-                std::move(plain.value()),
-                interrupt_json);
+            out.emplace_back(make_candidate_id(key.key_indices, i), TransformId::beaufort_key(),
+                             direction, std::move(params.value()), std::move(plain.value()),
+                             interrupt_json);
         }
         return out;
     }
 
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate(
-        std::span<const Index29> ciphertext,
-        const std::vector<std::vector<Index29>>& key_indices_list,
-        TransformDirection direction = TransformDirection::Decrypt,
-        const InterruptPolicy& interrupt = InterruptPolicy::none()) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    generate(std::span<const Index29> ciphertext,
+             const std::vector<std::vector<Index29>>& key_indices_list,
+             TransformDirection direction = TransformDirection::Decrypt,
+             const InterruptPolicy& interrupt = InterruptPolicy::none()) {
         std::vector<ExplicitVigenereKey> keys;
         keys.reserve(key_indices_list.size());
         for (const std::vector<Index29>& key : key_indices_list) {
@@ -91,9 +84,8 @@ public:
         return generate(ciphertext, keys, direction, interrupt);
     }
 
-    [[nodiscard]] static std::string make_candidate_id(
-        const std::vector<Index29>& key_indices,
-        std::size_t list_index) {
+    [[nodiscard]] static std::string make_candidate_id(const std::vector<Index29>& key_indices,
+                                                       std::size_t list_index) {
         std::string id = "beaufort_key:i=" + std::to_string(list_index) + ":key_indices=";
         for (std::size_t i = 0; i < key_indices.size(); ++i) {
             if (i != 0) {
@@ -121,4 +113,4 @@ private:
     }
 };
 
-#endif  // BEAUFORT_EXPLICIT_KEY_CANDIDATE_GENERATOR_HPP
+#endif // BEAUFORT_EXPLICIT_KEY_CANDIDATE_GENERATOR_HPP

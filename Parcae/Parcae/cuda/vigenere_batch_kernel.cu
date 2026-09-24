@@ -1,7 +1,6 @@
-#include "vigenere_batch_kernel.hpp"
-
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
+#include "vigenere_batch_kernel.hpp"
 #include "z29_device.hpp"
 
 #include <cuda_runtime_api.h>
@@ -10,15 +9,12 @@ namespace {
 
 constexpr int kThreadsPerBlock = 256;
 
-[[nodiscard]] __device__ bool bitmask_should_skip(
-    const std::uint32_t* words,
-    std::size_t index) {
+[[nodiscard]] __device__ bool bitmask_should_skip(const std::uint32_t* words, std::size_t index) {
     return (words[index >> 5] & (1u << (index & 31u))) != 0u;
 }
 
-[[nodiscard]] __device__ std::uint32_t bitmask_consumed_before(
-    const std::uint32_t* words,
-    std::size_t index) {
+[[nodiscard]] __device__ std::uint32_t bitmask_consumed_before(const std::uint32_t* words,
+                                                               std::size_t index) {
     std::uint32_t consumed = 0;
     const std::size_t full_words = index >> 5;
     for (std::size_t w = 0; w < full_words; ++w) {
@@ -32,10 +28,8 @@ constexpr int kThreadsPerBlock = 256;
     return consumed;
 }
 
-[[nodiscard]] __device__ std::uint32_t sorted_skips_before(
-    const std::uint32_t* skips,
-    std::uint32_t skip_count,
-    std::uint32_t index) {
+[[nodiscard]] __device__ std::uint32_t
+sorted_skips_before(const std::uint32_t* skips, std::uint32_t skip_count, std::uint32_t index) {
     std::uint32_t lo = 0;
     std::uint32_t hi = skip_count;
     while (lo < hi) {
@@ -49,10 +43,8 @@ constexpr int kThreadsPerBlock = 256;
     return lo;
 }
 
-[[nodiscard]] __device__ bool sorted_should_skip(
-    const std::uint32_t* skips,
-    std::uint32_t skip_count,
-    std::uint32_t index) {
+[[nodiscard]] __device__ bool sorted_should_skip(const std::uint32_t* skips,
+                                                 std::uint32_t skip_count, std::uint32_t index) {
     std::uint32_t lo = 0;
     std::uint32_t hi = skip_count;
     while (lo < hi) {
@@ -66,18 +58,13 @@ constexpr int kThreadsPerBlock = 256;
     return lo < skip_count && skips[lo] == index;
 }
 
-__global__ void vigenere_batch_shared_kernel(
-    const std::uint8_t* in,
-    const std::uint8_t* key_bytes,
-    const std::uint32_t* key_begin,
-    const std::uint32_t* key_len,
-    const std::uint8_t* directions,
-    std::uint8_t* out,
-    std::size_t candidate_count,
-    std::size_t token_count,
-    const std::uint32_t* interrupt_data,
-    std::uint32_t skip_count,
-    std::uint8_t use_bitmask) {
+__global__ void vigenere_batch_shared_kernel(const std::uint8_t* in, const std::uint8_t* key_bytes,
+                                             const std::uint32_t* key_begin,
+                                             const std::uint32_t* key_len,
+                                             const std::uint8_t* directions, std::uint8_t* out,
+                                             std::size_t candidate_count, std::size_t token_count,
+                                             const std::uint32_t* interrupt_data,
+                                             std::uint32_t skip_count, std::uint8_t use_bitmask) {
     const std::size_t flat =
         static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
         static_cast<std::size_t>(threadIdx.x);
@@ -115,14 +102,12 @@ __global__ void vigenere_batch_shared_kernel(
     }
 }
 
-[[nodiscard]] Status validate_batch(
-    std::size_t candidate_count,
-    std::size_t token_count,
-    std::span<const std::uint8_t> key_bytes,
-    std::span<const std::uint32_t> key_begin,
-    std::span<const std::uint32_t> key_len,
-    std::span<const std::uint8_t> directions,
-    const InterruptDeviceView& interrupts) {
+[[nodiscard]] Status validate_batch(std::size_t candidate_count, std::size_t token_count,
+                                    std::span<const std::uint8_t> key_bytes,
+                                    std::span<const std::uint32_t> key_begin,
+                                    std::span<const std::uint32_t> key_len,
+                                    std::span<const std::uint8_t> directions,
+                                    const InterruptDeviceView& interrupts) {
     if (candidate_count == 0) {
         return Status::error("VigenereBatchKernel: C must be >= 1");
     }
@@ -156,18 +141,13 @@ __global__ void vigenere_batch_shared_kernel(
     return Status::success();
 }
 
-}  // namespace
+} // namespace
 
 Status VigenereBatchKernel::launch_device(
-    const std::uint8_t* device_in,
-    const std::uint8_t* device_key_bytes,
-    const std::uint32_t* device_key_begin,
-    const std::uint32_t* device_key_len,
-    const std::uint8_t* device_directions,
-    std::uint8_t* device_out,
-    std::size_t candidate_count,
-    std::size_t token_count,
-    const InterruptDeviceView& interrupts,
+    const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
+    const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
+    const std::uint8_t* device_directions, std::uint8_t* device_out, std::size_t candidate_count,
+    std::size_t token_count, const InterruptDeviceView& interrupts,
     const std::uint32_t* device_bitmask_or_skips) {
     if (candidate_count == 0) {
         return Status::error("VigenereBatchKernel::launch_device C must be >= 1");
@@ -199,21 +179,11 @@ Status VigenereBatchKernel::launch_device(
         use_bitmask_encoding ? 0u : static_cast<std::uint32_t>(interrupts.sorted_skips().size());
 
     const std::size_t total = candidate_count * token_count;
-    const int blocks = static_cast<int>(
-        (total + static_cast<std::size_t>(kThreadsPerBlock) - 1u) /
-        static_cast<std::size_t>(kThreadsPerBlock));
+    const int blocks = static_cast<int>((total + static_cast<std::size_t>(kThreadsPerBlock) - 1u) /
+                                        static_cast<std::size_t>(kThreadsPerBlock));
     vigenere_batch_shared_kernel<<<blocks, kThreadsPerBlock>>>(
-        device_in,
-        device_key_bytes,
-        device_key_begin,
-        device_key_len,
-        device_directions,
-        device_out,
-        candidate_count,
-        token_count,
-        device_bitmask_or_skips,
-        skip_count,
-        use_bitmask);
+        device_in, device_key_bytes, device_key_begin, device_key_len, device_directions,
+        device_out, candidate_count, token_count, device_bitmask_or_skips, skip_count, use_bitmask);
 
     Status launch = CudaError::to_status(cudaGetLastError(), "VigenereBatchKernel::launch_device");
     if (!launch.ok()) {
@@ -222,19 +192,18 @@ Status VigenereBatchKernel::launch_device(
     return CudaError::to_status(cudaDeviceSynchronize(), "VigenereBatchKernel::launch_device sync");
 }
 
-Status VigenereBatchKernel::apply_host(
-    std::span<const std::uint8_t> shared_in,
-    std::span<const std::uint8_t> key_bytes,
-    std::span<const std::uint32_t> key_begin,
-    std::span<const std::uint32_t> key_len,
-    std::span<const std::uint8_t> directions,
-    std::span<std::uint8_t> out,
-    const InterruptDeviceView& interrupts) {
+Status VigenereBatchKernel::apply_host(std::span<const std::uint8_t> shared_in,
+                                       std::span<const std::uint8_t> key_bytes,
+                                       std::span<const std::uint32_t> key_begin,
+                                       std::span<const std::uint32_t> key_len,
+                                       std::span<const std::uint8_t> directions,
+                                       std::span<std::uint8_t> out,
+                                       const InterruptDeviceView& interrupts) {
     const std::size_t candidate_count = key_begin.size();
     const std::size_t token_count = shared_in.size();
 
-    Status valid = validate_batch(
-        candidate_count, token_count, key_bytes, key_begin, key_len, directions, interrupts);
+    Status valid = validate_batch(candidate_count, token_count, key_bytes, key_begin, key_len,
+                                  directions, interrupts);
     if (!valid.ok()) {
         return valid;
     }
@@ -292,38 +261,24 @@ Status VigenereBatchKernel::apply_host(
     const std::uint32_t* interrupt_ptr =
         device_interrupt.value().empty() ? nullptr : device_interrupt.value().data();
 
-    Status launched = launch_device(
-        device_in.value().data(),
-        device_keys.value().data(),
-        device_begin.value().data(),
-        device_len.value().data(),
-        device_directions.value().data(),
-        device_out.value().data(),
-        candidate_count,
-        token_count,
-        interrupts,
-        interrupt_ptr);
+    Status launched = launch_device(device_in.value().data(), device_keys.value().data(),
+                                    device_begin.value().data(), device_len.value().data(),
+                                    device_directions.value().data(), device_out.value().data(),
+                                    candidate_count, token_count, interrupts, interrupt_ptr);
     if (!launched.ok()) {
         return launched;
     }
     return device_out.value().copy_to_host(out);
 }
 
-Status VigenereBatchKernel::apply_host(
-    CandidateBatchBuffers& buffers,
-    const InterruptDeviceView& interrupts) {
+Status VigenereBatchKernel::apply_host(CandidateBatchBuffers& buffers,
+                                       const InterruptDeviceView& interrupts) {
     if (buffers.token_layout() != CandidateBatchBuffers::TokenLayout::Shared) {
         return Status::error("VigenereBatchKernel requires Shared token layout");
     }
     if (buffers.family() != CudaFamilyId::VigenereKey) {
         return Status::error("VigenereBatchKernel requires VigenereKey family buffers");
     }
-    return apply_host(
-        buffers.token_index29(),
-        buffers.key_bytes(),
-        buffers.key_begin(),
-        buffers.key_len(),
-        buffers.directions(),
-        buffers.out_index29(),
-        interrupts);
+    return apply_host(buffers.token_index29(), buffers.key_bytes(), buffers.key_begin(),
+                      buffers.key_len(), buffers.directions(), buffers.out_index29(), interrupts);
 }

@@ -1,11 +1,10 @@
-#include <catch2/catch_test_macros.hpp>
+#include "parcae/core/index29.hpp"
+#include "parcae/score/self_repeat_rate.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <random>
 #include <vector>
-
-#include "parcae/core/index29.hpp"
-#include "parcae/score/self_repeat_rate.hpp"
 
 #if defined(PARCAE_HAS_CUDA)
 
@@ -87,9 +86,7 @@ TEST_CASE("CUDA self_repeat_rate random parity vs CPU", "[cuda][score][self_repe
 
 #else
 
-TEST_CASE(
-    "CUDA self_repeat_rate skipped (PARCAE_HAS_CUDA unset)",
-    "[cuda][score][self_repeat]") {
+TEST_CASE("CUDA self_repeat_rate skipped (PARCAE_HAS_CUDA unset)", "[cuda][score][self_repeat]") {
     SUCCEED("Build with PARCAE_BUILD_CUDA=ON to exercise SelfRepeatRateScore");
 }
 

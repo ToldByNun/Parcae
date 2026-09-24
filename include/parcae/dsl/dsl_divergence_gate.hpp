@@ -31,17 +31,11 @@ public:
     explicit DslPredicateClass(Kind kind, std::string evidence = {})
         : kind_(kind), evidence_(std::move(evidence)) {}
 
-    [[nodiscard]] Kind kind() const noexcept {
-        return kind_;
-    }
+    [[nodiscard]] Kind kind() const noexcept { return kind_; }
 
-    [[nodiscard]] const std::string& evidence() const noexcept {
-        return evidence_;
-    }
+    [[nodiscard]] const std::string& evidence() const noexcept { return evidence_; }
 
-    [[nodiscard]] bool is_thread_varying() const noexcept {
-        return kind_ == Kind::ThreadVarying;
-    }
+    [[nodiscard]] bool is_thread_varying() const noexcept { return kind_ == Kind::ThreadVarying; }
 
     [[nodiscard]] bool is_relaxed_ok() const noexcept {
         return kind_ == Kind::CompileTimeConstant || kind_ == Kind::LoopInvariant ||
@@ -75,16 +69,11 @@ class DslDivergenceGate {
 public:
     class Report {
     public:
-        explicit Report(std::vector<DslDiag> warnings = {})
-            : warnings_(std::move(warnings)) {}
+        explicit Report(std::vector<DslDiag> warnings = {}) : warnings_(std::move(warnings)) {}
 
-        [[nodiscard]] const std::vector<DslDiag>& warnings() const noexcept {
-            return warnings_;
-        }
+        [[nodiscard]] const std::vector<DslDiag>& warnings() const noexcept { return warnings_; }
 
-        [[nodiscard]] bool empty() const noexcept {
-            return warnings_.empty();
-        }
+        [[nodiscard]] bool empty() const noexcept { return warnings_.empty(); }
 
     private:
         std::vector<DslDiag> warnings_;
@@ -92,28 +81,22 @@ public:
 
     /// Fail-loud on first E033; on success returns W011 warnings (may be empty).
     /// `default_cipher_var` is used when a HotLoop function has no positional args.
-    [[nodiscard]] static StatusOr<Report> check(
-        const DslAstDocument& doc,
-        std::string_view default_cipher_var = "x") {
+    [[nodiscard]] static StatusOr<Report> check(const DslAstDocument& doc,
+                                                std::string_view default_cipher_var = "x") {
         return check(doc, default_cipher_var, nullptr);
     }
 
-    [[nodiscard]] static StatusOr<Report> check(
-        const DslAstDocument& doc,
-        std::string_view default_cipher_var,
-        DslDirectiveTable* directives) {
+    [[nodiscard]] static StatusOr<Report> check(const DslAstDocument& doc,
+                                                std::string_view default_cipher_var,
+                                                DslDirectiveTable* directives) {
         if (!doc.module()) {
-            return DslDiag::make(
-                       DslRuleId::E031_forbidden_construct,
-                       "document has no module AST",
-                       doc.source_path())
+            return DslDiag::make(DslRuleId::E031_forbidden_construct, "document has no module AST",
+                                 doc.source_path())
                 .to_status();
         }
         if (default_cipher_var.empty()) {
-            return DslDiag::make(
-                       DslRuleId::E032_primitive_body,
-                       "default_cipher_var must be non-empty",
-                       doc.source_path())
+            return DslDiag::make(DslRuleId::E032_primitive_body,
+                                 "default_cipher_var must be non-empty", doc.source_path())
                 .to_status();
         }
 
@@ -135,16 +118,14 @@ public:
     }
 
     /// Same as `check` but discards W011 (compile pipelines that only need E033).
-    [[nodiscard]] static Status check_errors_only(
-        const DslAstDocument& doc,
-        std::string_view default_cipher_var = "x") {
+    [[nodiscard]] static Status check_errors_only(const DslAstDocument& doc,
+                                                  std::string_view default_cipher_var = "x") {
         return check_errors_only(doc, default_cipher_var, nullptr);
     }
 
-    [[nodiscard]] static Status check_errors_only(
-        const DslAstDocument& doc,
-        std::string_view default_cipher_var,
-        DslDirectiveTable* directives) {
+    [[nodiscard]] static Status check_errors_only(const DslAstDocument& doc,
+                                                  std::string_view default_cipher_var,
+                                                  DslDirectiveTable* directives) {
         StatusOr<Report> r = check(doc, default_cipher_var, directives);
         if (!r.ok()) {
             return r.status();
@@ -153,9 +134,8 @@ public:
     }
 
     /// Classify an expression AST for divergence policy (testing / BuildIr).
-    [[nodiscard]] static DslPredicateClass classify_expr(
-        const DslAstNode& expr,
-        std::string_view cipher_var) {
+    [[nodiscard]] static DslPredicateClass classify_expr(const DslAstNode& expr,
+                                                         std::string_view cipher_var) {
         return classify_value_node(expr, cipher_var);
     }
 
@@ -206,25 +186,21 @@ private:
         }
         if (a.kind() == DslPredicateClass::Kind::HostFlag ||
             b.kind() == DslPredicateClass::Kind::HostFlag) {
-            return DslPredicateClass{
-                DslPredicateClass::Kind::HostFlag,
-                !a.evidence().empty() ? a.evidence() : b.evidence()};
+            return DslPredicateClass{DslPredicateClass::Kind::HostFlag,
+                                     !a.evidence().empty() ? a.evidence() : b.evidence()};
         }
         if (a.kind() == DslPredicateClass::Kind::LoopInvariant ||
             b.kind() == DslPredicateClass::Kind::LoopInvariant) {
-            return DslPredicateClass{
-                DslPredicateClass::Kind::LoopInvariant,
-                !a.evidence().empty() ? a.evidence() : b.evidence()};
+            return DslPredicateClass{DslPredicateClass::Kind::LoopInvariant,
+                                     !a.evidence().empty() ? a.evidence() : b.evidence()};
         }
         return a;
     }
 
-    [[nodiscard]] static DslPredicateClass classify_name(
-        std::string_view id,
-        std::string_view cipher_var) {
+    [[nodiscard]] static DslPredicateClass classify_name(std::string_view id,
+                                                         std::string_view cipher_var) {
         if (id == cipher_var || is_stream_index_name(id)) {
-            return DslPredicateClass{
-                DslPredicateClass::Kind::ThreadVarying, std::string(id)};
+            return DslPredicateClass{DslPredicateClass::Kind::ThreadVarying, std::string(id)};
         }
         if (is_host_flag_name(id)) {
             return DslPredicateClass{DslPredicateClass::Kind::HostFlag, std::string(id)};
@@ -232,9 +208,8 @@ private:
         return DslPredicateClass{DslPredicateClass::Kind::LoopInvariant, std::string(id)};
     }
 
-    [[nodiscard]] static DslPredicateClass classify_value(
-        const DslAstValue& value,
-        std::string_view cipher_var) {
+    [[nodiscard]] static DslPredicateClass classify_value(const DslAstValue& value,
+                                                          std::string_view cipher_var) {
         switch (value.type()) {
         case DslAstValue::Type::Null:
         case DslAstValue::Type::Bool:
@@ -261,9 +236,8 @@ private:
         return DslPredicateClass{DslPredicateClass::Kind::CompileTimeConstant};
     }
 
-    [[nodiscard]] static DslPredicateClass classify_value_node(
-        const DslAstNode& node,
-        std::string_view cipher_var) {
+    [[nodiscard]] static DslPredicateClass classify_value_node(const DslAstNode& node,
+                                                               std::string_view cipher_var) {
         const std::string& kind = node.kind();
 
         if (kind == "Constant") {
@@ -356,8 +330,8 @@ private:
     }
 
     /// First hot-loop cipher-like positional: skip leading `self` on methods.
-    [[nodiscard]] static std::optional<std::string> first_positional_arg_name(
-        const DslAstNode& fn) {
+    [[nodiscard]] static std::optional<std::string>
+    first_positional_arg_name(const DslAstNode& fn) {
         const DslAstValue* args = fn.find_field("args");
         if (!args || args->type() != DslAstValue::Type::Node || !args->as_node()) {
             return std::nullopt;
@@ -384,17 +358,11 @@ private:
         return std::nullopt;
     }
 
-    [[nodiscard]] static Status check_hotloop_if(
-        const DslAstNode& if_node,
-        GateState& state) {
+    [[nodiscard]] static Status check_hotloop_if(const DslAstNode& if_node, GateState& state) {
         const DslAstValue* test = if_node.find_field("test");
         if (!test || test->type() != DslAstValue::Type::Node || !test->as_node()) {
-            return DslDiag::make(
-                       DslRuleId::E032_primitive_body,
-                       "If missing test expression",
-                       state.source_path,
-                       lineno_of(if_node),
-                       col_of(if_node))
+            return DslDiag::make(DslRuleId::E032_primitive_body, "If missing test expression",
+                                 state.source_path, lineno_of(if_node), col_of(if_node))
                 .to_status();
         }
 
@@ -403,10 +371,8 @@ private:
 
         if (pred.is_thread_varying()) {
             if (state.directives != nullptr &&
-                state.directives->honor(
-                    DslDirectiveTable::flag_divergent_branch,
-                    if_node,
-                    DslRuleId::E033_divergent_branch)) {
+                state.directives->honor(DslDirectiveTable::flag_divergent_branch, if_node,
+                                        DslRuleId::E033_divergent_branch)) {
                 return Status::success();
             }
             std::string msg =
@@ -422,11 +388,8 @@ private:
                 msg += ")";
             }
             return DslDiag::make(
-                       DslRuleId::E033_divergent_branch,
-                       std::move(msg),
-                       state.source_path,
-                       lineno_of(if_node),
-                       col_of(if_node),
+                       DslRuleId::E033_divergent_branch, std::move(msg), state.source_path,
+                       lineno_of(if_node), col_of(if_node),
                        "Prefer Param/host flags, compile-time constants, or Z29Expr Select")
                 .to_status();
         }
@@ -438,26 +401,17 @@ private:
             wmsg += pred.evidence();
             wmsg += ")";
         }
-        state.warnings.push_back(DslDiag::make(
-            DslRuleId::W011_relaxed_branch,
-            std::move(wmsg),
-            state.source_path,
-            lineno_of(if_node),
-            col_of(if_node)));
+        state.warnings.push_back(DslDiag::make(DslRuleId::W011_relaxed_branch, std::move(wmsg),
+                                               state.source_path, lineno_of(if_node),
+                                               col_of(if_node)));
         return Status::success();
     }
 
-    [[nodiscard]] static Status check_hotloop_if_exp(
-        const DslAstNode& ifexp,
-        GateState& state) {
+    [[nodiscard]] static Status check_hotloop_if_exp(const DslAstNode& ifexp, GateState& state) {
         const DslAstValue* test = ifexp.find_field("test");
         if (!test || test->type() != DslAstValue::Type::Node || !test->as_node()) {
-            return DslDiag::make(
-                       DslRuleId::E032_primitive_body,
-                       "IfExp missing test expression",
-                       state.source_path,
-                       lineno_of(ifexp),
-                       col_of(ifexp))
+            return DslDiag::make(DslRuleId::E032_primitive_body, "IfExp missing test expression",
+                                 state.source_path, lineno_of(ifexp), col_of(ifexp))
                 .to_status();
         }
 
@@ -467,20 +421,17 @@ private:
         if (pred.is_thread_varying()) {
             const bool honored =
                 state.directives != nullptr &&
-                (state.directives->honor(
-                     DslDirectiveTable::flag_divergent_branch,
-                     ifexp,
-                     DslRuleId::E033_divergent_branch) ||
+                (state.directives->honor(DslDirectiveTable::flag_divergent_branch, ifexp,
+                                         DslRuleId::E033_divergent_branch) ||
                  (lineno_of(ifexp).has_value() &&
-                  state.directives->honor_at_line(
-                      DslDirectiveTable::flag_divergent_branch,
-                      *lineno_of(ifexp),
-                      DslRuleId::E033_divergent_branch)));
+                  state.directives->honor_at_line(DslDirectiveTable::flag_divergent_branch,
+                                                  *lineno_of(ifexp),
+                                                  DslRuleId::E033_divergent_branch)));
             if (honored) {
                 return Status::success();
             }
-            std::string msg =
-                "HotLoop if-expression depends on rune-varying data; use const/Param flag or Select";
+            std::string msg = "HotLoop if-expression depends on rune-varying data; use const/Param "
+                              "flag or Select";
             if (!pred.evidence().empty()) {
                 msg += " (name '";
                 msg += pred.evidence();
@@ -492,11 +443,8 @@ private:
                 msg += ")";
             }
             return DslDiag::make(
-                       DslRuleId::E033_divergent_branch,
-                       std::move(msg),
-                       state.source_path,
-                       lineno_of(ifexp),
-                       col_of(ifexp),
+                       DslRuleId::E033_divergent_branch, std::move(msg), state.source_path,
+                       lineno_of(ifexp), col_of(ifexp),
                        "Prefer Param/host flags, compile-time constants, or Z29Expr Select")
                 .to_status();
         }
@@ -508,12 +456,8 @@ private:
             wmsg += pred.evidence();
             wmsg += ")";
         }
-        state.warnings.push_back(DslDiag::make(
-            DslRuleId::W011_relaxed_branch,
-            std::move(wmsg),
-            state.source_path,
-            lineno_of(ifexp),
-            col_of(ifexp)));
+        state.warnings.push_back(DslDiag::make(DslRuleId::W011_relaxed_branch, std::move(wmsg),
+                                               state.source_path, lineno_of(ifexp), col_of(ifexp)));
         return Status::success();
     }
 
@@ -556,10 +500,9 @@ private:
                     return st;
                 }
             }
-            state.warnings.insert(
-                state.warnings.end(),
-                std::make_move_iterator(child.warnings.begin()),
-                std::make_move_iterator(child.warnings.end()));
+            state.warnings.insert(state.warnings.end(),
+                                  std::make_move_iterator(child.warnings.begin()),
+                                  std::make_move_iterator(child.warnings.end()));
             return Status::success();
         }
 

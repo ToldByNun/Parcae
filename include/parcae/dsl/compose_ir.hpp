@@ -26,21 +26,14 @@ public:
     class StepParamBinding {
     public:
         StepParamBinding(std::string step_id, std::string param_name, std::string value_ref)
-            : step_id_(std::move(step_id)),
-              param_name_(std::move(param_name)),
+            : step_id_(std::move(step_id)), param_name_(std::move(param_name)),
               value_ref_(std::move(value_ref)) {}
 
-        [[nodiscard]] const std::string& step_id() const noexcept {
-            return step_id_;
-        }
+        [[nodiscard]] const std::string& step_id() const noexcept { return step_id_; }
 
-        [[nodiscard]] const std::string& param_name() const noexcept {
-            return param_name_;
-        }
+        [[nodiscard]] const std::string& param_name() const noexcept { return param_name_; }
 
-        [[nodiscard]] const std::string& value_ref() const noexcept {
-            return value_ref_;
-        }
+        [[nodiscard]] const std::string& value_ref() const noexcept { return value_ref_; }
 
     private:
         std::string step_id_;
@@ -55,56 +48,38 @@ public:
         StageDirection(std::string step_id, TransformDirection direction)
             : step_id_(std::move(step_id)), direction_(direction) {}
 
-        [[nodiscard]] const std::string& step_id() const noexcept {
-            return step_id_;
-        }
+        [[nodiscard]] const std::string& step_id() const noexcept { return step_id_; }
 
-        [[nodiscard]] TransformDirection direction() const noexcept {
-            return direction_;
-        }
+        [[nodiscard]] TransformDirection direction() const noexcept { return direction_; }
 
     private:
         std::string step_id_;
         TransformDirection direction_ = TransformDirection::Decrypt;
     };
 
-    [[nodiscard]] static StatusOr<ComposeIr> make(
-        std::string name,
-        TheoryIr::Tier tier,
-        std::vector<std::string> steps,
-        std::vector<ParamIr> params = {},
-        std::vector<StepParamBinding> step_params = {},
-        std::optional<std::string> structural_claim = std::nullopt,
-        std::string source_path = {},
-        std::optional<int> lineno = std::nullopt,
-        std::optional<int> col = std::nullopt,
-        std::vector<StageDirection> stage_directions = {}) {
+    [[nodiscard]] static StatusOr<ComposeIr>
+    make(std::string name, TheoryIr::Tier tier, std::vector<std::string> steps,
+         std::vector<ParamIr> params = {}, std::vector<StepParamBinding> step_params = {},
+         std::optional<std::string> structural_claim = std::nullopt, std::string source_path = {},
+         std::optional<int> lineno = std::nullopt, std::optional<int> col = std::nullopt,
+         std::vector<StageDirection> stage_directions = {}) {
         if (name.empty()) {
-            return DslDiag::make(
-                       DslRuleId::E032_primitive_body,
-                       "composed theory name must be non-empty",
-                       std::move(source_path),
-                       lineno,
-                       col)
+            return DslDiag::make(DslRuleId::E032_primitive_body,
+                                 "composed theory name must be non-empty", std::move(source_path),
+                                 lineno, col)
                 .to_status();
         }
         if (steps.empty()) {
-            return DslDiag::make(
-                       DslRuleId::E032_primitive_body,
-                       "composed theory '" + name + "' steps must be non-empty",
-                       std::move(source_path),
-                       lineno,
-                       col)
+            return DslDiag::make(DslRuleId::E032_primitive_body,
+                                 "composed theory '" + name + "' steps must be non-empty",
+                                 std::move(source_path), lineno, col)
                 .to_status();
         }
         for (const std::string& step : steps) {
             if (step.empty()) {
-                return DslDiag::make(
-                           DslRuleId::E032_primitive_body,
-                           "composed theory step id must be non-empty",
-                           std::move(source_path),
-                           lineno,
-                           col)
+                return DslDiag::make(DslRuleId::E032_primitive_body,
+                                     "composed theory step id must be non-empty",
+                                     std::move(source_path), lineno, col)
                     .to_status();
             }
         }
@@ -127,21 +102,13 @@ public:
         return ir;
     }
 
-    [[nodiscard]] const std::string& name() const noexcept {
-        return name_;
-    }
+    [[nodiscard]] const std::string& name() const noexcept { return name_; }
 
-    [[nodiscard]] TheoryIr::Tier tier() const noexcept {
-        return tier_;
-    }
+    [[nodiscard]] TheoryIr::Tier tier() const noexcept { return tier_; }
 
-    [[nodiscard]] const std::vector<std::string>& steps() const noexcept {
-        return steps_;
-    }
+    [[nodiscard]] const std::vector<std::string>& steps() const noexcept { return steps_; }
 
-    [[nodiscard]] const std::vector<ParamIr>& params() const noexcept {
-        return params_;
-    }
+    [[nodiscard]] const std::vector<ParamIr>& params() const noexcept { return params_; }
 
     [[nodiscard]] const std::vector<StepParamBinding>& step_params() const noexcept {
         return step_params_;
@@ -182,13 +149,10 @@ public:
             return Status::success();
         }
         if (!structural_claim_.has_value() || structural_claim_->empty()) {
-            return DslDiag::make(
-                       DslRuleId::E013_tier_structural_claim,
-                       std::string("tier ") + TheoryIr::tier_str(tier_) +
-                           " requires structural_claim()",
-                       source_path_,
-                       lineno_,
-                       col_)
+            return DslDiag::make(DslRuleId::E013_tier_structural_claim,
+                                 std::string("tier ") + TheoryIr::tier_str(tier_) +
+                                     " requires structural_claim()",
+                                 source_path_, lineno_, col_)
                 .to_status();
         }
         return Status::success();
@@ -204,33 +168,24 @@ public:
                 }
             }
             if (!step_known) {
-                return DslDiag::make(
-                           DslRuleId::E032_primitive_body,
-                           "step_params references unknown step '" + b.step_id() + "'",
-                           source_path_,
-                           lineno_,
-                           col_)
+                return DslDiag::make(DslRuleId::E032_primitive_body,
+                                     "step_params references unknown step '" + b.step_id() + "'",
+                                     source_path_, lineno_, col_)
                     .to_status();
             }
             if (b.param_name().empty() || b.value_ref().empty()) {
-                return DslDiag::make(
-                           DslRuleId::E032_primitive_body,
-                           "step_params entry missing param_name or value_ref",
-                           source_path_,
-                           lineno_,
-                           col_)
+                return DslDiag::make(DslRuleId::E032_primitive_body,
+                                     "step_params entry missing param_name or value_ref",
+                                     source_path_, lineno_, col_)
                     .to_status();
             }
         }
         for (std::size_t i = 0; i < params_.size(); ++i) {
             for (std::size_t j = i + 1; j < params_.size(); ++j) {
                 if (params_[i].name() == params_[j].name()) {
-                    return DslDiag::make(
-                               DslRuleId::E040_param_domain,
-                               "duplicate param name '" + params_[i].name() + "'",
-                               source_path_,
-                               lineno_,
-                               col_)
+                    return DslDiag::make(DslRuleId::E040_param_domain,
+                                         "duplicate param name '" + params_[i].name() + "'",
+                                         source_path_, lineno_, col_)
                         .to_status();
                 }
             }
@@ -248,12 +203,10 @@ public:
                 }
             }
             if (!step_known) {
-                return DslDiag::make(
-                           DslRuleId::E032_primitive_body,
-                           "stage_directions references unknown step '" + d.step_id() + "'",
-                           source_path_,
-                           lineno_,
-                           col_)
+                return DslDiag::make(DslRuleId::E032_primitive_body,
+                                     "stage_directions references unknown step '" + d.step_id() +
+                                         "'",
+                                     source_path_, lineno_, col_)
                     .to_status();
             }
         }
@@ -261,26 +214,14 @@ public:
     }
 
 private:
-    ComposeIr(
-        std::string name,
-        TheoryIr::Tier tier,
-        std::vector<std::string> steps,
-        std::vector<ParamIr> params,
-        std::vector<StepParamBinding> step_params,
-        std::optional<std::string> structural_claim,
-        std::string source_path,
-        std::optional<int> lineno,
-        std::optional<int> col,
-        std::vector<StageDirection> stage_directions)
-        : name_(std::move(name)),
-          tier_(tier),
-          steps_(std::move(steps)),
-          params_(std::move(params)),
-          step_params_(std::move(step_params)),
-          structural_claim_(std::move(structural_claim)),
-          source_path_(std::move(source_path)),
-          lineno_(lineno),
-          col_(col),
+    ComposeIr(std::string name, TheoryIr::Tier tier, std::vector<std::string> steps,
+              std::vector<ParamIr> params, std::vector<StepParamBinding> step_params,
+              std::optional<std::string> structural_claim, std::string source_path,
+              std::optional<int> lineno, std::optional<int> col,
+              std::vector<StageDirection> stage_directions)
+        : name_(std::move(name)), tier_(tier), steps_(std::move(steps)), params_(std::move(params)),
+          step_params_(std::move(step_params)), structural_claim_(std::move(structural_claim)),
+          source_path_(std::move(source_path)), lineno_(lineno), col_(col),
           stage_directions_(std::move(stage_directions)) {}
 
     std::string name_;

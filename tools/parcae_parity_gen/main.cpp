@@ -1,5 +1,3 @@
-#include "cli_io.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
@@ -14,16 +12,17 @@
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
 
+#include "cli_io.hpp"
+
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <random>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #ifndef PARCAE_DEFAULT_DATA_DIR
 #define PARCAE_DEFAULT_DATA_DIR ""
@@ -32,11 +31,10 @@
 namespace {
 
 void print_help() {
-    std::cerr
-        << "Usage: parcae-parity-gen --out <dir> [--data-dir <data>]\n"
-        << "\n"
-        << "  Write CPU parity goldens (ParityRecord + case + idx29) under --out.\n"
-        << "  Default --out is <data>/parity.\n";
+    std::cerr << "Usage: parcae-parity-gen --out <dir> [--data-dir <data>]\n"
+              << "\n"
+              << "  Write CPU parity goldens (ParityRecord + case + idx29) under --out.\n"
+              << "  Default --out is <data>/parity.\n";
 }
 
 [[nodiscard]] std::vector<Index29> random_indices(std::size_t count, std::uint32_t seed) {
@@ -50,14 +48,14 @@ void print_help() {
     return out;
 }
 
-[[nodiscard]] Status write_bytes(
-    const std::filesystem::path& path,
-    const std::vector<std::uint8_t>& bytes) {
+[[nodiscard]] Status write_bytes(const std::filesystem::path& path,
+                                 const std::vector<std::uint8_t>& bytes) {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     if (!out) {
         return Status::error("Failed to write: " + path.string());
     }
-    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    out.write(reinterpret_cast<const char*>(bytes.data()),
+              static_cast<std::streamsize>(bytes.size()));
     if (!out) {
         return Status::error("Failed while writing: " + path.string());
     }
@@ -72,14 +70,10 @@ void print_help() {
     return bytes;
 }
 
-[[nodiscard]] Status write_golden(
-    const std::filesystem::path& out_dir,
-    const std::string& name,
-    const TransformId& id,
-    const std::vector<Index29>& input,
-    const nlohmann::json& params,
-    TransformDirection direction,
-    const InterruptPolicy& interrupt) {
+[[nodiscard]] Status write_golden(const std::filesystem::path& out_dir, const std::string& name,
+                                  const TransformId& id, const std::vector<Index29>& input,
+                                  const nlohmann::json& params, TransformDirection direction,
+                                  const InterruptPolicy& interrupt) {
     StatusOr<std::pair<std::vector<Index29>, ParityRecord>> captured =
         ParityRecord::apply_and_capture(id, input, params, direction, interrupt, "cpu");
     if (!captured.ok()) {
@@ -122,8 +116,7 @@ void print_help() {
     return write_bytes(out_dir / (name + ".out.idx29"), to_bytes(output));
 }
 
-[[nodiscard]] StatusOr<std::vector<Index29>> a_warning_consumable(
-    const Context& ctx) {
+[[nodiscard]] StatusOr<std::vector<Index29>> a_warning_consumable(const Context& ctx) {
     StatusOr<std::filesystem::path> dir = ctx.resolve_fixture_dir("a-warning");
     if (!dir.ok()) {
         return dir.status();
@@ -196,105 +189,64 @@ int main(int argc, char** argv) {
         Status (*run)(const std::filesystem::path&, const Context&);
     };
 
-    const auto caesar = [](const std::filesystem::path& out,
-                           const Context&) -> Status {
-        return write_golden(
-            out,
-            "caesar-s3-len64",
-            TransformId::caesar(),
-            random_indices(64, 0xA71A001u),
-            nlohmann::json{{"shift", 3}},
-            TransformDirection::Decrypt,
-            InterruptPolicy::none());
+    const auto caesar = [](const std::filesystem::path& out, const Context&) -> Status {
+        return write_golden(out, "caesar-s3-len64", TransformId::caesar(),
+                            random_indices(64, 0xA71A001u), nlohmann::json{{"shift", 3}},
+                            TransformDirection::Decrypt, InterruptPolicy::none());
     };
-    const auto atbash = [](const std::filesystem::path& out,
-                           const Context&) -> Status {
-        return write_golden(
-            out,
-            "atbash-len64",
-            TransformId::atbash(),
-            random_indices(64, 0xA71A002u),
-            nlohmann::json::object(),
-            TransformDirection::Decrypt,
-            InterruptPolicy::none());
+    const auto atbash = [](const std::filesystem::path& out, const Context&) -> Status {
+        return write_golden(out, "atbash-len64", TransformId::atbash(),
+                            random_indices(64, 0xA71A002u), nlohmann::json::object(),
+                            TransformDirection::Decrypt, InterruptPolicy::none());
     };
-    const auto vigenere = [](const std::filesystem::path& out,
-                             const Context&) -> Status {
+    const auto vigenere = [](const std::filesystem::path& out, const Context&) -> Status {
         StatusOr<InterruptPolicy> interrupt =
             InterruptPolicy::from_skip_indices(std::vector<std::size_t>{7, 31});
         if (!interrupt.ok()) {
             return interrupt.status();
         }
-        return write_golden(
-            out,
-            "vigenere-key8-skips2",
-            TransformId::vigenere_key(),
-            random_indices(64, 0xA71A003u),
-            nlohmann::json{{"key_indices", {23, 10, 1, 10, 9, 10, 16, 26}}, {"key_latin", "DIVINITY"}},
-            TransformDirection::Decrypt,
-            interrupt.value());
+        return write_golden(out, "vigenere-key8-skips2", TransformId::vigenere_key(),
+                            random_indices(64, 0xA71A003u),
+                            nlohmann::json{{"key_indices", {23, 10, 1, 10, 9, 10, 16, 26}},
+                                           {"key_latin", "DIVINITY"}},
+                            TransformDirection::Decrypt, interrupt.value());
     };
-    const auto totient = [](const std::filesystem::path& out,
-                            const Context&) -> Status {
+    const auto totient = [](const std::filesystem::path& out, const Context&) -> Status {
         StatusOr<InterruptPolicy> interrupt =
             InterruptPolicy::from_skip_indices(std::vector<std::size_t>{5});
         if (!interrupt.ok()) {
             return interrupt.status();
         }
-        return write_golden(
-            out,
-            "totient-start0-skip1",
-            TransformId::totient_prime_stream(),
-            random_indices(32, 0xA71A004u),
-            nlohmann::json{{"prime_start_index", 0}},
-            TransformDirection::Decrypt,
-            interrupt.value());
+        return write_golden(out, "totient-start0-skip1", TransformId::totient_prime_stream(),
+                            random_indices(32, 0xA71A004u),
+                            nlohmann::json{{"prime_start_index", 0}}, TransformDirection::Decrypt,
+                            interrupt.value());
     };
-    const auto affine = [](const std::filesystem::path& out,
-                           const Context&) -> Status {
-        return write_golden(
-            out,
-            "affine-a2-b5",
-            TransformId::affine(),
-            random_indices(48, 0xA71A005u),
-            nlohmann::json{{"a", 2}, {"b", 5}},
-            TransformDirection::Decrypt,
-            InterruptPolicy::none());
+    const auto affine = [](const std::filesystem::path& out, const Context&) -> Status {
+        return write_golden(out, "affine-a2-b5", TransformId::affine(),
+                            random_indices(48, 0xA71A005u), nlohmann::json{{"a", 2}, {"b", 5}},
+                            TransformDirection::Decrypt, InterruptPolicy::none());
     };
-    const auto compose = [](const std::filesystem::path& out,
-                            const Context&) -> Status {
-        return write_golden(
-            out,
-            "compose-atbash-caesar3",
-            TransformId::compose(),
-            random_indices(40, 0xA71A006u),
-            ComposeTransform::atbash_then_caesar_params(3),
-            TransformDirection::Decrypt,
-            InterruptPolicy::none());
+    const auto compose = [](const std::filesystem::path& out, const Context&) -> Status {
+        return write_golden(out, "compose-atbash-caesar3", TransformId::compose(),
+                            random_indices(40, 0xA71A006u),
+                            ComposeTransform::atbash_then_caesar_params(3),
+                            TransformDirection::Decrypt, InterruptPolicy::none());
     };
-    const auto a_warning = [](const std::filesystem::path& out,
-                              const Context& context) -> Status {
+    const auto a_warning = [](const std::filesystem::path& out, const Context& context) -> Status {
         StatusOr<std::vector<Index29>> input = a_warning_consumable(context);
         if (!input.ok()) {
             return input.status();
         }
-        return write_golden(
-            out,
-            "a-warning-atbash",
-            TransformId::atbash(),
-            input.value(),
-            nlohmann::json::object(),
-            TransformDirection::Decrypt,
-            InterruptPolicy::none());
+        return write_golden(out, "a-warning-atbash", TransformId::atbash(), input.value(),
+                            nlohmann::json::object(), TransformDirection::Decrypt,
+                            InterruptPolicy::none());
     };
 
     const std::vector<Job> jobs{
-        {"caesar-s3-len64", caesar},
-        {"atbash-len64", atbash},
-        {"vigenere-key8-skips2", vigenere},
-        {"totient-start0-skip1", totient},
-        {"affine-a2-b5", affine},
-        {"compose-atbash-caesar3", compose},
+        {"caesar-s3-len64", caesar},        {"atbash-len64", atbash},
+        {"vigenere-key8-skips2", vigenere}, {"totient-start0-skip1", totient},
+        {"affine-a2-b5", affine},           {"compose-atbash-caesar3", compose},
         {"a-warning-atbash", a_warning},
     };
 

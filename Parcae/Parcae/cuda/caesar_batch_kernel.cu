@@ -1,5 +1,4 @@
 #include "caesar_batch_kernel.hpp"
-
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
 
@@ -10,13 +9,9 @@ namespace {
 constexpr int kThreadsPerBlock = 256;
 constexpr std::uint8_t kModulus = 29;
 
-__global__ void caesar_batch_shared_kernel(
-    const std::uint8_t* in,
-    const std::uint8_t* shifts,
-    const std::uint8_t* directions,
-    std::uint8_t* out,
-    std::size_t candidate_count,
-    std::size_t token_count) {
+__global__ void caesar_batch_shared_kernel(const std::uint8_t* in, const std::uint8_t* shifts,
+                                           const std::uint8_t* directions, std::uint8_t* out,
+                                           std::size_t candidate_count, std::size_t token_count) {
     const std::size_t flat =
         static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
         static_cast<std::size_t>(threadIdx.x);
@@ -36,11 +31,9 @@ __global__ void caesar_batch_shared_kernel(
     }
 }
 
-[[nodiscard]] Status validate_batch(
-    std::size_t candidate_count,
-    std::size_t token_count,
-    std::span<const std::uint8_t> shifts,
-    std::span<const std::uint8_t> directions) {
+[[nodiscard]] Status validate_batch(std::size_t candidate_count, std::size_t token_count,
+                                    std::span<const std::uint8_t> shifts,
+                                    std::span<const std::uint8_t> directions) {
     if (candidate_count == 0) {
         return Status::error("CaesarBatchKernel: C must be >= 1");
     }
@@ -67,15 +60,13 @@ __global__ void caesar_batch_shared_kernel(
     return Status::success();
 }
 
-}  // namespace
+} // namespace
 
-Status CaesarBatchKernel::launch_device(
-    const std::uint8_t* device_in,
-    const std::uint8_t* device_shifts,
-    const std::uint8_t* device_directions,
-    std::uint8_t* device_out,
-    std::size_t candidate_count,
-    std::size_t token_count) {
+Status CaesarBatchKernel::launch_device(const std::uint8_t* device_in,
+                                        const std::uint8_t* device_shifts,
+                                        const std::uint8_t* device_directions,
+                                        std::uint8_t* device_out, std::size_t candidate_count,
+                                        std::size_t token_count) {
     if (candidate_count == 0) {
         return Status::error("CaesarBatchKernel::launch_device C must be >= 1");
     }
@@ -88,16 +79,10 @@ Status CaesarBatchKernel::launch_device(
     }
 
     const std::size_t total = candidate_count * token_count;
-    const int blocks = static_cast<int>(
-        (total + static_cast<std::size_t>(kThreadsPerBlock) - 1u) /
-        static_cast<std::size_t>(kThreadsPerBlock));
+    const int blocks = static_cast<int>((total + static_cast<std::size_t>(kThreadsPerBlock) - 1u) /
+                                        static_cast<std::size_t>(kThreadsPerBlock));
     caesar_batch_shared_kernel<<<blocks, kThreadsPerBlock>>>(
-        device_in,
-        device_shifts,
-        device_directions,
-        device_out,
-        candidate_count,
-        token_count);
+        device_in, device_shifts, device_directions, device_out, candidate_count, token_count);
 
     Status launch = CudaError::to_status(cudaGetLastError(), "CaesarBatchKernel::launch_device");
     if (!launch.ok()) {
@@ -106,11 +91,10 @@ Status CaesarBatchKernel::launch_device(
     return CudaError::to_status(cudaDeviceSynchronize(), "CaesarBatchKernel::launch_device sync");
 }
 
-Status CaesarBatchKernel::apply_host(
-    std::span<const std::uint8_t> shared_in,
-    std::span<const std::uint8_t> shifts,
-    std::span<const std::uint8_t> directions,
-    std::span<std::uint8_t> out) {
+Status CaesarBatchKernel::apply_host(std::span<const std::uint8_t> shared_in,
+                                     std::span<const std::uint8_t> shifts,
+                                     std::span<const std::uint8_t> directions,
+                                     std::span<std::uint8_t> out) {
     const std::size_t candidate_count = shifts.size();
     const std::size_t token_count = shared_in.size();
 
@@ -146,13 +130,9 @@ Status CaesarBatchKernel::apply_host(
         return device_out.status();
     }
 
-    Status launched = launch_device(
-        device_in.value().data(),
-        device_shifts.value().data(),
-        device_directions.value().data(),
-        device_out.value().data(),
-        candidate_count,
-        token_count);
+    Status launched = launch_device(device_in.value().data(), device_shifts.value().data(),
+                                    device_directions.value().data(), device_out.value().data(),
+                                    candidate_count, token_count);
     if (!launched.ok()) {
         return launched;
     }
@@ -166,9 +146,6 @@ Status CaesarBatchKernel::apply_host(CandidateBatchBuffers& buffers) {
     if (buffers.family() != CudaFamilyId::Caesar) {
         return Status::error("CaesarBatchKernel requires Caesar family buffers");
     }
-    return apply_host(
-        buffers.token_index29(),
-        buffers.caesar_shifts(),
-        buffers.directions(),
-        buffers.out_index29());
+    return apply_host(buffers.token_index29(), buffers.caesar_shifts(), buffers.directions(),
+                      buffers.out_index29());
 }

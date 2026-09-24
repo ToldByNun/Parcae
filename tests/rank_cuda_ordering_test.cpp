@@ -1,3 +1,6 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cstddef>
+#include <cstdint>
 #include <parcae/batch/batch_execution.hpp>
 #include <parcae/batch/batch_hit.hpp>
 #include <parcae/batch/batch_ordering.hpp>
@@ -14,11 +17,6 @@
 #include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <cstddef>
-#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -41,16 +39,11 @@ namespace {
     return Index29{v};
 }
 
-[[nodiscard]] TransformCandidate make_candidate(
-    std::string id,
-    std::vector<Index29> indices,
-    nlohmann::json params = nlohmann::json::object()) {
+[[nodiscard]] TransformCandidate make_candidate(std::string id, std::vector<Index29> indices,
+                                                nlohmann::json params = nlohmann::json::object()) {
     return TransformCandidate{
-        std::move(id),
-        TransformId::identity(),
-        TransformDirection::Decrypt,
-        std::move(params),
-        std::move(indices),
+        std::move(id),     TransformId::identity(), TransformDirection::Decrypt,
+        std::move(params), std::move(indices),
     };
 }
 
@@ -73,30 +66,18 @@ void require_same_ranking(const BatchResult& cpu, const BatchResult& cuda) {
     }
 }
 
-[[nodiscard]] StatusOr<BatchResult> rank_backend(
-    std::span<const TransformCandidate> candidates,
-    std::string_view score_id,
-    std::size_t k,
-    const Context& ctx,
-    ScoreRequest request,
-    Backend backend) {
-    return RankCandidates::run(
-        candidates,
-        score_id,
-        k,
-        &ctx,
-        request,
-        nlohmann::json::object(),
-        "v0",
-        BatchExecution::Serial,
-        backend);
+[[nodiscard]] StatusOr<BatchResult> rank_backend(std::span<const TransformCandidate> candidates,
+                                                 std::string_view score_id, std::size_t k,
+                                                 const Context& ctx, ScoreRequest request,
+                                                 Backend backend) {
+    return RankCandidates::run(candidates, score_id, k, &ctx, request, nlohmann::json::object(),
+                               "v0", BatchExecution::Serial, backend);
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "RankCandidates CPU ordering contract: Asc χ² and Desc exact_match ties",
-    "[tool][rank][order]") {
+TEST_CASE("RankCandidates CPU ordering contract: Asc χ² and Desc exact_match ties",
+          "[tool][rank][order]") {
     const auto ctx = test_ctx();
 
     // Three identical plaintexts → identical Ic / χ²; order must be by candidate_id.
@@ -107,8 +88,7 @@ TEST_CASE(
         make_candidate("m-mid", plain),
     };
 
-    StatusOr<BatchResult> chi2 =
-        RankCandidates::run(tied, "chi2_english_gp_v0", /*k=*/3, &ctx);
+    StatusOr<BatchResult> chi2 = RankCandidates::run(tied, "chi2_english_gp_v0", /*k=*/3, &ctx);
     REQUIRE(chi2.ok());
     REQUIRE(chi2.value().top().size() == 3);
     require_best_first(chi2.value(), ScoreOrder::Asc);
@@ -120,21 +100,18 @@ TEST_CASE(
 
     ScoreRequest request;
     request.reference = std::span<const Index29>(plain);
-    StatusOr<BatchResult> exact =
-        RankCandidates::run(tied, "exact_match", /*k=*/3, &ctx, request);
+    StatusOr<BatchResult> exact = RankCandidates::run(tied, "exact_match", /*k=*/3, &ctx, request);
     REQUIRE(exact.ok());
     require_best_first(exact.value(), ScoreOrder::Desc);
     REQUIRE(exact.value().top()[0].candidate_id() == "a-first");
     REQUIRE(exact.value().top()[0].score() == 1.0);
 }
 
-TEST_CASE(
-    "RankCandidates CPU Caesar grid ranking is BatchOrdering-stable",
-    "[tool][rank][order]") {
+TEST_CASE("RankCandidates CPU Caesar grid ranking is BatchOrdering-stable", "[tool][rank][order]") {
     const auto ctx = test_ctx();
     const std::vector<Index29> plain = {I(1), I(2), I(3), I(4), I(5), I(10), I(14)};
-    StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-        plain, nlohmann::json{{"shift", 11}}, TransformDirection::Encrypt);
+    StatusOr<std::vector<Index29>> cipher =
+        CaesarTransform{}.apply(plain, nlohmann::json{{"shift", 11}}, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
 
     StatusOr<std::vector<TransformCandidate>> candidates =
@@ -156,17 +133,15 @@ TEST_CASE(
     REQUIRE(chi2.ok());
     require_best_first(chi2.value(), ScoreOrder::Asc);
 
-    StatusOr<BatchResult> ic =
-        RankCandidates::run(candidates.value(), "ic_mod29", /*k=*/5, &ctx);
+    StatusOr<BatchResult> ic = RankCandidates::run(candidates.value(), "ic_mod29", /*k=*/5, &ctx);
     REQUIRE(ic.ok());
     require_best_first(ic.value(), ScoreOrder::Desc);
 }
 
 #if defined(PARCAE_HAS_CUDA)
 
-TEST_CASE(
-    "RankCandidates CUDA/CPU top-k ordering contract (scores + ties)",
-    "[tool][rank][order][cuda]") {
+TEST_CASE("RankCandidates CUDA/CPU top-k ordering contract (scores + ties)",
+          "[tool][rank][order][cuda]") {
     if (!ParcaeCuda::available() || !CudaScore::available()) {
         SKIP("No CUDA device");
     }
@@ -204,12 +179,13 @@ TEST_CASE(
         request.reference = std::span<const Index29>(plain);
 
         for (const char* score_id : {"exact_match", "ic_mod29", "chi2_english_gp_v0"}) {
-            ScoreRequest req = (std::string_view(score_id) == "exact_match") ? request : ScoreRequest{};
+            ScoreRequest req =
+                (std::string_view(score_id) == "exact_match") ? request : ScoreRequest{};
             constexpr std::size_t k = 7;
-            StatusOr<BatchResult> cpu = rank_backend(
-                candidates.value(), score_id, k, ctx, req, Backend::Cpu);
-            StatusOr<BatchResult> cuda = rank_backend(
-                candidates.value(), score_id, k, ctx, req, Backend::Cuda);
+            StatusOr<BatchResult> cpu =
+                rank_backend(candidates.value(), score_id, k, ctx, req, Backend::Cpu);
+            StatusOr<BatchResult> cuda =
+                rank_backend(candidates.value(), score_id, k, ctx, req, Backend::Cuda);
             REQUIRE(cpu.ok());
             REQUIRE(cuda.ok());
             require_same_ranking(cpu.value(), cuda.value());
@@ -236,10 +212,10 @@ TEST_CASE(
             pool.push_back(c);
         }
 
-        StatusOr<BatchResult> cpu = rank_backend(
-            pool, "chi2_english_gp_v0", /*k=*/5, ctx, {}, Backend::Cpu);
-        StatusOr<BatchResult> cuda = rank_backend(
-            pool, "chi2_english_gp_v0", /*k=*/5, ctx, {}, Backend::Cuda);
+        StatusOr<BatchResult> cpu =
+            rank_backend(pool, "chi2_english_gp_v0", /*k=*/5, ctx, {}, Backend::Cpu);
+        StatusOr<BatchResult> cuda =
+            rank_backend(pool, "chi2_english_gp_v0", /*k=*/5, ctx, {}, Backend::Cuda);
         REQUIRE(cpu.ok());
         REQUIRE(cuda.ok());
         require_same_ranking(cpu.value(), cuda.value());
@@ -250,9 +226,8 @@ TEST_CASE(
 
 #else
 
-TEST_CASE(
-    "RankCandidates CUDA/CPU ordering contract skipped (PARCAE_HAS_CUDA unset)",
-    "[tool][rank][order][cuda]") {
+TEST_CASE("RankCandidates CUDA/CPU ordering contract skipped (PARCAE_HAS_CUDA unset)",
+          "[tool][rank][order][cuda]") {
     SUCCEED("PARCAE_HAS_CUDA unset — CPU ordering covered above; CUDA compare not linked");
 }
 

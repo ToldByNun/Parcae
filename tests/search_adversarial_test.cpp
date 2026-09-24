@@ -1,3 +1,7 @@
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include <parcae/core/status_or.hpp>
 #include <parcae/hypothesis/workspace_manifest.hpp>
 #include <parcae/hypothesis/workspace_paths.hpp>
@@ -8,16 +12,9 @@
 #include <parcae/tool/context.hpp>
 #include <parcae/tool/tool_backend.hpp>
 #include <parcae/transform/transform_direction.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <filesystem>
-#include <fstream>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #ifndef PARCAE_TEST_DATA_DIR
 #error "PARCAE_TEST_DATA_DIR must be defined"
@@ -56,45 +53,33 @@ namespace {
     std::filesystem::create_directories(root / "profiles" / "separators", ec);
     std::filesystem::create_directories(root / "fixtures" / "solved" / "a-warning", ec);
 
-    std::filesystem::copy_file(
-        repo_data() / "profiles" / "scores" / "english-gp-expected-v0.json",
-        root / "profiles" / "scores" / "english-gp-expected-v0.json",
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    std::filesystem::copy_file(repo_data() / "profiles" / "scores" / "english-gp-expected-v0.json",
+                               root / "profiles" / "scores" / "english-gp-expected-v0.json",
+                               std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE(!ec);
-    std::filesystem::copy_file(
-        repo_data() / "profiles" / "gematria" / "gematria-primus-v0.json",
-        root / "profiles" / "gematria" / "gematria-primus-v0.json",
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    std::filesystem::copy_file(repo_data() / "profiles" / "gematria" / "gematria-primus-v0.json",
+                               root / "profiles" / "gematria" / "gematria-primus-v0.json",
+                               std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE(!ec);
-    std::filesystem::copy_file(
-        repo_data() / "profiles" / "separators" / "rtkd-separator-grammar-v0.json",
-        root / "profiles" / "separators" / "rtkd-separator-grammar-v0.json",
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    std::filesystem::copy_file(repo_data() / "profiles" / "separators" /
+                                   "rtkd-separator-grammar-v0.json",
+                               root / "profiles" / "separators" / "rtkd-separator-grammar-v0.json",
+                               std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE(!ec);
 
     const auto src_fix = repo_data() / "fixtures" / "solved" / "a-warning";
     const auto dst_fix = root / "fixtures" / "solved" / "a-warning";
-    std::filesystem::copy_file(
-        src_fix / "ciphertext.txt",
-        dst_fix / "ciphertext.txt",
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    std::filesystem::copy_file(src_fix / "ciphertext.txt", dst_fix / "ciphertext.txt",
+                               std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE(!ec);
-    std::filesystem::copy_file(
-        src_fix / "manifest.json",
-        dst_fix / "manifest.json",
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    std::filesystem::copy_file(src_fix / "manifest.json", dst_fix / "manifest.json",
+                               std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE(!ec);
     return root;
 }
 
-[[nodiscard]] StatusOr<WorkspaceManifest> make_fixture_workspace(
-    std::string_view workspace_id,
-    std::string_view utc) {
+[[nodiscard]] StatusOr<WorkspaceManifest> make_fixture_workspace(std::string_view workspace_id,
+                                                                 std::string_view utc) {
     nlohmann::json root{
         {"schema", "parcae.workspace.v0"},
         {"id", std::string(workspace_id)},
@@ -102,21 +87,17 @@ namespace {
         {"updated_utc", std::string(utc)},
         {"title", "l44"},
         {"notes", ""},
-        {"input",
-         {{"kind", "fixture_ciphertext"},
-          {"fixture_id", "a-warning"},
-          {"path", nullptr}}},
+        {"input", {{"kind", "fixture_ciphertext"}, {"fixture_id", "a-warning"}, {"path", nullptr}}},
         {"default_score_id", "chi2_english_gp_v0"},
         {"default_score_version", "v0"},
     };
     return WorkspaceManifest::from_json(root);
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "L44 adversarial SearchJob JSON: types, missing fields, bounds",
-    "[search][adversarial][job]") {
+TEST_CASE("L44 adversarial SearchJob JSON: types, missing fields, bounds",
+          "[search][adversarial][job]") {
     REQUIRE_FALSE(SearchJob::from_json(nlohmann::json()).ok());
     REQUIRE_FALSE(SearchJob::from_json(nlohmann::json::array()).ok());
     REQUIRE_FALSE(SearchJob::from_json(nlohmann::json("string")).ok());
@@ -124,14 +105,7 @@ TEST_CASE(
     REQUIRE_FALSE(SearchJob::parse("[]").ok());
 
     const std::vector<std::string> required = {
-        "schema",
-        "workspace_id",
-        "family",
-        "score_id",
-        "k",
-        "seed",
-        "backend",
-        "max_candidates",
+        "schema", "workspace_id", "family", "score_id", "k", "seed", "backend", "max_candidates",
     };
     for (const std::string& key : required) {
         nlohmann::json j = valid_job_json();
@@ -171,7 +145,7 @@ TEST_CASE(
     }
     {
         nlohmann::json j = valid_job_json();
-        j["seed"] = 0x100000000ll;  // > uint32
+        j["seed"] = 0x100000000ll; // > uint32
         REQUIRE_FALSE(SearchJob::from_json(j).ok());
     }
     {
@@ -245,22 +219,11 @@ TEST_CASE(
     }
 }
 
-TEST_CASE(
-    "L44 adversarial workspace_id / path-like ids reject",
-    "[search][adversarial][path]") {
+TEST_CASE("L44 adversarial workspace_id / path-like ids reject", "[search][adversarial][path]") {
     const std::vector<std::string> bad_ids = {
-        "",
-        "..",
-        "../x",
-        "foo/bar",
-        "foo\\bar",
-        "Foo",
-        "9bad",
-        "has space",
-        "has.dot",
-        std::string(65, 'a'),
-        "c:",
-        "~home",
+        "",    "..",    "../x",      "foo/bar", "foo\\bar",
+        "Foo", "9bad",  "has space", "has.dot", std::string(65, 'a'),
+        "c:",  "~home",
     };
     for (const std::string& id : bad_ids) {
         REQUIRE_FALSE(WorkspacePaths::validate_id(id).ok());
@@ -275,15 +238,12 @@ TEST_CASE(
     std::filesystem::remove_all(tmp, ec);
     std::filesystem::create_directories(tmp / "safe", ec);
 
-    REQUIRE_FALSE(
-        WorkspacePaths::resolve_under(tmp / "safe", "../outside.txt").ok());
+    REQUIRE_FALSE(WorkspacePaths::resolve_under(tmp / "safe", "../outside.txt").ok());
     REQUIRE_FALSE(WorkspacePaths::resolve_under(tmp / "safe", "/etc/passwd").ok());
 #if defined(_WIN32)
-    REQUIRE_FALSE(
-        WorkspacePaths::resolve_under(tmp / "safe", "C:\\Windows\\System32").ok());
+    REQUIRE_FALSE(WorkspacePaths::resolve_under(tmp / "safe", "C:\\Windows\\System32").ok());
 #endif
-    REQUIRE_FALSE(
-        WorkspacePaths::resolve_under(tmp / "safe", "a/../../outside.txt").ok());
+    REQUIRE_FALSE(WorkspacePaths::resolve_under(tmp / "safe", "a/../../outside.txt").ok());
 
     // Absolute ciphertext path via workspace_file kind.
     StatusOr<WorkspaceManifest> base =
@@ -316,24 +276,16 @@ TEST_CASE(
     std::filesystem::remove_all(tmp, ec);
 }
 
-TEST_CASE(
-    "L44 caps: max_candidates enforced on export and scheduler",
-    "[search][adversarial][caps]") {
+TEST_CASE("L44 caps: max_candidates enforced on export and scheduler",
+          "[search][adversarial][caps]") {
     const auto data = make_sandbox("parcae_l44_caps");
-    StatusOr<WorkspaceManifest> ws =
-        make_fixture_workspace("l44_caps", "2026-09-23T06:00:00Z");
+    StatusOr<WorkspaceManifest> ws = make_fixture_workspace("l44_caps", "2026-09-23T06:00:00Z");
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(data).ok());
 
     // Caesar expands to 29 shifts — max_candidates=10 must fail loudly.
-    StatusOr<SearchJob> tight = SearchJob::make(
-        "l44_caps",
-        "caesar",
-        "chi2_english_gp_v0",
-        5,
-        1,
-        Backend::Cpu,
-        10);
+    StatusOr<SearchJob> tight =
+        SearchJob::make("l44_caps", "caesar", "chi2_english_gp_v0", 5, 1, Backend::Cpu, 10);
     REQUIRE(tight.ok());
 
     const Context ctx(data);
@@ -355,14 +307,8 @@ TEST_CASE(
     REQUIRE(cycle.status().message().find("max_candidates") != std::string::npos);
 
     // Same job with a sufficient cap succeeds.
-    StatusOr<SearchJob> ok_job = SearchJob::make(
-        "l44_caps",
-        "caesar",
-        "chi2_english_gp_v0",
-        5,
-        1,
-        Backend::Cpu,
-        29);
+    StatusOr<SearchJob> ok_job =
+        SearchJob::make("l44_caps", "caesar", "chi2_english_gp_v0", 5, 1, Backend::Cpu, 29);
     REQUIRE(ok_job.ok());
     opts.batch_id = "b_l44_caps_ok";
     StatusOr<SearchScheduler::CycleResult> ok_cycle =
@@ -374,9 +320,7 @@ TEST_CASE(
     std::filesystem::remove_all(data, ec);
 }
 
-TEST_CASE(
-    "L44 theory param_grid adversarial shapes",
-    "[search][adversarial][job][theory]") {
+TEST_CASE("L44 theory param_grid adversarial shapes", "[search][adversarial][job][theory]") {
     {
         nlohmann::json j = valid_job_json();
         j["family"] = "theory";

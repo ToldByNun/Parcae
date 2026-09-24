@@ -10,9 +10,12 @@
 #include "parcae/core/index29.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
+#include "parcae/dsl/theory_dispatch.hpp"
+#include "parcae/dsl/theory_envelope_bridge.hpp"
+#include "parcae/dsl/theory_uri.hpp"
 #include "parcae/generate/affine_candidate_generator.hpp"
-#include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
+#include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
 #include "parcae/generate/compose_recipe_candidate_generator.hpp"
@@ -23,9 +26,6 @@
 #include "parcae/search/gpu_candidate_export.hpp"
 #include "parcae/search/search_job.hpp"
 #include "parcae/search/search_prior.hpp"
-#include "parcae/dsl/theory_dispatch.hpp"
-#include "parcae/dsl/theory_envelope_bridge.hpp"
-#include "parcae/dsl/theory_uri.hpp"
 #include "parcae/tool/api.hpp"
 #include "parcae/tool/context.hpp"
 #include "parcae/tool/generate_candidates.hpp"
@@ -39,14 +39,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// CPU export: expand via `GeneratorRegistry`, apply `SearchPrior`, rank top-k
 /// (`search-loop.md`). Wire shape matches `GpuCandidateExport::Result`.
@@ -59,12 +58,10 @@ public:
     using Row = GpuCandidateExport::Row;
     using Result = GpuCandidateExport::Result;
 
-    [[nodiscard]] static StatusOr<Result> from_job(
-        std::span<const Index29> cipher,
-        const SearchJob& job,
-        const Context& ctx,
-        const SearchPrior* prior = nullptr,
-        BatchRunner::Progress progress = BatchRunner::Progress{}) {
+    [[nodiscard]] static StatusOr<Result>
+    from_job(std::span<const Index29> cipher, const SearchJob& job, const Context& ctx,
+             const SearchPrior* prior = nullptr,
+             BatchRunner::Progress progress = BatchRunner::Progress{}) {
         std::optional<SearchPrior> owned_prior;
         const SearchPrior* prior_ptr = prior;
         if (prior_ptr == nullptr && job.prior().has_value() && job.prior()->is_object()) {
@@ -76,30 +73,17 @@ public:
             prior_ptr = &owned_prior.value();
         }
 
-        return run(
-            cipher,
-            job.family(),
-            job.score_id(),
-            job.k(),
-            ctx,
-            job.direction(),
-            job.param_grid(),
-            prior_ptr,
-            job.score_version(),
-            job.max_candidates(),
-            progress);
+        return run(cipher, job.family(), job.score_id(), job.k(), ctx, job.direction(),
+                   job.param_grid(), prior_ptr, job.score_version(), job.max_candidates(),
+                   progress);
     }
 
-    [[nodiscard]] static StatusOr<Result> run(
-        std::span<const Index29> cipher,
-        std::string_view family,
-        std::string_view score_id,
-        std::size_t k,
-        const Context& ctx,
+    [[nodiscard]] static StatusOr<Result>
+    run(std::span<const Index29> cipher, std::string_view family, std::string_view score_id,
+        std::size_t k, const Context& ctx,
         TransformDirection direction = TransformDirection::Decrypt,
         const nlohmann::json& param_grid = nlohmann::json::object(),
-        const SearchPrior* prior = nullptr,
-        std::string_view score_version = "v0",
+        const SearchPrior* prior = nullptr, std::string_view score_version = "v0",
         std::size_t max_candidates = SIZE_MAX,
         BatchRunner::Progress progress = BatchRunner::Progress{}) {
         if (cipher.empty()) {
@@ -120,12 +104,8 @@ public:
         }
 
         std::vector<TransformCandidate> candidates = std::move(generated.value());
-        emit_stage(
-            progress.sink,
-            "expand",
-            candidates.size(),
-            candidates.size(),
-            progress.rune_count);
+        emit_stage(progress.sink, "expand", candidates.size(), candidates.size(),
+                   progress.rune_count);
 
         if (prior != nullptr) {
             Status filter = filter_exclusions(candidates, *prior);
@@ -138,34 +118,21 @@ public:
                 return merged.status();
             }
             candidates = std::move(merged.value());
-            emit_stage(
-                progress.sink,
-                "filter",
-                candidates.size(),
-                candidates.size(),
-                progress.rune_count);
+            emit_stage(progress.sink, "filter", candidates.size(), candidates.size(),
+                       progress.rune_count);
         }
 
         if (candidates.empty()) {
             return Status::error("CpuCandidateExport: no candidates after prior filters");
         }
         if (candidates.size() > max_candidates) {
-            return Status::error(
-                "CpuCandidateExport: candidate expansion exceeds max_candidates");
+            return Status::error("CpuCandidateExport: candidate expansion exceeds max_candidates");
         }
 
         const std::size_t effective_k = std::min(k, candidates.size());
         StatusOr<BatchResult> ranked = RankCandidates::run(
-            candidates,
-            score_id,
-            effective_k,
-            &ctx,
-            {},
-            nlohmann::json::object(),
-            score_version,
-            BatchExecution::Serial,
-            Backend::Cpu,
-            progress);
+            candidates, score_id, effective_k, &ctx, {}, nlohmann::json::object(), score_version,
+            BatchExecution::Serial, Backend::Cpu, progress);
         if (!ranked.ok()) {
             return ranked.status();
         }
@@ -173,8 +140,8 @@ public:
         return rows_from_batch(ranked.value(), candidates, Backend::Cpu);
     }
 
-    [[nodiscard]] static StatusOr<std::string_view> generator_id_for_family(
-        std::string_view family) {
+    [[nodiscard]] static StatusOr<std::string_view>
+    generator_id_for_family(std::string_view family) {
         if (family == "caesar") {
             return CaesarCandidateGenerator::generator_id;
         }
@@ -210,9 +177,8 @@ public:
     /// Compose: empty → Atbash∘Caesar 29; or recipes / stages / template (passed through).
     /// Theory: `theory_uri` + `params_list` (passed through).
     /// Other families ignore `param_grid` (family default enumeration).
-    [[nodiscard]] static StatusOr<nlohmann::json> generator_params_for_family(
-        std::string_view family,
-        const nlohmann::json& param_grid) {
+    [[nodiscard]] static StatusOr<nlohmann::json>
+    generator_params_for_family(std::string_view family, const nlohmann::json& param_grid) {
         if (family == "vigenere" || family == "beaufort") {
             return keyed_family_params(param_grid);
         }
@@ -231,12 +197,8 @@ public:
 private:
     CpuCandidateExport() = delete;
 
-    static void emit_stage(
-        ConsoleProgressSink* sink,
-        std::string_view stage,
-        std::size_t done,
-        std::size_t total,
-        std::size_t rune_count) {
+    static void emit_stage(ConsoleProgressSink* sink, std::string_view stage, std::size_t done,
+                           std::size_t total, std::size_t rune_count) {
         if (sink == nullptr) {
             return;
         }
@@ -248,30 +210,23 @@ private:
         sink->on_stage(stage, snap);
     }
 
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> expand_family(
-        std::span<const Index29> cipher,
-        std::string_view family,
-        TransformDirection direction,
-        const nlohmann::json& param_grid,
-        const Context& ctx) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    expand_family(std::span<const Index29> cipher, std::string_view family,
+                  TransformDirection direction, const nlohmann::json& param_grid,
+                  const Context& ctx) {
         if (family == "theory") {
             StatusOr<nlohmann::json> gen_params = theory_family_params(param_grid);
             if (!gen_params.ok()) {
                 return gen_params.status();
             }
-            const std::string theory_uri =
-                gen_params.value().at("theory_uri").get<std::string>();
+            const std::string theory_uri = gen_params.value().at("theory_uri").get<std::string>();
             std::vector<nlohmann::json> params_list;
             params_list.reserve(gen_params.value().at("params_list").size());
             for (const auto& item : gen_params.value().at("params_list")) {
                 params_list.push_back(item);
             }
             return TheoryExplicitParamsCandidateGenerator::generate(
-                cipher,
-                ctx.data_root() / "theories",
-                theory_uri,
-                params_list,
-                direction);
+                cipher, ctx.data_root() / "theories", theory_uri, params_list, direction);
         }
 
         StatusOr<std::string_view> generator_id = generator_id_for_family(family);
@@ -284,19 +239,18 @@ private:
             return gen_params.status();
         }
 
-        return GenerateCandidates::from_indices(
-            generator_id.value(), cipher, direction, gen_params.value());
+        return GenerateCandidates::from_indices(generator_id.value(), cipher, direction,
+                                                gen_params.value());
     }
 
-    [[nodiscard]] static StatusOr<nlohmann::json> compose_family_params(
-        const nlohmann::json& param_grid) {
+    [[nodiscard]] static StatusOr<nlohmann::json>
+    compose_family_params(const nlohmann::json& param_grid) {
         // Validate resolve; pass grid through so GeneratorRegistry can expand.
         StatusOr<std::vector<nlohmann::json>> recipes =
             ComposeRecipeCandidateGenerator::recipes_from_param_grid(
                 param_grid.is_null() ? nlohmann::json::object() : param_grid);
         if (!recipes.ok()) {
-            return Status::error(
-                std::string("CpuCandidateExport: ") + recipes.status().message());
+            return Status::error(std::string("CpuCandidateExport: ") + recipes.status().message());
         }
         if (param_grid.is_null() || (param_grid.is_object() && param_grid.empty())) {
             return nlohmann::json::object();
@@ -304,21 +258,19 @@ private:
         return param_grid;
     }
 
-    [[nodiscard]] static StatusOr<nlohmann::json> theory_family_params(
-        const nlohmann::json& param_grid) {
+    [[nodiscard]] static StatusOr<nlohmann::json>
+    theory_family_params(const nlohmann::json& param_grid) {
         Status ok = SearchJob::validate_theory_param_grid(
             param_grid.is_null() ? nlohmann::json::object() : param_grid);
         if (!ok.ok()) {
-            return Status::error(
-                std::string("CpuCandidateExport: ") + ok.message());
+            return Status::error(std::string("CpuCandidateExport: ") + ok.message());
         }
-        return nlohmann::json{
-            {"theory_uri", param_grid.at("theory_uri")},
-            {"params_list", param_grid.at("params_list")}};
+        return nlohmann::json{{"theory_uri", param_grid.at("theory_uri")},
+                              {"params_list", param_grid.at("params_list")}};
     }
 
-    [[nodiscard]] static StatusOr<nlohmann::json> keyed_family_params(
-        const nlohmann::json& param_grid) {
+    [[nodiscard]] static StatusOr<nlohmann::json>
+    keyed_family_params(const nlohmann::json& param_grid) {
         if (param_grid.is_object() && !param_grid.empty()) {
             if (param_grid.contains("key_indices_list") || param_grid.contains("keys")) {
                 return param_grid;
@@ -353,15 +305,14 @@ private:
         return key_indices_list_json(keys.value());
     }
 
-    [[nodiscard]] static StatusOr<nlohmann::json> totient_family_params(
-        const nlohmann::json& param_grid) {
+    [[nodiscard]] static StatusOr<nlohmann::json>
+    totient_family_params(const nlohmann::json& param_grid) {
         if (param_grid.is_object() && param_grid.contains("prime_start_indices")) {
             if (!param_grid.at("prime_start_indices").is_array()) {
                 return Status::error(
                     "CpuCandidateExport: param_grid.prime_start_indices must be an array");
             }
-            return nlohmann::json{
-                {"prime_start_indices", param_grid.at("prime_start_indices")}};
+            return nlohmann::json{{"prime_start_indices", param_grid.at("prime_start_indices")}};
         }
         std::size_t count = GpuCandidateExport::default_totient_start_count;
         if (param_grid.is_object() && param_grid.contains("prime_start_count")) {
@@ -388,8 +339,8 @@ private:
         return nlohmann::json{{"prime_start_indices", std::move(list)}};
     }
 
-    [[nodiscard]] static nlohmann::json key_indices_list_json(
-        const std::vector<std::vector<Index29>>& keys) {
+    [[nodiscard]] static nlohmann::json
+    key_indices_list_json(const std::vector<std::vector<Index29>>& keys) {
         nlohmann::json list = nlohmann::json::array();
         for (const std::vector<Index29>& key : keys) {
             nlohmann::json row = nlohmann::json::array();
@@ -401,20 +352,18 @@ private:
         return nlohmann::json{{"key_indices_list", std::move(list)}};
     }
 
-    [[nodiscard]] static Status filter_exclusions(
-        std::vector<TransformCandidate>& candidates,
-        const SearchPrior& prior) {
-        const auto end = std::remove_if(
-            candidates.begin(),
-            candidates.end(),
-            [&](const TransformCandidate& c) { return prior.excludes_envelope(c.envelope()); });
+    [[nodiscard]] static Status filter_exclusions(std::vector<TransformCandidate>& candidates,
+                                                  const SearchPrior& prior) {
+        const auto end =
+            std::remove_if(candidates.begin(), candidates.end(), [&](const TransformCandidate& c) {
+                return prior.excludes_envelope(c.envelope());
+            });
         candidates.erase(end, candidates.end());
         return Status::success();
     }
 
-    [[nodiscard]] static bool has_matching_params(
-        const std::vector<TransformCandidate>& candidates,
-        const nlohmann::json& params) {
+    [[nodiscard]] static bool has_matching_params(const std::vector<TransformCandidate>& candidates,
+                                                  const nlohmann::json& params) {
         for (const TransformCandidate& c : candidates) {
             if (c.params() == params) {
                 return true;
@@ -423,12 +372,10 @@ private:
         return false;
     }
 
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> merge_seeds(
-        std::span<const Index29> cipher,
-        TransformDirection job_direction,
-        std::vector<TransformCandidate> candidates,
-        const SearchPrior& prior,
-        const std::filesystem::path& theories_root) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    merge_seeds(std::span<const Index29> cipher, TransformDirection job_direction,
+                std::vector<TransformCandidate> candidates, const SearchPrior& prior,
+                const std::filesystem::path& theories_root) {
         for (const SearchPrior::Seed& seed : prior.seeds()) {
             StatusOr<TransformCandidate> materialized =
                 candidate_from_seed(cipher, seed, job_direction, theories_root);
@@ -443,16 +390,14 @@ private:
         return candidates;
     }
 
-    [[nodiscard]] static StatusOr<TransformCandidate> candidate_from_seed(
-        std::span<const Index29> cipher,
-        const SearchPrior::Seed& seed,
-        TransformDirection job_direction,
-        const std::filesystem::path& theories_root) {
+    [[nodiscard]] static StatusOr<TransformCandidate>
+    candidate_from_seed(std::span<const Index29> cipher, const SearchPrior::Seed& seed,
+                        TransformDirection job_direction,
+                        const std::filesystem::path& theories_root) {
         if (!seed.envelope().is_object()) {
             return Status::error("CpuCandidateExport: seed envelope must be an object");
         }
-        StatusOr<TransformEnvelope> parsed =
-            TransformEnvelope::from_json(seed.envelope());
+        StatusOr<TransformEnvelope> parsed = TransformEnvelope::from_json(seed.envelope());
         if (!parsed.ok()) {
             return parsed.status();
         }
@@ -468,51 +413,38 @@ private:
 
         StatusOr<TheoryUri> theory_uri = TheoryUri::parse(envelope.transform_id().str());
         if (theory_uri.ok()) {
-            TheoryEnvelopeBridge::Envelope theory_env{
-                TheoryEnvelopeBridge::Kind::Theory,
-                theory_uri.value().to_string(),
-                job_direction,
-                envelope.params(),
-                envelope.interrupt(),
-                theory_uri.value()};
+            TheoryEnvelopeBridge::Envelope theory_env{TheoryEnvelopeBridge::Kind::Theory,
+                                                      theory_uri.value().to_string(),
+                                                      job_direction,
+                                                      envelope.params(),
+                                                      envelope.interrupt(),
+                                                      theory_uri.value()};
             StatusOr<std::vector<Index29>> plain =
                 TheoryDispatch::apply(theories_root, theory_env, cipher);
             if (!plain.ok()) {
                 return plain.status();
             }
             return TransformCandidate(
-                candidate_id,
-                TransformId::unchecked(theory_uri.value().to_string()),
-                job_direction,
-                envelope.params(),
-                std::move(plain.value()),
-                std::move(interrupt));
+                candidate_id, TransformId::unchecked(theory_uri.value().to_string()), job_direction,
+                envelope.params(), std::move(plain.value()), std::move(interrupt));
         }
 
-        const TransformEnvelope call(
-            envelope.transform_id(),
-            job_direction,
-            envelope.params(),
-            envelope.interrupt());
+        const TransformEnvelope call(envelope.transform_id(), job_direction, envelope.params(),
+                                     envelope.interrupt());
         StatusOr<std::vector<Index29>> plain =
             ToolApi::apply_to_indices(cipher, call, Backend::Cpu);
         if (!plain.ok()) {
             return plain.status();
         }
 
-        return TransformCandidate(
-            candidate_id,
-            envelope.transform_id(),
-            job_direction,
-            envelope.params(),
-            std::move(plain.value()),
-            std::move(interrupt));
+        return TransformCandidate(candidate_id, envelope.transform_id(), job_direction,
+                                  envelope.params(), std::move(plain.value()),
+                                  std::move(interrupt));
     }
 
-    [[nodiscard]] static StatusOr<Result> rows_from_batch(
-        const BatchResult& batch,
-        std::span<const TransformCandidate> candidates,
-        Backend backend) {
+    [[nodiscard]] static StatusOr<Result>
+    rows_from_batch(const BatchResult& batch, std::span<const TransformCandidate> candidates,
+                    Backend backend) {
         std::vector<Row> rows;
         rows.reserve(batch.top().size());
         for (std::size_t rank = 0; rank < batch.top().size(); ++rank) {
@@ -531,4 +463,4 @@ private:
     }
 };
 
-#endif  // CPU_CANDIDATE_EXPORT_HPP
+#endif // CPU_CANDIDATE_EXPORT_HPP

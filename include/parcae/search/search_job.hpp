@@ -15,14 +15,13 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Workspace search request (`parcae.search_job.v0` — docs/spec/search-loop.md).
 class SearchJob {
@@ -31,61 +30,35 @@ public:
 
     SearchJob() = default;
 
-    [[nodiscard]] const std::string& workspace_id() const noexcept {
-        return workspace_id_;
-    }
+    [[nodiscard]] const std::string& workspace_id() const noexcept { return workspace_id_; }
 
-    [[nodiscard]] const std::string& family() const noexcept {
-        return family_;
-    }
+    [[nodiscard]] const std::string& family() const noexcept { return family_; }
 
-    [[nodiscard]] const std::string& score_id() const noexcept {
-        return score_id_;
-    }
+    [[nodiscard]] const std::string& score_id() const noexcept { return score_id_; }
 
-    [[nodiscard]] const std::string& score_version() const noexcept {
-        return score_version_;
-    }
+    [[nodiscard]] const std::string& score_version() const noexcept { return score_version_; }
 
-    [[nodiscard]] std::size_t k() const noexcept {
-        return k_;
-    }
+    [[nodiscard]] std::size_t k() const noexcept { return k_; }
 
-    [[nodiscard]] std::uint32_t seed() const noexcept {
-        return seed_;
-    }
+    [[nodiscard]] std::uint32_t seed() const noexcept { return seed_; }
 
-    [[nodiscard]] Backend backend() const noexcept {
-        return backend_;
-    }
+    [[nodiscard]] Backend backend() const noexcept { return backend_; }
 
-    [[nodiscard]] std::size_t max_candidates() const noexcept {
-        return max_candidates_;
-    }
+    [[nodiscard]] std::size_t max_candidates() const noexcept { return max_candidates_; }
 
-    [[nodiscard]] TransformDirection direction() const noexcept {
-        return direction_;
-    }
+    [[nodiscard]] TransformDirection direction() const noexcept { return direction_; }
 
     /// Family-specific bounds; empty object means “use family defaults”.
-    [[nodiscard]] const nlohmann::json& param_grid() const noexcept {
-        return param_grid_;
-    }
+    [[nodiscard]] const nlohmann::json& param_grid() const noexcept { return param_grid_; }
 
     /// Inline `parcae.search_prior.v0` when present; otherwise nullopt (load from workspace).
-    [[nodiscard]] const std::optional<nlohmann::json>& prior() const noexcept {
-        return prior_;
-    }
+    [[nodiscard]] const std::optional<nlohmann::json>& prior() const noexcept { return prior_; }
 
     /// When true, `beaufort` / `totient` families are accepted (opt-in).
-    [[nodiscard]] bool allow_extended_families() const noexcept {
-        return allow_extended_families_;
-    }
+    [[nodiscard]] bool allow_extended_families() const noexcept { return allow_extended_families_; }
 
     /// When true, family `theory` (explicit theory-URI params_list) is accepted.
-    [[nodiscard]] bool allow_theory_uri() const noexcept {
-        return allow_theory_uri_;
-    }
+    [[nodiscard]] bool allow_theory_uri() const noexcept { return allow_theory_uri_; }
 
     [[nodiscard]] static bool is_v0_family(std::string_view family) noexcept {
         return family == "caesar" || family == "atbash" || family == "atbash_caesar" ||
@@ -100,10 +73,8 @@ public:
         return family == "theory";
     }
 
-    [[nodiscard]] static StatusOr<std::string> validate_family(
-        std::string_view family,
-        bool allow_extended,
-        bool allow_theory = false) {
+    [[nodiscard]] static StatusOr<std::string>
+    validate_family(std::string_view family, bool allow_extended, bool allow_theory = false) {
         if (family.empty()) {
             return Status::error("SearchJob.family must be non-empty");
         }
@@ -114,15 +85,14 @@ public:
             return std::string(family);
         }
         if (is_extended_family(family)) {
-            return Status::error(
-                "SearchJob.family requires allow_extended_families: " + std::string(family));
+            return Status::error("SearchJob.family requires allow_extended_families: " +
+                                 std::string(family));
         }
         if (allow_theory && is_theory_family(family)) {
             return std::string(family);
         }
         if (is_theory_family(family)) {
-            return Status::error(
-                "SearchJob.family requires allow_theory_uri: theory");
+            return Status::error("SearchJob.family requires allow_theory_uri: theory");
         }
         return Status::error(
             "SearchJob.family unknown (expected caesar|atbash|atbash_caesar|affine|vigenere|"
@@ -145,38 +115,28 @@ public:
         }
         if (!param_grid.contains("theory_uri") || !param_grid.at("theory_uri").is_string() ||
             param_grid.at("theory_uri").get<std::string>().empty()) {
-            return Status::error(
-                "SearchJob.param_grid.theory_uri must be a non-empty string");
+            return Status::error("SearchJob.param_grid.theory_uri must be a non-empty string");
         }
         if (!param_grid.contains("params_list") || !param_grid.at("params_list").is_array() ||
             param_grid.at("params_list").empty()) {
-            return Status::error(
-                "SearchJob.param_grid.params_list must be a non-empty array");
+            return Status::error("SearchJob.param_grid.params_list must be a non-empty array");
         }
         for (const auto& item : param_grid.at("params_list")) {
             if (!item.is_object()) {
-                return Status::error(
-                    "SearchJob.param_grid.params_list entries must be objects");
+                return Status::error("SearchJob.param_grid.params_list entries must be objects");
             }
         }
         return Status::success();
     }
 
     /// Build a validated job (does not check that the workspace directory exists).
-    [[nodiscard]] static StatusOr<SearchJob> make(
-        std::string_view workspace_id,
-        std::string_view family,
-        std::string_view score_id,
-        std::size_t k,
-        std::uint32_t seed,
-        Backend backend,
-        std::size_t max_candidates,
-        TransformDirection direction = TransformDirection::Decrypt,
-        nlohmann::json param_grid = nlohmann::json::object(),
-        std::optional<nlohmann::json> prior = std::nullopt,
-        std::string_view score_version = "v0",
-        bool allow_extended_families = false,
-        bool allow_theory_uri = false) {
+    [[nodiscard]] static StatusOr<SearchJob>
+    make(std::string_view workspace_id, std::string_view family, std::string_view score_id,
+         std::size_t k, std::uint32_t seed, Backend backend, std::size_t max_candidates,
+         TransformDirection direction = TransformDirection::Decrypt,
+         nlohmann::json param_grid = nlohmann::json::object(),
+         std::optional<nlohmann::json> prior = std::nullopt, std::string_view score_version = "v0",
+         bool allow_extended_families = false, bool allow_theory_uri = false) {
         StatusOr<std::string> wid = WorkspacePaths::validate_id(workspace_id);
         if (!wid.ok()) {
             return wid.status();
@@ -239,8 +199,7 @@ public:
         }
         if (!root.contains("schema") || !root.at("schema").is_string() ||
             root.at("schema").get<std::string>() != schema_id) {
-            return Status::error(
-                "SearchJob.schema must be \"" + std::string(schema_id) + "\"");
+            return Status::error("SearchJob.schema must be \"" + std::string(schema_id) + "\"");
         }
 
         StatusOr<std::string> workspace_id = require_string(root, "workspace_id");
@@ -286,8 +245,7 @@ public:
         const std::uint64_t seed_u = static_cast<std::uint64_t>(seed_i);
         const std::uint64_t max_u = static_cast<std::uint64_t>(max_i);
 
-        StatusOr<Backend> backend =
-            BackendUtil::from_string(root.at("backend").get<std::string>());
+        StatusOr<Backend> backend = BackendUtil::from_string(root.at("backend").get<std::string>());
         if (!backend.ok()) {
             return backend.status();
         }
@@ -343,20 +301,11 @@ public:
             allow_theory = root.at("allow_theory_uri").get<bool>();
         }
 
-        return make(
-            workspace_id.value(),
-            family.value(),
-            score_id.value(),
-            static_cast<std::size_t>(k_u),
-            static_cast<std::uint32_t>(seed_u),
-            backend.value(),
-            static_cast<std::size_t>(max_u),
-            direction,
-            std::move(param_grid),
-            std::move(prior),
-            score_version,
-            allow_extended,
-            allow_theory);
+        return make(workspace_id.value(), family.value(), score_id.value(),
+                    static_cast<std::size_t>(k_u), static_cast<std::uint32_t>(seed_u),
+                    backend.value(), static_cast<std::size_t>(max_u), direction,
+                    std::move(param_grid), std::move(prior), score_version, allow_extended,
+                    allow_theory);
     }
 
     [[nodiscard]] static StatusOr<SearchJob> parse(std::string_view text) {
@@ -388,8 +337,7 @@ public:
         }
         std::error_code ec;
         if (!std::filesystem::is_directory(root.value(), ec) || ec) {
-            return Status::error(
-                "SearchJob workspace directory missing: " + root.value().string());
+            return Status::error("SearchJob workspace directory missing: " + root.value().string());
         }
         return Status::success();
     }
@@ -452,12 +400,10 @@ public:
     }
 
 private:
-    [[nodiscard]] static StatusOr<std::string> require_string(
-        const nlohmann::json& root,
-        std::string_view key) {
+    [[nodiscard]] static StatusOr<std::string> require_string(const nlohmann::json& root,
+                                                              std::string_view key) {
         if (!root.contains(key) || !root.at(std::string(key)).is_string()) {
-            return Status::error(
-                "SearchJob." + std::string(key) + " must be a string");
+            return Status::error("SearchJob." + std::string(key) + " must be a string");
         }
         return root.at(std::string(key)).get<std::string>();
     }

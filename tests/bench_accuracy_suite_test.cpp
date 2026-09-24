@@ -1,9 +1,7 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/bench/bench_accuracy_suite.hpp>
 #include <parcae/bench/bench_formatter.hpp>
 #include <parcae/tool/context.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
 
 #ifndef PARCAE_TEST_DATA_DIR
@@ -41,7 +39,8 @@ TEST_CASE("BenchAccuracySuite CPU checks pass on locked fixtures", "[bench][accu
     REQUIRE(human.find("A.fixture_eval") != std::string::npos);
 }
 
-TEST_CASE("BenchAccuracySuite CUDA skipped rows when allow_cuda without device", "[bench][accuracy]") {
+TEST_CASE("BenchAccuracySuite CUDA skipped rows when allow_cuda without device",
+          "[bench][accuracy]") {
     const Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
     BenchAccuracySuite::Options opts;
     opts.set_allow_cuda(true);

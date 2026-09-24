@@ -10,7 +10,6 @@
 /// Umbrella for the public core surface.
 class Core {
 public:
-
 private:
     Core() = delete;
 };

@@ -7,12 +7,11 @@
 
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
-
-#include <nlohmann/json.hpp>
 
 /// Workspace root manifest (`parcae.workspace.v0`).
 class WorkspaceManifest {
@@ -21,21 +20,15 @@ public:
 
     WorkspaceManifest() = default;
 
-    [[nodiscard]] const std::string& id() const noexcept {
-        return id_;
-    }
+    [[nodiscard]] const std::string& id() const noexcept { return id_; }
 
-    [[nodiscard]] const std::string& default_score_id() const noexcept {
-        return default_score_id_;
-    }
+    [[nodiscard]] const std::string& default_score_id() const noexcept { return default_score_id_; }
 
     [[nodiscard]] const std::string& default_score_version() const noexcept {
         return default_score_version_;
     }
 
-    [[nodiscard]] const nlohmann::json& input() const noexcept {
-        return input_;
-    }
+    [[nodiscard]] const nlohmann::json& input() const noexcept { return input_; }
 
     [[nodiscard]] nlohmann::json to_json() const {
         return nlohmann::json{
@@ -46,9 +39,8 @@ public:
             {"title", title_},
             {"notes", notes_},
             {"input", input_},
-            {"default_score_id",
-             default_score_id_.empty() ? nlohmann::json(nullptr)
-                                       : nlohmann::json(default_score_id_)},
+            {"default_score_id", default_score_id_.empty() ? nlohmann::json(nullptr)
+                                                           : nlohmann::json(default_score_id_)},
             {"default_score_version", default_score_version_},
         };
     }
@@ -96,7 +88,8 @@ public:
         if (root.contains("default_score_id") && root.at("default_score_id").is_string()) {
             m.default_score_id_ = root.at("default_score_id").get<std::string>();
         }
-        if (root.contains("default_score_version") && root.at("default_score_version").is_string()) {
+        if (root.contains("default_score_version") &&
+            root.at("default_score_version").is_string()) {
             m.default_score_version_ = root.at("default_score_version").get<std::string>();
         } else {
             m.default_score_version_ = "v0";
@@ -104,9 +97,8 @@ public:
         return m;
     }
 
-    [[nodiscard]] static StatusOr<WorkspaceManifest> load(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id) {
+    [[nodiscard]] static StatusOr<WorkspaceManifest> load(const std::filesystem::path& data_root,
+                                                          std::string_view workspace_id) {
         StatusOr<std::filesystem::path> root =
             WorkspacePaths::workspace_root(data_root, workspace_id);
         if (!root.ok()) {
@@ -136,8 +128,7 @@ public:
     }
 
     [[nodiscard]] Status store(const std::filesystem::path& data_root) const {
-        StatusOr<std::filesystem::path> root =
-            WorkspacePaths::workspace_root(data_root, id_);
+        StatusOr<std::filesystem::path> root = WorkspacePaths::workspace_root(data_root, id_);
         if (!root.ok()) {
             return root.status();
         }
@@ -162,11 +153,9 @@ public:
         return Status::success();
     }
 
-    [[nodiscard]] static StatusOr<WorkspaceManifest> make(
-        std::string_view workspace_id,
-        std::string_view created_utc,
-        std::string_view title = "",
-        std::string_view default_score_id = "chi2_english_gp_v0") {
+    [[nodiscard]] static StatusOr<WorkspaceManifest>
+    make(std::string_view workspace_id, std::string_view created_utc, std::string_view title = "",
+         std::string_view default_score_id = "chi2_english_gp_v0") {
         StatusOr<std::string> id = WorkspacePaths::validate_id(workspace_id);
         if (!id.ok()) {
             return id.status();
@@ -187,10 +176,9 @@ public:
     }
 
     /// Load if present; otherwise create a minimal manifest and store it.
-    [[nodiscard]] static StatusOr<WorkspaceManifest> ensure(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id,
-        std::string_view utc) {
+    [[nodiscard]] static StatusOr<WorkspaceManifest> ensure(const std::filesystem::path& data_root,
+                                                            std::string_view workspace_id,
+                                                            std::string_view utc) {
         StatusOr<WorkspaceManifest> existing = load(data_root, workspace_id);
         if (existing.ok()) {
             return existing;
@@ -240,4 +228,4 @@ private:
     std::string default_score_version_{"v0"};
 };
 
-#endif  // WORKSPACE_MANIFEST_HPP
+#endif // WORKSPACE_MANIFEST_HPP

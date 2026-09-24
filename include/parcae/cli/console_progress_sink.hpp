@@ -18,9 +18,7 @@ public:
 
     /// Stage transition (e.g. expand → score). Implementations SHOULD paint
     /// immediately even when progress ticks are throttled.
-    virtual void on_stage(
-        std::string_view stage,
-        const ConsoleProgressSnapshot& snapshot) = 0;
+    virtual void on_stage(std::string_view stage, const ConsoleProgressSnapshot& snapshot) = 0;
 };
 
 /// Sink that discards all events (library default / agent quiet path).
@@ -28,9 +26,8 @@ class ConsoleProgressNoOpSink : public ConsoleProgressSink {
 public:
     void on_progress(const ConsoleProgressSnapshot& /*snapshot*/) override {}
 
-    void on_stage(
-        std::string_view /*stage*/,
-        const ConsoleProgressSnapshot& /*snapshot*/) override {}
+    void on_stage(std::string_view /*stage*/,
+                  const ConsoleProgressSnapshot& /*snapshot*/) override {}
 };
 
 #endif // CONSOLE_PROGRESS_SINK_HPP

@@ -24,17 +24,11 @@ public:
     explicit AgentPolicy(std::filesystem::path data_root, bool allow_cuda = false)
         : data_root_(std::move(data_root)), allow_cuda_(allow_cuda) {}
 
-    [[nodiscard]] const std::filesystem::path& data_root() const noexcept {
-        return data_root_;
-    }
+    [[nodiscard]] const std::filesystem::path& data_root() const noexcept { return data_root_; }
 
-    [[nodiscard]] bool allow_cuda() const noexcept {
-        return allow_cuda_;
-    }
+    [[nodiscard]] bool allow_cuda() const noexcept { return allow_cuda_; }
 
-    void set_allow_cuda(bool enabled) noexcept {
-        allow_cuda_ = enabled;
-    }
+    void set_allow_cuda(bool enabled) noexcept { allow_cuda_ = enabled; }
 
     /// Default agent tool names from `docs/spec/agent-tools.md`.
     [[nodiscard]] static const std::vector<std::string_view>& default_allow_list() {
@@ -60,18 +54,9 @@ public:
     /// Default deny-listed CLI basenames (no `parcae-` prefix required).
     [[nodiscard]] static const std::vector<std::string_view>& default_deny_binaries() {
         static const std::vector<std::string_view> kDeny = {
-            "blind-crack",
-            "parcae-blind-crack",
-            "bench",
-            "parcae-bench",
-            "throughput-tiers",
-            "parcae-throughput-tiers",
-            "parity",
-            "parcae-parity",
-            "parity-gen",
-            "parcae-parity-gen",
-            "search-run",
-            "parcae-search-run",
+            "blind-crack",      "parcae-blind-crack",      "bench",      "parcae-bench",
+            "throughput-tiers", "parcae-throughput-tiers", "parity",     "parcae-parity",
+            "parity-gen",       "parcae-parity-gen",       "search-run", "parcae-search-run",
         };
         return kDeny;
     }
@@ -91,15 +76,14 @@ public:
         if (is_default_allowed_tool(tool)) {
             return Status::success();
         }
-        return Status::error(
-            "AgentPolicy: tool not on default allow-list: " + std::string(tool));
+        return Status::error("AgentPolicy: tool not on default allow-list: " + std::string(tool));
     }
 
     /// Deny-list check for a CLI basename (`parcae-blind-crack` / `blind-crack`).
     [[nodiscard]] Status allow_binary(std::string_view basename) const {
         if (is_default_denied_binary(basename)) {
-            return Status::error(
-                "AgentPolicy: binary is deny-listed by default: " + std::string(basename));
+            return Status::error("AgentPolicy: binary is deny-listed by default: " +
+                                 std::string(basename));
         }
         return Status::success();
     }
@@ -117,10 +101,8 @@ public:
     }
 
     /// Resolve `backend` string then apply `allow_backend`.
-    [[nodiscard]] StatusOr<Backend> check_backend_string(
-        std::string_view backend_text) const {
-        StatusOr<Backend> backend =
-            BackendUtil::from_string(backend_text);
+    [[nodiscard]] StatusOr<Backend> check_backend_string(std::string_view backend_text) const {
+        StatusOr<Backend> backend = BackendUtil::from_string(backend_text);
         if (!backend.ok()) {
             return backend.status();
         }
@@ -155,9 +137,8 @@ public:
     }
 
     /// Workspace-relative write: `data_root/workspaces/<id>/<relative>`.
-    [[nodiscard]] Status allow_workspace_write(
-        std::string_view workspace_id,
-        const std::filesystem::path& relative) const {
+    [[nodiscard]] Status allow_workspace_write(std::string_view workspace_id,
+                                               const std::filesystem::path& relative) const {
         Status root_ok = deny_data_root_inside_fixtures();
         if (!root_ok.ok()) {
             return root_ok;
@@ -181,7 +162,8 @@ public:
             return ToolErrorCode::Internal;
         }
         const std::string& msg = status.message();
-        if (msg.find("AgentPolicy:") == 0 || msg.find("writes under data/fixtures/") != std::string::npos ||
+        if (msg.find("AgentPolicy:") == 0 ||
+            msg.find("writes under data/fixtures/") != std::string::npos ||
             msg.find("path traversal") != std::string::npos ||
             msg.find("escapes") != std::string::npos ||
             msg.find("absolute paths are not allowed") != std::string::npos ||
@@ -218,11 +200,9 @@ private:
 
     [[nodiscard]] Status require_under_data_root(const std::filesystem::path& candidate) const {
         std::error_code ec;
-        const std::filesystem::path root_canon =
-            std::filesystem::weakly_canonical(data_root_, ec);
+        const std::filesystem::path root_canon = std::filesystem::weakly_canonical(data_root_, ec);
         if (ec) {
-            return Status::error(
-                "AgentPolicy: failed to canonicalize data_root: " + ec.message());
+            return Status::error("AgentPolicy: failed to canonicalize data_root: " + ec.message());
         }
 
         std::filesystem::path target = candidate;
@@ -234,8 +214,7 @@ private:
             const std::filesystem::path normalized = target.lexically_normal();
             Status under = WorkspacePaths::require_under(root_canon, normalized);
             if (!under.ok()) {
-                return Status::error(
-                    "AgentPolicy: path escapes data_root: " + normalized.string());
+                return Status::error("AgentPolicy: path escapes data_root: " + normalized.string());
             }
             return Status::success();
         }
@@ -251,4 +230,4 @@ private:
     bool allow_cuda_ = false;
 };
 
-#endif  // AGENT_POLICY_HPP
+#endif // AGENT_POLICY_HPP

@@ -18,13 +18,9 @@ public:
         }
     }
 
-    [[nodiscard]] constexpr std::uint8_t value() const noexcept {
-        return value_;
-    }
+    [[nodiscard]] constexpr std::uint8_t value() const noexcept { return value_; }
 
-    [[nodiscard]] constexpr explicit operator std::uint8_t() const noexcept {
-        return value_;
-    }
+    [[nodiscard]] constexpr explicit operator std::uint8_t() const noexcept { return value_; }
 
     [[nodiscard]] constexpr bool operator==(const Index29&) const noexcept = default;
     [[nodiscard]] constexpr auto operator<=>(const Index29&) const noexcept = default;
@@ -40,9 +36,7 @@ private:
         return Index29{UncheckedTag{}, value};
     }
 
-    [[noreturn]] static void fatal_invalid() noexcept {
-        std::abort();
-    }
+    [[noreturn]] static void fatal_invalid() noexcept { std::abort(); }
 
     std::uint8_t value_;
 };

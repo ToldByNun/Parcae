@@ -33,17 +33,11 @@ public:
         Check(std::string name, bool ok, std::string message)
             : name_(std::move(name)), ok_(ok), message_(std::move(message)) {}
 
-        [[nodiscard]] const std::string& name() const noexcept {
-            return name_;
-        }
+        [[nodiscard]] const std::string& name() const noexcept { return name_; }
 
-        [[nodiscard]] bool ok() const noexcept {
-            return ok_;
-        }
+        [[nodiscard]] bool ok() const noexcept { return ok_; }
 
-        [[nodiscard]] const std::string& message() const noexcept {
-            return message_;
-        }
+        [[nodiscard]] const std::string& message() const noexcept { return message_; }
 
     private:
         std::string name_;
@@ -53,29 +47,19 @@ public:
 
     class Report {
     public:
-        [[nodiscard]] bool ok() const noexcept {
-            return ok_;
-        }
+        [[nodiscard]] bool ok() const noexcept { return ok_; }
 
-        [[nodiscard]] const std::string& uri() const noexcept {
-            return uri_;
-        }
+        [[nodiscard]] const std::string& uri() const noexcept { return uri_; }
 
-        [[nodiscard]] const std::vector<Check>& checks() const noexcept {
-            return checks_;
-        }
+        [[nodiscard]] const std::vector<Check>& checks() const noexcept { return checks_; }
 
         [[nodiscard]] const std::optional<std::string>& dsl_spec_version() const noexcept {
             return dsl_spec_version_;
         }
 
-        void set_uri(std::string uri) {
-            uri_ = std::move(uri);
-        }
+        void set_uri(std::string uri) { uri_ = std::move(uri); }
 
-        void set_dsl_spec_version(std::string v) {
-            dsl_spec_version_ = std::move(v);
-        }
+        void set_dsl_spec_version(std::string v) { dsl_spec_version_ = std::move(v); }
 
         void add_check(std::string name, bool passed, std::string message) {
             if (!passed) {
@@ -92,10 +76,8 @@ public:
     };
 
     /// Validate one artifact under `theories_root` by name + version.
-    [[nodiscard]] static Report validate(
-        const std::filesystem::path& theories_root,
-        std::string_view name,
-        std::uint32_t version) {
+    [[nodiscard]] static Report validate(const std::filesystem::path& theories_root,
+                                         std::string_view name, std::uint32_t version) {
         Report report;
         StatusOr<TheoryUri> uri = TheoryUri::make(name, version);
         if (!uri.ok()) {
@@ -116,9 +98,8 @@ public:
     }
 
     /// Validate by `parcae://theories/<name>@<ver>` or bare `<name>@<ver>`.
-    [[nodiscard]] static Report validate_uri(
-        const std::filesystem::path& theories_root,
-        std::string_view uri_or_ref) {
+    [[nodiscard]] static Report validate_uri(const std::filesystem::path& theories_root,
+                                             std::string_view uri_or_ref) {
         Report report;
         StatusOr<TheoryUri> uri = parse_ref(uri_or_ref);
         if (!uri.ok()) {
@@ -131,9 +112,8 @@ public:
 
     /// Resolve a CLI target: URI, `name@version`, or filesystem path to a version
     /// directory / `manifest.json`. Relative paths are under `theories_root`.
-    [[nodiscard]] static Report validate_target(
-        const std::filesystem::path& theories_root,
-        std::string_view target) {
+    [[nodiscard]] static Report validate_target(const std::filesystem::path& theories_root,
+                                                std::string_view target) {
         if (target.empty()) {
             Report report;
             report.set_uri("");
@@ -155,8 +135,7 @@ public:
                 p = under;
             }
         }
-        if (std::filesystem::is_regular_file(p, ec) && !ec &&
-            p.filename() == "manifest.json") {
+        if (std::filesystem::is_regular_file(p, ec) && !ec && p.filename() == "manifest.json") {
             p = p.parent_path();
         }
         if (!std::filesystem::is_directory(p, ec) || ec) {
@@ -166,11 +145,9 @@ public:
             }
             Report report;
             report.set_uri(std::string(target));
-            report.add_check(
-                "target",
-                false,
-                "theory target is not a URI, name@version, or artifact directory: " +
-                    std::string(target));
+            report.add_check("target", false,
+                             "theory target is not a URI, name@version, or artifact directory: " +
+                                 std::string(target));
             return report;
         }
 
@@ -180,10 +157,8 @@ public:
         if (!version.ok()) {
             Report report;
             report.set_uri(p.string());
-            report.add_check(
-                "target",
-                false,
-                "artifact directory must end with <name>/<version>: " + p.string());
+            report.add_check("target", false,
+                             "artifact directory must end with <name>/<version>: " + p.string());
             return report;
         }
         // Prefer theories_root-relative load when path is under it.
@@ -192,8 +167,8 @@ public:
 
     /// Validate every catalogable artifact under `theories_root`.
     /// Empty root ⇒ empty ok list (not an error).
-    [[nodiscard]] static StatusOr<std::vector<Report>> validate_all(
-        const std::filesystem::path& theories_root) {
+    [[nodiscard]] static StatusOr<std::vector<Report>>
+    validate_all(const std::filesystem::path& theories_root) {
         StatusOr<std::vector<TheoryRegistry::CatalogEntry>> entries =
             TheoryRegistry::list(theories_root);
         if (!entries.ok()) {
@@ -211,8 +186,7 @@ private:
     TheoryValidate() = delete;
 
     [[nodiscard]] static bool looks_like_uri_or_at_ref(std::string_view target) {
-        return target.rfind("parcae://", 0) == 0 ||
-               target.find('@') != std::string_view::npos;
+        return target.rfind("parcae://", 0) == 0 || target.find('@') != std::string_view::npos;
     }
 
     [[nodiscard]] static StatusOr<TheoryUri> parse_ref(std::string_view text) {
@@ -253,18 +227,14 @@ private:
         return v;
     }
 
-    [[nodiscard]] static Report validate_loaded(
-        const std::filesystem::path& theories_root,
-        const TheoryArtifact& artifact,
-        Report report) {
+    [[nodiscard]] static Report validate_loaded(const std::filesystem::path& theories_root,
+                                                const TheoryArtifact& artifact, Report report) {
         report.set_dsl_spec_version(artifact.dsl_spec_version());
 
         const Status spec = TheoryRegistry::check_dsl_spec(artifact);
         if (spec.ok()) {
-            report.add_check(
-                "dsl_spec_version",
-                true,
-                "compatible with " + std::string(DslSpecVersion::current_string));
+            report.add_check("dsl_spec_version", true,
+                             "compatible with " + std::string(DslSpecVersion::current_string));
         } else {
             report.add_check("dsl_spec_version", false, spec.message());
         }
@@ -272,10 +242,7 @@ private:
         if (artifact.verification().passed()) {
             report.add_check("verification.passed", true, "true");
         } else {
-            report.add_check(
-                "verification.passed",
-                false,
-                "manifest verification.passed is false");
+            report.add_check("verification.passed", false, "manifest verification.passed is false");
         }
 
         const std::filesystem::path dir = artifact.artifact_dir(theories_root);
@@ -289,10 +256,8 @@ private:
             if (std::filesystem::is_regular_file(full, ec) && !ec) {
                 report.add_check(std::string(field), true, "present: " + *rel);
             } else {
-                report.add_check(
-                    std::string(field),
-                    false,
-                    "missing file paths." + std::string(field) + "=" + *rel);
+                report.add_check(std::string(field), false,
+                                 "missing file paths." + std::string(field) + "=" + *rel);
             }
         };
         check_file(artifact.paths().cpu_reference(), "paths.cpu_reference");
@@ -303,31 +268,21 @@ private:
         check_file(artifact.paths().verify_report(), "paths.verify_report");
 
         if (artifact.paths().envelope_template().has_value()) {
-            const std::filesystem::path env_path =
-                dir / *artifact.paths().envelope_template();
+            const std::filesystem::path env_path = dir / *artifact.paths().envelope_template();
             std::error_code ec;
             if (std::filesystem::is_regular_file(env_path, ec) && !ec) {
-                StatusOr<TheoryEnvelopeBridge::Envelope> env =
-                    TheoryEnvelopeBridge::load(env_path);
+                StatusOr<TheoryEnvelopeBridge::Envelope> env = TheoryEnvelopeBridge::load(env_path);
                 if (!env.ok()) {
-                    report.add_check(
-                        "envelope_template.parse",
-                        false,
-                        env.status().message());
+                    report.add_check("envelope_template.parse", false, env.status().message());
                 } else {
                     Status against =
                         TheoryEnvelopeBridge::check_against_artifact(env.value(), artifact);
                     if (!against.ok()) {
-                        report.add_check(
-                            "envelope_template.content",
-                            false,
-                            against.message());
+                        report.add_check("envelope_template.content", false, against.message());
                     } else {
-                        report.add_check(
-                            "envelope_template.content",
-                            true,
-                            env.value().is_theory() ? "theory URI envelope"
-                                                    : "catalog TransformEnvelope");
+                        report.add_check("envelope_template.content", true,
+                                         env.value().is_theory() ? "theory URI envelope"
+                                                                 : "catalog TransformEnvelope");
                     }
                 }
             }
@@ -341,15 +296,11 @@ private:
                 if (!ir.ok()) {
                     report.add_check("apply_ir.parse", false, ir.status().message());
                 } else if (ir.value().name() != artifact.name()) {
-                    report.add_check(
-                        "apply_ir.content",
-                        false,
-                        "apply_ir name does not match artifact name");
+                    report.add_check("apply_ir.content", false,
+                                     "apply_ir name does not match artifact name");
                 } else {
-                    report.add_check(
-                        "apply_ir.content",
-                        true,
-                        "TheoryApplyIr ok for " + ir.value().name());
+                    report.add_check("apply_ir.content", true,
+                                     "TheoryApplyIr ok for " + ir.value().name());
                 }
             }
         }

@@ -32,46 +32,37 @@ public:
 
     ComposeTransform() = default;
 
-    [[nodiscard]] TransformId id() const override {
-        return TransformId::compose();
-    }
+    [[nodiscard]] TransformId id() const override { return TransformId::compose(); }
 
-    [[nodiscard]] Status apply_into(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        const nlohmann::json& params,
-        TransformDirection direction,
-        const InterruptPolicy& interrupt = InterruptPolicy::none()) const override {
+    [[nodiscard]] Status
+    apply_into(std::span<const Index29> input, std::span<Index29> output,
+               const nlohmann::json& params, TransformDirection direction,
+               const InterruptPolicy& interrupt = InterruptPolicy::none()) const override {
         return apply_into_with_depth(input, output, params, direction, interrupt, 0);
     }
 
     /// Params shape used by the `koan-1` fixture (Atbash then Caesar +shift).
     [[nodiscard]] static nlohmann::json atbash_then_caesar_params(std::uint8_t shift = 3) {
         return nlohmann::json{
-            {"stages",
-             nlohmann::json::array(
-                 {nlohmann::json{{"transform_id", "atbash"}, {"params", nlohmann::json::object()}},
-                  nlohmann::json{
-                      {"transform_id", "caesar"},
-                      {"direction", "encrypt"},
-                      {"params", {{"shift", shift}}},
-                  }})},
+            {"stages", nlohmann::json::array({nlohmann::json{{"transform_id", "atbash"},
+                                                             {"params", nlohmann::json::object()}},
+                                              nlohmann::json{
+                                                  {"transform_id", "caesar"},
+                                                  {"direction", "encrypt"},
+                                                  {"params", {{"shift", shift}}},
+                                              }})},
         };
     }
 
     /// Koan 1 solution path: decrypt = Atbash then +shift; encrypt = −shift then Atbash.
-    [[nodiscard]] static StatusOr<std::vector<Index29>> apply_atbash_then_caesar(
-        std::span<const Index29> input,
-        std::uint8_t shift,
-        TransformDirection direction) {
+    [[nodiscard]] static StatusOr<std::vector<Index29>>
+    apply_atbash_then_caesar(std::span<const Index29> input, std::uint8_t shift,
+                             TransformDirection direction) {
         if (shift > 28) {
             return Status::error("compose atbash_then_caesar shift must be in 0..28");
         }
-        return ComposeTransform{}.apply(
-            input,
-            atbash_then_caesar_params(shift),
-            direction,
-            InterruptPolicy::none());
+        return ComposeTransform{}.apply(input, atbash_then_caesar_params(shift), direction,
+                                        InterruptPolicy::none());
     }
 
 private:
@@ -80,9 +71,8 @@ private:
                                                         : TransformDirection::Decrypt;
     }
 
-    [[nodiscard]] static StatusOr<TransformDirection> resolve_stage_direction(
-        const nlohmann::json& stage,
-        TransformDirection recipe_default) {
+    [[nodiscard]] static StatusOr<TransformDirection>
+    resolve_stage_direction(const nlohmann::json& stage, TransformDirection recipe_default) {
         if (!stage.contains("direction")) {
             return recipe_default;
         }
@@ -92,13 +82,10 @@ private:
         return TransformDirectionUtil::from_string(stage.at("direction").get<std::string>());
     }
 
-    [[nodiscard]] static Status apply_into_with_depth(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        const nlohmann::json& params,
-        TransformDirection direction,
-        const InterruptPolicy& interrupt,
-        std::size_t depth) {
+    [[nodiscard]] static Status
+    apply_into_with_depth(std::span<const Index29> input, std::span<Index29> output,
+                          const nlohmann::json& params, TransformDirection direction,
+                          const InterruptPolicy& interrupt, std::size_t depth) {
         Status sizes = TransformBuffer::require_same_length(input, output);
         if (!sizes.ok()) {
             return sizes;
@@ -194,13 +181,10 @@ private:
         return Status::success();
     }
 
-    [[nodiscard]] static Status apply_stage_into(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        const nlohmann::json& stage,
-        TransformDirection direction,
-        const InterruptPolicy& interrupt,
-        std::size_t depth) {
+    [[nodiscard]] static Status
+    apply_stage_into(std::span<const Index29> input, std::span<Index29> output,
+                     const nlohmann::json& stage, TransformDirection direction,
+                     const InterruptPolicy& interrupt, std::size_t depth) {
         if (!stage.is_object() || !stage.contains("transform_id")) {
             return Status::error("compose stage requires transform_id");
         }
@@ -225,36 +209,36 @@ private:
         }
 
         if (id.value() == TransformId::identity()) {
-            return IdentityTransform{}.apply_into(
-                input, output, stage_params, direction, stage_interrupt);
+            return IdentityTransform{}.apply_into(input, output, stage_params, direction,
+                                                  stage_interrupt);
         }
         if (id.value() == TransformId::atbash()) {
-            return AtbashTransform{}.apply_into(
-                input, output, stage_params, direction, stage_interrupt);
+            return AtbashTransform{}.apply_into(input, output, stage_params, direction,
+                                                stage_interrupt);
         }
         if (id.value() == TransformId::caesar()) {
-            return CaesarTransform{}.apply_into(
-                input, output, stage_params, direction, stage_interrupt);
+            return CaesarTransform{}.apply_into(input, output, stage_params, direction,
+                                                stage_interrupt);
         }
         if (id.value() == TransformId::affine()) {
-            return AffineTransform{}.apply_into(
-                input, output, stage_params, direction, stage_interrupt);
+            return AffineTransform{}.apply_into(input, output, stage_params, direction,
+                                                stage_interrupt);
         }
         if (id.value() == TransformId::vigenere_key()) {
-            return VigenereKeyTransform{}.apply_into(
-                input, output, stage_params, direction, stage_interrupt);
+            return VigenereKeyTransform{}.apply_into(input, output, stage_params, direction,
+                                                     stage_interrupt);
         }
         if (id.value() == TransformId::beaufort_key()) {
-            return BeaufortKeyTransform{}.apply_into(
-                input, output, stage_params, direction, stage_interrupt);
+            return BeaufortKeyTransform{}.apply_into(input, output, stage_params, direction,
+                                                     stage_interrupt);
         }
         if (id.value() == TransformId::totient_prime_stream()) {
-            return TotientPrimeStreamTransform{}.apply_into(
-                input, output, stage_params, direction, stage_interrupt);
+            return TotientPrimeStreamTransform{}.apply_into(input, output, stage_params, direction,
+                                                            stage_interrupt);
         }
         if (id.value() == TransformId::compose()) {
-            return apply_into_with_depth(
-                input, output, stage_params, direction, stage_interrupt, depth + 1);
+            return apply_into_with_depth(input, output, stage_params, direction, stage_interrupt,
+                                         depth + 1);
         }
         return Status::error("compose stage transform_id is not supported yet");
     }

@@ -26,32 +26,21 @@ public:
         Sample() = default;
 
         Sample(double wall_seconds, double runes_per_sec, double keys_per_sec) noexcept
-            : wall_seconds_(wall_seconds),
-              runes_per_sec_(runes_per_sec),
+            : wall_seconds_(wall_seconds), runes_per_sec_(runes_per_sec),
               keys_per_sec_(keys_per_sec) {}
 
-        [[nodiscard]] double wall_seconds() const noexcept {
-            return wall_seconds_;
-        }
+        [[nodiscard]] double wall_seconds() const noexcept { return wall_seconds_; }
 
-        [[nodiscard]] double runes_per_sec() const noexcept {
-            return runes_per_sec_;
-        }
+        [[nodiscard]] double runes_per_sec() const noexcept { return runes_per_sec_; }
 
-        [[nodiscard]] double keys_per_sec() const noexcept {
-            return keys_per_sec_;
-        }
+        [[nodiscard]] double keys_per_sec() const noexcept { return keys_per_sec_; }
 
         /// Build rates from a timed window. Zero / non-positive seconds → rates 0.
-        [[nodiscard]] static Sample from_elapsed(
-            std::size_t repeats,
-            std::size_t candidates,
-            std::size_t tokens,
-            double wall_seconds) noexcept {
-            return Sample{
-                wall_seconds,
-                BenchMetric::runes_per_sec(repeats, candidates, tokens, wall_seconds),
-                BenchMetric::keys_per_sec(repeats, candidates, wall_seconds)};
+        [[nodiscard]] static Sample from_elapsed(std::size_t repeats, std::size_t candidates,
+                                                 std::size_t tokens, double wall_seconds) noexcept {
+            return Sample{wall_seconds,
+                          BenchMetric::runes_per_sec(repeats, candidates, tokens, wall_seconds),
+                          BenchMetric::keys_per_sec(repeats, candidates, wall_seconds)};
         }
 
     private:
@@ -60,11 +49,8 @@ public:
         double keys_per_sec_ = 0.0;
     };
 
-    [[nodiscard]] static double runes_per_sec(
-        std::size_t repeats,
-        std::size_t candidates,
-        std::size_t tokens,
-        double wall_seconds) noexcept {
+    [[nodiscard]] static double runes_per_sec(std::size_t repeats, std::size_t candidates,
+                                              std::size_t tokens, double wall_seconds) noexcept {
         if (wall_seconds <= 0.0) {
             return 0.0;
         }
@@ -73,13 +59,12 @@ public:
         return runes / wall_seconds;
     }
 
-    [[nodiscard]] static double keys_per_sec(
-        std::size_t repeats, std::size_t candidates, double wall_seconds) noexcept {
+    [[nodiscard]] static double keys_per_sec(std::size_t repeats, std::size_t candidates,
+                                             double wall_seconds) noexcept {
         if (wall_seconds <= 0.0) {
             return 0.0;
         }
-        const double keys =
-            static_cast<double>(repeats) * static_cast<double>(candidates);
+        const double keys = static_cast<double>(repeats) * static_cast<double>(candidates);
         return keys / wall_seconds;
     }
 

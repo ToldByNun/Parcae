@@ -1,3 +1,8 @@
+#include <algorithm>
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <fstream>
+#include <mutex>
 #include <parcae/cli/console_progress_sink.hpp>
 #include <parcae/core/sha256.hpp>
 #include <parcae/hypothesis/hypothesis_record.hpp>
@@ -12,13 +17,6 @@
 #include <parcae/tool/context.hpp>
 #include <parcae/tool/tool_backend.hpp>
 #include <parcae/transform/transform_direction.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <algorithm>
-#include <filesystem>
-#include <fstream>
-#include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -41,48 +39,35 @@ namespace {
     std::filesystem::create_directories(root / "profiles" / "scores", ec);
     std::filesystem::create_directories(root / "profiles" / "gematria", ec);
     std::filesystem::create_directories(root / "profiles" / "separators", ec);
-    std::filesystem::create_directories(
-        root / "fixtures" / "solved" / "a-warning", ec);
+    std::filesystem::create_directories(root / "fixtures" / "solved" / "a-warning", ec);
 
-    std::filesystem::copy_file(
-        repo_data() / "profiles" / "scores" / "english-gp-expected-v0.json",
-        root / "profiles" / "scores" / "english-gp-expected-v0.json",
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    std::filesystem::copy_file(repo_data() / "profiles" / "scores" / "english-gp-expected-v0.json",
+                               root / "profiles" / "scores" / "english-gp-expected-v0.json",
+                               std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE(!ec);
-    std::filesystem::copy_file(
-        repo_data() / "profiles" / "gematria" / "gematria-primus-v0.json",
-        root / "profiles" / "gematria" / "gematria-primus-v0.json",
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    std::filesystem::copy_file(repo_data() / "profiles" / "gematria" / "gematria-primus-v0.json",
+                               root / "profiles" / "gematria" / "gematria-primus-v0.json",
+                               std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE(!ec);
-    std::filesystem::copy_file(
-        repo_data() / "profiles" / "separators" / "rtkd-separator-grammar-v0.json",
-        root / "profiles" / "separators" / "rtkd-separator-grammar-v0.json",
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    std::filesystem::copy_file(repo_data() / "profiles" / "separators" /
+                                   "rtkd-separator-grammar-v0.json",
+                               root / "profiles" / "separators" / "rtkd-separator-grammar-v0.json",
+                               std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE(!ec);
 
     const auto src_fix = repo_data() / "fixtures" / "solved" / "a-warning";
     const auto dst_fix = root / "fixtures" / "solved" / "a-warning";
-    std::filesystem::copy_file(
-        src_fix / "ciphertext.txt",
-        dst_fix / "ciphertext.txt",
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    std::filesystem::copy_file(src_fix / "ciphertext.txt", dst_fix / "ciphertext.txt",
+                               std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE(!ec);
-    std::filesystem::copy_file(
-        src_fix / "manifest.json",
-        dst_fix / "manifest.json",
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    std::filesystem::copy_file(src_fix / "manifest.json", dst_fix / "manifest.json",
+                               std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE(!ec);
     return root;
 }
 
-[[nodiscard]] StatusOr<WorkspaceManifest> make_fixture_workspace(
-    std::string_view workspace_id,
-    std::string_view utc) {
+[[nodiscard]] StatusOr<WorkspaceManifest> make_fixture_workspace(std::string_view workspace_id,
+                                                                 std::string_view utc) {
     nlohmann::json root{
         {"schema", "parcae.workspace.v0"},
         {"id", std::string(workspace_id)},
@@ -90,10 +75,7 @@ namespace {
         {"updated_utc", std::string(utc)},
         {"title", "g23"},
         {"notes", ""},
-        {"input",
-         {{"kind", "fixture_ciphertext"},
-          {"fixture_id", "a-warning"},
-          {"path", nullptr}}},
+        {"input", {{"kind", "fixture_ciphertext"}, {"fixture_id", "a-warning"}, {"path", nullptr}}},
         {"default_score_id", "chi2_english_gp_v0"},
         {"default_score_version", "v0"},
     };
@@ -119,36 +101,28 @@ namespace {
 }
 
 [[nodiscard]] std::string fixture_ciphertext_sha256(const std::filesystem::path& data_root) {
-    const auto path =
-        data_root / "fixtures" / "solved" / "a-warning" / "ciphertext.txt";
+    const auto path = data_root / "fixtures" / "solved" / "a-warning" / "ciphertext.txt";
     std::ifstream in(path, std::ios::binary);
     REQUIRE(in);
-    const std::string bytes(
-        (std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     return Sha256::hex_digest(bytes);
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "SearchScheduler::run_once CPU cycle writes batch and proposes hypotheses",
-    "[search][scheduler]") {
+TEST_CASE("SearchScheduler::run_once CPU cycle writes batch and proposes hypotheses",
+          "[search][scheduler]") {
     const auto root = make_sandbox("parcae_search_scheduler_g23");
     const Context ctx{root};
 
-    StatusOr<WorkspaceManifest> ws =
-        make_fixture_workspace("g23-ws", "2026-09-22T15:00:00Z");
+    StatusOr<WorkspaceManifest> ws = make_fixture_workspace("g23-ws", "2026-09-22T15:00:00Z");
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
-    StatusOr<SearchJob> job = SearchJob::make(
-        "g23-ws",
-        "atbash",
-        "chi2_english_gp_v0",
-        /*k=*/1,
-        /*seed=*/1,
-        Backend::Cpu,
-        /*max_candidates=*/8);
+    StatusOr<SearchJob> job = SearchJob::make("g23-ws", "atbash", "chi2_english_gp_v0",
+                                              /*k=*/1,
+                                              /*seed=*/1, Backend::Cpu,
+                                              /*max_candidates=*/8);
     REQUIRE(job.ok());
 
     SearchScheduler::Options opts;
@@ -170,15 +144,13 @@ TEST_CASE(
     REQUIRE(cycle.value().batches()[0].candidate_count() == 1);
     REQUIRE(cycle.value().hypotheses_written() == 1);
 
-    StatusOr<BatchArtifact> loaded =
-        BatchArtifact::load(root, "g23-ws", "b-g23-atbash-0001");
+    StatusOr<BatchArtifact> loaded = BatchArtifact::load(root, "g23-ws", "b-g23-atbash-0001");
     REQUIRE(loaded.ok());
     REQUIRE(loaded.value().family() == "atbash");
     REQUIRE(loaded.value().candidate_count() == 1);
 
     const std::string hid = HypothesisBridge::hypothesis_id_for(
-        "g23-ws",
-        "b-g23-atbash-0001",
+        "g23-ws", "b-g23-atbash-0001",
         loaded.value().candidates()[0].at("candidate_id").get<std::string>());
     StatusOr<HypothesisRecord> hyp = HypothesisRecord::load(root, "g23-ws", hid);
     REQUIRE(hyp.ok());
@@ -202,43 +174,31 @@ TEST_CASE(
     std::filesystem::remove_all(root, ec);
 }
 
-TEST_CASE(
-    "SearchScheduler::run_once auto batch_id is deterministic",
-    "[search][scheduler]") {
-    const std::string a = SearchScheduler::make_batch_id(
-        "ws", "caesar", "aaa", "bbb", "2026-09-22T15:00:00Z");
-    const std::string b = SearchScheduler::make_batch_id(
-        "ws", "caesar", "aaa", "bbb", "2026-09-22T15:00:00Z");
+TEST_CASE("SearchScheduler::run_once auto batch_id is deterministic", "[search][scheduler]") {
+    const std::string a =
+        SearchScheduler::make_batch_id("ws", "caesar", "aaa", "bbb", "2026-09-22T15:00:00Z");
+    const std::string b =
+        SearchScheduler::make_batch_id("ws", "caesar", "aaa", "bbb", "2026-09-22T15:00:00Z");
     REQUIRE(a == b);
     REQUIRE(a.size() == 33);
     REQUIRE(a[0] == 'b');
     REQUIRE(WorkspacePaths::validate_id(a).ok());
-    REQUIRE(
-        SearchScheduler::make_batch_id("ws", "caesar", "aaa", "bbb", "2026-09-22T15:00:01Z") !=
-        a);
+    REQUIRE(SearchScheduler::make_batch_id("ws", "caesar", "aaa", "bbb", "2026-09-22T15:00:01Z") !=
+            a);
 }
 
-TEST_CASE(
-    "SearchScheduler::run_once rejects cuda when not built",
-    "[search][scheduler]") {
+TEST_CASE("SearchScheduler::run_once rejects cuda when not built", "[search][scheduler]") {
 #if defined(PARCAE_HAS_CUDA)
     SUCCEED("CUDA build — NotBuilt path covered by BackendUtil elsewhere");
 #else
     const auto root = make_sandbox("parcae_search_scheduler_g23_cuda");
     const Context ctx{root};
-    StatusOr<WorkspaceManifest> ws =
-        make_fixture_workspace("g23-cuda-ws", "2026-09-22T15:00:00Z");
+    StatusOr<WorkspaceManifest> ws = make_fixture_workspace("g23-cuda-ws", "2026-09-22T15:00:00Z");
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
-    StatusOr<SearchJob> job = SearchJob::make(
-        "g23-cuda-ws",
-        "caesar",
-        "chi2_english_gp_v0",
-        3,
-        1,
-        Backend::Cuda,
-        64);
+    StatusOr<SearchJob> job =
+        SearchJob::make("g23-cuda-ws", "caesar", "chi2_english_gp_v0", 3, 1, Backend::Cuda, 64);
     REQUIRE(job.ok());
 
     SearchScheduler::Options opts;
@@ -253,24 +213,18 @@ TEST_CASE(
 #endif
 }
 
-TEST_CASE(
-    "SearchScheduler::run_loop hits completed_iterations across two batches",
-    "[search][scheduler][loop]") {
+TEST_CASE("SearchScheduler::run_loop hits completed_iterations across two batches",
+          "[search][scheduler][loop]") {
     const auto root = make_sandbox("parcae_search_scheduler_g24_loop");
     const Context ctx{root};
-    StatusOr<WorkspaceManifest> ws =
-        make_fixture_workspace("g24-ws", "2026-09-22T16:00:00Z");
+    StatusOr<WorkspaceManifest> ws = make_fixture_workspace("g24-ws", "2026-09-22T16:00:00Z");
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
-    StatusOr<SearchJob> job = SearchJob::make(
-        "g24-ws",
-        "caesar",
-        "chi2_english_gp_v0",
-        /*k=*/2,
-        /*seed=*/1,
-        Backend::Cpu,
-        /*max_candidates=*/64);
+    StatusOr<SearchJob> job = SearchJob::make("g24-ws", "caesar", "chi2_english_gp_v0",
+                                              /*k=*/2,
+                                              /*seed=*/1, Backend::Cpu,
+                                              /*max_candidates=*/64);
     REQUIRE(job.ok());
 
     SearchScheduler::LoopOptions loop;
@@ -295,24 +249,16 @@ TEST_CASE(
     std::filesystem::remove_all(root, ec);
 }
 
-TEST_CASE(
-    "SearchScheduler::run_loop stops on wall_budget before any cycle",
-    "[search][scheduler][loop]") {
+TEST_CASE("SearchScheduler::run_loop stops on wall_budget before any cycle",
+          "[search][scheduler][loop]") {
     const auto root = make_sandbox("parcae_search_scheduler_g24_wall");
     const Context ctx{root};
-    StatusOr<WorkspaceManifest> ws =
-        make_fixture_workspace("g24-wall-ws", "2026-09-22T16:00:00Z");
+    StatusOr<WorkspaceManifest> ws = make_fixture_workspace("g24-wall-ws", "2026-09-22T16:00:00Z");
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
-    StatusOr<SearchJob> job = SearchJob::make(
-        "g24-wall-ws",
-        "atbash",
-        "chi2_english_gp_v0",
-        1,
-        1,
-        Backend::Cpu,
-        8);
+    StatusOr<SearchJob> job =
+        SearchJob::make("g24-wall-ws", "atbash", "chi2_english_gp_v0", 1, 1, Backend::Cpu, 8);
     REQUIRE(job.ok());
 
     SearchScheduler::LoopOptions loop;
@@ -331,13 +277,10 @@ TEST_CASE(
     std::filesystem::remove_all(root, ec);
 }
 
-TEST_CASE(
-    "SearchScheduler::run_loop stops on success_promoted",
-    "[search][scheduler][loop]") {
+TEST_CASE("SearchScheduler::run_loop stops on success_promoted", "[search][scheduler][loop]") {
     const auto root = make_sandbox("parcae_search_scheduler_g24_promoted");
     const Context ctx{root};
-    StatusOr<WorkspaceManifest> ws =
-        make_fixture_workspace("g24-prom-ws", "2026-09-22T16:00:00Z");
+    StatusOr<WorkspaceManifest> ws = make_fixture_workspace("g24-prom-ws", "2026-09-22T16:00:00Z");
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
@@ -348,24 +291,14 @@ TEST_CASE(
         {"params", nlohmann::json::object()},
     };
     StatusOr<HypothesisRecord> seed = HypothesisRecord::make_draft(
-        "g24-prom-ws",
-        "h-g24-promoted-seed",
-        "2026-09-22T15:59:00Z",
-        "seed",
-        method);
+        "g24-prom-ws", "h-g24-promoted-seed", "2026-09-22T15:59:00Z", "seed", method);
     REQUIRE(seed.ok());
     REQUIRE(seed.value().set_status(HypothesisStatus::Proposed).ok());
     REQUIRE(seed.value().set_status(HypothesisStatus::Promoted).ok());
     REQUIRE(seed.value().store(root).ok());
 
-    StatusOr<SearchJob> job = SearchJob::make(
-        "g24-prom-ws",
-        "caesar",
-        "chi2_english_gp_v0",
-        1,
-        1,
-        Backend::Cpu,
-        64);
+    StatusOr<SearchJob> job =
+        SearchJob::make("g24-prom-ws", "caesar", "chi2_english_gp_v0", 1, 1, Backend::Cpu, 64);
     REQUIRE(job.ok());
 
     SearchScheduler::LoopOptions loop;
@@ -373,11 +306,8 @@ TEST_CASE(
     loop.max_iterations = 5;
     loop.stop_on_promoted = true;
     loop.batch_ids = {
-        "b-g24-prom-0001",
-        "b-g24-prom-0002",
-        "b-g24-prom-0003",
-        "b-g24-prom-0004",
-        "b-g24-prom-0005",
+        "b-g24-prom-0001", "b-g24-prom-0002", "b-g24-prom-0003",
+        "b-g24-prom-0004", "b-g24-prom-0005",
     };
 
     StatusOr<SearchScheduler::CycleResult> result =
@@ -393,24 +323,15 @@ TEST_CASE(
     std::filesystem::remove_all(root, ec);
 }
 
-TEST_CASE(
-    "SearchScheduler::run_loop stops on success_validate",
-    "[search][scheduler][loop]") {
+TEST_CASE("SearchScheduler::run_loop stops on success_validate", "[search][scheduler][loop]") {
     const auto root = make_sandbox("parcae_search_scheduler_g24_validate");
     const Context ctx{root};
-    StatusOr<WorkspaceManifest> ws =
-        make_fixture_workspace("g24-val-ws", "2026-09-22T16:00:00Z");
+    StatusOr<WorkspaceManifest> ws = make_fixture_workspace("g24-val-ws", "2026-09-22T16:00:00Z");
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
-    StatusOr<SearchJob> job = SearchJob::make(
-        "g24-val-ws",
-        "atbash",
-        "chi2_english_gp_v0",
-        1,
-        1,
-        Backend::Cpu,
-        8);
+    StatusOr<SearchJob> job =
+        SearchJob::make("g24-val-ws", "atbash", "chi2_english_gp_v0", 1, 1, Backend::Cpu, 8);
     REQUIRE(job.ok());
 
     const bool validate_ok = true;
@@ -436,13 +357,11 @@ TEST_CASE(
     std::filesystem::remove_all(root, ec);
 }
 
-TEST_CASE(
-    "SearchScheduler::run_loop stops on no_new_candidates after prior exclusion",
-    "[search][scheduler][loop]") {
+TEST_CASE("SearchScheduler::run_loop stops on no_new_candidates after prior exclusion",
+          "[search][scheduler][loop]") {
     const auto root = make_sandbox("parcae_search_scheduler_g24_empty");
     const Context ctx{root};
-    StatusOr<WorkspaceManifest> ws =
-        make_fixture_workspace("g24-empty-ws", "2026-09-22T16:00:00Z");
+    StatusOr<WorkspaceManifest> ws = make_fixture_workspace("g24-empty-ws", "2026-09-22T16:00:00Z");
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
@@ -453,24 +372,14 @@ TEST_CASE(
         {"params", nlohmann::json::object()},
     };
     StatusOr<HypothesisRecord> rejected = HypothesisRecord::make_draft(
-        "g24-empty-ws",
-        "h-g24-reject-atbash",
-        "2026-09-22T15:59:00Z",
-        "reject",
-        method);
+        "g24-empty-ws", "h-g24-reject-atbash", "2026-09-22T15:59:00Z", "reject", method);
     REQUIRE(rejected.ok());
     REQUIRE(rejected.value().set_status(HypothesisStatus::Proposed).ok());
     REQUIRE(rejected.value().set_status(HypothesisStatus::Rejected).ok());
     REQUIRE(rejected.value().store(root).ok());
 
-    StatusOr<SearchJob> job = SearchJob::make(
-        "g24-empty-ws",
-        "atbash",
-        "chi2_english_gp_v0",
-        1,
-        1,
-        Backend::Cpu,
-        8);
+    StatusOr<SearchJob> job =
+        SearchJob::make("g24-empty-ws", "atbash", "chi2_english_gp_v0", 1, 1, Backend::Cpu, 8);
     REQUIRE(job.ok());
 
     SearchScheduler::LoopOptions loop;
@@ -491,37 +400,27 @@ TEST_CASE(
     std::filesystem::remove_all(root, ec);
 }
 
-TEST_CASE(
-    "SearchScheduler::advance_utc_seconds is deterministic",
-    "[search][scheduler][loop]") {
-    StatusOr<std::string> next =
-        SearchScheduler::advance_utc_seconds("2026-09-22T16:00:00Z", 1);
+TEST_CASE("SearchScheduler::advance_utc_seconds is deterministic", "[search][scheduler][loop]") {
+    StatusOr<std::string> next = SearchScheduler::advance_utc_seconds("2026-09-22T16:00:00Z", 1);
     REQUIRE(next.ok());
     REQUIRE(next.value() == "2026-09-22T16:00:01Z");
-    StatusOr<std::string> day =
-        SearchScheduler::advance_utc_seconds("2026-09-22T23:59:59Z", 1);
+    StatusOr<std::string> day = SearchScheduler::advance_utc_seconds("2026-09-22T23:59:59Z", 1);
     REQUIRE(day.ok());
     REQUIRE(day.value() == "2026-09-23T00:00:00Z");
 }
 
-TEST_CASE(
-    "SearchScheduler next cycle excludes rejected params from prior",
-    "[search][scheduler][prior]") {
+TEST_CASE("SearchScheduler next cycle excludes rejected params from prior",
+          "[search][scheduler][prior]") {
     const auto root = make_sandbox("parcae_search_scheduler_g25_excl");
     const Context ctx{root};
-    StatusOr<WorkspaceManifest> ws =
-        make_fixture_workspace("g25-excl-ws", "2026-09-22T17:00:00Z");
+    StatusOr<WorkspaceManifest> ws = make_fixture_workspace("g25-excl-ws", "2026-09-22T17:00:00Z");
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
-    StatusOr<SearchJob> job = SearchJob::make(
-        "g25-excl-ws",
-        "caesar",
-        "chi2_english_gp_v0",
-        /*k=*/5,
-        /*seed=*/1,
-        Backend::Cpu,
-        /*max_candidates=*/64);
+    StatusOr<SearchJob> job = SearchJob::make("g25-excl-ws", "caesar", "chi2_english_gp_v0",
+                                              /*k=*/5,
+                                              /*seed=*/1, Backend::Cpu,
+                                              /*max_candidates=*/64);
     REQUIRE(job.ok());
 
     SearchScheduler::Options first;
@@ -575,13 +474,11 @@ TEST_CASE(
     std::filesystem::remove_all(root, ec);
 }
 
-TEST_CASE(
-    "SearchScheduler next cycle forces promoted seed into export",
-    "[search][scheduler][prior]") {
+TEST_CASE("SearchScheduler next cycle forces promoted seed into export",
+          "[search][scheduler][prior]") {
     const auto root = make_sandbox("parcae_search_scheduler_g25_seed");
     const Context ctx{root};
-    StatusOr<WorkspaceManifest> ws =
-        make_fixture_workspace("g25-seed-ws", "2026-09-22T17:00:00Z");
+    StatusOr<WorkspaceManifest> ws = make_fixture_workspace("g25-seed-ws", "2026-09-22T17:00:00Z");
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
@@ -594,35 +491,23 @@ TEST_CASE(
     // Exclude grid lane shift=7, then promote the same params as a seed so the
     // next job must materialize `prior-seed:…` (search-loop.md seed rule).
     StatusOr<HypothesisRecord> rejected = HypothesisRecord::make_draft(
-        "g25-seed-ws",
-        "h-g25-reject-shift7",
-        "2026-09-22T16:59:00Z",
-        "reject shift 7",
-        shift7);
+        "g25-seed-ws", "h-g25-reject-shift7", "2026-09-22T16:59:00Z", "reject shift 7", shift7);
     REQUIRE(rejected.ok());
     REQUIRE(rejected.value().set_status(HypothesisStatus::Proposed).ok());
     REQUIRE(rejected.value().set_status(HypothesisStatus::Rejected).ok());
     REQUIRE(rejected.value().store(root).ok());
 
     StatusOr<HypothesisRecord> promoted = HypothesisRecord::make_draft(
-        "g25-seed-ws",
-        "h-g25-promote-shift7",
-        "2026-09-22T16:59:01Z",
-        "promote shift 7",
-        shift7);
+        "g25-seed-ws", "h-g25-promote-shift7", "2026-09-22T16:59:01Z", "promote shift 7", shift7);
     REQUIRE(promoted.ok());
     REQUIRE(promoted.value().set_status(HypothesisStatus::Proposed).ok());
     REQUIRE(promoted.value().set_status(HypothesisStatus::Promoted).ok());
     REQUIRE(promoted.value().store(root).ok());
 
-    StatusOr<SearchJob> job = SearchJob::make(
-        "g25-seed-ws",
-        "caesar",
-        "chi2_english_gp_v0",
-        /*k=*/29,
-        /*seed=*/1,
-        Backend::Cpu,
-        /*max_candidates=*/64);
+    StatusOr<SearchJob> job = SearchJob::make("g25-seed-ws", "caesar", "chi2_english_gp_v0",
+                                              /*k=*/29,
+                                              /*seed=*/1, Backend::Cpu,
+                                              /*max_candidates=*/64);
     REQUIRE(job.ok());
 
     SearchScheduler::Options opts;
@@ -653,9 +538,8 @@ TEST_CASE(
     std::filesystem::remove_all(root, ec);
 }
 
-TEST_CASE(
-    "SearchScheduler prefers inline SearchJob.prior over workspace rebuild",
-    "[search][scheduler][prior]") {
+TEST_CASE("SearchScheduler prefers inline SearchJob.prior over workspace rebuild",
+          "[search][scheduler][prior]") {
     const auto root = make_sandbox("parcae_search_scheduler_g25_inline");
     const Context ctx{root};
     StatusOr<WorkspaceManifest> ws =
@@ -670,11 +554,7 @@ TEST_CASE(
         {"params", {{"shift", 3}}},
     };
     StatusOr<HypothesisRecord> rejected = HypothesisRecord::make_draft(
-        "g25-inline-ws",
-        "h-g25-inline-reject",
-        "2026-09-22T16:59:00Z",
-        "reject",
-        shift3);
+        "g25-inline-ws", "h-g25-inline-reject", "2026-09-22T16:59:00Z", "reject", shift3);
     REQUIRE(rejected.ok());
     REQUIRE(rejected.value().set_status(HypothesisStatus::Proposed).ok());
     REQUIRE(rejected.value().set_status(HypothesisStatus::Rejected).ok());
@@ -684,17 +564,12 @@ TEST_CASE(
         SearchPrior::make("g25-inline-ws", {}, {}, "2026-09-22T17:00:01Z");
     REQUIRE(empty_prior.ok());
 
-    StatusOr<SearchJob> job = SearchJob::make(
-        "g25-inline-ws",
-        "caesar",
-        "chi2_english_gp_v0",
-        /*k=*/29,
-        /*seed=*/1,
-        Backend::Cpu,
-        /*max_candidates=*/64,
-        TransformDirection::Decrypt,
-        nlohmann::json::object(),
-        empty_prior.value().to_json());
+    StatusOr<SearchJob> job =
+        SearchJob::make("g25-inline-ws", "caesar", "chi2_english_gp_v0",
+                        /*k=*/29,
+                        /*seed=*/1, Backend::Cpu,
+                        /*max_candidates=*/64, TransformDirection::Decrypt,
+                        nlohmann::json::object(), empty_prior.value().to_json());
     REQUIRE(job.ok());
 
     SearchScheduler::Options opts;
@@ -721,9 +596,8 @@ TEST_CASE(
     std::filesystem::remove_all(root, ec);
 }
 
-TEST_CASE(
-    "SearchScheduler two-iteration CPU loop is deterministic (stable prior)",
-    "[search][scheduler][loop][determinism]") {
+TEST_CASE("SearchScheduler two-iteration CPU loop is deterministic (stable prior)",
+          "[search][scheduler][loop][determinism]") {
     // Conformance: two iterations with fixed seed are byte-stable for digests and
     // candidate_id order when priors do not unexpectedly change mid-run
     // (proposed-only hypotheses leave SearchPrior empty).
@@ -732,19 +606,14 @@ TEST_CASE(
         const std::string fixture_sha_before = fixture_ciphertext_sha256(root);
         const Context ctx{root};
 
-        StatusOr<WorkspaceManifest> ws =
-            make_fixture_workspace("g26-ws", "2026-09-22T18:00:00Z");
+        StatusOr<WorkspaceManifest> ws = make_fixture_workspace("g26-ws", "2026-09-22T18:00:00Z");
         REQUIRE(ws.ok());
         REQUIRE(ws.value().store(root).ok());
 
-        StatusOr<SearchJob> job = SearchJob::make(
-            "g26-ws",
-            "caesar",
-            "chi2_english_gp_v0",
-            /*k=*/5,
-            /*seed=*/1,
-            Backend::Cpu,
-            /*max_candidates=*/64);
+        StatusOr<SearchJob> job = SearchJob::make("g26-ws", "caesar", "chi2_english_gp_v0",
+                                                  /*k=*/5,
+                                                  /*seed=*/1, Backend::Cpu,
+                                                  /*max_candidates=*/64);
         REQUIRE(job.ok());
         const std::string job_digest = job.value().job_digest_sha256();
 
@@ -803,9 +672,8 @@ TEST_CASE(
     REQUIRE(a == b);
 }
 
-TEST_CASE(
-    "SearchScheduler two-iteration CPU loop with reject feedback is deterministic",
-    "[search][scheduler][loop][determinism]") {
+TEST_CASE("SearchScheduler two-iteration CPU loop with reject feedback is deterministic",
+          "[search][scheduler][loop][determinism]") {
     // Exit-criteria path: job → artifact → hypotheses → prior → second iteration.
     auto run_feedback = [](std::string_view sandbox_name) {
         const auto root = make_sandbox(sandbox_name);
@@ -816,14 +684,10 @@ TEST_CASE(
         REQUIRE(ws.ok());
         REQUIRE(ws.value().store(root).ok());
 
-        StatusOr<SearchJob> job = SearchJob::make(
-            "g26-fb-ws",
-            "caesar",
-            "chi2_english_gp_v0",
-            /*k=*/5,
-            /*seed=*/1,
-            Backend::Cpu,
-            /*max_candidates=*/64);
+        StatusOr<SearchJob> job = SearchJob::make("g26-fb-ws", "caesar", "chi2_english_gp_v0",
+                                                  /*k=*/5,
+                                                  /*seed=*/1, Backend::Cpu,
+                                                  /*max_candidates=*/64);
         REQUIRE(job.ok());
 
         SearchScheduler::Options first;
@@ -894,9 +758,7 @@ public:
         ++progress_count;
     }
 
-    void on_stage(
-        std::string_view stage,
-        const ConsoleProgressSnapshot& snapshot) override {
+    void on_stage(std::string_view stage, const ConsoleProgressSnapshot& snapshot) override {
         std::lock_guard<std::mutex> lock(mutex_);
         stages.emplace_back(stage);
         if (stage == "iteration" && snapshot.candidates_done() > 0) {
@@ -910,11 +772,10 @@ public:
     std::vector<std::size_t> iteration_dones;
 };
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "SearchScheduler::run_loop emits iteration stages; digests match silent run",
-    "[search][scheduler][loop][progress]") {
+TEST_CASE("SearchScheduler::run_loop emits iteration stages; digests match silent run",
+          "[search][scheduler][loop][progress]") {
     const auto root_silent = make_sandbox("parcae_search_scheduler_g28_silent");
     const auto root_live = make_sandbox("parcae_search_scheduler_g28_live");
     const Context ctx_silent{root_silent};
@@ -925,19 +786,14 @@ TEST_CASE(
     REQUIRE(ws_silent.ok());
     REQUIRE(ws_silent.value().store(root_silent).ok());
 
-    StatusOr<WorkspaceManifest> ws_live =
-        make_fixture_workspace("g28-ws", "2026-09-22T17:00:00Z");
+    StatusOr<WorkspaceManifest> ws_live = make_fixture_workspace("g28-ws", "2026-09-22T17:00:00Z");
     REQUIRE(ws_live.ok());
     REQUIRE(ws_live.value().store(root_live).ok());
 
-    StatusOr<SearchJob> job = SearchJob::make(
-        "g28-ws",
-        "caesar",
-        "chi2_english_gp_v0",
-        /*k=*/2,
-        /*seed=*/1,
-        Backend::Cpu,
-        /*max_candidates=*/64);
+    StatusOr<SearchJob> job = SearchJob::make("g28-ws", "caesar", "chi2_english_gp_v0",
+                                              /*k=*/2,
+                                              /*seed=*/1, Backend::Cpu,
+                                              /*max_candidates=*/64);
     REQUIRE(job.ok());
 
     SearchScheduler::LoopOptions loop_silent;
@@ -959,12 +815,10 @@ TEST_CASE(
     REQUIRE(live.ok());
 
     REQUIRE(silent.value().to_json() == live.value().to_json());
-    REQUIRE(
-        silent.value().batches()[0].job_digest_sha256() ==
-        live.value().batches()[0].job_digest_sha256());
-    REQUIRE(
-        silent.value().batches()[1].job_digest_sha256() ==
-        live.value().batches()[1].job_digest_sha256());
+    REQUIRE(silent.value().batches()[0].job_digest_sha256() ==
+            live.value().batches()[0].job_digest_sha256());
+    REQUIRE(silent.value().batches()[1].job_digest_sha256() ==
+            live.value().batches()[1].job_digest_sha256());
 
     REQUIRE(sink.iteration_dones.size() == 2);
     REQUIRE(sink.iteration_dones[0] == 1);

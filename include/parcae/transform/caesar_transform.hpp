@@ -13,16 +13,11 @@ class CaesarTransform : public Transform {
 public:
     CaesarTransform() = default;
 
-    [[nodiscard]] TransformId id() const override {
-        return TransformId::caesar();
-    }
+    [[nodiscard]] TransformId id() const override { return TransformId::caesar(); }
 
     /// Allocation-free elementwise kernel (in-place OK).
-    [[nodiscard]] static Status kernel(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        Index29 shift,
-        TransformDirection direction) {
+    [[nodiscard]] static Status kernel(std::span<const Index29> input, std::span<Index29> output,
+                                       Index29 shift, TransformDirection direction) {
         Status sizes = TransformBuffer::require_same_length(input, output);
         if (!sizes.ok()) {
             return sizes;
@@ -37,12 +32,10 @@ public:
         return Status::success();
     }
 
-    [[nodiscard]] Status apply_into(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        const nlohmann::json& params,
-        TransformDirection direction,
-        const InterruptPolicy& /*interrupt*/ = InterruptPolicy::none()) const override {
+    [[nodiscard]] Status
+    apply_into(std::span<const Index29> input, std::span<Index29> output,
+               const nlohmann::json& params, TransformDirection direction,
+               const InterruptPolicy& /*interrupt*/ = InterruptPolicy::none()) const override {
         StatusOr<Index29> shift = parse_shift(params);
         if (!shift.ok()) {
             return shift.status();

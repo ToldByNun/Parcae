@@ -10,8 +10,8 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/generate/affine_candidate_generator.hpp"
-#include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
+#include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
 #include "parcae/generate/compose_recipe_candidate_generator.hpp"
@@ -38,14 +38,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #if defined(PARCAE_HAS_CUDA)
 #include "caesar_chi2_batch.hpp"
@@ -54,8 +53,8 @@
 #include "device_buffer.hpp"
 #include "family_chi2_batch.hpp"
 #include "interrupt_device_view.hpp"
-#include "parcae_cuda.hpp"
 #include "params_json.hpp"
+#include "parcae_cuda.hpp"
 
 #include <cuda_runtime_api.h>
 #endif
@@ -88,27 +87,17 @@ public:
     class Row {
     public:
         Row(TransformCandidate candidate, double score, std::size_t rank, std::size_t source_index)
-            : candidate_(std::move(candidate)),
-              score_(score),
-              rank_(rank),
+            : candidate_(std::move(candidate)), score_(score), rank_(rank),
               source_index_(source_index) {}
 
-        [[nodiscard]] const TransformCandidate& candidate() const noexcept {
-            return candidate_;
-        }
+        [[nodiscard]] const TransformCandidate& candidate() const noexcept { return candidate_; }
 
-        [[nodiscard]] double score() const noexcept {
-            return score_;
-        }
+        [[nodiscard]] double score() const noexcept { return score_; }
 
-        [[nodiscard]] std::size_t rank() const noexcept {
-            return rank_;
-        }
+        [[nodiscard]] std::size_t rank() const noexcept { return rank_; }
 
         /// Lane index in the family grid.
-        [[nodiscard]] std::size_t source_index() const noexcept {
-            return source_index_;
-        }
+        [[nodiscard]] std::size_t source_index() const noexcept { return source_index_; }
 
         [[nodiscard]] nlohmann::json to_wire(Backend backend) const {
             nlohmann::json base = candidate_.to_json();
@@ -136,17 +125,11 @@ public:
         explicit Result(std::vector<Row> rows, Backend backend)
             : rows_(std::move(rows)), backend_(backend) {}
 
-        [[nodiscard]] const std::vector<Row>& rows() const noexcept {
-            return rows_;
-        }
+        [[nodiscard]] const std::vector<Row>& rows() const noexcept { return rows_; }
 
-        [[nodiscard]] std::size_t size() const noexcept {
-            return rows_.size();
-        }
+        [[nodiscard]] std::size_t size() const noexcept { return rows_.size(); }
 
-        [[nodiscard]] Backend backend() const noexcept {
-            return backend_;
-        }
+        [[nodiscard]] Backend backend() const noexcept { return backend_; }
 
         [[nodiscard]] std::vector<nlohmann::json> to_wire_lines() const {
             std::vector<nlohmann::json> out;
@@ -165,13 +148,9 @@ public:
     // --- Caesar ----------------------------------------------------------------
 
     [[nodiscard]] static StatusOr<Result> caesar_from_host_scores(
-        std::span<const Index29> cipher,
-        std::span<const double> scores_by_shift,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        Backend backend = Backend::Cpu,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+        std::span<const Index29> cipher, std::span<const double> scores_by_shift, std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt, Backend backend = Backend::Cpu,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         prepare_progress(progress, cipher);
         Status common = require_cipher_k(cipher, k);
         if (!common.ok()) {
@@ -180,10 +159,8 @@ public:
         if (scores_by_shift.size() != Index29::modulus) {
             return Status::error("GpuCandidateExport: caesar scores must have length 29");
         }
-        StatusOr<std::vector<BatchHit>> hits = select_top_k(
-            scores_by_shift,
-            k,
-            [](std::size_t shift) {
+        StatusOr<std::vector<BatchHit>> hits =
+            select_top_k(scores_by_shift, k, [](std::size_t shift) {
                 return CaesarCandidateGenerator::make_candidate_id(
                     static_cast<std::uint8_t>(shift));
             });
@@ -203,29 +180,21 @@ public:
             if (!plain.ok()) {
                 return plain.status();
             }
-            TransformCandidate candidate(
-                hit.candidate_id(),
-                TransformId::caesar(),
-                direction,
-                params,
-                std::move(plain.value()));
+            TransformCandidate candidate(hit.candidate_id(), TransformId::caesar(), direction,
+                                         params, std::move(plain.value()));
             rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
         }
         emit_materialize(progress, rows.size(), scores_by_shift.size());
         return Result{std::move(rows), backend};
     }
 
-    [[nodiscard]] static StatusOr<Result> caesar(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<Result>
+    caesar(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs, std::size_t k,
+           TransformDirection direction = TransformDirection::Decrypt,
+           BatchRunner::Progress progress = BatchRunner::Progress{}) {
         if (direction != TransformDirection::Decrypt) {
-            return Status::error(
-                "GpuCandidateExport::caesar fused path supports decrypt only "
-                "(use caesar_from_host_scores for encrypt)");
+            return Status::error("GpuCandidateExport::caesar fused path supports decrypt only "
+                                 "(use caesar_from_host_scores for encrypt)");
         }
 #if !defined(PARCAE_HAS_CUDA)
         (void)cipher;
@@ -240,22 +209,17 @@ public:
         if (!scores.ok()) {
             return scores.status();
         }
-        return caesar_from_host_scores(
-            cipher, scores.value(), k, TransformDirection::Decrypt, Backend::Cuda,
-            progress);
+        return caesar_from_host_scores(cipher, scores.value(), k, TransformDirection::Decrypt,
+                                       Backend::Cuda, progress);
 #endif
     }
 
     // --- Atbash ----------------------------------------------------------------
 
     [[nodiscard]] static StatusOr<Result> atbash_from_host_scores(
-        std::span<const Index29> cipher,
-        std::span<const double> scores,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        Backend backend = Backend::Cpu,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+        std::span<const Index29> cipher, std::span<const double> scores, std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt, Backend backend = Backend::Cpu,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         prepare_progress(progress, cipher);
         Status common = require_cipher_k(cipher, k);
         if (!common.ok()) {
@@ -281,28 +245,20 @@ public:
             if (!plain.ok()) {
                 return plain.status();
             }
-            TransformCandidate candidate(
-                hit.candidate_id(),
-                TransformId::atbash(),
-                direction,
-                params,
-                std::move(plain.value()));
+            TransformCandidate candidate(hit.candidate_id(), TransformId::atbash(), direction,
+                                         params, std::move(plain.value()));
             rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
         }
         emit_materialize(progress, rows.size(), scores.size());
         return Result{std::move(rows), backend};
     }
 
-    [[nodiscard]] static StatusOr<Result> atbash(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<Result>
+    atbash(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs, std::size_t k,
+           TransformDirection direction = TransformDirection::Decrypt,
+           BatchRunner::Progress progress = BatchRunner::Progress{}) {
         if (direction != TransformDirection::Decrypt) {
-            return Status::error(
-                "GpuCandidateExport::atbash fused path supports decrypt only");
+            return Status::error("GpuCandidateExport::atbash fused path supports decrypt only");
         }
 #if !defined(PARCAE_HAS_CUDA)
         (void)cipher;
@@ -317,35 +273,27 @@ public:
         if (!scores.ok()) {
             return scores.status();
         }
-        return atbash_from_host_scores(
-            cipher, scores.value(), k, TransformDirection::Decrypt, Backend::Cuda,
-            progress);
+        return atbash_from_host_scores(cipher, scores.value(), k, TransformDirection::Decrypt,
+                                       Backend::Cuda, progress);
 #endif
     }
 
     // --- Atbash ∘ Caesar -------------------------------------------------------
 
     [[nodiscard]] static StatusOr<Result> atbash_caesar_from_host_scores(
-        std::span<const Index29> cipher,
-        std::span<const double> scores_by_shift,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        Backend backend = Backend::Cpu,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+        std::span<const Index29> cipher, std::span<const double> scores_by_shift, std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt, Backend backend = Backend::Cpu,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         prepare_progress(progress, cipher);
         Status common = require_cipher_k(cipher, k);
         if (!common.ok()) {
             return common;
         }
         if (scores_by_shift.size() != AtbashCaesarCandidateGenerator::candidate_count) {
-            return Status::error(
-                "GpuCandidateExport: atbash_caesar scores must have length 29");
+            return Status::error("GpuCandidateExport: atbash_caesar scores must have length 29");
         }
-        StatusOr<std::vector<BatchHit>> hits = select_top_k(
-            scores_by_shift,
-            k,
-            [](std::size_t shift) {
+        StatusOr<std::vector<BatchHit>> hits =
+            select_top_k(scores_by_shift, k, [](std::size_t shift) {
                 return AtbashCaesarCandidateGenerator::make_candidate_id(
                     static_cast<std::uint8_t>(shift));
             });
@@ -364,25 +312,18 @@ public:
             if (!plain.ok()) {
                 return plain.status();
             }
-            TransformCandidate candidate(
-                hit.candidate_id(),
-                TransformId::compose(),
-                direction,
-                params,
-                std::move(plain.value()));
+            TransformCandidate candidate(hit.candidate_id(), TransformId::compose(), direction,
+                                         params, std::move(plain.value()));
             rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
         }
         emit_materialize(progress, rows.size(), scores_by_shift.size());
         return Result{std::move(rows), backend};
     }
 
-    [[nodiscard]] static StatusOr<Result> atbash_caesar(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<Result>
+    atbash_caesar(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                  std::size_t k, TransformDirection direction = TransformDirection::Decrypt,
+                  BatchRunner::Progress progress = BatchRunner::Progress{}) {
         if (direction != TransformDirection::Decrypt) {
             return Status::error(
                 "GpuCandidateExport::atbash_caesar fused path supports decrypt only");
@@ -392,19 +333,16 @@ public:
         (void)freqs;
         (void)k;
         (void)progress;
-        return Status::error(
-            "GpuCandidateExport::atbash_caesar requires CUDA "
-            "(build with PARCAE_BUILD_CUDA=ON)");
+        return Status::error("GpuCandidateExport::atbash_caesar requires CUDA "
+                             "(build with PARCAE_BUILD_CUDA=ON)");
 #else
         prepare_progress(progress, cipher);
-        StatusOr<std::vector<double>> scores =
-            fused_atbash_caesar_scores(cipher, freqs, progress);
+        StatusOr<std::vector<double>> scores = fused_atbash_caesar_scores(cipher, freqs, progress);
         if (!scores.ok()) {
             return scores.status();
         }
-        return atbash_caesar_from_host_scores(
-            cipher, scores.value(), k, TransformDirection::Decrypt, Backend::Cuda,
-            progress);
+        return atbash_caesar_from_host_scores(cipher, scores.value(), k,
+                                              TransformDirection::Decrypt, Backend::Cuda, progress);
 #endif
     }
 
@@ -412,14 +350,11 @@ public:
 
     /// Score explicit compose recipes (host χ² after apply). Prefer
     /// `compose_from_param_grid` so Atbash∘Caesar grids hit the fused path.
-    [[nodiscard]] static StatusOr<Result> compose_recipes(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        const std::vector<nlohmann::json>& recipes,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<Result>
+    compose_recipes(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                    const std::vector<nlohmann::json>& recipes, std::size_t k,
+                    TransformDirection direction = TransformDirection::Decrypt,
+                    BatchRunner::Progress progress = BatchRunner::Progress{}) {
         if (recipes.empty()) {
             return Status::error("GpuCandidateExport::compose_recipes requires recipes");
         }
@@ -431,14 +366,11 @@ public:
     }
 
     /// Resolve `param_grid` like `ComposeRecipeCandidateGenerator`, then export.
-    [[nodiscard]] static StatusOr<Result> compose_from_param_grid(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        const nlohmann::json& param_grid,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<Result>
+    compose_from_param_grid(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                            const nlohmann::json& param_grid, std::size_t k,
+                            TransformDirection direction = TransformDirection::Decrypt,
+                            BatchRunner::Progress progress = BatchRunner::Progress{}) {
         StatusOr<std::vector<nlohmann::json>> recipes =
             ComposeRecipeCandidateGenerator::recipes_from_param_grid(
                 param_grid.is_null() ? nlohmann::json::object() : param_grid);
@@ -451,31 +383,22 @@ public:
     // --- Affine ----------------------------------------------------------------
 
     [[nodiscard]] static StatusOr<Result> affine_from_host_scores(
-        std::span<const Index29> cipher,
-        std::span<const double> scores,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        Backend backend = Backend::Cpu,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+        std::span<const Index29> cipher, std::span<const double> scores, std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt, Backend backend = Backend::Cpu,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         prepare_progress(progress, cipher);
         Status common = require_cipher_k(cipher, k);
         if (!common.ok()) {
             return common;
         }
         if (scores.size() != AffineCandidateGenerator::candidate_count) {
-            return Status::error(
-                "GpuCandidateExport: affine scores must have length 812");
+            return Status::error("GpuCandidateExport: affine scores must have length 812");
         }
-        StatusOr<std::vector<BatchHit>> hits = select_top_k(
-            scores,
-            k,
-            [](std::size_t index) {
-                const std::uint8_t a =
-                    static_cast<std::uint8_t>(index / Index29::modulus + 1);
-                const std::uint8_t b = static_cast<std::uint8_t>(index % Index29::modulus);
-                return AffineCandidateGenerator::make_candidate_id(a, b);
-            });
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(scores, k, [](std::size_t index) {
+            const std::uint8_t a = static_cast<std::uint8_t>(index / Index29::modulus + 1);
+            const std::uint8_t b = static_cast<std::uint8_t>(index % Index29::modulus);
+            return AffineCandidateGenerator::make_candidate_id(a, b);
+        });
         if (!hits.ok()) {
             return hits.status();
         }
@@ -497,28 +420,20 @@ public:
             if (!plain.ok()) {
                 return plain.status();
             }
-            TransformCandidate candidate(
-                hit.candidate_id(),
-                TransformId::affine(),
-                direction,
-                params,
-                std::move(plain.value()));
+            TransformCandidate candidate(hit.candidate_id(), TransformId::affine(), direction,
+                                         params, std::move(plain.value()));
             rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
         }
         emit_materialize(progress, rows.size(), scores.size());
         return Result{std::move(rows), backend};
     }
 
-    [[nodiscard]] static StatusOr<Result> affine(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<Result>
+    affine(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs, std::size_t k,
+           TransformDirection direction = TransformDirection::Decrypt,
+           BatchRunner::Progress progress = BatchRunner::Progress{}) {
         if (direction != TransformDirection::Decrypt) {
-            return Status::error(
-                "GpuCandidateExport::affine fused path supports decrypt only");
+            return Status::error("GpuCandidateExport::affine fused path supports decrypt only");
         }
 #if !defined(PARCAE_HAS_CUDA)
         (void)cipher;
@@ -533,9 +448,8 @@ public:
         if (!scores.ok()) {
             return scores.status();
         }
-        return affine_from_host_scores(
-            cipher, scores.value(), k, TransformDirection::Decrypt, Backend::Cuda,
-            progress);
+        return affine_from_host_scores(cipher, scores.value(), k, TransformDirection::Decrypt,
+                                       Backend::Cuda, progress);
 #endif
     }
 
@@ -543,8 +457,8 @@ public:
 
     /// Synthetic bounded grid: for L in `1..max_key_length`, key = `[1,2,…,L] mod 29`.
     /// Same construction as `SearchRunCuda::run_vigenere` — not a dictionary.
-    [[nodiscard]] static StatusOr<std::vector<std::vector<Index29>>> default_bounded_key_grid(
-        std::size_t max_key_length = default_vigenere_max_key_length) {
+    [[nodiscard]] static StatusOr<std::vector<std::vector<Index29>>>
+    default_bounded_key_grid(std::size_t max_key_length = default_vigenere_max_key_length) {
         if (max_key_length == 0) {
             return Status::error("GpuCandidateExport: max_key_length must be >= 1");
         }
@@ -572,14 +486,10 @@ public:
     }
 
     [[nodiscard]] static StatusOr<Result> vigenere_from_host_scores(
-        std::span<const Index29> cipher,
-        const std::vector<std::vector<Index29>>& keys,
-        std::span<const double> scores,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        Backend backend = Backend::Cpu,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+        std::span<const Index29> cipher, const std::vector<std::vector<Index29>>& keys,
+        std::span<const double> scores, std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt, Backend backend = Backend::Cpu,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         prepare_progress(progress, cipher);
         Status common = require_cipher_k(cipher, k);
         if (!common.ok()) {
@@ -594,13 +504,9 @@ public:
                 "GpuCandidateExport: vigenere scores length must equal keys length");
         }
 
-        StatusOr<std::vector<BatchHit>> hits = select_top_k(
-            scores,
-            k,
-            [&](std::size_t index) {
-                return VigenereExplicitKeyCandidateGenerator::make_candidate_id(
-                    keys[index], index);
-            });
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(scores, k, [&](std::size_t index) {
+            return VigenereExplicitKeyCandidateGenerator::make_candidate_id(keys[index], index);
+        });
         if (!hits.ok()) {
             return hits.status();
         }
@@ -620,12 +526,8 @@ public:
             if (!plain.ok()) {
                 return plain.status();
             }
-            TransformCandidate candidate(
-                hit.candidate_id(),
-                TransformId::vigenere_key(),
-                direction,
-                std::move(params),
-                std::move(plain.value()));
+            TransformCandidate candidate(hit.candidate_id(), TransformId::vigenere_key(), direction,
+                                         std::move(params), std::move(plain.value()));
             rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
         }
         emit_materialize(progress, rows.size(), scores.size());
@@ -633,17 +535,13 @@ public:
     }
 
     /// Fused Vigenère decrypt χ² over an **explicit** caller-supplied key list.
-    [[nodiscard]] static StatusOr<Result> vigenere(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        const std::vector<std::vector<Index29>>& keys,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<Result>
+    vigenere(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+             const std::vector<std::vector<Index29>>& keys, std::size_t k,
+             TransformDirection direction = TransformDirection::Decrypt,
+             BatchRunner::Progress progress = BatchRunner::Progress{}) {
         if (direction != TransformDirection::Decrypt) {
-            return Status::error(
-                "GpuCandidateExport::vigenere fused path supports decrypt only");
+            return Status::error("GpuCandidateExport::vigenere fused path supports decrypt only");
         }
 #if !defined(PARCAE_HAS_CUDA)
         (void)cipher;
@@ -659,28 +557,18 @@ public:
         if (!scores.ok()) {
             return scores.status();
         }
-        return vigenere_from_host_scores(
-            cipher,
-            keys,
-            scores.value(),
-            k,
-            TransformDirection::Decrypt,
-            Backend::Cuda,
-            progress);
+        return vigenere_from_host_scores(cipher, keys, scores.value(), k,
+                                         TransformDirection::Decrypt, Backend::Cuda, progress);
 #endif
     }
 
     /// Bounded synthetic key grid (`default_bounded_key_grid`) then fused export.
-    [[nodiscard]] static StatusOr<Result> vigenere_bounded(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t k,
-        std::size_t max_key_length = default_vigenere_max_key_length,
-        TransformDirection direction = TransformDirection::Decrypt,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
-        StatusOr<std::vector<std::vector<Index29>>> keys =
-            default_bounded_key_grid(max_key_length);
+    [[nodiscard]] static StatusOr<Result>
+    vigenere_bounded(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                     std::size_t k, std::size_t max_key_length = default_vigenere_max_key_length,
+                     TransformDirection direction = TransformDirection::Decrypt,
+                     BatchRunner::Progress progress = BatchRunner::Progress{}) {
+        StatusOr<std::vector<std::vector<Index29>>> keys = default_bounded_key_grid(max_key_length);
         if (!keys.ok()) {
             return keys.status();
         }
@@ -690,14 +578,10 @@ public:
     // --- Beaufort (opt-in; same key grids as Vigenère) --------------------------
 
     [[nodiscard]] static StatusOr<Result> beaufort_from_host_scores(
-        std::span<const Index29> cipher,
-        const std::vector<std::vector<Index29>>& keys,
-        std::span<const double> scores,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        Backend backend = Backend::Cpu,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+        std::span<const Index29> cipher, const std::vector<std::vector<Index29>>& keys,
+        std::span<const double> scores, std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt, Backend backend = Backend::Cpu,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         prepare_progress(progress, cipher);
         Status common = require_cipher_k(cipher, k);
         if (!common.ok()) {
@@ -712,13 +596,9 @@ public:
                 "GpuCandidateExport: beaufort scores length must equal keys length");
         }
 
-        StatusOr<std::vector<BatchHit>> hits = select_top_k(
-            scores,
-            k,
-            [&](std::size_t index) {
-                return BeaufortExplicitKeyCandidateGenerator::make_candidate_id(
-                    keys[index], index);
-            });
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(scores, k, [&](std::size_t index) {
+            return BeaufortExplicitKeyCandidateGenerator::make_candidate_id(keys[index], index);
+        });
         if (!hits.ok()) {
             return hits.status();
         }
@@ -738,29 +618,21 @@ public:
             if (!plain.ok()) {
                 return plain.status();
             }
-            TransformCandidate candidate(
-                hit.candidate_id(),
-                TransformId::beaufort_key(),
-                direction,
-                std::move(params),
-                std::move(plain.value()));
+            TransformCandidate candidate(hit.candidate_id(), TransformId::beaufort_key(), direction,
+                                         std::move(params), std::move(plain.value()));
             rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
         }
         emit_materialize(progress, rows.size(), scores.size());
         return Result{std::move(rows), backend};
     }
 
-    [[nodiscard]] static StatusOr<Result> beaufort(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        const std::vector<std::vector<Index29>>& keys,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<Result>
+    beaufort(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+             const std::vector<std::vector<Index29>>& keys, std::size_t k,
+             TransformDirection direction = TransformDirection::Decrypt,
+             BatchRunner::Progress progress = BatchRunner::Progress{}) {
         if (direction != TransformDirection::Decrypt) {
-            return Status::error(
-                "GpuCandidateExport::beaufort fused path supports decrypt only");
+            return Status::error("GpuCandidateExport::beaufort fused path supports decrypt only");
         }
 #if !defined(PARCAE_HAS_CUDA)
         (void)cipher;
@@ -776,23 +648,17 @@ public:
         if (!scores.ok()) {
             return scores.status();
         }
-        return beaufort_from_host_scores(
-            cipher, keys, scores.value(), k, TransformDirection::Decrypt,
-            Backend::Cuda,
-            progress);
+        return beaufort_from_host_scores(cipher, keys, scores.value(), k,
+                                         TransformDirection::Decrypt, Backend::Cuda, progress);
 #endif
     }
 
-    [[nodiscard]] static StatusOr<Result> beaufort_bounded(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t k,
-        std::size_t max_key_length = default_vigenere_max_key_length,
-        TransformDirection direction = TransformDirection::Decrypt,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
-        StatusOr<std::vector<std::vector<Index29>>> keys =
-            default_bounded_key_grid(max_key_length);
+    [[nodiscard]] static StatusOr<Result>
+    beaufort_bounded(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                     std::size_t k, std::size_t max_key_length = default_vigenere_max_key_length,
+                     TransformDirection direction = TransformDirection::Decrypt,
+                     BatchRunner::Progress progress = BatchRunner::Progress{}) {
+        StatusOr<std::vector<std::vector<Index29>>> keys = default_bounded_key_grid(max_key_length);
         if (!keys.ok()) {
             return keys.status();
         }
@@ -801,8 +667,8 @@ public:
 
     // --- Totient (opt-in; bounded prime_start_index list) -----------------------
 
-    [[nodiscard]] static StatusOr<std::vector<std::size_t>> default_totient_starts(
-        std::size_t count = default_totient_start_count) {
+    [[nodiscard]] static StatusOr<std::vector<std::size_t>>
+    default_totient_starts(std::size_t count = default_totient_start_count) {
         if (count == 0) {
             return Status::error("GpuCandidateExport: totient start count must be >= 1");
         }
@@ -824,14 +690,10 @@ public:
     }
 
     [[nodiscard]] static StatusOr<Result> totient_from_host_scores(
-        std::span<const Index29> cipher,
-        const std::vector<std::size_t>& prime_start_indices,
-        std::span<const double> scores,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        Backend backend = Backend::Cpu,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+        std::span<const Index29> cipher, const std::vector<std::size_t>& prime_start_indices,
+        std::span<const double> scores, std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt, Backend backend = Backend::Cpu,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         prepare_progress(progress, cipher);
         Status common = require_cipher_k(cipher, k);
         if (!common.ok()) {
@@ -846,13 +708,9 @@ public:
                 "GpuCandidateExport: totient scores length must equal starts length");
         }
 
-        StatusOr<std::vector<BatchHit>> hits = select_top_k(
-            scores,
-            k,
-            [&](std::size_t index) {
-                return TotientOffsetCandidateGenerator::make_candidate_id(
-                    prime_start_indices[index]);
-            });
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(scores, k, [&](std::size_t index) {
+            return TotientOffsetCandidateGenerator::make_candidate_id(prime_start_indices[index]);
+        });
         if (!hits.ok()) {
             return hits.status();
         }
@@ -864,8 +722,7 @@ public:
             const BatchHit& hit = hits.value()[rank];
             const std::size_t index = hit.source_index();
             const nlohmann::json params{
-                {"prime_start_index",
-                 static_cast<std::uint64_t>(prime_start_indices[index])},
+                {"prime_start_index", static_cast<std::uint64_t>(prime_start_indices[index])},
                 {"shift_mode", "prime_minus_one_mod_29"},
             };
             StatusOr<std::vector<Index29>> plain =
@@ -873,29 +730,21 @@ public:
             if (!plain.ok()) {
                 return plain.status();
             }
-            TransformCandidate candidate(
-                hit.candidate_id(),
-                TransformId::totient_prime_stream(),
-                direction,
-                params,
-                std::move(plain.value()));
+            TransformCandidate candidate(hit.candidate_id(), TransformId::totient_prime_stream(),
+                                         direction, params, std::move(plain.value()));
             rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
         }
         emit_materialize(progress, rows.size(), scores.size());
         return Result{std::move(rows), backend};
     }
 
-    [[nodiscard]] static StatusOr<Result> totient(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        const std::vector<std::size_t>& prime_start_indices,
-        std::size_t k,
-        TransformDirection direction = TransformDirection::Decrypt,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<Result>
+    totient(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+            const std::vector<std::size_t>& prime_start_indices, std::size_t k,
+            TransformDirection direction = TransformDirection::Decrypt,
+            BatchRunner::Progress progress = BatchRunner::Progress{}) {
         if (direction != TransformDirection::Decrypt) {
-            return Status::error(
-                "GpuCandidateExport::totient fused path supports decrypt only");
+            return Status::error("GpuCandidateExport::totient fused path supports decrypt only");
         }
 #if !defined(PARCAE_HAS_CUDA)
         (void)cipher;
@@ -907,29 +756,21 @@ public:
             "GpuCandidateExport::totient requires CUDA (build with PARCAE_BUILD_CUDA=ON)");
 #else
         prepare_progress(progress, cipher);
-        StatusOr<std::vector<double>> scores = fused_totient_scores(cipher, freqs, prime_start_indices, progress);
+        StatusOr<std::vector<double>> scores =
+            fused_totient_scores(cipher, freqs, prime_start_indices, progress);
         if (!scores.ok()) {
             return scores.status();
         }
-        return totient_from_host_scores(
-            cipher,
-            prime_start_indices,
-            scores.value(),
-            k,
-            TransformDirection::Decrypt,
-            Backend::Cuda,
-            progress);
+        return totient_from_host_scores(cipher, prime_start_indices, scores.value(), k,
+                                        TransformDirection::Decrypt, Backend::Cuda, progress);
 #endif
     }
 
-    [[nodiscard]] static StatusOr<Result> totient_bounded(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t k,
-        std::size_t start_count = default_totient_start_count,
-        TransformDirection direction = TransformDirection::Decrypt,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<Result>
+    totient_bounded(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                    std::size_t k, std::size_t start_count = default_totient_start_count,
+                    TransformDirection direction = TransformDirection::Decrypt,
+                    BatchRunner::Progress progress = BatchRunner::Progress{}) {
         StatusOr<std::vector<std::size_t>> starts = default_totient_starts(start_count);
         if (!starts.ok()) {
             return starts.status();
@@ -940,12 +781,8 @@ public:
 private:
     GpuCandidateExport() = delete;
 
-
-    static void emit_stage(
-        BatchRunner::Progress& progress,
-        std::string_view stage,
-        std::size_t done,
-        std::size_t total) {
+    static void emit_stage(BatchRunner::Progress& progress, std::string_view stage,
+                           std::size_t done, std::size_t total) {
         if (progress.sink == nullptr) {
             return;
         }
@@ -957,24 +794,19 @@ private:
         progress.sink->on_stage(stage, snap);
     }
 
-    static void prepare_progress(
-        BatchRunner::Progress& progress,
-        std::span<const Index29> cipher) {
+    static void prepare_progress(BatchRunner::Progress& progress, std::span<const Index29> cipher) {
         if (progress.rune_count == 0) {
             progress.rune_count = cipher.size();
         }
     }
 
-    static void emit_materialize(
-        BatchRunner::Progress& progress,
-        std::size_t retained,
-        std::size_t grid_size) {
+    static void emit_materialize(BatchRunner::Progress& progress, std::size_t retained,
+                                 std::size_t grid_size) {
         emit_stage(progress, "materialize", retained, grid_size);
     }
 
-
-    [[nodiscard]] static Status require_vigenere_keys(
-        const std::vector<std::vector<Index29>>& keys) {
+    [[nodiscard]] static Status
+    require_vigenere_keys(const std::vector<std::vector<Index29>>& keys) {
         if (keys.empty()) {
             return Status::error(
                 "GpuCandidateExport: vigenere requires a non-empty explicit key list");
@@ -991,8 +823,7 @@ private:
 #endif
         for (std::size_t i = 0; i < keys.size(); ++i) {
             if (keys[i].empty()) {
-                return Status::error(
-                    "GpuCandidateExport: vigenere key_indices must be non-empty");
+                return Status::error("GpuCandidateExport: vigenere key_indices must be non-empty");
             }
             for (const Index29 idx : keys[i]) {
                 if (idx.value() >= Index29::modulus) {
@@ -1005,14 +836,11 @@ private:
     }
 
     /// Apply each recipe (ComposeDriver on CUDA, ComposeTransform otherwise), χ², top-k.
-    [[nodiscard]] static StatusOr<Result> compose_recipes_driver(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        const std::vector<nlohmann::json>& recipes,
-        std::size_t k,
-        TransformDirection direction,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<Result>
+    compose_recipes_driver(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                           const std::vector<nlohmann::json>& recipes, std::size_t k,
+                           TransformDirection direction,
+                           BatchRunner::Progress progress = BatchRunner::Progress{}) {
         prepare_progress(progress, cipher);
         Status common = require_cipher_k(cipher, k);
         if (!common.ok()) {
@@ -1025,19 +853,16 @@ private:
         plains.reserve(recipes.size());
 
         for (std::size_t i = 0; i < recipes.size(); ++i) {
-            Status params_ok =
-                ComposeRecipeCandidateGenerator::require_compose_params(recipes[i]);
+            Status params_ok = ComposeRecipeCandidateGenerator::require_compose_params(recipes[i]);
             if (!params_ok.ok()) {
-                return Status::error(
-                    "GpuCandidateExport::compose recipes[" + std::to_string(i) + "]: " +
-                    params_ok.message());
+                return Status::error("GpuCandidateExport::compose recipes[" + std::to_string(i) +
+                                     "]: " + params_ok.message());
             }
             StatusOr<std::vector<Index29>> plain =
                 apply_compose_recipe(cipher, recipes[i], direction);
             if (!plain.ok()) {
-                return Status::error(
-                    "GpuCandidateExport::compose apply failed for index " +
-                    std::to_string(i) + ": " + plain.status().message());
+                return Status::error("GpuCandidateExport::compose apply failed for index " +
+                                     std::to_string(i) + ": " + plain.status().message());
             }
             StatusOr<double> score = Chi2EnglishGp::score(plain.value(), freqs);
             if (!score.ok()) {
@@ -1047,13 +872,9 @@ private:
             plains.push_back(std::move(plain.value()));
         }
 
-        StatusOr<std::vector<BatchHit>> hits = select_top_k(
-            scores,
-            k,
-            [&](std::size_t index) {
-                return ComposeRecipeCandidateGenerator::make_candidate_id(
-                    index, recipes[index]);
-            });
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(scores, k, [&](std::size_t index) {
+            return ComposeRecipeCandidateGenerator::make_candidate_id(index, recipes[index]);
+        });
         if (!hits.ok()) {
             return hits.status();
         }
@@ -1068,22 +889,17 @@ private:
         rows.reserve(hits.value().size());
         for (std::size_t rank = 0; rank < hits.value().size(); ++rank) {
             const BatchHit& hit = hits.value()[rank];
-            TransformCandidate candidate(
-                hit.candidate_id(),
-                TransformId::compose(),
-                direction,
-                recipes[hit.source_index()],
-                plains[hit.source_index()]);
+            TransformCandidate candidate(hit.candidate_id(), TransformId::compose(), direction,
+                                         recipes[hit.source_index()], plains[hit.source_index()]);
             rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
         }
         emit_materialize(progress, rows.size(), recipes.size());
         return Result{std::move(rows), backend};
     }
 
-    [[nodiscard]] static StatusOr<std::vector<Index29>> apply_compose_recipe(
-        std::span<const Index29> cipher,
-        const nlohmann::json& params,
-        TransformDirection direction) {
+    [[nodiscard]] static StatusOr<std::vector<Index29>>
+    apply_compose_recipe(std::span<const Index29> cipher, const nlohmann::json& params,
+                         TransformDirection direction) {
 #if defined(PARCAE_HAS_CUDA)
         if (ParcaeCuda::available()) {
             StatusOr<ComposeParamsHost> recipe = CudaParamsJson::compose_from_json(params);
@@ -1097,11 +913,10 @@ private:
             }
             const auto host_in = to_bytes(cipher);
             std::vector<std::uint8_t> host_out(host_in.size(), 0);
-            const CudaDir cuda_dir = direction == TransformDirection::Encrypt
-                                         ? CudaDir::Encrypt
-                                         : CudaDir::Decrypt;
-            Status applied = ComposeDriver::apply_host(
-                host_in, host_out, recipe.value(), view.value(), cuda_dir);
+            const CudaDir cuda_dir =
+                direction == TransformDirection::Encrypt ? CudaDir::Encrypt : CudaDir::Decrypt;
+            Status applied = ComposeDriver::apply_host(host_in, host_out, recipe.value(),
+                                                       view.value(), cuda_dir);
             if (!applied.ok()) {
                 return applied;
             }
@@ -1116,9 +931,7 @@ private:
         return ComposeTransform{}.apply(cipher, params, direction);
     }
 
-    [[nodiscard]] static Status require_cipher_k(
-        std::span<const Index29> cipher,
-        std::size_t k) {
+    [[nodiscard]] static Status require_cipher_k(std::span<const Index29> cipher, std::size_t k) {
         if (cipher.empty()) {
             return Status::error("GpuCandidateExport: ciphertext must be non-empty");
         }
@@ -1128,10 +941,9 @@ private:
         return Status::success();
     }
 
-    [[nodiscard]] static StatusOr<std::vector<BatchHit>> select_top_k(
-        std::span<const double> scores,
-        std::size_t k,
-        const std::function<std::string(std::size_t)>& id_for_index) {
+    [[nodiscard]] static StatusOr<std::vector<BatchHit>>
+    select_top_k(std::span<const double> scores, std::size_t k,
+                 const std::function<std::string(std::size_t)>& id_for_index) {
         std::vector<BatchHit> hits;
         hits.reserve(scores.size());
         for (std::size_t i = 0; i < scores.size(); ++i) {
@@ -1150,8 +962,7 @@ private:
             return Status::error("GpuCandidateExport: no CUDA device available");
         }
         if (freqs.probabilities().size() != Index29::modulus) {
-            return Status::error(
-                "GpuCandidateExport: expected frequency table must have 29 bins");
+            return Status::error("GpuCandidateExport: expected frequency table must have 29 bins");
         }
         return Status::success();
     }
@@ -1173,10 +984,9 @@ private:
         std::size_t T = 0;
     };
 
-    [[nodiscard]] static StatusOr<DeviceScratch> make_scratch(
-        std::span<const std::uint8_t> host_in,
-        const ExpectedFrequencyTable& freqs,
-        std::size_t C) {
+    [[nodiscard]] static StatusOr<DeviceScratch> make_scratch(std::span<const std::uint8_t> host_in,
+                                                              const ExpectedFrequencyTable& freqs,
+                                                              std::size_t C) {
         DeviceScratch s;
         s.C = C;
         s.T = host_in.size();
@@ -1206,11 +1016,9 @@ private:
     }
 
     template <typename LaunchFn>
-    [[nodiscard]] static StatusOr<std::vector<double>> launch_sync_copy(
-        DeviceScratch& scratch,
-        LaunchFn&& launch,
-        const char* sync_label,
-        BatchRunner::Progress progress = BatchRunner::Progress{}) {
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    launch_sync_copy(DeviceScratch& scratch, LaunchFn&& launch, const char* sync_label,
+                     BatchRunner::Progress progress = BatchRunner::Progress{}) {
         Status launched = launch();
         if (!launched.ok()) {
             return launched;
@@ -1229,11 +1037,9 @@ private:
         return scores;
     }
 
-    [[nodiscard]] static StatusOr<std::vector<double>> fused_caesar_scores(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    fused_caesar_scores(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         Status ok = require_cuda_freqs(freqs);
         if (!ok.ok()) {
             return ok;
@@ -1261,22 +1067,16 @@ private:
             scratch.value(),
             [&]() {
                 return CaesarChi2Batch::launch_decrypt_async(
-                    scratch.value().in.data(),
-                    device_shifts.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    scratch.value().T);
+                    scratch.value().in.data(), device_shifts.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, scratch.value().T);
             },
             "GpuCandidateExport::caesar sync", progress);
     }
 
-    [[nodiscard]] static StatusOr<std::vector<double>> fused_atbash_scores(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    fused_atbash_scores(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         Status ok = require_cuda_freqs(freqs);
         if (!ok.ok()) {
             return ok;
@@ -1295,21 +1095,16 @@ private:
             scratch.value(),
             [&]() {
                 return FamilyChi2Batch::launch_atbash_async(
-                    scratch.value().in.data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
+                    scratch.value().in.data(), scratch.value().probs.data(),
+                    scratch.value().counts.data(), scratch.value().scores.data(), C,
                     scratch.value().T);
             },
             "GpuCandidateExport::atbash sync", progress);
     }
 
-    [[nodiscard]] static StatusOr<std::vector<double>> fused_atbash_caesar_scores(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    fused_atbash_caesar_scores(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                               BatchRunner::Progress progress = BatchRunner::Progress{}) {
         Status ok = require_cuda_freqs(freqs);
         if (!ok.ok()) {
             return ok;
@@ -1337,22 +1132,16 @@ private:
             scratch.value(),
             [&]() {
                 return FamilyChi2Batch::launch_atbash_caesar_async(
-                    scratch.value().in.data(),
-                    device_shifts.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    scratch.value().T);
+                    scratch.value().in.data(), device_shifts.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, scratch.value().T);
             },
             "GpuCandidateExport::atbash_caesar sync", progress);
     }
 
-    [[nodiscard]] static StatusOr<std::vector<double>> fused_affine_scores(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    fused_affine_scores(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                        BatchRunner::Progress progress = BatchRunner::Progress{}) {
         Status ok = require_cuda_freqs(freqs);
         if (!ok.ok()) {
             return ok;
@@ -1389,24 +1178,17 @@ private:
             scratch.value(),
             [&]() {
                 return FamilyChi2Batch::launch_affine_async(
-                    scratch.value().in.data(),
-                    device_a.value().data(),
-                    device_b.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    scratch.value().T);
+                    scratch.value().in.data(), device_a.value().data(), device_b.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, scratch.value().T);
             },
             "GpuCandidateExport::affine sync", progress);
     }
 
-    [[nodiscard]] static StatusOr<std::vector<double>> fused_vigenere_scores(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        const std::vector<std::vector<Index29>>& keys,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    fused_vigenere_scores(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                          const std::vector<std::vector<Index29>>& keys,
+                          BatchRunner::Progress progress = BatchRunner::Progress{}) {
         Status ok = require_cuda_freqs(freqs);
         if (!ok.ok()) {
             return ok;
@@ -1465,25 +1247,18 @@ private:
             scratch.value(),
             [&]() {
                 return FamilyChi2Batch::launch_vigenere_async(
-                    scratch.value().in.data(),
-                    device_keys.value().data(),
-                    device_begin.value().data(),
-                    device_len.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    scratch.value().T);
+                    scratch.value().in.data(), device_keys.value().data(),
+                    device_begin.value().data(), device_len.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, scratch.value().T);
             },
             "GpuCandidateExport::vigenere sync", progress);
     }
 
-    [[nodiscard]] static StatusOr<std::vector<double>> fused_beaufort_scores(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        const std::vector<std::vector<Index29>>& keys,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    fused_beaufort_scores(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                          const std::vector<std::vector<Index29>>& keys,
+                          BatchRunner::Progress progress = BatchRunner::Progress{}) {
         Status ok = require_cuda_freqs(freqs);
         if (!ok.ok()) {
             return ok;
@@ -1542,25 +1317,18 @@ private:
             scratch.value(),
             [&]() {
                 return FamilyChi2Batch::launch_beaufort_async(
-                    scratch.value().in.data(),
-                    device_keys.value().data(),
-                    device_begin.value().data(),
-                    device_len.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
-                    scratch.value().T);
+                    scratch.value().in.data(), device_keys.value().data(),
+                    device_begin.value().data(), device_len.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, scratch.value().T);
             },
             "GpuCandidateExport::beaufort sync", progress);
     }
 
-    [[nodiscard]] static StatusOr<std::vector<double>> fused_totient_scores(
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs,
-        const std::vector<std::size_t>& prime_start_indices,
-        BatchRunner::Progress progress = BatchRunner::Progress{}
-    ) {
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    fused_totient_scores(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                         const std::vector<std::size_t>& prime_start_indices,
+                         BatchRunner::Progress progress = BatchRunner::Progress{}) {
         Status ok = require_cuda_freqs(freqs);
         if (!ok.ok()) {
             return ok;
@@ -1621,13 +1389,9 @@ private:
             scratch.value(),
             [&]() {
                 return FamilyChi2Batch::launch_totient_async(
-                    scratch.value().in.data(),
-                    device_shifts.value().data(),
-                    device_begin.value().data(),
-                    scratch.value().probs.data(),
-                    scratch.value().counts.data(),
-                    scratch.value().scores.data(),
-                    C,
+                    scratch.value().in.data(), device_shifts.value().data(),
+                    device_begin.value().data(), scratch.value().probs.data(),
+                    scratch.value().counts.data(), scratch.value().scores.data(), C,
                     scratch.value().T);
             },
             "GpuCandidateExport::totient sync", progress);

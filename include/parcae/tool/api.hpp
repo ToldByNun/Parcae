@@ -7,18 +7,18 @@
 #include "parcae/corpus/token.hpp"
 #include "parcae/corpus/token_stream.hpp"
 #include "parcae/corpus/tokenizer.hpp"
+#include "parcae/dsl/theory_dispatch.hpp"
+#include "parcae/dsl/theory_envelope_bridge.hpp"
 #include "parcae/gematria/latin_codec.hpp"
 #include "parcae/gematria/rune_codec.hpp"
 #include "parcae/score/score_id.hpp"
 #include "parcae/score/score_registry.hpp"
 #include "parcae/score/score_request.hpp"
-#include "parcae/tool/tool_backend.hpp"
 #include "parcae/tool/context.hpp"
+#include "parcae/tool/tool_backend.hpp"
 #include "parcae/tool/transform_envelope.hpp"
 #include "parcae/transform/apply_transform.hpp"
 #include "parcae/transform/transform_id.hpp"
-#include "parcae/dsl/theory_dispatch.hpp"
-#include "parcae/dsl/theory_envelope_bridge.hpp"
 #include "parcae/validate/fixture_validator.hpp"
 #include "parcae/validate/validation_report.hpp"
 
@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <span>
 #include <string>
@@ -36,16 +37,12 @@
 #include <utility>
 #include <vector>
 
-#include <nlohmann/json.hpp>
-
 class ToolApi {
 public:
     /// Tokenize UTF-8 source with the named separator grammar (+ default Gematria).
-    [[nodiscard]] static StatusOr<TokenStream> tokenize(
-        const Context& ctx,
-        const std::string& source_utf8,
-        std::string_view grammar_id = "rtkd-separator-grammar-v0",
-        bool strict = true) {
+    [[nodiscard]] static StatusOr<TokenStream>
+    tokenize(const Context& ctx, const std::string& source_utf8,
+             std::string_view grammar_id = "rtkd-separator-grammar-v0", bool strict = true) {
         StatusOr<GematriaProfile> profile = ctx.load_gematria();
         if (!profile.ok()) {
             return profile.status();
@@ -58,34 +55,25 @@ public:
     }
 
     /// Apply envelope to a consumable Index29 span (`Backend::Cpu` default).
-    [[nodiscard]] static StatusOr<std::vector<Index29>> apply_to_indices(
-        std::span<const Index29> input,
-        const TransformEnvelope& envelope,
-        Backend backend = Backend::Cpu) {
+    [[nodiscard]] static StatusOr<std::vector<Index29>>
+    apply_to_indices(std::span<const Index29> input, const TransformEnvelope& envelope,
+                     Backend backend = Backend::Cpu) {
         Status usable = BackendUtil::ensure_usable(backend);
         if (!usable.ok()) {
             return usable;
         }
 
         if (backend == Backend::Cpu) {
-            return ApplyTransform::apply(
-                envelope.transform_id(),
-                input,
-                envelope.params(),
-                envelope.direction(),
-                envelope.interrupt());
+            return ApplyTransform::apply(envelope.transform_id(), input, envelope.params(),
+                                         envelope.direction(), envelope.interrupt());
         }
 
 #if defined(PARCAE_HAS_CUDA)
         if (!CudaBackend::available()) {
             return Status::error("CUDA backend requested but CUDA is not available");
         }
-        return CudaBackend::apply(
-            envelope.transform_id(),
-            input,
-            envelope.params(),
-            envelope.direction(),
-            envelope.interrupt());
+        return CudaBackend::apply(envelope.transform_id(), input, envelope.params(),
+                                  envelope.direction(), envelope.interrupt());
 #else
         return Status::error(
             "CUDA backend requested but Parcae was built without CUDA (PARCAE_BUILD_CUDA)");
@@ -95,11 +83,9 @@ public:
     /// Theory-aware apply: catalog ids → ApplyTransform; `parcae://theories/…` →
     /// TheoryDispatch under `theories_root` (typically `data/theories`).
     /// CUDA for theory URIs is not supported in this slice (CPU IR path only).
-    [[nodiscard]] static StatusOr<std::vector<Index29>> apply_to_indices(
-        std::span<const Index29> input,
-        const TheoryEnvelopeBridge::Envelope& envelope,
-        const std::filesystem::path& theories_root,
-        Backend backend = Backend::Cpu) {
+    [[nodiscard]] static StatusOr<std::vector<Index29>>
+    apply_to_indices(std::span<const Index29> input, const TheoryEnvelopeBridge::Envelope& envelope,
+                     const std::filesystem::path& theories_root, Backend backend = Backend::Cpu) {
         Status usable = BackendUtil::ensure_usable(backend);
         if (!usable.ok()) {
             return usable;
@@ -112,27 +98,23 @@ public:
             return apply_to_indices(input, catalog.value(), backend);
         }
         if (backend != Backend::Cpu) {
-            return Status::error(
-                "TheoryDispatch theory URIs are CPU-only in this slice "
-                "(CUDA path uses emitted twins / [cuda][dsl][smoke])");
+            return Status::error("TheoryDispatch theory URIs are CPU-only in this slice "
+                                 "(CUDA path uses emitted twins / [cuda][dsl][smoke])");
         }
         return TheoryDispatch::apply(theories_root, envelope, input);
     }
 
     /// Apply envelope to consumable runes of a token stream (indices only).
-    [[nodiscard]] static StatusOr<std::vector<Index29>> apply_to_indices(
-        const TokenStream& stream,
-        const TransformEnvelope& envelope,
-        Backend backend = Backend::Cpu) {
+    [[nodiscard]] static StatusOr<std::vector<Index29>>
+    apply_to_indices(const TokenStream& stream, const TransformEnvelope& envelope,
+                     Backend backend = Backend::Cpu) {
         return apply_to_indices(stream.consumable_indices(), envelope, backend);
     }
 
     /// Apply to consumable runes and rebuild UTF-8 text, preserving non-rune tokens.
-    [[nodiscard]] static StatusOr<std::string> apply_and_rebuild_text(
-        const Context& ctx,
-        const TokenStream& stream,
-        const TransformEnvelope& envelope,
-        Backend backend = Backend::Cpu) {
+    [[nodiscard]] static StatusOr<std::string>
+    apply_and_rebuild_text(const Context& ctx, const TokenStream& stream,
+                           const TransformEnvelope& envelope, Backend backend = Backend::Cpu) {
         StatusOr<std::vector<Index29>> plain = apply_to_indices(stream, envelope, backend);
         if (!plain.ok()) {
             return plain.status();
@@ -161,18 +143,13 @@ public:
                 }
                 const std::size_t begin = byte_pos;
                 byte_pos += utf8.value().size();
-                rebuilt.push_back(Token::rune(
-                    plain.value()[consumable],
-                    begin,
-                    byte_pos,
-                    std::move(utf8.value()),
-                    consumable));
+                rebuilt.push_back(Token::rune(plain.value()[consumable], begin, byte_pos,
+                                              std::move(utf8.value()), consumable));
                 ++consumable;
             } else {
                 const std::size_t begin = byte_pos;
                 byte_pos += token.text().size();
-                rebuilt.push_back(
-                    Token::non_rune(token.kind(), begin, byte_pos, token.text()));
+                rebuilt.push_back(Token::non_rune(token.kind(), begin, byte_pos, token.text()));
             }
         }
 
@@ -184,10 +161,9 @@ public:
     }
 
     /// Preferred-label Latin concatenation (no inserted spaces).
-    [[nodiscard]] static StatusOr<std::string> to_latin(
-        const Context& ctx,
-        std::span<const Index29> indices,
-        std::string_view label_profile = "gematria-primus-v0-preferred") {
+    [[nodiscard]] static StatusOr<std::string>
+    to_latin(const Context& ctx, std::span<const Index29> indices,
+             std::string_view label_profile = "gematria-primus-v0-preferred") {
         // v0 preferred labels come from the gematria-primus-v0 profile.
         if (label_profile != "gematria-primus-v0-preferred" &&
             label_profile != "gematria-primus-v0") {
@@ -202,14 +178,11 @@ public:
     }
 
     /// Score via CPU `ScoreRegistry` or CUDA `CudaScore` (`Backend::Cpu` default).
-    [[nodiscard]] static StatusOr<double> score(
-        const Context& ctx,
-        std::span<const Index29> indices,
-        std::string_view score_id,
-        std::string_view score_version = "v0",
-        const nlohmann::json& params = nlohmann::json::object(),
-        ScoreRequest request = ScoreRequest(),
-        Backend backend = Backend::Cpu) {
+    [[nodiscard]] static StatusOr<double>
+    score(const Context& ctx, std::span<const Index29> indices, std::string_view score_id,
+          std::string_view score_version = "v0",
+          const nlohmann::json& params = nlohmann::json::object(),
+          ScoreRequest request = ScoreRequest(), Backend backend = Backend::Cpu) {
         Status usable = BackendUtil::ensure_usable(backend);
         if (!usable.ok()) {
             return usable;
@@ -242,10 +215,9 @@ public:
     }
 
     /// Validate a fixture directory path or solved-fixture id.
-    [[nodiscard]] static ValidationReport validate_fixture(
-        const Context& ctx,
-        std::string_view fixture_dir_or_id,
-        bool require_locked = false) {
+    [[nodiscard]] static ValidationReport validate_fixture(const Context& ctx,
+                                                           std::string_view fixture_dir_or_id,
+                                                           bool require_locked = false) {
         StatusOr<std::filesystem::path> dir = ctx.resolve_fixture_dir(fixture_dir_or_id);
         if (!dir.ok()) {
             ValidationReport report;
@@ -275,14 +247,10 @@ public:
 
     [[nodiscard]] static std::vector<std::string> list_transform_ids() {
         return {
-            TransformId::identity().str(),
-            TransformId::atbash().str(),
-            TransformId::caesar().str(),
-            TransformId::affine().str(),
-            TransformId::compose().str(),
-            TransformId::vigenere_key().str(),
-            TransformId::beaufort_key().str(),
-            TransformId::totient_prime_stream().str(),
+            TransformId::identity().str(),     TransformId::atbash().str(),
+            TransformId::caesar().str(),       TransformId::affine().str(),
+            TransformId::compose().str(),      TransformId::vigenere_key().str(),
+            TransformId::beaufort_key().str(), TransformId::totient_prime_stream().str(),
         };
     }
 

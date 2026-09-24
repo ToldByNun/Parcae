@@ -22,10 +22,8 @@
 class BatchOrdering {
 public:
     /// True if `lhs` should rank strictly better (earlier) than `rhs`.
-    [[nodiscard]] static bool better(
-        const BatchHit& lhs,
-        const BatchHit& rhs,
-        ScoreOrder order) noexcept {
+    [[nodiscard]] static bool better(const BatchHit& lhs, const BatchHit& rhs,
+                                     ScoreOrder order) noexcept {
         if (lhs.score() != rhs.score()) {
             if (order == ScoreOrder::Desc) {
                 return lhs.score() > rhs.score();

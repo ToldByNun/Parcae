@@ -10,31 +10,18 @@
 /// Outcome of `BatchRunner::run` — `top()` is best-first under the score order.
 class BatchResult {
 public:
-    BatchResult(
-        std::vector<BatchHit> top,
-        std::size_t scored_count,
-        std::string score_id,
-        std::string score_version)
-        : top_(std::move(top)),
-          scored_count_(scored_count),
-          score_id_(std::move(score_id)),
+    BatchResult(std::vector<BatchHit> top, std::size_t scored_count, std::string score_id,
+                std::string score_version)
+        : top_(std::move(top)), scored_count_(scored_count), score_id_(std::move(score_id)),
           score_version_(std::move(score_version)) {}
 
-    [[nodiscard]] const std::vector<BatchHit>& top() const noexcept {
-        return top_;
-    }
+    [[nodiscard]] const std::vector<BatchHit>& top() const noexcept { return top_; }
 
-    [[nodiscard]] std::size_t scored_count() const noexcept {
-        return scored_count_;
-    }
+    [[nodiscard]] std::size_t scored_count() const noexcept { return scored_count_; }
 
-    [[nodiscard]] const std::string& score_id() const noexcept {
-        return score_id_;
-    }
+    [[nodiscard]] const std::string& score_id() const noexcept { return score_id_; }
 
-    [[nodiscard]] const std::string& score_version() const noexcept {
-        return score_version_;
-    }
+    [[nodiscard]] const std::string& score_version() const noexcept { return score_version_; }
 
 private:
     std::vector<BatchHit> top_;

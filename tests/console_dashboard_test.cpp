@@ -1,9 +1,8 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include "parcae/cli/console_ansi.hpp"
 #include "parcae/cli/console_dashboard.hpp"
 #include "parcae/cli/console_progress_sink.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -36,9 +35,7 @@ public:
         progress_stages.push_back(snapshot.stage());
     }
 
-    void on_stage(
-        std::string_view stage,
-        const ConsoleProgressSnapshot& /*snapshot*/) override {
+    void on_stage(std::string_view stage, const ConsoleProgressSnapshot& /*snapshot*/) override {
         stages.emplace_back(stage);
     }
 
@@ -67,22 +64,17 @@ TEST_CASE("RecordingProgressSink captures progress and stage", "[cli][dashboard]
 TEST_CASE("ConsoleDashboard format_line golden", "[cli][dashboard]") {
     const ConsoleProgressSnapshot snap = ConsoleDashboardTestFixtures::sample_snapshot();
     const std::string line = ConsoleDashboard::format_line(snap);
-    REQUIRE(
-        line ==
-        "[search_cycle] score 25/50 (50.0%) 12.50c/s 2.50k runes/s eta=2.0s "
-        "best=580.5000 shift=11 iter=1/3 t=2.00s");
+    REQUIRE(line == "[search_cycle] score 25/50 (50.0%) 12.50c/s 2.50k runes/s eta=2.0s "
+                    "best=580.5000 shift=11 iter=1/3 t=2.00s");
 }
 
 TEST_CASE("ConsoleDashboard format_panel golden", "[cli][dashboard]") {
     const ConsoleProgressSnapshot snap = ConsoleDashboardTestFixtures::sample_snapshot();
     REQUIRE(ConsoleDashboard::panel_line_count() == 6);
-    const std::vector<std::string> lines =
-        ConsoleDashboard::format_panel_lines(snap, 10);
+    const std::vector<std::string> lines = ConsoleDashboard::format_panel_lines(snap, 10);
     REQUIRE(lines.size() == 6);
-    REQUIRE(
-        lines[0] ==
-        "PARCAE  search_cycle  ws=ws-a  family=caesar  backend=cpu  "
-        "score=chi2_english_gp_v0");
+    REQUIRE(lines[0] == "PARCAE  search_cycle  ws=ws-a  family=caesar  backend=cpu  "
+                        "score=chi2_english_gp_v0");
     REQUIRE(lines[1] == "stage=score  iter=1/3");
     REQUIRE(lines[2] == "[#####-----] 50.0%  25/50");
     REQUIRE(lines[3] == "runes=200  2.50k runes/s  12.50 cand/s  eta=2.0s");
@@ -90,15 +82,13 @@ TEST_CASE("ConsoleDashboard format_panel golden", "[cli][dashboard]") {
     REQUIRE(lines[5] == "elapsed=2.00s");
 
     const std::string panel = ConsoleDashboard::format_panel(snap, 10);
-    REQUIRE(
-        panel ==
-        "PARCAE  search_cycle  ws=ws-a  family=caesar  backend=cpu  "
-        "score=chi2_english_gp_v0\n"
-        "stage=score  iter=1/3\n"
-        "[#####-----] 50.0%  25/50\n"
-        "runes=200  2.50k runes/s  12.50 cand/s  eta=2.0s\n"
-        "best=580.5000  shift=11\n"
-        "elapsed=2.00s");
+    REQUIRE(panel == "PARCAE  search_cycle  ws=ws-a  family=caesar  backend=cpu  "
+                     "score=chi2_english_gp_v0\n"
+                     "stage=score  iter=1/3\n"
+                     "[#####-----] 50.0%  25/50\n"
+                     "runes=200  2.50k runes/s  12.50 cand/s  eta=2.0s\n"
+                     "best=580.5000  shift=11\n"
+                     "elapsed=2.00s");
 }
 
 TEST_CASE("ConsoleDashboard format_throughput scales B/M/k", "[cli][dashboard]") {

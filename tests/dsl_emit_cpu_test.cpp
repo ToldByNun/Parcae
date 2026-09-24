@@ -1,16 +1,14 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/dsl/dsl_emit_cpu.hpp>
 #include <parcae/dsl/param_ir.hpp>
 #include <parcae/dsl/primitive_ir.hpp>
 #include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/z29_expr.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
 
 TEST_CASE("DslEmitCpu emit_expr lowers BinOp tree", "[dsl][emit]") {
-    const Z29Expr::Ptr expr = Z29Expr::add(
-        Z29Expr::mul(Z29Expr::var("x"), Z29Expr::var("shift")), Z29Expr::constant(1).value());
+    const Z29Expr::Ptr expr = Z29Expr::add(Z29Expr::mul(Z29Expr::var("x"), Z29Expr::var("shift")),
+                                           Z29Expr::constant(1).value());
     const StatusOr<std::string> cpp = DslEmitCpu::emit_expr(expr, "x", "input[i]");
     REQUIRE(cpp.ok());
     REQUIRE(cpp.value() == "Z29::add(Z29::mul(input[i], shift), Index29{1u})");
@@ -21,14 +19,10 @@ TEST_CASE("DslEmitCpu emit_theory_header is Transform-shaped", "[dsl][emit]") {
     REQUIRE(shift.ok());
     const Z29Expr::Ptr x = Z29Expr::var("x");
     const Z29Expr::Ptr s = Z29Expr::var("shift");
-    const StatusOr<TheoryIr> theory = TheoryIr::make(
-        "dsl_caesar",
-        TheoryIr::Family::Elementwise,
-        TheoryIr::Tier::A,
-        TheoryIr::InterruptMode::ElementwiseDefault,
-        {shift.value()},
-        Z29Expr::add(x, s),
-        Z29Expr::sub(x, s));
+    const StatusOr<TheoryIr> theory =
+        TheoryIr::make("dsl_caesar", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+                       TheoryIr::InterruptMode::ElementwiseDefault, {shift.value()},
+                       Z29Expr::add(x, s), Z29Expr::sub(x, s));
     REQUIRE(theory.ok());
 
     const StatusOr<std::string> header = DslEmitCpu::emit_theory_header(theory.value());
@@ -54,17 +48,18 @@ TEST_CASE("DslEmitCpu emit_primitive_header poly2", "[dsl][emit]") {
     const Z29Expr::Ptr c2 = Z29Expr::var("c2");
     const Z29Expr::Ptr c1 = Z29Expr::var("c1");
     const Z29Expr::Ptr c0 = Z29Expr::var("c0");
-    const Z29Expr::Ptr body = Z29Expr::add(
-        Z29Expr::add(Z29Expr::mul(Z29Expr::mul(c2, i), i), Z29Expr::mul(c1, i)), c0);
-    const StatusOr<PrimitiveIr> prim = PrimitiveIr::make(
-        "poly2_mod29", "(i: Z29, c2: Z29, c1: Z29, c0: Z29) -> Z29", body);
+    const Z29Expr::Ptr body =
+        Z29Expr::add(Z29Expr::add(Z29Expr::mul(Z29Expr::mul(c2, i), i), Z29Expr::mul(c1, i)), c0);
+    const StatusOr<PrimitiveIr> prim =
+        PrimitiveIr::make("poly2_mod29", "(i: Z29, c2: Z29, c1: Z29, c0: Z29) -> Z29", body);
     REQUIRE(prim.ok());
 
     const StatusOr<std::string> header = DslEmitCpu::emit_primitive_header(prim.value());
     REQUIRE(header.ok());
     REQUIRE(header.value().find("class Poly2Mod29Primitive") != std::string::npos);
-    REQUIRE(header.value().find("static Index29 eval(Index29 i, Index29 c2, Index29 c1, Index29 c0)") !=
-            std::string::npos);
+    REQUIRE(
+        header.value().find("static Index29 eval(Index29 i, Index29 c2, Index29 c1, Index29 c0)") !=
+        std::string::npos);
     REQUIRE(header.value().find("Z29::mul") != std::string::npos);
     REQUIRE(header.value().find("Z29::add") != std::string::npos);
 }
@@ -73,32 +68,23 @@ TEST_CASE("DslEmitCpu none_by_design rejects non-empty interrupt in source", "[d
     const StatusOr<ParamIr> c0 = ParamIr::make("c0", 0, 28);
     REQUIRE(c0.ok());
     const Z29Expr::Ptr x = Z29Expr::var("x");
-    const StatusOr<TheoryIr> theory = TheoryIr::make(
-        "stream_no_irq",
-        TheoryIr::Family::KeyedStream,
-        TheoryIr::Tier::B,
-        TheoryIr::InterruptMode::NoneByDesign,
-        {c0.value()},
-        x,
-        x,
-        std::string("Speculative. emit interrupt gate."));
+    const StatusOr<TheoryIr> theory =
+        TheoryIr::make("stream_no_irq", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+                       TheoryIr::InterruptMode::NoneByDesign, {c0.value()}, x, x,
+                       std::string("Speculative. emit interrupt gate."));
     REQUIRE(theory.ok());
 
     const StatusOr<std::string> header = DslEmitCpu::emit_theory_header(theory.value());
     REQUIRE(header.ok());
     REQUIRE(header.value().find("interrupt_mode = \"none_by_design\"") != std::string::npos);
-    REQUIRE(
-        header.value().find("none_by_design rejects non-empty InterruptPolicy") !=
-        std::string::npos);
+    REQUIRE(header.value().find("none_by_design rejects non-empty InterruptPolicy") !=
+            std::string::npos);
 }
 
 TEST_CASE("DslEmitCpu rejects theory without steps", "[dsl][emit]") {
-    const StatusOr<TheoryIr> theory = TheoryIr::make(
-        "no_steps",
-        TheoryIr::Family::Elementwise,
-        TheoryIr::Tier::A,
-        TheoryIr::InterruptMode::ElementwiseDefault,
-        {});
+    const StatusOr<TheoryIr> theory =
+        TheoryIr::make("no_steps", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+                       TheoryIr::InterruptMode::ElementwiseDefault, {});
     REQUIRE(theory.ok());
     const StatusOr<std::string> header = DslEmitCpu::emit_theory_header(theory.value());
     REQUIRE_FALSE(header.ok());
@@ -111,18 +97,16 @@ TEST_CASE("DslEmitCpu to_pascal", "[dsl][emit]") {
 }
 
 TEST_CASE("DslEmitCpu emit_expr lowers builtin call", "[dsl][emit]") {
-    const Z29Expr::Ptr call = Z29Expr::call(
-        "z29_atbash", {Z29Expr::var("x")});
+    const Z29Expr::Ptr call = Z29Expr::call("z29_atbash", {Z29Expr::var("x")});
     const StatusOr<std::string> cpp = DslEmitCpu::emit_expr(call, "x", "input[i]");
     REQUIRE(cpp.ok());
     REQUIRE(cpp.value() == "Z29::atbash(input[i])");
 }
 
 TEST_CASE("DslEmitCpu emit_expr lowers Select via Z29::select", "[dsl][emit][select]") {
-    const Z29Expr::Ptr expr = Z29Expr::select(
-        Z29Expr::eq(Z29Expr::var("a"), Z29Expr::constant(1).value()),
-        Z29Expr::var("x"),
-        Z29Expr::constant(0).value());
+    const Z29Expr::Ptr expr =
+        Z29Expr::select(Z29Expr::eq(Z29Expr::var("a"), Z29Expr::constant(1).value()),
+                        Z29Expr::var("x"), Z29Expr::constant(0).value());
     const StatusOr<std::string> cpp = DslEmitCpu::emit_expr(expr, "x", "input[i]");
     REQUIRE(cpp.ok());
     REQUIRE(cpp.value().find("Z29::select(") != std::string::npos);
@@ -131,14 +115,11 @@ TEST_CASE("DslEmitCpu emit_expr lowers Select via Z29::select", "[dsl][emit][sel
     REQUIRE(cpp.value().find("?") == std::string::npos);
 }
 
-TEST_CASE(
-    "DslEmitCpu emit_expr prefer_branch Select uses C++ conditional",
-    "[dsl][emit][select]") {
-    const Z29Expr::Ptr expr = Z29Expr::select(
-        Z29Expr::eq(Z29Expr::var("x"), Z29Expr::constant(0).value()),
-        Z29Expr::constant(1).value(),
-        Z29Expr::constant(2).value(),
-        /*prefer_branch=*/true);
+TEST_CASE("DslEmitCpu emit_expr prefer_branch Select uses C++ conditional", "[dsl][emit][select]") {
+    const Z29Expr::Ptr expr =
+        Z29Expr::select(Z29Expr::eq(Z29Expr::var("x"), Z29Expr::constant(0).value()),
+                        Z29Expr::constant(1).value(), Z29Expr::constant(2).value(),
+                        /*prefer_branch=*/true);
     const StatusOr<std::string> cpp = DslEmitCpu::emit_expr(expr, "x", "input[i]");
     REQUIRE(cpp.ok());
     REQUIRE(cpp.value().find("?") != std::string::npos);

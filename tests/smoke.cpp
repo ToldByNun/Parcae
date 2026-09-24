@@ -1,11 +1,8 @@
+#include <catch2/catch_test_macros.hpp>
+#include <nlohmann/json.hpp>
 #include <parcae/core/core.hpp>
 #include <parcae/core/version.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
-
-#include <nlohmann/json.hpp>
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
 #include "parcae_cli_paths.h"
@@ -47,10 +44,9 @@ namespace {
     return std::string("\"") + arg + '"';
 }
 
-[[nodiscard]] std::pair<int, std::string> run_cli(
-    const std::filesystem::path& exe,
-    const std::vector<std::string>& args,
-    const std::string& tmp_tag) {
+[[nodiscard]] std::pair<int, std::string> run_cli(const std::filesystem::path& exe,
+                                                  const std::vector<std::string>& args,
+                                                  const std::string& tmp_tag) {
     const auto tmp = std::filesystem::temp_directory_path();
     const std::filesystem::path out_path = tmp / ("parcae_smoke_" + tmp_tag + "_out.json");
     const std::filesystem::path err_path = tmp / ("parcae_smoke_" + tmp_tag + "_err.txt");
@@ -64,8 +60,8 @@ namespace {
         for (const std::string& arg : args) {
             script << ' ' << quote_arg(arg);
         }
-        script << " >" << quote_arg(out_path.string()) << " 2>"
-               << quote_arg(err_path.string()) << "\r\n";
+        script << " >" << quote_arg(out_path.string()) << " 2>" << quote_arg(err_path.string())
+               << "\r\n";
         script << "exit /B %ERRORLEVEL%\r\n";
     }
 
@@ -87,20 +83,19 @@ namespace {
     return {exit_code, stdout_text};
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "parcae-search-cycle --status reports toolkit_version 0.8.0",
-    "[smoke][version][search][tool][search_cycle][status]") {
+TEST_CASE("parcae-search-cycle --status reports toolkit_version 0.8.0",
+          "[smoke][version][search][tool][search_cycle][status]") {
 #ifndef PARCAE_TEST_DATA_DIR
 #error "PARCAE_TEST_DATA_DIR must be defined"
 #endif
     REQUIRE(std::string(PARCAE_VERSION_STRING) == "0.8.0");
 
-    const auto [code, out] = run_cli(
-        PARCAE_CLI_SEARCH_CYCLE,
-        {"--status", "--json", "--data-dir", std::string(PARCAE_TEST_DATA_DIR)},
-        "search_cycle_status");
+    const auto [code, out] =
+        run_cli(PARCAE_CLI_SEARCH_CYCLE,
+                {"--status", "--json", "--data-dir", std::string(PARCAE_TEST_DATA_DIR)},
+                "search_cycle_status");
     REQUIRE(code == 0);
     const nlohmann::json envelope = nlohmann::json::parse(out);
     REQUIRE(envelope.at("ok").get<bool>());
@@ -112,17 +107,15 @@ TEST_CASE(
     REQUIRE(envelope.at("result").at("scheduler_ready").get<bool>());
 }
 
-TEST_CASE(
-    "parcae-compile --status reports toolkit_version 0.8.0",
-    "[smoke][version][dsl][tool][compile][status]") {
+TEST_CASE("parcae-compile --status reports toolkit_version 0.8.0",
+          "[smoke][version][dsl][tool][compile][status]") {
 #ifndef PARCAE_TEST_DATA_DIR
 #error "PARCAE_TEST_DATA_DIR must be defined"
 #endif
     REQUIRE(std::string(PARCAE_VERSION_STRING) == "0.8.0");
 
     const auto [code, out] = run_cli(
-        PARCAE_CLI_COMPILE,
-        {"--status", "--json", "--data-dir", std::string(PARCAE_TEST_DATA_DIR)},
+        PARCAE_CLI_COMPILE, {"--status", "--json", "--data-dir", std::string(PARCAE_TEST_DATA_DIR)},
         "compile_status");
     REQUIRE(code == 0);
     const nlohmann::json envelope = nlohmann::json::parse(out);
@@ -135,4 +128,4 @@ TEST_CASE(
     REQUIRE(envelope.at("result").at("dsl_spec_version").get<std::string>().size() > 0);
 }
 
-#endif  // PARCAE_HAS_CLI_GOLDENS
+#endif // PARCAE_HAS_CLI_GOLDENS

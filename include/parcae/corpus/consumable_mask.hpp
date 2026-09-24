@@ -14,9 +14,8 @@
 /// `mask[i] == true` means rune `indices[i]` participates in the cipher transform.
 class ConsumableMask {
 public:
-    [[nodiscard]] static StatusOr<ConsumableMask> create(
-        std::vector<Index29> indices,
-        std::vector<std::uint8_t> mask) {
+    [[nodiscard]] static StatusOr<ConsumableMask> create(std::vector<Index29> indices,
+                                                         std::vector<std::uint8_t> mask) {
         if (indices.size() != mask.size()) {
             return Status::error("ConsumableMask indices/mask size mismatch");
         }
@@ -33,33 +32,19 @@ public:
         return ConsumableMask{std::move(indices), std::move(mask)};
     }
 
-    [[nodiscard]] std::size_t size() const noexcept {
-        return indices_.size();
-    }
+    [[nodiscard]] std::size_t size() const noexcept { return indices_.size(); }
 
-    [[nodiscard]] bool empty() const noexcept {
-        return indices_.empty();
-    }
+    [[nodiscard]] bool empty() const noexcept { return indices_.empty(); }
 
-    [[nodiscard]] Index29 index_at(std::size_t i) const {
-        return indices_.at(i);
-    }
+    [[nodiscard]] Index29 index_at(std::size_t i) const { return indices_.at(i); }
 
-    [[nodiscard]] bool participates(std::size_t i) const {
-        return mask_.at(i) != 0;
-    }
+    [[nodiscard]] bool participates(std::size_t i) const { return mask_.at(i) != 0; }
 
-    void set_participates(std::size_t i, bool participates) {
-        mask_.at(i) = participates ? 1 : 0;
-    }
+    void set_participates(std::size_t i, bool participates) { mask_.at(i) = participates ? 1 : 0; }
 
-    [[nodiscard]] std::span<const Index29> indices() const noexcept {
-        return indices_;
-    }
+    [[nodiscard]] std::span<const Index29> indices() const noexcept { return indices_; }
 
-    [[nodiscard]] std::span<const std::uint8_t> mask() const noexcept {
-        return mask_;
-    }
+    [[nodiscard]] std::span<const std::uint8_t> mask() const noexcept { return mask_; }
 
 private:
     ConsumableMask(std::vector<Index29> indices, std::vector<std::uint8_t> mask)

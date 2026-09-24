@@ -13,12 +13,13 @@ enum class TransformDirection {
 
 class TransformDirectionUtil {
 public:
-    [[nodiscard]] static constexpr std::string_view to_string(TransformDirection direction) noexcept {
+    [[nodiscard]] static constexpr std::string_view
+    to_string(TransformDirection direction) noexcept {
         switch (direction) {
-            case TransformDirection::Encrypt:
-                return "encrypt";
-            case TransformDirection::Decrypt:
-                return "decrypt";
+        case TransformDirection::Encrypt:
+            return "encrypt";
+        case TransformDirection::Decrypt:
+            return "decrypt";
         }
         return "unknown";
     }

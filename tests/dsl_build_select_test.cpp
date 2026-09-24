@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/core/index29.hpp>
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_build_ir.hpp>
@@ -7,22 +8,15 @@
 #include <parcae/dsl/dsl_optimize.hpp>
 #include <parcae/dsl/dsl_semantic_gate.hpp>
 #include <parcae/dsl/z29_expr.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
 
 namespace {
 
 [[nodiscard]] std::string minimal_success_doc(const std::string& module_json) {
-    return std::string("{") +
-           R"("schema":"parcae.dsl_ast_json.v0",)" +
-           R"("dsl_ast_json_version":"1.0.0",)" +
-           R"("source_path":"theories/select_prim.py",)" +
+    return std::string("{") + R"("schema":"parcae.dsl_ast_json.v0",)" +
+           R"("dsl_ast_json_version":"1.0.0",)" + R"("source_path":"theories/select_prim.py",)" +
            R"("source_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",)" +
-           R"("python_version":"3.12.0",)" +
-           R"("ok":true,)" +
-           R"("module":)" + module_json + "}";
+           R"("python_version":"3.12.0",)" + R"("ok":true,)" + R"("module":)" + module_json + "}";
 }
 
 [[nodiscard]] DslAstDocument ingest_or_fail(const std::string& module_json) {
@@ -58,11 +52,9 @@ namespace {
     })JSON";
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "DslBuildIr lowers HotLoop If/else to Select",
-    "[dsl][build][select]") {
+TEST_CASE("DslBuildIr lowers HotLoop If/else to Select", "[dsl][build][select]") {
     const DslAstDocument doc = ingest_or_fail(primitive_module(R"([{
       "kind":"If","lineno":4,"col_offset":4,
       "test":{"kind":"Compare","lineno":4,"col_offset":7,
@@ -99,9 +91,7 @@ TEST_CASE(
     REQUIRE(body->eval(env).value().value() == 3);
 }
 
-TEST_CASE(
-    "DslBuildIr lowers HotLoop IfExp ternary to Select",
-    "[dsl][build][select]") {
+TEST_CASE("DslBuildIr lowers HotLoop IfExp ternary to Select", "[dsl][build][select]") {
     const DslAstDocument doc = ingest_or_fail(primitive_module(R"([{
       "kind":"Return","lineno":4,"col_offset":4,
       "value":{
@@ -126,9 +116,8 @@ TEST_CASE(
     REQUIRE(body->eval(env).value().value() == 5);
 }
 
-TEST_CASE(
-    "DslBuildIr + Optimize folds const-Select from HotLoop If",
-    "[dsl][build][select][optimize]") {
+TEST_CASE("DslBuildIr + Optimize folds const-Select from HotLoop If",
+          "[dsl][build][select][optimize]") {
     const DslAstDocument doc = ingest_or_fail(primitive_module(R"([{
       "kind":"If","lineno":4,"col_offset":4,
       "test":{"kind":"Constant","value":true,"lineno":4,"col_offset":7},
@@ -157,9 +146,7 @@ TEST_CASE(
     REQUIRE(folded.value()->left()->name() == "x");
 }
 
-TEST_CASE(
-    "DslBuildIr rejects HotLoop if without else",
-    "[dsl][build][select]") {
+TEST_CASE("DslBuildIr rejects HotLoop if without else", "[dsl][build][select]") {
     const DslAstDocument doc = ingest_or_fail(primitive_module(R"([{
       "kind":"If","lineno":4,"col_offset":4,
       "test":{"kind":"Name","id":"a","ctx":"Load","lineno":4,"col_offset":7},
@@ -175,9 +162,7 @@ TEST_CASE(
     REQUIRE(unit.status().message().find("else") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslBuildIr lowers elif chain to nested Select",
-    "[dsl][build][select]") {
+TEST_CASE("DslBuildIr lowers elif chain to nested Select", "[dsl][build][select]") {
     const DslAstDocument doc = ingest_or_fail(primitive_module(R"([{
       "kind":"If","lineno":4,"col_offset":4,
       "test":{"kind":"Compare","lineno":4,"col_offset":7,
@@ -217,9 +202,8 @@ TEST_CASE(
     REQUIRE(body->eval(env).value().value() == 3);
 }
 
-TEST_CASE(
-    "ThreadVarying HotLoop If → Select prefer_branch for emit",
-    "[dsl][build][select][emit]") {
+TEST_CASE("ThreadVarying HotLoop If → Select prefer_branch for emit",
+          "[dsl][build][select][emit]") {
     // Gate would E033 without ignore; BuildIr still lowers when called directly
     // (compile path honors ignore first). prefer_branch marks divergent emit.
     const DslAstDocument doc = ingest_or_fail(primitive_module(R"([{

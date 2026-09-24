@@ -23,9 +23,8 @@ public:
     static constexpr std::string_view score_id = "chi2_english_gp_v0";
     static constexpr std::string_view score_version = "v0";
 
-    [[nodiscard]] static StatusOr<double> score(
-        const std::vector<Index29>& indices,
-        const ExpectedFrequencyTable& expected) {
+    [[nodiscard]] static StatusOr<double> score(const std::vector<Index29>& indices,
+                                                const ExpectedFrequencyTable& expected) {
         const std::size_t n = indices.size();
         if (n == 0) {
             return Status::error("chi2_english_gp_v0 requires a non-empty sequence");

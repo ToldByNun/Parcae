@@ -1,7 +1,3 @@
-#include "agent_policy_cli.hpp"
-#include "cli_io.hpp"
-#include "tool_cli_json.hpp"
-
 #include "parcae/cli/console_ansi.hpp"
 #include "parcae/cli/console_dashboard.hpp"
 #include "parcae/cli/console_progress_mode.hpp"
@@ -16,18 +12,21 @@
 #include "parcae/tool/tool_backend.hpp"
 #include "parcae/transform/transform_direction.hpp"
 
+#include "agent_policy_cli.hpp"
+#include "cli_io.hpp"
+#include "tool_cli_json.hpp"
+
 #include <chrono>
 #include <cstdint>
 #include <ctime>
 #include <filesystem>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #ifndef PARCAE_DEFAULT_DATA_DIR
 #define PARCAE_DEFAULT_DATA_DIR ""
@@ -48,13 +47,15 @@ void print_help() {
         << "                           [--backend cpu|cuda] [--allow-cuda]\n"
         << "                           [--iterations <n>] [--created-utc <rfc3339>]\n"
         << "                           [--json] [--omit-timing] [--data-dir <path>]\n"
-        << "                           [--quiet | --plain-progress | --progress auto|panel|lines|off]\n"
+        << "                           [--quiet | --plain-progress | --progress "
+           "auto|panel|lines|off]\n"
         << "       parcae-search-cycle --workspace <id> --family <id> [--k <n>]\n"
         << "                           [--seed <u32>] [--score-id <id>]\n"
         << "                           [--backend cpu|cuda] [--allow-cuda]\n"
         << "                           [--iterations <n>] [--created-utc <rfc3339>]\n"
         << "                           [--json] [--omit-timing] [--data-dir <path>]\n"
-        << "                           [--quiet | --plain-progress | --progress auto|panel|lines|off]\n"
+        << "                           [--quiet | --plain-progress | --progress "
+           "auto|panel|lines|off]\n"
         << "\n"
         << "Workspace closed-loop search: job → BatchArtifact → hypotheses\n"
         << "(SearchScheduler). Normative: docs/spec/search-loop.md\n"
@@ -95,27 +96,18 @@ void print_help() {
 /// Stamps cycle identity + wall clock onto scheduler progress events for the dashboard.
 class SearchCycleProgressBridge : public ConsoleProgressSink {
 public:
-    SearchCycleProgressBridge(
-        ConsoleDashboard& dashboard,
-        std::string workspace_id,
-        std::string family,
-        std::string backend,
-        std::string score_id,
-        std::size_t iteration_total)
-        : dashboard_(dashboard),
-          workspace_id_(std::move(workspace_id)),
-          family_(std::move(family)),
-          backend_(std::move(backend)),
-          score_id_(std::move(score_id)),
+    SearchCycleProgressBridge(ConsoleDashboard& dashboard, std::string workspace_id,
+                              std::string family, std::string backend, std::string score_id,
+                              std::size_t iteration_total)
+        : dashboard_(dashboard), workspace_id_(std::move(workspace_id)), family_(std::move(family)),
+          backend_(std::move(backend)), score_id_(std::move(score_id)),
           iteration_total_(iteration_total) {}
 
     void on_progress(const ConsoleProgressSnapshot& snapshot) override {
         dashboard_.on_progress(enrich(snapshot, snapshot.stage()));
     }
 
-    void on_stage(
-        std::string_view stage,
-        const ConsoleProgressSnapshot& snapshot) override {
+    void on_stage(std::string_view stage, const ConsoleProgressSnapshot& snapshot) override {
         dashboard_.on_stage(stage, enrich(snapshot, stage));
     }
 
@@ -140,9 +132,8 @@ private:
         snap.set_score_id(score_id_);
     }
 
-    [[nodiscard]] ConsoleProgressSnapshot enrich(
-        const ConsoleProgressSnapshot& incoming,
-        std::string_view stage) const {
+    [[nodiscard]] ConsoleProgressSnapshot enrich(const ConsoleProgressSnapshot& incoming,
+                                                 std::string_view stage) const {
         ConsoleProgressSnapshot snap = incoming;
         stamp(snap);
         if (!stage.empty()) {
@@ -164,13 +155,9 @@ private:
     std::size_t iteration_total_ = 0;
 };
 
-[[nodiscard]] int fail(
-    bool json_mode,
-    const std::optional<std::string>& backend,
-    ToolErrorCode code,
-    std::string message,
-    int plain_exit,
-    nlohmann::json details = nlohmann::json(nullptr)) {
+[[nodiscard]] int fail(bool json_mode, const std::optional<std::string>& backend,
+                       ToolErrorCode code, std::string message, int plain_exit,
+                       nlohmann::json details = nlohmann::json(nullptr)) {
     if (json_mode) {
         return ToolCliJson::err(kTool, backend, code, std::move(message), std::move(details));
     }
@@ -215,10 +202,8 @@ private:
     return std::string(buf);
 }
 
-[[nodiscard]] StatusOr<std::size_t> parse_size(
-    const std::vector<std::string>& args,
-    std::string_view flag,
-    std::size_t default_value) {
+[[nodiscard]] StatusOr<std::size_t> parse_size(const std::vector<std::string>& args,
+                                               std::string_view flag, std::size_t default_value) {
     const std::string text = CliIo::optional_option(args, flag);
     if (text.empty()) {
         return default_value;
@@ -231,10 +216,9 @@ private:
     }
 }
 
-[[nodiscard]] StatusOr<std::uint32_t> parse_u32(
-    const std::vector<std::string>& args,
-    std::string_view flag,
-    std::uint32_t default_value) {
+[[nodiscard]] StatusOr<std::uint32_t> parse_u32(const std::vector<std::string>& args,
+                                                std::string_view flag,
+                                                std::uint32_t default_value) {
     const std::string text = CliIo::optional_option(args, flag);
     if (text.empty()) {
         return default_value;
@@ -250,38 +234,23 @@ private:
     }
 }
 
-[[nodiscard]] StatusOr<SearchJob> job_with_backend(
-    const SearchJob& job,
-    Backend backend,
-    bool allow_extended_families,
-    bool allow_theory_uri) {
+[[nodiscard]] StatusOr<SearchJob> job_with_backend(const SearchJob& job, Backend backend,
+                                                   bool allow_extended_families,
+                                                   bool allow_theory_uri) {
     const bool extended = job.allow_extended_families() || allow_extended_families;
     const bool theory = job.allow_theory_uri() || allow_theory_uri;
     if (job.backend() == backend && job.allow_extended_families() == extended &&
         job.allow_theory_uri() == theory) {
         return job;
     }
-    return SearchJob::make(
-        job.workspace_id(),
-        job.family(),
-        job.score_id(),
-        job.k(),
-        job.seed(),
-        backend,
-        job.max_candidates(),
-        job.direction(),
-        job.param_grid(),
-        job.prior(),
-        job.score_version(),
-        extended,
-        theory);
+    return SearchJob::make(job.workspace_id(), job.family(), job.score_id(), job.k(), job.seed(),
+                           backend, job.max_candidates(), job.direction(), job.param_grid(),
+                           job.prior(), job.score_version(), extended, theory);
 }
 
-[[nodiscard]] StatusOr<SearchJob> resolve_job(
-    const std::filesystem::path& data_root,
-    const std::vector<std::string>& args,
-    std::string_view workspace_id,
-    Backend backend) {
+[[nodiscard]] StatusOr<SearchJob> resolve_job(const std::filesystem::path& data_root,
+                                              const std::vector<std::string>& args,
+                                              std::string_view workspace_id, Backend backend) {
     const std::string job_path = CliIo::optional_option(args, "--job");
     const std::string family = CliIo::optional_option(args, "--family");
     const bool allow_extended = CliIo::has_flag(args, "--allow-extended-families");
@@ -297,9 +266,9 @@ private:
             return loaded.status();
         }
         if (loaded.value().workspace_id() != workspace_id) {
-            return Status::error(
-                "SearchJob.workspace_id (" + loaded.value().workspace_id() +
-                ") does not match --workspace (" + std::string(workspace_id) + ")");
+            return Status::error("SearchJob.workspace_id (" + loaded.value().workspace_id() +
+                                 ") does not match --workspace (" + std::string(workspace_id) +
+                                 ")");
         }
         return job_with_backend(loaded.value(), backend, allow_extended, allow_theory);
     }
@@ -344,28 +313,17 @@ private:
         max_c = k.value();
     }
 
-    return SearchJob::make(
-        workspace_id,
-        family,
-        score_id,
-        k.value(),
-        seed.value(),
-        backend,
-        max_c,
-        TransformDirection::Decrypt,
-        nlohmann::json::object(),
-        std::nullopt,
-        score_version,
-        allow_extended,
-        allow_theory);
+    return SearchJob::make(workspace_id, family, score_id, k.value(), seed.value(), backend, max_c,
+                           TransformDirection::Decrypt, nlohmann::json::object(), std::nullopt,
+                           score_version, allow_extended, allow_theory);
 }
 
 [[nodiscard]] bool is_known_flag(std::string_view a) {
     return a == "--json" || a == "--status" || a == "-h" || a == "--help" || a == "--data-dir" ||
            a == "--workspace" || a == "--job" || a == "--family" || a == "--k" || a == "--seed" ||
-           a == "--score-id" || a == "--max-candidates" || a == "--backend" || a == "--allow-cuda" ||
-           a == "--allow-extended-families" || a == "--allow-theory-uri" || a == "--iterations" ||
-           a == "--omit-timing" || a == "--created-utc" || a == "--quiet" ||
+           a == "--score-id" || a == "--max-candidates" || a == "--backend" ||
+           a == "--allow-cuda" || a == "--allow-extended-families" || a == "--allow-theory-uri" ||
+           a == "--iterations" || a == "--omit-timing" || a == "--created-utc" || a == "--quiet" ||
            a == "--plain-progress" || a == "--progress";
 }
 
@@ -383,14 +341,13 @@ private:
     // Validate YYYY-MM-DDTHH:MM:SSZ via scheduler helper (advance by 0).
     StatusOr<std::string> ok = SearchScheduler::advance_utc_seconds(text, 0);
     if (!ok.ok()) {
-        return Status::error(
-            "--created-utc must be RFC3339 UTC of the form YYYY-MM-DDTHH:MM:SSZ");
+        return Status::error("--created-utc must be RFC3339 UTC of the form YYYY-MM-DDTHH:MM:SSZ");
     }
     return ok.value();
 }
 
-[[nodiscard]] StatusOr<ConsoleProgressMode> resolve_progress_mode(
-    const std::vector<std::string>& args) {
+[[nodiscard]] StatusOr<ConsoleProgressMode>
+resolve_progress_mode(const std::vector<std::string>& args) {
     const bool quiet = CliIo::has_flag(args, "--quiet");
     const bool plain = CliIo::has_flag(args, "--plain-progress");
     const std::string progress_flag = CliIo::optional_option(args, "--progress");
@@ -402,7 +359,7 @@ private:
     return requested.value().resolve(ConsoleAnsi::stderr_is_tty());
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
@@ -432,24 +389,17 @@ int main(int argc, char** argv) {
             continue;
         }
         if (!a.empty() && a[0] == '-') {
-            return fail(
-                json_mode,
-                std::nullopt,
-                ToolErrorCode::Usage,
-                "Unknown option: " + a,
-                CliIo::kExitUsage);
+            return fail(json_mode, std::nullopt, ToolErrorCode::Usage, "Unknown option: " + a,
+                        CliIo::kExitUsage);
         }
-        return fail(
-            json_mode,
-            std::nullopt,
-            ToolErrorCode::Usage,
-            "Unexpected argument: " + a,
-            CliIo::kExitUsage);
+        return fail(json_mode, std::nullopt, ToolErrorCode::Usage, "Unexpected argument: " + a,
+                    CliIo::kExitUsage);
     }
 
     StatusOr<Context> ctx = CliIo::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        return fail(json_mode, std::nullopt, ToolErrorCode::Io, ctx.status().message(), CliIo::kExitUsage);
+        return fail(json_mode, std::nullopt, ToolErrorCode::Io, ctx.status().message(),
+                    CliIo::kExitUsage);
     }
     const std::filesystem::path data_root = ctx.value().data_root();
 
@@ -457,12 +407,8 @@ int main(int argc, char** argv) {
         if (!CliIo::optional_option(args, "--workspace").empty() ||
             !CliIo::optional_option(args, "--job").empty() ||
             !CliIo::optional_option(args, "--family").empty()) {
-            return fail(
-                json_mode,
-                std::nullopt,
-                ToolErrorCode::Usage,
-                "--status does not take cycle-run flags",
-                CliIo::kExitUsage);
+            return fail(json_mode, std::nullopt, ToolErrorCode::Usage,
+                        "--status does not take cycle-run flags", CliIo::kExitUsage);
         }
         nlohmann::json result = status_result(data_root);
         if (json_mode) {
@@ -470,8 +416,7 @@ int main(int argc, char** argv) {
         }
         std::cout << "parcae-search-cycle\n"
                   << "  toolkit_version:              " << PARCAE_VERSION_STRING << '\n'
-                  << "  search_cycle_result_schema:   " << SearchScheduler::result_schema_id
-                  << '\n'
+                  << "  search_cycle_result_schema:   " << SearchScheduler::result_schema_id << '\n'
                   << "  search_job_schema:            " << SearchJob::schema_id << '\n'
                   << "  scheduler_ready:              true\n"
                   << "  run_ready:                    true\n"
@@ -484,12 +429,8 @@ int main(int argc, char** argv) {
     const std::string workspace = CliIo::optional_option(args, "--workspace");
     if (workspace.empty()) {
         if (json_mode) {
-            return fail(
-                json_mode,
-                std::nullopt,
-                ToolErrorCode::Usage,
-                "Cycle run requires --workspace <id> (or use --status)",
-                CliIo::kExitUsage);
+            return fail(json_mode, std::nullopt, ToolErrorCode::Usage,
+                        "Cycle run requires --workspace <id> (or use --status)", CliIo::kExitUsage);
         }
         print_help();
         return CliIo::kExitUsage;
@@ -500,42 +441,33 @@ int main(int argc, char** argv) {
     if (!backend.ok()) {
         const ToolErrorCode code = AgentPolicyCli::backend_error_code(backend.status());
         backend_label = CliIo::optional_option(args, "--backend", "cpu");
-        return fail(
-            json_mode,
-            backend_label,
-            code,
-            backend.status().message(),
-            code == ToolErrorCode::NotBuilt ? ToolErrorCodeUtil::exit_status(code) : CliIo::kExitUsage);
+        return fail(json_mode, backend_label, code, backend.status().message(),
+                    code == ToolErrorCode::NotBuilt ? ToolErrorCodeUtil::exit_status(code)
+                                                    : CliIo::kExitUsage);
     }
     backend_label = std::string(BackendUtil::to_string(backend.value()));
 
     // Gate writes before touching the workspace (fixtures / path escape → policy).
     Status write_gate = policy.allow_workspace_write(workspace, "batches");
     if (!write_gate.ok()) {
-        return fail(
-            json_mode,
-            backend_label,
-            AgentPolicy::error_code_for(write_gate),
-            write_gate.message(),
-            CliIo::kExitUsage);
+        return fail(json_mode, backend_label, AgentPolicy::error_code_for(write_gate),
+                    write_gate.message(), CliIo::kExitUsage);
     }
 
     StatusOr<std::size_t> iterations = parse_size(args, "--iterations", 1);
     if (!iterations.ok()) {
-        return fail(
-            json_mode, backend_label, ToolErrorCode::Usage, iterations.status().message(),
-            CliIo::kExitUsage);
+        return fail(json_mode, backend_label, ToolErrorCode::Usage, iterations.status().message(),
+                    CliIo::kExitUsage);
     }
     if (iterations.value() == 0) {
-        return fail(
-            json_mode, backend_label, ToolErrorCode::Usage, "--iterations must be >= 1",
-            CliIo::kExitUsage);
+        return fail(json_mode, backend_label, ToolErrorCode::Usage, "--iterations must be >= 1",
+                    CliIo::kExitUsage);
     }
 
     StatusOr<SearchJob> job = resolve_job(data_root, args, workspace, backend.value());
     if (!job.ok()) {
-        return fail(
-            json_mode, backend_label, ToolErrorCode::Usage, job.status().message(), CliIo::kExitUsage);
+        return fail(json_mode, backend_label, ToolErrorCode::Usage, job.status().message(),
+                    CliIo::kExitUsage);
     }
     Status ws_ok = job.value().require_workspace_dir(data_root);
     if (!ws_ok.ok()) {
@@ -544,19 +476,14 @@ int main(int argc, char** argv) {
 
     StatusOr<std::string> created_utc = resolve_created_utc(args);
     if (!created_utc.ok()) {
-        return fail(
-            json_mode, backend_label, ToolErrorCode::Usage, created_utc.status().message(),
-            CliIo::kExitUsage);
+        return fail(json_mode, backend_label, ToolErrorCode::Usage, created_utc.status().message(),
+                    CliIo::kExitUsage);
     }
 
     StatusOr<ConsoleProgressMode> progress_mode = resolve_progress_mode(args);
     if (!progress_mode.ok()) {
-        return fail(
-            json_mode,
-            backend_label,
-            ToolErrorCode::Usage,
-            progress_mode.status().message(),
-            CliIo::kExitUsage);
+        return fail(json_mode, backend_label, ToolErrorCode::Usage,
+                    progress_mode.status().message(), CliIo::kExitUsage);
     }
 
     // Agent / --json defaults to omit_timing; human runs may write a digest-only report.
@@ -573,13 +500,8 @@ int main(int argc, char** argv) {
         ConsoleDashboard::Options dash_opts;
         dash_opts.mode = progress_mode.value();
         dashboard.emplace(dash_opts);
-        progress_bridge.emplace(
-            dashboard.value(),
-            job.value().workspace_id(),
-            job.value().family(),
-            *backend_label,
-            job.value().score_id(),
-            iterations.value());
+        progress_bridge.emplace(dashboard.value(), job.value().workspace_id(), job.value().family(),
+                                *backend_label, job.value().score_id(), iterations.value());
         loop.progress = &progress_bridge.value();
     }
 
@@ -597,12 +519,8 @@ int main(int argc, char** argv) {
                    msg.find("Failed to open") != std::string::npos) {
             code = ToolErrorCode::Io;
         }
-        return fail(
-            json_mode,
-            backend_label,
-            code,
-            cycle.status().message(),
-            ToolErrorCodeUtil::exit_status(code));
+        return fail(json_mode, backend_label, code, cycle.status().message(),
+                    ToolErrorCodeUtil::exit_status(code));
     }
 
     if (progress_bridge.has_value()) {

@@ -1,13 +1,11 @@
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
 #include <parcae/dsl/dsl_compile.hpp>
 #include <parcae/dsl/dsl_spec_version.hpp>
 #include <parcae/dsl/theory_envelope_bridge.hpp>
 #include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/theory_registry.hpp>
 #include <parcae/dsl/theory_validate.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <filesystem>
 #include <string>
 
 #ifndef PARCAE_EXAMPLES_DIR
@@ -33,19 +31,17 @@ namespace {
     return opt;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("examples/new_math_example.py is present", "[dsl][examples][i39]") {
     REQUIRE(std::filesystem::is_regular_file(new_math_example()));
 }
 
-TEST_CASE(
-    "parcae-compile path: theories/examples/new_math_example.py",
-    "[dsl][examples][i39][compile]") {
+TEST_CASE("parcae-compile path: theories/examples/new_math_example.py",
+          "[dsl][examples][i39][compile]") {
     REQUIRE(DslCompile::pipeline_ready(compile_options()));
 
-    const auto root =
-        std::filesystem::temp_directory_path() / "parcae_examples_new_math_i39";
+    const auto root = std::filesystem::temp_directory_path() / "parcae_examples_new_math_i39";
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
     std::filesystem::create_directories(root, ec);
@@ -73,13 +69,12 @@ TEST_CASE(
     REQUIRE(std::filesystem::is_regular_file(dir / "manifest.json"));
     REQUIRE(std::filesystem::is_regular_file(dir / "cpu_reference.hpp"));
     REQUIRE(std::filesystem::is_regular_file(dir / "envelope.json"));
-    REQUIRE(std::filesystem::is_regular_file(
-        dir / "emitted" / "QuadraticPolynomialStreamKernel.hpp"));
-    REQUIRE(std::filesystem::is_regular_file(
-        dir / "emitted" / "QuadraticPolynomialStreamKernel.cu"));
+    REQUIRE(
+        std::filesystem::is_regular_file(dir / "emitted" / "QuadraticPolynomialStreamKernel.hpp"));
+    REQUIRE(
+        std::filesystem::is_regular_file(dir / "emitted" / "QuadraticPolynomialStreamKernel.cu"));
 
-    StatusOr<TheoryArtifact> loaded =
-        TheoryRegistry::load(root, "quadratic_polynomial_stream", 1);
+    StatusOr<TheoryArtifact> loaded = TheoryRegistry::load(root, "quadratic_polynomial_stream", 1);
     REQUIRE(loaded.ok());
     REQUIRE_FALSE(TheoryRegistry::is_stale_spec(loaded.value()));
 
@@ -87,8 +82,7 @@ TEST_CASE(
         TheoryEnvelopeBridge::load(dir / "envelope.json");
     REQUIRE(env.ok());
     REQUIRE(env.value().is_theory());
-    REQUIRE(
-        env.value().transform_id() == "parcae://theories/quadratic_polynomial_stream@1");
+    REQUIRE(env.value().transform_id() == "parcae://theories/quadratic_polynomial_stream@1");
 
     const TheoryValidate::Report report =
         TheoryValidate::validate(root, "quadratic_polynomial_stream", 1);

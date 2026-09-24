@@ -1,3 +1,6 @@
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <fstream>
 #include <parcae/core/index29.hpp>
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_build_ir.hpp>
@@ -11,11 +14,6 @@
 #include <parcae/dsl/dsl_rule_id.hpp>
 #include <parcae/dsl/dsl_semantic_gate.hpp>
 #include <parcae/dsl/z29_expr.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <filesystem>
-#include <fstream>
 #include <string>
 #include <vector>
 
@@ -43,18 +41,13 @@ namespace {
     return opt;
 }
 
-[[nodiscard]] std::string wrap_doc(
-    const std::string& module_json,
-    const std::string& directives_json = "[]") {
-    return std::string("{") +
-           R"("schema":"parcae.dsl_ast_json.v0",)" +
-           R"("dsl_ast_json_version":"1.1.0",)" +
-           R"("source_path":"golden.py",)" +
+[[nodiscard]] std::string wrap_doc(const std::string& module_json,
+                                   const std::string& directives_json = "[]") {
+    return std::string("{") + R"("schema":"parcae.dsl_ast_json.v0",)" +
+           R"("dsl_ast_json_version":"1.1.0",)" + R"("source_path":"golden.py",)" +
            R"("source_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",)" +
-           R"("python_version":"3.12.0",)" +
-           R"("ok":true,)" +
-           R"("directives":)" + directives_json + "," +
-           R"("module":)" + module_json + "}";
+           R"("python_version":"3.12.0",)" + R"("ok":true,)" + R"("directives":)" +
+           directives_json + "," + R"("module":)" + module_json + "}";
 }
 
 [[nodiscard]] DslAstDocument ingest(const std::string& module, const std::string& dirs = "[]") {
@@ -63,13 +56,11 @@ namespace {
     return doc.value();
 }
 
-}  // namespace
+} // namespace
 
 // --- Acceptance matrix goldens (plan § Verification) ---
 
-TEST_CASE(
-    "golden: OuterControl For ok; HotLoop For → E034",
-    "[dsl][golden][scope][gate]") {
+TEST_CASE("golden: OuterControl For ok; HotLoop For → E034", "[dsl][golden][scope][gate]") {
     const DslAstDocument outer = ingest(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"For","lineno":2,"col_offset":0,
@@ -112,9 +103,7 @@ TEST_CASE(
     REQUIRE(st.message().find("E034") != std::string::npos);
 }
 
-TEST_CASE(
-    "golden: HotLoop if cipher → E033; Param → W011",
-    "[dsl][golden][divergence]") {
+TEST_CASE("golden: HotLoop if cipher → E033; Param → W011", "[dsl][golden][divergence]") {
     const auto make_if = [](const char* left_id) {
         return std::string(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
@@ -150,16 +139,14 @@ TEST_CASE(
 
     REQUIRE_FALSE(DslDivergenceGate::check_errors_only(ingest(make_if("x"))).ok());
 
-    const StatusOr<DslDivergenceGate::Report> ok =
-        DslDivergenceGate::check(ingest(make_if("a")));
+    const StatusOr<DslDivergenceGate::Report> ok = DslDivergenceGate::check(ingest(make_if("a")));
     REQUIRE(ok.ok());
     REQUIRE_FALSE(ok.value().empty());
     REQUIRE(ok.value().warnings().front().rule_id() == "W011");
 }
 
-TEST_CASE(
-    "golden: ignore divergent_branch → W010 + prefer_branch emit",
-    "[dsl][golden][directive][directives][divergence][emit]") {
+TEST_CASE("golden: ignore divergent_branch → W010 + prefer_branch emit",
+          "[dsl][golden][directive][directives][divergence][emit]") {
     const std::string module = R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"FunctionDef","name":"poly","lineno":3,"col_offset":0,
@@ -230,9 +217,7 @@ TEST_CASE(
     REQUIRE(out[1].value() == 3);
 }
 
-TEST_CASE(
-    "golden: host_loop_bound suppresses E035",
-    "[dsl][golden][directive][hostglue]") {
+TEST_CASE("golden: host_loop_bound suppresses E035", "[dsl][golden][directive][hostglue]") {
     const DslAstDocument doc = ingest(
         R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
@@ -252,12 +237,10 @@ TEST_CASE(
     REQUIRE(table.value().flags_applied().front() == "host_loop_bound");
 }
 
-TEST_CASE(
-    "golden: compile smart_select_param without allow-dsl-ignores",
-    "[dsl][golden][compile][select]") {
+TEST_CASE("golden: compile smart_select_param without allow-dsl-ignores",
+          "[dsl][golden][compile][select]") {
     REQUIRE(DslCompile::pipeline_ready(compile_options()));
-    const auto root =
-        std::filesystem::temp_directory_path() / "parcae_dsl_golden_select_param";
+    const auto root = std::filesystem::temp_directory_path() / "parcae_dsl_golden_select_param";
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
     std::filesystem::create_directories(root, ec);
@@ -290,12 +273,10 @@ TEST_CASE(
     std::filesystem::remove_all(root, ec);
 }
 
-TEST_CASE(
-    "golden: compile ignore divergent requires --allow-dsl-ignores",
-    "[dsl][golden][compile][directive][directives]") {
+TEST_CASE("golden: compile ignore divergent requires --allow-dsl-ignores",
+          "[dsl][golden][compile][directive][directives]") {
     REQUIRE(DslCompile::pipeline_ready(compile_options()));
-    const auto root =
-        std::filesystem::temp_directory_path() / "parcae_dsl_golden_ignore";
+    const auto root = std::filesystem::temp_directory_path() / "parcae_dsl_golden_ignore";
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
     std::filesystem::create_directories(root, ec);
@@ -326,8 +307,7 @@ TEST_CASE(
     REQUIRE(saw_w010);
     REQUIRE_FALSE(allowed.value().artifacts().front().dsl_ignores_applied().empty());
 
-    const std::filesystem::path cpu =
-        root / "smart_ignore_divergent" / "1" / "cpu_reference.hpp";
+    const std::filesystem::path cpu = root / "smart_ignore_divergent" / "1" / "cpu_reference.hpp";
     REQUIRE(std::filesystem::is_regular_file(cpu));
     std::ifstream in(cpu);
     std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());

@@ -7,14 +7,13 @@
 
 #include <algorithm>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 class SeparatorGrammar {
 public:
@@ -38,9 +37,7 @@ public:
         return load_from_string(buffer.str());
     }
 
-    [[nodiscard]] const std::string& grammar_id() const noexcept {
-        return grammar_id_;
-    }
+    [[nodiscard]] const std::string& grammar_id() const noexcept { return grammar_id_; }
 
     [[nodiscard]] bool is_whitespace(const std::string& token) const {
         return whitespace_.find(token) != whitespace_.end();
@@ -118,15 +115,13 @@ private:
             grammar.tokens_by_length_desc_.push_back(token);
         }
 
-        std::sort(
-            grammar.tokens_by_length_desc_.begin(),
-            grammar.tokens_by_length_desc_.end(),
-            [](const std::string& left, const std::string& right) {
-                if (left.size() != right.size()) {
-                    return left.size() > right.size();
-                }
-                return left < right;
-            });
+        std::sort(grammar.tokens_by_length_desc_.begin(), grammar.tokens_by_length_desc_.end(),
+                  [](const std::string& left, const std::string& right) {
+                      if (left.size() != right.size()) {
+                          return left.size() > right.size();
+                      }
+                      return left < right;
+                  });
 
         if (root.contains("whitespace") && root.at("whitespace").is_array()) {
             for (const nlohmann::json& item : root.at("whitespace")) {

@@ -6,11 +6,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Unified bench / diagnostics report model (all suites).
 ///
@@ -44,22 +43,12 @@ public:
     public:
         Row() = default;
 
-        [[nodiscard]] static Row make(
-            std::string name,
-            std::string workload,
-            Suite suite,
-            Backend backend,
-            RowStatus status,
-            double runes_per_sec,
-            double keys_per_sec,
-            double wall_seconds,
-            double target_min,
-            double target_max,
-            double estimated_peak,
-            std::size_t candidates,
-            std::size_t tokens,
-            std::size_t repeats,
-            std::string detail = {}) {
+        [[nodiscard]] static Row make(std::string name, std::string workload, Suite suite,
+                                      Backend backend, RowStatus status, double runes_per_sec,
+                                      double keys_per_sec, double wall_seconds, double target_min,
+                                      double target_max, double estimated_peak,
+                                      std::size_t candidates, std::size_t tokens,
+                                      std::size_t repeats, std::string detail = {}) {
             Row row;
             row.name_ = std::move(name);
             row.workload_ = std::move(workload);
@@ -80,99 +69,51 @@ public:
         }
 
         /// Convenience: SLO row from `BenchTierSpec::Tier` + measured sample.
-        [[nodiscard]] static Row from_tier_spec(
-            const BenchTierSpec::Tier& tier,
-            Backend backend,
-            double runes_per_sec,
-            double keys_per_sec,
-            double wall_seconds,
-            bool pass,
-            std::string detail = {}) {
-            return make(
-                tier.id,
-                tier.workload,
-                Suite::Slo,
-                backend,
-                pass ? RowStatus::Pass : RowStatus::Fail,
-                runes_per_sec,
-                keys_per_sec,
-                wall_seconds,
-                tier.slo_min,
-                tier.slo_max,
-                tier.estimated_peak,
-                tier.candidates,
-                tier.tokens,
-                tier.repeats,
-                std::move(detail));
+        [[nodiscard]] static Row from_tier_spec(const BenchTierSpec::Tier& tier, Backend backend,
+                                                double runes_per_sec, double keys_per_sec,
+                                                double wall_seconds, bool pass,
+                                                std::string detail = {}) {
+            return make(tier.id, tier.workload, Suite::Slo, backend,
+                        pass ? RowStatus::Pass : RowStatus::Fail, runes_per_sec, keys_per_sec,
+                        wall_seconds, tier.slo_min, tier.slo_max, tier.estimated_peak,
+                        tier.candidates, tier.tokens, tier.repeats, std::move(detail));
         }
 
-        [[nodiscard]] const std::string& name() const noexcept {
-            return name_;
-        }
+        [[nodiscard]] const std::string& name() const noexcept { return name_; }
 
-        [[nodiscard]] const std::string& workload() const noexcept {
-            return workload_;
-        }
+        [[nodiscard]] const std::string& workload() const noexcept { return workload_; }
 
-        [[nodiscard]] Suite suite() const noexcept {
-            return suite_;
-        }
+        [[nodiscard]] Suite suite() const noexcept { return suite_; }
 
-        [[nodiscard]] Backend backend() const noexcept {
-            return backend_;
-        }
+        [[nodiscard]] Backend backend() const noexcept { return backend_; }
 
-        [[nodiscard]] RowStatus status() const noexcept {
-            return status_;
-        }
+        [[nodiscard]] RowStatus status() const noexcept { return status_; }
 
-        [[nodiscard]] bool passed() const noexcept {
-            return status_ == RowStatus::Pass;
-        }
+        [[nodiscard]] bool passed() const noexcept { return status_ == RowStatus::Pass; }
 
-        [[nodiscard]] double runes_per_sec() const noexcept {
-            return runes_per_sec_;
-        }
+        [[nodiscard]] double runes_per_sec() const noexcept { return runes_per_sec_; }
 
-        [[nodiscard]] double keys_per_sec() const noexcept {
-            return keys_per_sec_;
-        }
+        [[nodiscard]] double keys_per_sec() const noexcept { return keys_per_sec_; }
 
-        [[nodiscard]] double wall_seconds() const noexcept {
-            return wall_seconds_;
-        }
+        [[nodiscard]] double wall_seconds() const noexcept { return wall_seconds_; }
 
-        [[nodiscard]] double target_min() const noexcept {
-            return target_min_;
-        }
+        [[nodiscard]] double target_min() const noexcept { return target_min_; }
 
-        [[nodiscard]] double target_max() const noexcept {
-            return target_max_;
-        }
+        [[nodiscard]] double target_max() const noexcept { return target_max_; }
 
-        [[nodiscard]] double estimated_peak() const noexcept {
-            return estimated_peak_;
-        }
+        [[nodiscard]] double estimated_peak() const noexcept { return estimated_peak_; }
 
         [[nodiscard]] double percent_peak() const noexcept {
             return BenchTierSpec::percent_peak(runes_per_sec_, estimated_peak_);
         }
 
-        [[nodiscard]] std::size_t candidates() const noexcept {
-            return candidates_;
-        }
+        [[nodiscard]] std::size_t candidates() const noexcept { return candidates_; }
 
-        [[nodiscard]] std::size_t tokens() const noexcept {
-            return tokens_;
-        }
+        [[nodiscard]] std::size_t tokens() const noexcept { return tokens_; }
 
-        [[nodiscard]] std::size_t repeats() const noexcept {
-            return repeats_;
-        }
+        [[nodiscard]] std::size_t repeats() const noexcept { return repeats_; }
 
-        [[nodiscard]] const std::string& detail() const noexcept {
-            return detail_;
-        }
+        [[nodiscard]] const std::string& detail() const noexcept { return detail_; }
 
         /// Row JSON. When `omit_timing`, drops runes/s, keys/s, wall, %peak.
         [[nodiscard]] nlohmann::json to_json(bool omit_timing = false) const {
@@ -227,13 +168,9 @@ public:
         explicit Document(Suite suite, std::string toolkit_version = PARCAE_VERSION_STRING)
             : suite_(suite), toolkit_version_(std::move(toolkit_version)) {}
 
-        void set_suite(Suite suite) noexcept {
-            suite_ = suite;
-        }
+        void set_suite(Suite suite) noexcept { suite_ = suite; }
 
-        void set_toolkit_version(std::string version) {
-            toolkit_version_ = std::move(version);
-        }
+        void set_toolkit_version(std::string version) { toolkit_version_ = std::move(version); }
 
         void add_row(Row row) {
             if (row.status() == RowStatus::Fail) {
@@ -252,25 +189,17 @@ public:
             }
         }
 
-        [[nodiscard]] Suite suite() const noexcept {
-            return suite_;
-        }
+        [[nodiscard]] Suite suite() const noexcept { return suite_; }
 
         [[nodiscard]] const std::string& toolkit_version() const noexcept {
             return toolkit_version_;
         }
 
-        [[nodiscard]] bool all_pass() const noexcept {
-            return all_pass_;
-        }
+        [[nodiscard]] bool all_pass() const noexcept { return all_pass_; }
 
-        [[nodiscard]] const std::vector<Row>& rows() const noexcept {
-            return rows_;
-        }
+        [[nodiscard]] const std::vector<Row>& rows() const noexcept { return rows_; }
 
-        [[nodiscard]] std::vector<Row>& rows() noexcept {
-            return rows_;
-        }
+        [[nodiscard]] std::vector<Row>& rows() noexcept { return rows_; }
 
         /// Top-level JSON. `omit_timing` strips rate/wall fields on every row
         /// and records `"omit_timing": true` for digest replay.

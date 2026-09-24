@@ -20,17 +20,11 @@ public:
     DslAstDirective(int lineno, std::string flag, std::string raw)
         : lineno_(lineno), flag_(std::move(flag)), raw_(std::move(raw)) {}
 
-    [[nodiscard]] int lineno() const noexcept {
-        return lineno_;
-    }
+    [[nodiscard]] int lineno() const noexcept { return lineno_; }
 
-    [[nodiscard]] const std::string& flag() const noexcept {
-        return flag_;
-    }
+    [[nodiscard]] const std::string& flag() const noexcept { return flag_; }
 
-    [[nodiscard]] const std::string& raw() const noexcept {
-        return raw_;
-    }
+    [[nodiscard]] const std::string& raw() const noexcept { return raw_; }
 
 private:
     int lineno_ = 0;
@@ -51,9 +45,7 @@ public:
         Array,
     };
 
-    [[nodiscard]] static DslAstValue null() {
-        return DslAstValue{Type::Null};
-    }
+    [[nodiscard]] static DslAstValue null() { return DslAstValue{Type::Null}; }
 
     [[nodiscard]] static DslAstValue boolean(bool v) {
         DslAstValue out{Type::Bool};
@@ -91,37 +83,21 @@ public:
         return out;
     }
 
-    [[nodiscard]] Type type() const noexcept {
-        return type_;
-    }
+    [[nodiscard]] Type type() const noexcept { return type_; }
 
-    [[nodiscard]] bool is_null() const noexcept {
-        return type_ == Type::Null;
-    }
+    [[nodiscard]] bool is_null() const noexcept { return type_ == Type::Null; }
 
-    [[nodiscard]] bool as_bool() const noexcept {
-        return bool_;
-    }
+    [[nodiscard]] bool as_bool() const noexcept { return bool_; }
 
-    [[nodiscard]] std::int64_t as_int() const noexcept {
-        return int_;
-    }
+    [[nodiscard]] std::int64_t as_int() const noexcept { return int_; }
 
-    [[nodiscard]] double as_float() const noexcept {
-        return float_;
-    }
+    [[nodiscard]] double as_float() const noexcept { return float_; }
 
-    [[nodiscard]] const std::string& as_string() const noexcept {
-        return string_;
-    }
+    [[nodiscard]] const std::string& as_string() const noexcept { return string_; }
 
-    [[nodiscard]] const std::shared_ptr<DslAstNode>& as_node() const noexcept {
-        return node_;
-    }
+    [[nodiscard]] const std::shared_ptr<DslAstNode>& as_node() const noexcept { return node_; }
 
-    [[nodiscard]] const std::vector<DslAstValue>& as_array() const noexcept {
-        return array_;
-    }
+    [[nodiscard]] const std::vector<DslAstValue>& as_array() const noexcept { return array_; }
 
 private:
     explicit DslAstValue(Type type) : type_(type) {}
@@ -142,45 +118,25 @@ public:
 
     explicit DslAstNode(std::string kind) : kind_(std::move(kind)) {}
 
-    [[nodiscard]] const std::string& kind() const noexcept {
-        return kind_;
-    }
+    [[nodiscard]] const std::string& kind() const noexcept { return kind_; }
 
-    void set_kind(std::string kind) {
-        kind_ = std::move(kind);
-    }
+    void set_kind(std::string kind) { kind_ = std::move(kind); }
 
-    [[nodiscard]] std::optional<int> lineno() const noexcept {
-        return lineno_;
-    }
+    [[nodiscard]] std::optional<int> lineno() const noexcept { return lineno_; }
 
-    [[nodiscard]] std::optional<int> col_offset() const noexcept {
-        return col_offset_;
-    }
+    [[nodiscard]] std::optional<int> col_offset() const noexcept { return col_offset_; }
 
-    [[nodiscard]] std::optional<int> end_lineno() const noexcept {
-        return end_lineno_;
-    }
+    [[nodiscard]] std::optional<int> end_lineno() const noexcept { return end_lineno_; }
 
-    [[nodiscard]] std::optional<int> end_col_offset() const noexcept {
-        return end_col_offset_;
-    }
+    [[nodiscard]] std::optional<int> end_col_offset() const noexcept { return end_col_offset_; }
 
-    void set_lineno(std::optional<int> v) {
-        lineno_ = v;
-    }
+    void set_lineno(std::optional<int> v) { lineno_ = v; }
 
-    void set_col_offset(std::optional<int> v) {
-        col_offset_ = v;
-    }
+    void set_col_offset(std::optional<int> v) { col_offset_ = v; }
 
-    void set_end_lineno(std::optional<int> v) {
-        end_lineno_ = v;
-    }
+    void set_end_lineno(std::optional<int> v) { end_lineno_ = v; }
 
-    void set_end_col_offset(std::optional<int> v) {
-        end_col_offset_ = v;
-    }
+    void set_end_col_offset(std::optional<int> v) { end_col_offset_ = v; }
 
     void set_field(std::string name, DslAstValue value) {
         fields_.emplace_back(std::move(name), std::move(value));
@@ -213,49 +169,33 @@ class DslAstDocument {
 public:
     DslAstDocument() = default;
 
-    void set_source_path(std::string path) {
-        source_path_ = std::move(path);
-    }
+    void set_source_path(std::string path) { source_path_ = std::move(path); }
 
-    void set_source_sha256(std::string hash) {
-        source_sha256_ = std::move(hash);
-    }
+    void set_source_sha256(std::string hash) { source_sha256_ = std::move(hash); }
 
-    void set_python_version(std::string version) {
-        python_version_ = std::move(version);
-    }
+    void set_python_version(std::string version) { python_version_ = std::move(version); }
 
     void set_dsl_ast_json_version(std::string version) {
         dsl_ast_json_version_ = std::move(version);
     }
 
-    void set_module(std::shared_ptr<DslAstNode> module) {
-        module_ = std::move(module);
-    }
+    void set_module(std::shared_ptr<DslAstNode> module) { module_ = std::move(module); }
 
     void set_directives(std::vector<DslAstDirective> directives) {
         directives_ = std::move(directives);
     }
 
-    [[nodiscard]] const std::string& source_path() const noexcept {
-        return source_path_;
-    }
+    [[nodiscard]] const std::string& source_path() const noexcept { return source_path_; }
 
-    [[nodiscard]] const std::string& source_sha256() const noexcept {
-        return source_sha256_;
-    }
+    [[nodiscard]] const std::string& source_sha256() const noexcept { return source_sha256_; }
 
-    [[nodiscard]] const std::string& python_version() const noexcept {
-        return python_version_;
-    }
+    [[nodiscard]] const std::string& python_version() const noexcept { return python_version_; }
 
     [[nodiscard]] const std::string& dsl_ast_json_version() const noexcept {
         return dsl_ast_json_version_;
     }
 
-    [[nodiscard]] const std::shared_ptr<DslAstNode>& module() const noexcept {
-        return module_;
-    }
+    [[nodiscard]] const std::shared_ptr<DslAstNode>& module() const noexcept { return module_; }
 
     [[nodiscard]] const std::vector<DslAstDirective>& directives() const noexcept {
         return directives_;

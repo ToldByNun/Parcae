@@ -26,16 +26,12 @@
 /// Does not build IR (that is DslBuildIr) or check verify/tier claims.
 class DslSemanticGate {
 public:
-    [[nodiscard]] static Status check(const DslAstDocument& doc) {
-        return check(doc, nullptr);
-    }
+    [[nodiscard]] static Status check(const DslAstDocument& doc) { return check(doc, nullptr); }
 
     [[nodiscard]] static Status check(const DslAstDocument& doc, DslDirectiveTable* directives) {
         if (!doc.module()) {
-            return fail(
-                DslRuleId::E031_forbidden_construct,
-                "document has no module AST",
-                doc.source_path());
+            return fail(DslRuleId::E031_forbidden_construct, "document has no module AST",
+                        doc.source_path());
         }
 
         StatusOr<DslScopeMap> scopes = DslScopeAnalyzer::analyze(doc);
@@ -58,18 +54,15 @@ private:
 
     struct GateState {
         std::string source_path;
-        Loc nearest;  // nearest ancestor location for nodes lacking lineno
+        Loc nearest; // nearest ancestor location for nodes lacking lineno
         const DslScopeMap* scopes = nullptr;
         DslDirectiveTable* directives = nullptr;
     };
 
     DslSemanticGate() = delete;
 
-    [[nodiscard]] static Status fail(
-        std::string_view rule_id,
-        std::string message,
-        const std::string& path,
-        Loc loc = {}) {
+    [[nodiscard]] static Status fail(std::string_view rule_id, std::string message,
+                                     const std::string& path, Loc loc = {}) {
         return DslDiag::make(rule_id, std::move(message), path, loc.lineno, loc.col).to_status();
     }
 
@@ -139,9 +132,9 @@ private:
     /// plus scope-aware control-flow kinds validated separately.
     [[nodiscard]] static bool is_allowed_kind(std::string_view kind) {
         // Structural
-        if (kind == "Module" || kind == "ClassDef" || kind == "FunctionDef" || kind == "arguments" ||
-            kind == "arg" || kind == "Return" || kind == "Expr" || kind == "Assign" ||
-            kind == "AnnAssign" || kind == "Pass" || kind == "Raise") {
+        if (kind == "Module" || kind == "ClassDef" || kind == "FunctionDef" ||
+            kind == "arguments" || kind == "arg" || kind == "Return" || kind == "Expr" ||
+            kind == "Assign" || kind == "AnnAssign" || kind == "Pass" || kind == "Raise") {
             return true;
         }
         // Scope-aware control flow (further checked in check_scope_control)
@@ -166,10 +159,8 @@ private:
         return false;
     }
 
-    [[nodiscard]] static Status check_scope_control(
-        const DslAstNode& node,
-        const GateState& state,
-        Loc loc) {
+    [[nodiscard]] static Status check_scope_control(const DslAstNode& node, const GateState& state,
+                                                    Loc loc) {
         const std::string& kind = node.kind();
         const DslExecScope scope = scope_of(node, state);
 
@@ -181,17 +172,12 @@ private:
         if (kind == "For" || kind == "While") {
             if (scope.is_hot_loop()) {
                 if (state.directives != nullptr &&
-                    state.directives->honor(
-                        DslDirectiveTable::flag_hotloop_restriction,
-                        node,
-                        DslRuleId::E034_hotloop_control)) {
+                    state.directives->honor(DslDirectiveTable::flag_hotloop_restriction, node,
+                                            DslRuleId::E034_hotloop_control)) {
                     return Status::success();
                 }
-                return fail(
-                    DslRuleId::E034_hotloop_control,
-                    std::string(kind) + " not allowed in HotLoop",
-                    state.source_path,
-                    loc);
+                return fail(DslRuleId::E034_hotloop_control,
+                            std::string(kind) + " not allowed in HotLoop", state.source_path, loc);
             }
             return Status::success();
         }
@@ -199,24 +185,16 @@ private:
         if (kind == "Break" || kind == "Continue") {
             if (scope.is_hot_loop()) {
                 if (state.directives != nullptr &&
-                    state.directives->honor(
-                        DslDirectiveTable::flag_hotloop_restriction,
-                        node,
-                        DslRuleId::E034_hotloop_control)) {
+                    state.directives->honor(DslDirectiveTable::flag_hotloop_restriction, node,
+                                            DslRuleId::E034_hotloop_control)) {
                     return Status::success();
                 }
-                return fail(
-                    DslRuleId::E034_hotloop_control,
-                    std::string(kind) + " not allowed in HotLoop",
-                    state.source_path,
-                    loc);
+                return fail(DslRuleId::E034_hotloop_control,
+                            std::string(kind) + " not allowed in HotLoop", state.source_path, loc);
             }
             if (!scope.in_loop()) {
-                return fail(
-                    DslRuleId::E031_forbidden_construct,
-                    std::string(kind) + " outside a loop",
-                    state.source_path,
-                    loc);
+                return fail(DslRuleId::E031_forbidden_construct,
+                            std::string(kind) + " outside a loop", state.source_path, loc);
             }
             return Status::success();
         }
@@ -224,19 +202,13 @@ private:
         return Status::success();
     }
 
-    [[nodiscard]] static Status check_op_string(
-        std::string_view field,
-        std::string_view op,
-        const GateState& state,
-        Loc loc,
-        std::string_view parent_kind) {
+    [[nodiscard]] static Status check_op_string(std::string_view field, std::string_view op,
+                                                const GateState& state, Loc loc,
+                                                std::string_view parent_kind) {
         if (field == "ctx") {
             if (!is_ctx_kind(op)) {
-                return fail(
-                    DslRuleId::E031_forbidden_construct,
-                    "ctx '" + std::string(op) + "' is not allowed",
-                    state.source_path,
-                    loc);
+                return fail(DslRuleId::E031_forbidden_construct,
+                            "ctx '" + std::string(op) + "' is not allowed", state.source_path, loc);
             }
             return Status::success();
         }
@@ -256,11 +228,9 @@ private:
                 ok = is_operator_or_ctx_kind(op);
             }
             if (!ok) {
-                return fail(
-                    DslRuleId::E031_forbidden_construct,
-                    "operator '" + std::string(op) + "' is not allowed",
-                    state.source_path,
-                    loc);
+                return fail(DslRuleId::E031_forbidden_construct,
+                            "operator '" + std::string(op) + "' is not allowed", state.source_path,
+                            loc);
             }
             return Status::success();
         }
@@ -273,35 +243,26 @@ private:
         const DslAstValue* level_v = node.find_field("level");
         if (level_v != nullptr && level_v->type() == DslAstValue::Type::Int &&
             level_v->as_int() != 0) {
-            return fail(
-                DslRuleId::E021_import_whitelist,
-                "relative imports are not allowed (ImportFrom.level must be 0)",
-                state.source_path,
-                loc);
+            return fail(DslRuleId::E021_import_whitelist,
+                        "relative imports are not allowed (ImportFrom.level must be 0)",
+                        state.source_path, loc);
         }
 
         const DslAstValue* module_v = node.find_field("module");
         if (module_v == nullptr || module_v->is_null()) {
-            return fail(
-                DslRuleId::E021_import_whitelist,
-                "ImportFrom.module is required (relative imports are not allowed)",
-                state.source_path,
-                loc);
+            return fail(DslRuleId::E021_import_whitelist,
+                        "ImportFrom.module is required (relative imports are not allowed)",
+                        state.source_path, loc);
         }
         if (module_v->type() != DslAstValue::Type::String) {
-            return fail(
-                DslRuleId::E021_import_whitelist,
-                "ImportFrom.module must be a string",
-                state.source_path,
-                loc);
+            return fail(DslRuleId::E021_import_whitelist, "ImportFrom.module must be a string",
+                        state.source_path, loc);
         }
         const std::string& module = module_v->as_string();
         if (!is_allowed_import_module(module)) {
-            return fail(
-                DslRuleId::E021_import_whitelist,
-                "import '" + module + "' not in parcae.dsl.* whitelist",
-                state.source_path,
-                loc);
+            return fail(DslRuleId::E021_import_whitelist,
+                        "import '" + module + "' not in parcae.dsl.* whitelist", state.source_path,
+                        loc);
         }
         return Status::success();
     }
@@ -311,11 +272,9 @@ private:
         for (const char* field : {"vararg", "kwarg"}) {
             const DslAstValue* v = node.find_field(field);
             if (v != nullptr && !v->is_null()) {
-                return fail(
-                    DslRuleId::E031_forbidden_construct,
-                    std::string("arguments.") + field + " is not allowed in v0 DSL",
-                    state.source_path,
-                    loc);
+                return fail(DslRuleId::E031_forbidden_construct,
+                            std::string("arguments.") + field + " is not allowed in v0 DSL",
+                            state.source_path, loc);
             }
         }
         return Status::success();
@@ -325,21 +284,15 @@ private:
         const DslAstValue* arg = node.find_field("arg");
         // CPython uses arg=null for **kwargs.
         if (arg == nullptr || arg->is_null()) {
-            return fail(
-                DslRuleId::E031_forbidden_construct,
-                "**kwargs is not allowed in v0 DSL",
-                state.source_path,
-                location_of(node, state));
+            return fail(DslRuleId::E031_forbidden_construct, "**kwargs is not allowed in v0 DSL",
+                        state.source_path, location_of(node, state));
         }
         return Status::success();
     }
 
-    [[nodiscard]] static Status walk_value(
-        const DslAstValue& value,
-        GateState& state,
-        int function_depth,
-        std::string_view parent_kind,
-        std::string_view field_name) {
+    [[nodiscard]] static Status walk_value(const DslAstValue& value, GateState& state,
+                                           int function_depth, std::string_view parent_kind,
+                                           std::string_view field_name) {
         switch (value.type()) {
         case DslAstValue::Type::Null:
         case DslAstValue::Type::Bool:
@@ -348,8 +301,8 @@ private:
             return Status::success();
         case DslAstValue::Type::String: {
             if (field_name == "op" || field_name == "ops" || field_name == "ctx") {
-                return check_op_string(
-                    field_name, value.as_string(), state, state.nearest, parent_kind);
+                return check_op_string(field_name, value.as_string(), state, state.nearest,
+                                       parent_kind);
             }
             return Status::success();
         }
@@ -362,8 +315,8 @@ private:
             for (const DslAstValue& item : value.as_array()) {
                 if (item.type() == DslAstValue::Type::String &&
                     (field_name == "ops" || field_name == "op" || field_name == "ctx")) {
-                    Status st = check_op_string(
-                        field_name, item.as_string(), state, state.nearest, parent_kind);
+                    Status st = check_op_string(field_name, item.as_string(), state, state.nearest,
+                                                parent_kind);
                     if (!st.ok()) {
                         return st;
                     }
@@ -380,10 +333,8 @@ private:
         return Status::success();
     }
 
-    [[nodiscard]] static Status walk_node(
-        const DslAstNode& node,
-        GateState& state,
-        int function_depth) {
+    [[nodiscard]] static Status walk_node(const DslAstNode& node, GateState& state,
+                                          int function_depth) {
         GateState child_state = state;
         if (node.lineno().has_value()) {
             child_state.nearest = Loc{node.lineno(), node.col_offset()};
@@ -393,27 +344,19 @@ private:
 
         // Bare Import is explicitly forbidden (even though not on the allow-list).
         if (kind == "Import") {
-            return fail(
-                DslRuleId::E031_forbidden_construct,
-                "forbidden construct 'Import' (use ImportFrom from parcae.dsl.*)",
-                child_state.source_path,
-                loc);
+            return fail(DslRuleId::E031_forbidden_construct,
+                        "forbidden construct 'Import' (use ImportFrom from parcae.dsl.*)",
+                        child_state.source_path, loc);
         }
 
         if (is_always_forbidden_async_loop(kind)) {
-            return fail(
-                DslRuleId::E031_forbidden_construct,
-                "forbidden construct '" + kind + "'",
-                child_state.source_path,
-                loc);
+            return fail(DslRuleId::E031_forbidden_construct, "forbidden construct '" + kind + "'",
+                        child_state.source_path, loc);
         }
 
         if (!is_allowed_kind(kind)) {
-            return fail(
-                DslRuleId::E031_forbidden_construct,
-                "forbidden construct '" + kind + "'",
-                child_state.source_path,
-                loc);
+            return fail(DslRuleId::E031_forbidden_construct, "forbidden construct '" + kind + "'",
+                        child_state.source_path, loc);
         }
 
         if (is_scope_control_kind(kind)) {
@@ -424,19 +367,15 @@ private:
         }
 
         if (kind == "Starred") {
-            return fail(
-                DslRuleId::E031_forbidden_construct,
-                "starred expressions are not allowed in v0 DSL",
-                child_state.source_path,
-                loc);
+            return fail(DslRuleId::E031_forbidden_construct,
+                        "starred expressions are not allowed in v0 DSL", child_state.source_path,
+                        loc);
         }
 
         if (kind == "ClassDef" && function_depth > 0) {
-            return fail(
-                DslRuleId::E031_forbidden_construct,
-                "ClassDef nested inside functions is not allowed in v0 DSL",
-                child_state.source_path,
-                loc);
+            return fail(DslRuleId::E031_forbidden_construct,
+                        "ClassDef nested inside functions is not allowed in v0 DSL",
+                        child_state.source_path, loc);
         }
 
         if (kind == "ImportFrom") {

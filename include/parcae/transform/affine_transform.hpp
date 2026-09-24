@@ -14,17 +14,11 @@ class AffineTransform : public Transform {
 public:
     AffineTransform() = default;
 
-    [[nodiscard]] TransformId id() const override {
-        return TransformId::affine();
-    }
+    [[nodiscard]] TransformId id() const override { return TransformId::affine(); }
 
     /// Allocation-free elementwise kernel (in-place OK).
-    [[nodiscard]] static Status kernel(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        Index29 a,
-        Index29 b,
-        TransformDirection direction) {
+    [[nodiscard]] static Status kernel(std::span<const Index29> input, std::span<Index29> output,
+                                       Index29 a, Index29 b, TransformDirection direction) {
         Status sizes = TransformBuffer::require_same_length(input, output);
         if (!sizes.ok()) {
             return sizes;
@@ -40,12 +34,10 @@ public:
         return Status::success();
     }
 
-    [[nodiscard]] Status apply_into(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        const nlohmann::json& params,
-        TransformDirection direction,
-        const InterruptPolicy& /*interrupt*/ = InterruptPolicy::none()) const override {
+    [[nodiscard]] Status
+    apply_into(std::span<const Index29> input, std::span<Index29> output,
+               const nlohmann::json& params, TransformDirection direction,
+               const InterruptPolicy& /*interrupt*/ = InterruptPolicy::none()) const override {
         StatusOr<Params> parsed = parse_params(params);
         if (!parsed.ok()) {
             return parsed.status();
@@ -59,11 +51,10 @@ private:
         Index29 b;
     };
 
-    [[nodiscard]] static StatusOr<Index29> parse_index_field(
-        const nlohmann::json& params,
-        const char* key,
-        std::uint8_t min_inclusive,
-        std::uint8_t max_inclusive) {
+    [[nodiscard]] static StatusOr<Index29> parse_index_field(const nlohmann::json& params,
+                                                             const char* key,
+                                                             std::uint8_t min_inclusive,
+                                                             std::uint8_t max_inclusive) {
         if (!params.contains(key)) {
             return Status::error(std::string("affine params.") + key + " is required");
         }
@@ -73,8 +64,7 @@ private:
         const auto raw = params.at(key).get<std::int64_t>();
         if (raw < static_cast<std::int64_t>(min_inclusive) ||
             raw > static_cast<std::int64_t>(max_inclusive)) {
-            return Status::error(
-                std::string("affine params.") + key + " out of valid range");
+            return Status::error(std::string("affine params.") + key + " out of valid range");
         }
         return Index29{static_cast<std::uint8_t>(raw)};
     }

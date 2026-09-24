@@ -1,7 +1,6 @@
-#include "identity_copy.hpp"
-
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
+#include "identity_copy.hpp"
 
 #include <cuda_runtime_api.h>
 
@@ -9,10 +8,7 @@ namespace {
 
 constexpr int kThreadsPerBlock = 256;
 
-__global__ void identity_copy_kernel(
-    const std::uint8_t* in,
-    std::uint8_t* out,
-    std::size_t count) {
+__global__ void identity_copy_kernel(const std::uint8_t* in, std::uint8_t* out, std::size_t count) {
     const std::size_t i =
         static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
         static_cast<std::size_t>(threadIdx.x);
@@ -21,12 +17,10 @@ __global__ void identity_copy_kernel(
     }
 }
 
-}  // namespace
+} // namespace
 
-Status IdentityCopy::launch_device(
-    const std::uint8_t* device_in,
-    std::uint8_t* device_out,
-    std::size_t count) {
+Status IdentityCopy::launch_device(const std::uint8_t* device_in, std::uint8_t* device_out,
+                                   std::size_t count) {
     if (count == 0) {
         return Status::success();
     }
@@ -45,9 +39,8 @@ Status IdentityCopy::launch_device(
     return CudaError::to_status(cudaDeviceSynchronize(), "IdentityCopy::launch_device sync");
 }
 
-Status IdentityCopy::apply_host(
-    std::span<const std::uint8_t> host_in,
-    std::span<std::uint8_t> host_out) {
+Status IdentityCopy::apply_host(std::span<const std::uint8_t> host_in,
+                                std::span<std::uint8_t> host_out) {
     if (host_in.size() != host_out.size()) {
         return Status::error("IdentityCopy::apply_host size mismatch");
     }

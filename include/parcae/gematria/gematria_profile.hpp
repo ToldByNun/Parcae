@@ -16,9 +16,8 @@
 
 class GematriaProfile {
 public:
-    [[nodiscard]] static StatusOr<GematriaProfile> create(
-        std::string profile_id,
-        std::vector<GematriaEntry> entries) {
+    [[nodiscard]] static StatusOr<GematriaProfile> create(std::string profile_id,
+                                                          std::vector<GematriaEntry> entries) {
         Status status = validate(entries);
         if (!status.ok()) {
             return status;
@@ -31,17 +30,11 @@ public:
         return profile;
     }
 
-    [[nodiscard]] const std::string& profile_id() const noexcept {
-        return profile_id_;
-    }
+    [[nodiscard]] const std::string& profile_id() const noexcept { return profile_id_; }
 
-    [[nodiscard]] std::size_t size() const noexcept {
-        return entries_.size();
-    }
+    [[nodiscard]] std::size_t size() const noexcept { return entries_.size(); }
 
-    [[nodiscard]] const std::vector<GematriaEntry>& entries() const noexcept {
-        return entries_;
-    }
+    [[nodiscard]] const std::vector<GematriaEntry>& entries() const noexcept { return entries_; }
 
     [[nodiscard]] const GematriaEntry& entry_at(Index29 index) const {
         return entries_.at(index.value());
@@ -88,7 +81,7 @@ private:
         }
 
         static constexpr std::uint32_t k_first_29_primes[Index29::modulus] = {
-            2,  3,  5,  7,  11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47,
+            2,  3,  5,  7,  11, 13, 17, 19, 23, 29, 31,  37,  41,  43,  47,
             53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109,
         };
 
@@ -140,12 +133,10 @@ private:
     }
 
     void finalize() {
-        std::sort(
-            entries_.begin(),
-            entries_.end(),
-            [](const GematriaEntry& left, const GematriaEntry& right) {
-                return left.index().value() < right.index().value();
-            });
+        std::sort(entries_.begin(), entries_.end(),
+                  [](const GematriaEntry& left, const GematriaEntry& right) {
+                      return left.index().value() < right.index().value();
+                  });
 
         rune_to_index_.clear();
         prime_to_index_.clear();

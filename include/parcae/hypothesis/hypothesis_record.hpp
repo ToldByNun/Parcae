@@ -14,14 +14,13 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <span>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// One scored/proposed transform hypothesis (`parcae.hypothesis.v0`).
 class HypothesisRecord {
@@ -30,57 +29,31 @@ public:
 
     HypothesisRecord() = default;
 
-    [[nodiscard]] const std::string& id() const noexcept {
-        return id_;
-    }
+    [[nodiscard]] const std::string& id() const noexcept { return id_; }
 
-    [[nodiscard]] const std::string& workspace_id() const noexcept {
-        return workspace_id_;
-    }
+    [[nodiscard]] const std::string& workspace_id() const noexcept { return workspace_id_; }
 
-    [[nodiscard]] HypothesisStatus status() const noexcept {
-        return status_;
-    }
+    [[nodiscard]] HypothesisStatus status() const noexcept { return status_; }
 
-    [[nodiscard]] const std::string& title() const noexcept {
-        return title_;
-    }
+    [[nodiscard]] const std::string& title() const noexcept { return title_; }
 
-    [[nodiscard]] const std::string& rationale() const noexcept {
-        return rationale_;
-    }
+    [[nodiscard]] const std::string& rationale() const noexcept { return rationale_; }
 
-    [[nodiscard]] const nlohmann::json& method() const noexcept {
-        return method_;
-    }
+    [[nodiscard]] const nlohmann::json& method() const noexcept { return method_; }
 
-    [[nodiscard]] const nlohmann::json& source() const noexcept {
-        return source_;
-    }
+    [[nodiscard]] const nlohmann::json& source() const noexcept { return source_; }
 
-    [[nodiscard]] const nlohmann::json& scores() const noexcept {
-        return scores_;
-    }
+    [[nodiscard]] const nlohmann::json& scores() const noexcept { return scores_; }
 
-    [[nodiscard]] const nlohmann::json& preview() const noexcept {
-        return preview_;
-    }
+    [[nodiscard]] const nlohmann::json& preview() const noexcept { return preview_; }
 
-    [[nodiscard]] const nlohmann::json& digests() const noexcept {
-        return digests_;
-    }
+    [[nodiscard]] const nlohmann::json& digests() const noexcept { return digests_; }
 
-    [[nodiscard]] const nlohmann::json& promotion() const noexcept {
-        return promotion_;
-    }
+    [[nodiscard]] const nlohmann::json& promotion() const noexcept { return promotion_; }
 
-    [[nodiscard]] const std::string& created_utc() const noexcept {
-        return created_utc_;
-    }
+    [[nodiscard]] const std::string& created_utc() const noexcept { return created_utc_; }
 
-    [[nodiscard]] const std::string& updated_utc() const noexcept {
-        return updated_utc_;
-    }
+    [[nodiscard]] const std::string& updated_utc() const noexcept { return updated_utc_; }
 
     /// Recursively sort object keys; compact UTF-8 dump for digests.
     [[nodiscard]] static nlohmann::json canonicalize_json(const nlohmann::json& value) {
@@ -132,17 +105,11 @@ public:
         return Status::success();
     }
 
-    void set_title(std::string title) {
-        title_ = std::move(title);
-    }
+    void set_title(std::string title) { title_ = std::move(title); }
 
-    void set_rationale(std::string rationale) {
-        rationale_ = std::move(rationale);
-    }
+    void set_rationale(std::string rationale) { rationale_ = std::move(rationale); }
 
-    void set_updated_utc(std::string utc) {
-        updated_utc_ = std::move(utc);
-    }
+    void set_updated_utc(std::string utc) { updated_utc_ = std::move(utc); }
 
     [[nodiscard]] Status set_source(nlohmann::json source) {
         Status ok = validate_source(source);
@@ -190,8 +157,8 @@ public:
             }
             StatusOr<std::string> ok = WorkspacePaths::validate_id(batch_id);
             if (!ok.ok()) {
-                return Status::error(
-                    "HypothesisRecord.source.batch_id invalid: " + ok.status().message());
+                return Status::error("HypothesisRecord.source.batch_id invalid: " +
+                                     ok.status().message());
             }
         }
         if (source.contains("family") && !source.at("family").is_null()) {
@@ -200,8 +167,7 @@ public:
             }
             const std::string family = source.at("family").get<std::string>();
             if (!is_known_family(family)) {
-                return Status::error(
-                    "HypothesisRecord.source.family unknown: " + family);
+                return Status::error("HypothesisRecord.source.family unknown: " + family);
             }
         }
         if (source.contains("rank") && !source.at("rank").is_null()) {
@@ -218,22 +184,15 @@ public:
     /// Empty provenance stub used by `make_draft` / CLI init.
     [[nodiscard]] static nlohmann::json empty_source() {
         return nlohmann::json{
-            {"generator_id", nullptr},
-            {"candidate_id", nullptr},
-            {"agent_run_id", nullptr},
-            {"batch_id", nullptr},
-            {"family", nullptr},
-            {"rank", nullptr},
+            {"generator_id", nullptr}, {"candidate_id", nullptr}, {"agent_run_id", nullptr},
+            {"batch_id", nullptr},     {"family", nullptr},       {"rank", nullptr},
         };
     }
 
-    void set_preview(nlohmann::json preview) {
-        preview_ = std::move(preview);
-    }
+    void set_preview(nlohmann::json preview) { preview_ = std::move(preview); }
 
     [[nodiscard]] Status set_method(nlohmann::json method) {
-        StatusOr<TransformEnvelope> envelope =
-            TransformEnvelope::from_json(method);
+        StatusOr<TransformEnvelope> envelope = TransformEnvelope::from_json(method);
         if (!envelope.ok()) {
             return envelope.status();
         }
@@ -380,12 +339,10 @@ public:
         if (!root.contains("method") || !root.at("method").is_object()) {
             return Status::error("HypothesisRecord.method must be an object");
         }
-        StatusOr<TransformEnvelope> envelope =
-            TransformEnvelope::from_json(root.at("method"));
+        StatusOr<TransformEnvelope> envelope = TransformEnvelope::from_json(root.at("method"));
         if (!envelope.ok()) {
-            return Status::error(
-                "HypothesisRecord.method is not a valid TransformEnvelope: " +
-                envelope.status().message());
+            return Status::error("HypothesisRecord.method is not a valid TransformEnvelope: " +
+                                 envelope.status().message());
         }
         record.method_ = envelope.value().to_json();
 
@@ -436,10 +393,9 @@ public:
     }
 
     /// Load `data_root/workspaces/<workspace_id>/hypotheses/<hypothesis_id>.json`.
-    [[nodiscard]] static StatusOr<HypothesisRecord> load(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id,
-        std::string_view hypothesis_id) {
+    [[nodiscard]] static StatusOr<HypothesisRecord> load(const std::filesystem::path& data_root,
+                                                         std::string_view workspace_id,
+                                                         std::string_view hypothesis_id) {
         StatusOr<std::filesystem::path> path =
             WorkspacePaths::hypothesis_file(data_root, workspace_id, hypothesis_id);
         if (!path.ok()) {
@@ -449,10 +405,9 @@ public:
     }
 
     /// Load from an explicit path; still enforces id / workspace_id match.
-    [[nodiscard]] static StatusOr<HypothesisRecord> load_file(
-        const std::filesystem::path& path,
-        std::string_view expected_workspace_id,
-        std::string_view expected_hypothesis_id) {
+    [[nodiscard]] static StatusOr<HypothesisRecord>
+    load_file(const std::filesystem::path& path, std::string_view expected_workspace_id,
+              std::string_view expected_hypothesis_id) {
         std::ifstream in(path, std::ios::binary);
         if (!in) {
             return Status::error("Failed to open hypothesis file: " + path.string());
@@ -493,8 +448,7 @@ public:
 
         // Ensure the write target stays under the workspace and not fixtures.
         StatusOr<std::filesystem::path> resolved = WorkspacePaths::resolve_under(
-            ws_root.value(),
-            std::filesystem::path("hypotheses") / (id_ + ".json"));
+            ws_root.value(), std::filesystem::path("hypotheses") / (id_ + ".json"));
         if (!resolved.ok()) {
             return resolved.status();
         }
@@ -516,15 +470,15 @@ public:
         }
         out << body;
         if (!out) {
-            return Status::error("Failed while writing hypothesis file: " + resolved.value().string());
+            return Status::error("Failed while writing hypothesis file: " +
+                                 resolved.value().string());
         }
         return Status::success();
     }
 
     /// List hypothesis ids in `workspaces/<id>/hypotheses/*.json` (sorted).
-    [[nodiscard]] static StatusOr<std::vector<std::string>> list_ids(
-        const std::filesystem::path& data_root,
-        std::string_view workspace_id) {
+    [[nodiscard]] static StatusOr<std::vector<std::string>>
+    list_ids(const std::filesystem::path& data_root, std::string_view workspace_id) {
         StatusOr<std::filesystem::path> dir =
             WorkspacePaths::hypotheses_dir(data_root, workspace_id);
         if (!dir.ok()) {
@@ -557,16 +511,14 @@ public:
     }
 
     /// Build a minimal draft stub (CLI `init` / tests).
-    [[nodiscard]] static StatusOr<HypothesisRecord> make_draft(
-        std::string_view workspace_id,
-        std::string_view hypothesis_id,
-        std::string_view created_utc,
-        std::string_view title = "",
-        nlohmann::json method = nlohmann::json{
-            {"transform_id", "identity"},
-            {"direction", "decrypt"},
-            {"params", nlohmann::json::object()},
-        }) {
+    [[nodiscard]] static StatusOr<HypothesisRecord>
+    make_draft(std::string_view workspace_id, std::string_view hypothesis_id,
+               std::string_view created_utc, std::string_view title = "",
+               nlohmann::json method = nlohmann::json{
+                   {"transform_id", "identity"},
+                   {"direction", "decrypt"},
+                   {"params", nlohmann::json::object()},
+               }) {
         StatusOr<std::string> wid = WorkspacePaths::validate_id(workspace_id);
         if (!wid.ok()) {
             return wid.status();
@@ -575,8 +527,7 @@ public:
         if (!hid.ok()) {
             return hid.status();
         }
-        StatusOr<TransformEnvelope> envelope =
-            TransformEnvelope::from_json(method);
+        StatusOr<TransformEnvelope> envelope = TransformEnvelope::from_json(method);
         if (!envelope.ok()) {
             return envelope.status();
         }
@@ -610,28 +561,25 @@ private:
                family == "totient";
     }
 
-    [[nodiscard]] static Status validate_optional_id_string(
-        const nlohmann::json& source,
-        const char* key,
-        bool allow_empty) {
+    [[nodiscard]] static Status validate_optional_id_string(const nlohmann::json& source,
+                                                            const char* key, bool allow_empty) {
         if (!source.contains(key) || source.at(key).is_null()) {
             return Status::success();
         }
         if (!source.at(key).is_string()) {
-            return Status::error(
-                std::string("HypothesisRecord.source.") + key + " must be a string or null");
+            return Status::error(std::string("HypothesisRecord.source.") + key +
+                                 " must be a string or null");
         }
         const std::string value = source.at(key).get<std::string>();
         if (!allow_empty && value.empty()) {
-            return Status::error(
-                std::string("HypothesisRecord.source.") + key + " must be non-empty when set");
+            return Status::error(std::string("HypothesisRecord.source.") + key +
+                                 " must be non-empty when set");
         }
         return Status::success();
     }
 
-    [[nodiscard]] static StatusOr<std::string> require_string(
-        const nlohmann::json& root,
-        const char* key) {
+    [[nodiscard]] static StatusOr<std::string> require_string(const nlohmann::json& root,
+                                                              const char* key) {
         if (!root.contains(key) || !root.at(key).is_string()) {
             return Status::error(std::string("HypothesisRecord.") + key + " must be a string");
         }
@@ -656,8 +604,8 @@ private:
             }
             for (const char* key : {"score_id", "score_version", "backend", "scored_utc"}) {
                 if (!entry.contains(key) || !entry.at(key).is_string()) {
-                    return Status::error(
-                        "scores[" + std::to_string(i) + "]." + key + " must be a string");
+                    return Status::error("scores[" + std::to_string(i) + "]." + key +
+                                         " must be a string");
                 }
             }
             if (!entry.contains("value") || !entry.at("value").is_number()) {
@@ -690,4 +638,4 @@ private:
     nlohmann::json promotion_ = nlohmann::json::object();
 };
 
-#endif  // HYPOTHESIS_RECORD_HPP
+#endif // HYPOTHESIS_RECORD_HPP

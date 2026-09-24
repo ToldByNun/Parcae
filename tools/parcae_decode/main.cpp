@@ -1,20 +1,19 @@
-#include "cli_io.hpp"
-#include "tool_cli_json.hpp"
-#include "agent_policy_cli.hpp"
-
 #include "parcae/corpus/fixture_loader.hpp"
 #include "parcae/interrupt/policy.hpp"
 #include "parcae/tool/api.hpp"
 #include "parcae/tool/transform_envelope.hpp"
 
+#include "agent_policy_cli.hpp"
+#include "cli_io.hpp"
+#include "tool_cli_json.hpp"
+
 #include <filesystem>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #ifndef PARCAE_DEFAULT_DATA_DIR
 #define PARCAE_DEFAULT_DATA_DIR ""
@@ -49,12 +48,8 @@ void print_help() {
         << "  -h, --help   Show this help\n";
 }
 
-[[nodiscard]] int fail(
-    bool json_mode,
-    const std::optional<std::string>& backend,
-    ToolErrorCode code,
-    std::string message,
-    int plain_exit) {
+[[nodiscard]] int fail(bool json_mode, const std::optional<std::string>& backend,
+                       ToolErrorCode code, std::string message, int plain_exit) {
     if (json_mode) {
         return ToolCliJson::err(kTool, backend, code, std::move(message));
     }
@@ -62,8 +57,7 @@ void print_help() {
     return plain_exit;
 }
 
-[[nodiscard]] StatusOr<TransformEnvelope> envelope_from_fixture(
-    const Fixture& fixture) {
+[[nodiscard]] StatusOr<TransformEnvelope> envelope_from_fixture(const Fixture& fixture) {
     nlohmann::json root{
         {"transform_id", fixture.transform_id()},
         {"direction", fixture.direction()},
@@ -80,8 +74,8 @@ void print_help() {
     return TransformEnvelope::from_json(root);
 }
 
-[[nodiscard]] StatusOr<TransformEnvelope> envelope_from_flags(
-    const std::vector<std::string>& args) {
+[[nodiscard]] StatusOr<TransformEnvelope>
+envelope_from_flags(const std::vector<std::string>& args) {
     StatusOr<std::string> transform_id = CliIo::require_option(args, "--transform-id");
     if (!transform_id.ok()) {
         return transform_id.status();
@@ -146,16 +140,10 @@ void print_help() {
     return TransformEnvelope::from_json(root);
 }
 
-[[nodiscard]] int emit_result(
-    const Context& ctx,
-    const TokenStream& stream,
-    const TransformEnvelope& envelope,
-    Backend backend,
-    bool json_mode,
-    bool rebuild_text,
-    const std::string& backend_label) {
-    StatusOr<std::vector<Index29>> indices =
-        ToolApi::apply_to_indices(stream, envelope, backend);
+[[nodiscard]] int emit_result(const Context& ctx, const TokenStream& stream,
+                              const TransformEnvelope& envelope, Backend backend, bool json_mode,
+                              bool rebuild_text, const std::string& backend_label) {
+    StatusOr<std::vector<Index29>> indices = ToolApi::apply_to_indices(stream, envelope, backend);
     if (!indices.ok()) {
         return fail(json_mode, backend_label, ToolErrorCode::Internal, indices.status().message(),
                     CliIo::kExitFail);
@@ -203,7 +191,7 @@ void print_help() {
     return ToolCliJson::ok(kTool, backend_label, std::move(result));
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
@@ -238,17 +226,13 @@ int main(int argc, char** argv) {
     const bool has_manifest = CliIo::has_flag(args, "--manifest");
     const bool has_transform_json = CliIo::has_flag(args, "--transform-json");
     const bool has_transform_id = CliIo::has_flag(args, "--transform-id");
-    const int modes =
-        static_cast<int>(has_manifest) + static_cast<int>(has_transform_json) +
-        static_cast<int>(has_transform_id);
+    const int modes = static_cast<int>(has_manifest) + static_cast<int>(has_transform_json) +
+                      static_cast<int>(has_transform_id);
     if (modes != 1) {
         print_help();
-        return fail(
-            json_mode,
-            backend_label,
-            ToolErrorCode::Usage,
-            "Choose exactly one of --manifest, --transform-json, or --transform-id",
-            CliIo::kExitUsage);
+        return fail(json_mode, backend_label, ToolErrorCode::Usage,
+                    "Choose exactly one of --manifest, --transform-json, or --transform-id",
+                    CliIo::kExitUsage);
     }
 
     if (has_manifest) {
@@ -275,21 +259,14 @@ int main(int argc, char** argv) {
                         envelope.status().message(), CliIo::kExitFail);
         }
 
-        StatusOr<TokenStream> stream =
-            ToolApi::tokenize(ctx.value(), fixture.value().ciphertext());
+        StatusOr<TokenStream> stream = ToolApi::tokenize(ctx.value(), fixture.value().ciphertext());
         if (!stream.ok()) {
             return fail(json_mode, backend_label, ToolErrorCode::Internal,
                         stream.status().message(), CliIo::kExitFail);
         }
 
-        return emit_result(
-            ctx.value(),
-            stream.value(),
-            envelope.value(),
-            backend.value(),
-            json_mode,
-            rebuild_text,
-            *backend_label);
+        return emit_result(ctx.value(), stream.value(), envelope.value(), backend.value(),
+                           json_mode, rebuild_text, *backend_label);
     }
 
     StatusOr<std::string> input_path = CliIo::require_option(args, "--input");
@@ -331,12 +308,6 @@ int main(int argc, char** argv) {
                     CliIo::kExitFail);
     }
 
-    return emit_result(
-        ctx.value(),
-        stream.value(),
-        envelope.value(),
-        backend.value(),
-        json_mode,
-        rebuild_text,
-        *backend_label);
+    return emit_result(ctx.value(), stream.value(), envelope.value(), backend.value(), json_mode,
+                       rebuild_text, *backend_label);
 }

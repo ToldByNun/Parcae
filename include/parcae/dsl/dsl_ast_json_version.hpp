@@ -28,25 +28,18 @@ public:
         if (!parsed.ok()) {
             return Status::error(std::string("dsl_ast_json_version: ") + parsed.status().message());
         }
-        return DslAstJsonVersion{
-            parsed.value().major(), parsed.value().minor(), parsed.value().patch()};
+        return DslAstJsonVersion{parsed.value().major(), parsed.value().minor(),
+                                 parsed.value().patch()};
     }
 
-    [[nodiscard]] int major() const noexcept {
-        return major_;
-    }
+    [[nodiscard]] int major() const noexcept { return major_; }
 
-    [[nodiscard]] int minor() const noexcept {
-        return minor_;
-    }
+    [[nodiscard]] int minor() const noexcept { return minor_; }
 
-    [[nodiscard]] int patch() const noexcept {
-        return patch_;
-    }
+    [[nodiscard]] int patch() const noexcept { return patch_; }
 
     [[nodiscard]] std::string to_string() const {
-        return std::to_string(major_) + "." + std::to_string(minor_) + "." +
-               std::to_string(patch_);
+        return std::to_string(major_) + "." + std::to_string(minor_) + "." + std::to_string(patch_);
     }
 
     [[nodiscard]] bool major_mismatch_with_current() const noexcept {
@@ -59,19 +52,18 @@ public:
 
     [[nodiscard]] Status check_compatible_with_current() const {
         if (major_mismatch_with_current()) {
-            return Status::error(
-                "dsl_ast_json_version major mismatch: document " + to_string() + ", toolchain " +
-                std::string(current_string));
+            return Status::error("dsl_ast_json_version major mismatch: document " + to_string() +
+                                 ", toolchain " + std::string(current_string));
         }
         if (is_newer_than_current()) {
-            return Status::error(
-                "dsl_ast_json_version is newer than toolchain: document " + to_string() +
-                ", toolchain " + std::string(current_string));
+            return Status::error("dsl_ast_json_version is newer than toolchain: document " +
+                                 to_string() + ", toolchain " + std::string(current_string));
         }
         return Status::success();
     }
 
-    [[nodiscard]] static int compare(const DslAstJsonVersion& a, const DslAstJsonVersion& b) noexcept {
+    [[nodiscard]] static int compare(const DslAstJsonVersion& a,
+                                     const DslAstJsonVersion& b) noexcept {
         if (a.major_ != b.major_) {
             return a.major_ < b.major_ ? -1 : 1;
         }
@@ -84,13 +76,13 @@ public:
         return 0;
     }
 
-    [[nodiscard]] friend bool operator==(
-        const DslAstJsonVersion& a, const DslAstJsonVersion& b) noexcept {
+    [[nodiscard]] friend bool operator==(const DslAstJsonVersion& a,
+                                         const DslAstJsonVersion& b) noexcept {
         return compare(a, b) == 0;
     }
 
-    [[nodiscard]] friend bool operator!=(
-        const DslAstJsonVersion& a, const DslAstJsonVersion& b) noexcept {
+    [[nodiscard]] friend bool operator!=(const DslAstJsonVersion& a,
+                                         const DslAstJsonVersion& b) noexcept {
         return !(a == b);
     }
 

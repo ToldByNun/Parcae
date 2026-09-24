@@ -1,9 +1,7 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
 #include <parcae/core/index29.hpp>
 #include <parcae/core/z29.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <cstdint>
 
 TEST_CASE("Index29 accepts 0..28", "[index29]") {
     for (std::uint8_t v = 0; v < Index29::modulus; ++v) {

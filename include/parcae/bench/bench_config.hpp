@@ -17,64 +17,41 @@ class BenchConfig {
 public:
     static constexpr std::uint32_t default_probe_timeout_ms = 120000u;
 
-    BenchConfig() {
-        probe_tiers_ = {"T1", "T2", "T3"};
-    }
+    BenchConfig() { probe_tiers_ = {"T1", "T2", "T3"}; }
 
-    [[nodiscard]] const std::string& probe_cmd() const noexcept {
-        return probe_cmd_;
-    }
+    [[nodiscard]] const std::string& probe_cmd() const noexcept { return probe_cmd_; }
 
-    void set_probe_cmd(std::string cmd) {
-        probe_cmd_ = std::move(cmd);
-    }
+    void set_probe_cmd(std::string cmd) { probe_cmd_ = std::move(cmd); }
 
-    [[nodiscard]] bool has_probe_cmd() const noexcept {
-        return !probe_cmd_.empty();
-    }
+    [[nodiscard]] bool has_probe_cmd() const noexcept { return !probe_cmd_.empty(); }
 
     [[nodiscard]] const std::vector<std::string>& probe_tiers() const noexcept {
         return probe_tiers_;
     }
 
-    void set_probe_tiers(std::vector<std::string> tiers) {
-        probe_tiers_ = std::move(tiers);
-    }
+    void set_probe_tiers(std::vector<std::string> tiers) { probe_tiers_ = std::move(tiers); }
 
-    [[nodiscard]] std::uint32_t probe_timeout_ms() const noexcept {
-        return probe_timeout_ms_;
-    }
+    [[nodiscard]] std::uint32_t probe_timeout_ms() const noexcept { return probe_timeout_ms_; }
 
-    void set_probe_timeout_ms(std::uint32_t ms) noexcept {
-        probe_timeout_ms_ = ms;
-    }
+    void set_probe_timeout_ms(std::uint32_t ms) noexcept { probe_timeout_ms_ = ms; }
 
-    [[nodiscard]] bool compare_builtin() const noexcept {
-        return compare_builtin_;
-    }
+    [[nodiscard]] bool compare_builtin() const noexcept { return compare_builtin_; }
 
-    void set_compare_builtin(bool enabled) noexcept {
-        compare_builtin_ = enabled;
-    }
+    void set_compare_builtin(bool enabled) noexcept { compare_builtin_ = enabled; }
 
-    [[nodiscard]] std::uint32_t seed() const noexcept {
-        return seed_;
-    }
+    [[nodiscard]] std::uint32_t seed() const noexcept { return seed_; }
 
-    void set_seed(std::uint32_t seed) noexcept {
-        seed_ = seed;
-    }
+    void set_seed(std::uint32_t seed) noexcept { seed_ = seed; }
 
     /// Parse `T1,T2,T3` (whitespace around commas ignored). Empty → default trio.
-    [[nodiscard]] static StatusOr<std::vector<std::string>> parse_probe_tiers(
-        std::string_view text) {
+    [[nodiscard]] static StatusOr<std::vector<std::string>>
+    parse_probe_tiers(std::string_view text) {
         std::vector<std::string> out;
         std::string current;
         auto flush = [&]() -> Status {
             // trim
             std::size_t b = 0;
-            while (b < current.size() &&
-                   (current[b] == ' ' || current[b] == '\t')) {
+            while (b < current.size() && (current[b] == ' ' || current[b] == '\t')) {
                 ++b;
             }
             std::size_t e = current.size();
@@ -87,8 +64,7 @@ public:
             }
             const std::string id = current.substr(b, e - b);
             if (BenchTierSpec::find_primary(id) == nullptr) {
-                return Status::error(
-                    "BenchConfig: unknown probe tier '" + id + "' (use T1|T2|T3)");
+                return Status::error("BenchConfig: unknown probe tier '" + id + "' (use T1|T2|T3)");
             }
             out.push_back(id);
             current.clear();

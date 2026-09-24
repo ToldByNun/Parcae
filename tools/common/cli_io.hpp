@@ -47,16 +47,15 @@ public:
     }
 
     /// Resolve data root: --data-dir > PARCAE_DATA_DIR > ./data > PARCAE_DEFAULT_DATA_DIR.
-    [[nodiscard]] static StatusOr<Context> make_context(
-        const std::string& data_dir_flag,
-        const char* default_data_dir) {
+    [[nodiscard]] static StatusOr<Context> make_context(const std::string& data_dir_flag,
+                                                        const char* default_data_dir) {
         std::filesystem::path root;
         if (!data_dir_flag.empty()) {
             root = data_dir_flag;
         } else {
 #if defined(_MSC_VER)
 #pragma warning(push)
-#pragma warning(disable : 4996)  // getenv
+#pragma warning(disable : 4996) // getenv
 #endif
             const char* env = std::getenv("PARCAE_DATA_DIR");
 #if defined(_MSC_VER)
@@ -100,7 +99,8 @@ public:
             if (j == i) {
                 return Status::error("Invalid integer list (expected digits/commas)");
             }
-            out.push_back(static_cast<std::size_t>(std::stoull(std::string(text.substr(i, j - i)))));
+            out.push_back(
+                static_cast<std::size_t>(std::stoull(std::string(text.substr(i, j - i)))));
             i = j;
         }
         return out;
@@ -119,7 +119,8 @@ public:
         return out;
     }
 
-    [[nodiscard]] static bool has_flag(const std::vector<std::string>& args, std::string_view flag) {
+    [[nodiscard]] static bool has_flag(const std::vector<std::string>& args,
+                                       std::string_view flag) {
         for (const std::string& arg : args) {
             if (arg == flag) {
                 return true;
@@ -128,9 +129,8 @@ public:
         return false;
     }
 
-    [[nodiscard]] static StatusOr<std::string> require_option(
-        const std::vector<std::string>& args,
-        std::string_view flag) {
+    [[nodiscard]] static StatusOr<std::string> require_option(const std::vector<std::string>& args,
+                                                              std::string_view flag) {
         for (std::size_t i = 0; i < args.size(); ++i) {
             if (args[i] == flag) {
                 if (i + 1 >= args.size()) {
@@ -142,10 +142,9 @@ public:
         return Status::error("Missing required option " + std::string(flag));
     }
 
-    [[nodiscard]] static std::string optional_option(
-        const std::vector<std::string>& args,
-        std::string_view flag,
-        std::string default_value = {}) {
+    [[nodiscard]] static std::string optional_option(const std::vector<std::string>& args,
+                                                     std::string_view flag,
+                                                     std::string default_value = {}) {
         for (std::size_t i = 0; i < args.size(); ++i) {
             if (args[i] == flag) {
                 if (i + 1 < args.size()) {

@@ -2,21 +2,20 @@
 
 #if defined(PARCAE_HAS_CUDA)
 
-#include "affine_batch_kernel.hpp"
-#include "candidate_batch_buffers.hpp"
-#include "parcae_cuda.hpp"
-#include "params.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/generate/affine_candidate_generator.hpp"
 #include "parcae/transform/affine_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
 
+#include "affine_batch_kernel.hpp"
+#include "candidate_batch_buffers.hpp"
+#include "params.hpp"
+#include "parcae_cuda.hpp"
+
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <random>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 namespace {
 
@@ -28,11 +27,9 @@ namespace {
     return {I(0), I(1), I(2), I(3), I(10), I(14), I(28)};
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "CUDA affine batch 812 matches AffineCandidateGenerator",
-    "[cuda][batch][affine]") {
+TEST_CASE("CUDA affine batch 812 matches AffineCandidateGenerator", "[cuda][batch][affine]") {
     REQUIRE(ParcaeCuda::available());
 
     const std::vector<Index29> cipher = cipher_fixture();
@@ -56,12 +53,10 @@ TEST_CASE(
         std::vector<Index29> cuda_out(cipher.size());
         REQUIRE(buffers.value().copy_out_candidate(c, cuda_out).ok());
         REQUIRE(cuda_out == cpu.value()[c].output_indices());
-        REQUIRE(
-            buffers.value().affine_a()[c] ==
-            static_cast<std::uint8_t>(cpu.value()[c].params().at("a").get<int>()));
-        REQUIRE(
-            buffers.value().affine_b()[c] ==
-            static_cast<std::uint8_t>(cpu.value()[c].params().at("b").get<int>()));
+        REQUIRE(buffers.value().affine_a()[c] ==
+                static_cast<std::uint8_t>(cpu.value()[c].params().at("a").get<int>()));
+        REQUIRE(buffers.value().affine_b()[c] ==
+                static_cast<std::uint8_t>(cpu.value()[c].params().at("b").get<int>()));
     }
 }
 
@@ -91,12 +86,8 @@ TEST_CASE("CUDA affine batch encrypt sweep matches CPU kernel", "[cuda][batch][a
         const std::uint8_t a = buffers.value().affine_a()[c];
         const std::uint8_t b = buffers.value().affine_b()[c];
         std::vector<Index29> cpu_out(plain.size());
-        REQUIRE(AffineTransform::kernel(
-                    plain,
-                    cpu_out,
-                    Index29{a},
-                    Index29{b},
-                    TransformDirection::Encrypt)
+        REQUIRE(AffineTransform::kernel(plain, cpu_out, Index29{a}, Index29{b},
+                                        TransformDirection::Encrypt)
                     .ok());
 
         std::vector<Index29> cuda_out(plain.size());
@@ -150,7 +141,7 @@ TEST_CASE("CUDA affine batch rejects bad a and wrong family", "[cuda][batch][aff
     REQUIRE_FALSE(AffineBatchKernel::apply_host(wrong.value()).ok());
 
     std::vector<std::uint8_t> in{1, 2};
-    std::vector<std::uint8_t> a{0};  // invalid
+    std::vector<std::uint8_t> a{0}; // invalid
     std::vector<std::uint8_t> b{0};
     std::vector<std::uint8_t> dirs{0};
     std::vector<std::uint8_t> out(2);

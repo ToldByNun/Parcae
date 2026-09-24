@@ -1,10 +1,11 @@
 #ifndef AGENT_POLICY_CLI_HPP
 #define AGENT_POLICY_CLI_HPP
 
-#include "cli_io.hpp"
 #include "parcae/tool/agent_policy.hpp"
 #include "parcae/tool/context.hpp"
 #include "parcae/tool/tool_backend.hpp"
+
+#include "cli_io.hpp"
 #include "tool_cli_json.hpp"
 
 #include <optional>
@@ -20,18 +21,16 @@ public:
         return CliIo::has_flag(args, "--allow-cuda");
     }
 
-    [[nodiscard]] static AgentPolicy make(
-        const Context& ctx,
-        const std::vector<std::string>& args) {
+    [[nodiscard]] static AgentPolicy make(const Context& ctx,
+                                          const std::vector<std::string>& args) {
         return AgentPolicy{ctx.data_root(), allow_cuda_flag(args)};
     }
 
     /// Parse `--backend`, enforce AgentPolicy, then `BackendUtil::ensure_usable`.
     /// On policy denial → `ToolErrorCode::Policy`; on missing build → `NotBuilt`.
-    [[nodiscard]] static StatusOr<Backend> resolve_backend(
-        const AgentPolicy& policy,
-        const std::vector<std::string>& args,
-        std::string_view default_backend = "cpu") {
+    [[nodiscard]] static StatusOr<Backend>
+    resolve_backend(const AgentPolicy& policy, const std::vector<std::string>& args,
+                    std::string_view default_backend = "cpu") {
         StatusOr<Backend> backend = policy.check_backend_string(
             CliIo::optional_option(args, "--backend", std::string(default_backend)));
         if (!backend.ok()) {
@@ -67,4 +66,4 @@ private:
     AgentPolicyCli() = delete;
 };
 
-#endif  // AGENT_POLICY_CLI_HPP
+#endif // AGENT_POLICY_CLI_HPP

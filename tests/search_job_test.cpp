@@ -1,13 +1,11 @@
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <fstream>
 #include <parcae/core/status_or.hpp>
 #include <parcae/hypothesis/workspace_paths.hpp>
 #include <parcae/search/search_job.hpp>
 #include <parcae/tool/tool_backend.hpp>
 #include <parcae/transform/transform_direction.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <filesystem>
-#include <fstream>
 #include <string>
 
 #ifndef PARCAE_TEST_DATA_DIR
@@ -37,17 +35,11 @@ namespace {
     };
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("SearchJob make and round-trip JSON", "[search][job]") {
-    StatusOr<SearchJob> job = SearchJob::make(
-        "_example",
-        "caesar",
-        "chi2_english_gp_v0",
-        16,
-        1,
-        Backend::Cpu,
-        4096);
+    StatusOr<SearchJob> job =
+        SearchJob::make("_example", "caesar", "chi2_english_gp_v0", 16, 1, Backend::Cpu, 4096);
     REQUIRE(job.ok());
     REQUIRE(job.value().workspace_id() == "_example");
     REQUIRE(job.value().family() == "caesar");
@@ -110,16 +102,15 @@ TEST_CASE("SearchJob rejects bad schema and bounds", "[search][job]") {
         nlohmann::json j = valid_job_json();
         j["family"] = "theory";
         j["allow_theory_uri"] = true;
-        REQUIRE_FALSE(SearchJob::from_json(j).ok());  // missing params_list
+        REQUIRE_FALSE(SearchJob::from_json(j).ok()); // missing params_list
     }
     {
         nlohmann::json j = valid_job_json();
         j["family"] = "theory";
         j["allow_theory_uri"] = true;
-        j["param_grid"] = {
-            {"theory_uri", "parcae://theories/quadratic_polynomial_stream@1"},
-            {"params_list",
-             nlohmann::json::array({nlohmann::json{{"c2", 1}, {"c1", 0}, {"c0", 0}}})}};
+        j["param_grid"] = {{"theory_uri", "parcae://theories/quadratic_polynomial_stream@1"},
+                           {"params_list", nlohmann::json::array(
+                                               {nlohmann::json{{"c2", 1}, {"c1", 0}, {"c0", 0}}})}};
         StatusOr<SearchJob> job = SearchJob::from_json(j);
         REQUIRE(job.ok());
         REQUIRE(job.value().family() == "theory");
@@ -188,14 +179,8 @@ TEST_CASE("SearchJob load_file round-trip", "[search][job]") {
 }
 
 TEST_CASE("SearchJob require_workspace_dir fails for missing id", "[search][job]") {
-    StatusOr<SearchJob> job = SearchJob::make(
-        "no_such_workspace_zzz",
-        "atbash",
-        "ic_mod29",
-        1,
-        42,
-        Backend::Cpu,
-        1);
+    StatusOr<SearchJob> job =
+        SearchJob::make("no_such_workspace_zzz", "atbash", "ic_mod29", 1, 42, Backend::Cpu, 1);
     REQUIRE(job.ok());
     REQUIRE_FALSE(job.value().require_workspace_dir(data_root()).ok());
 }

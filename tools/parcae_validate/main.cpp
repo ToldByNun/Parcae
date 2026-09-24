@@ -1,18 +1,17 @@
-#include "cli_io.hpp"
-#include "tool_cli_json.hpp"
-
 #include "parcae/dsl/theory_validate.hpp"
 #include "parcae/tool/api.hpp"
 #include "parcae/validate/validation_report.hpp"
 
+#include "cli_io.hpp"
+#include "tool_cli_json.hpp"
+
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #ifndef PARCAE_DEFAULT_DATA_DIR
 #define PARCAE_DEFAULT_DATA_DIR ""
@@ -23,38 +22,33 @@ namespace {
 constexpr std::string_view kTool = "validate";
 
 void print_help() {
-    std::cerr
-        << "Usage: parcae-validate --id <fixture_id|path> [--require-locked] [--json]\n"
-        << "       parcae-validate --all [--require-locked] [--json]\n"
-        << "       parcae-validate --theory <uri|name@version|dir> [--json]\n"
-        << "       parcae-validate --theories [--json]\n"
-        << "\n"
-        << "Fixture mode (solved corpus):\n"
-        << "  --id <id|path>     One solved fixture id or fixture directory\n"
-        << "  --all              All fixtures under data/fixtures/solved/\n"
-        << "                     (with --require-locked: locked fixtures only)\n"
-        << "  --require-locked   Fail (or skip under --all) non-locked fixtures\n"
-        << "\n"
-        << "Theory artifact mode (docs/spec/theory-artifact.md):\n"
-        << "  --theory <ref>     One theory: parcae://theories/<name>@<ver>,\n"
-        << "                     <name>@<ver>, or artifact directory / manifest.json\n"
-        << "  --theories         All theory artifacts under data/theories/\n"
-        << "                     (stale dsl_spec_version → FAIL)\n"
-        << "\n"
-        << "Common:\n"
-        << "  --json             JSON envelope on stdout (parcae.tool_response.v0)\n"
-        << "  --data-dir         Parcae data/ root\n"
-        << "  -h, --help         Show this help\n"
-        << "\n"
-        << "Exit: 0 all selected passed; 1 validation failure; 2 usage/I/O error\n";
+    std::cerr << "Usage: parcae-validate --id <fixture_id|path> [--require-locked] [--json]\n"
+              << "       parcae-validate --all [--require-locked] [--json]\n"
+              << "       parcae-validate --theory <uri|name@version|dir> [--json]\n"
+              << "       parcae-validate --theories [--json]\n"
+              << "\n"
+              << "Fixture mode (solved corpus):\n"
+              << "  --id <id|path>     One solved fixture id or fixture directory\n"
+              << "  --all              All fixtures under data/fixtures/solved/\n"
+              << "                     (with --require-locked: locked fixtures only)\n"
+              << "  --require-locked   Fail (or skip under --all) non-locked fixtures\n"
+              << "\n"
+              << "Theory artifact mode (docs/spec/theory-artifact.md):\n"
+              << "  --theory <ref>     One theory: parcae://theories/<name>@<ver>,\n"
+              << "                     <name>@<ver>, or artifact directory / manifest.json\n"
+              << "  --theories         All theory artifacts under data/theories/\n"
+              << "                     (stale dsl_spec_version → FAIL)\n"
+              << "\n"
+              << "Common:\n"
+              << "  --json             JSON envelope on stdout (parcae.tool_response.v0)\n"
+              << "  --data-dir         Parcae data/ root\n"
+              << "  -h, --help         Show this help\n"
+              << "\n"
+              << "Exit: 0 all selected passed; 1 validation failure; 2 usage/I/O error\n";
 }
 
-[[nodiscard]] int fail(
-    bool json_mode,
-    ToolErrorCode code,
-    std::string message,
-    int plain_exit,
-    nlohmann::json details = nlohmann::json(nullptr)) {
+[[nodiscard]] int fail(bool json_mode, ToolErrorCode code, std::string message, int plain_exit,
+                       nlohmann::json details = nlohmann::json(nullptr)) {
     if (json_mode) {
         return ToolCliJson::err(kTool, std::nullopt, code, std::move(message), std::move(details));
     }
@@ -143,9 +137,8 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
     }
 }
 
-[[nodiscard]] StatusOr<std::vector<std::string>> list_solved_fixture_ids(
-    const Context& ctx,
-    bool locked_only) {
+[[nodiscard]] StatusOr<std::vector<std::string>> list_solved_fixture_ids(const Context& ctx,
+                                                                         bool locked_only) {
     const std::filesystem::path solved = ctx.data_root() / "fixtures" / "solved";
     if (!std::filesystem::is_directory(solved)) {
         return Status::error("Missing fixtures/solved under data root");
@@ -172,20 +165,14 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
     }
     std::sort(ids.begin(), ids.end());
     if (ids.empty()) {
-        return Status::error(
-            locked_only ? "No locked fixtures found under fixtures/solved"
-                        : "No fixtures found under fixtures/solved");
+        return Status::error(locked_only ? "No locked fixtures found under fixtures/solved"
+                                         : "No fixtures found under fixtures/solved");
     }
     return ids;
 }
 
-[[nodiscard]] int run_fixture_mode(
-    bool json_mode,
-    bool require_locked,
-    bool all_mode,
-    bool has_id,
-    const std::vector<std::string>& args,
-    const Context& ctx) {
+[[nodiscard]] int run_fixture_mode(bool json_mode, bool require_locked, bool all_mode, bool has_id,
+                                   const std::vector<std::string>& args, const Context& ctx) {
     if (static_cast<int>(all_mode) + static_cast<int>(has_id) != 1) {
         print_help();
         return fail(json_mode, ToolErrorCode::Usage, "Choose exactly one of --id or --all",
@@ -213,8 +200,7 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
     bool all_ok = true;
 
     for (const std::string& target : targets) {
-        const ValidationReport report =
-            ToolApi::validate_fixture(ctx, target, require_locked);
+        const ValidationReport report = ToolApi::validate_fixture(ctx, target, require_locked);
         if (!report.ok()) {
             all_ok = false;
         }
@@ -236,29 +222,18 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
         if (all_ok) {
             return ToolCliJson::ok(kTool, std::nullopt, std::move(result));
         }
-        return ToolCliJson::err(
-            kTool,
-            std::nullopt,
-            ToolErrorCode::Validation,
-            "One or more fixtures failed validation",
-            std::move(result));
+        return ToolCliJson::err(kTool, std::nullopt, ToolErrorCode::Validation,
+                                "One or more fixtures failed validation", std::move(result));
     }
     return all_ok ? CliIo::kExitOk : CliIo::kExitFail;
 }
 
-[[nodiscard]] int run_theory_mode(
-    bool json_mode,
-    bool theories_all,
-    bool has_theory,
-    const std::vector<std::string>& args,
-    const Context& ctx) {
+[[nodiscard]] int run_theory_mode(bool json_mode, bool theories_all, bool has_theory,
+                                  const std::vector<std::string>& args, const Context& ctx) {
     if (static_cast<int>(theories_all) + static_cast<int>(has_theory) != 1) {
         print_help();
-        return fail(
-            json_mode,
-            ToolErrorCode::Usage,
-            "Choose exactly one of --theory or --theories",
-            CliIo::kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage, "Choose exactly one of --theory or --theories",
+                    CliIo::kExitUsage);
     }
 
     const std::filesystem::path theories_root = ctx.data_root() / "theories";
@@ -304,12 +279,9 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
         if (all_ok) {
             return ToolCliJson::ok(kTool, std::nullopt, std::move(result));
         }
-        return ToolCliJson::err(
-            kTool,
-            std::nullopt,
-            ToolErrorCode::Validation,
-            "One or more theory artifacts failed validation",
-            std::move(result));
+        return ToolCliJson::err(kTool, std::nullopt, ToolErrorCode::Validation,
+                                "One or more theory artifacts failed validation",
+                                std::move(result));
     }
     if (reports.empty() && theories_all) {
         std::cout << "PASS\t(no theory artifacts under " << theories_root.string() << ")\n";
@@ -317,7 +289,7 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
     return all_ok ? CliIo::kExitOk : CliIo::kExitFail;
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
@@ -338,26 +310,19 @@ int main(int argc, char** argv) {
     const bool theory_mode = theories_all || has_theory;
     if (fixture_mode && theory_mode) {
         print_help();
-        return fail(
-            json_mode,
-            ToolErrorCode::Usage,
-            "Do not mix fixture flags (--id/--all) with theory flags (--theory/--theories)",
-            CliIo::kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage,
+                    "Do not mix fixture flags (--id/--all) with theory flags (--theory/--theories)",
+                    CliIo::kExitUsage);
     }
     if (!fixture_mode && !theory_mode) {
         print_help();
-        return fail(
-            json_mode,
-            ToolErrorCode::Usage,
-            "Choose fixture mode (--id/--all) or theory mode (--theory/--theories)",
-            CliIo::kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage,
+                    "Choose fixture mode (--id/--all) or theory mode (--theory/--theories)",
+                    CliIo::kExitUsage);
     }
     if (require_locked && theory_mode) {
-        return fail(
-            json_mode,
-            ToolErrorCode::Usage,
-            "--require-locked applies only to fixture mode",
-            CliIo::kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage,
+                    "--require-locked applies only to fixture mode", CliIo::kExitUsage);
     }
 
     // Reject unknown options.
@@ -373,7 +338,8 @@ int main(int argc, char** argv) {
         }
         if (!arg.empty() && arg[0] == '-') {
             print_help();
-            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + arg, CliIo::kExitUsage);
+            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + arg,
+                        CliIo::kExitUsage);
         }
     }
 

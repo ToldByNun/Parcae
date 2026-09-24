@@ -1,12 +1,11 @@
-#include <catch2/catch_test_macros.hpp>
-
-#include <cstdint>
-#include <random>
-#include <vector>
-
 #include "parcae/core/index29.hpp"
 #include "parcae/score/exact_match.hpp"
 #include "parcae/score/hamming_agreement.hpp"
+
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
+#include <random>
+#include <vector>
 
 #if defined(PARCAE_HAS_CUDA)
 

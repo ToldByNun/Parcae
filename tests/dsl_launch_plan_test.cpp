@@ -1,12 +1,10 @@
+#include "hist_fast.hpp"
+
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/dsl/dsl_launch_plan.hpp>
 #include <parcae/dsl/param_ir.hpp>
 #include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/z29_expr.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include "hist_fast.hpp"
-
 #include <string>
 TEST_CASE("DslLaunchPlan threads match HistFast / twin 256", "[dsl][launch]") {
     REQUIRE(DslLaunchPlan::threads_per_block == 256);
@@ -71,13 +69,8 @@ TEST_CASE("DslLaunchPlan hist_chi2_2d", "[dsl][launch]") {
 
 TEST_CASE("DslLaunchPlan for_theory elementwise stream", "[dsl][launch]") {
     const StatusOr<TheoryIr> theory = TheoryIr::make(
-        "dsl_caesar",
-        TheoryIr::Family::Elementwise,
-        TheoryIr::Tier::A,
-        TheoryIr::InterruptMode::ElementwiseDefault,
-        {},
-        Z29Expr::var("x"),
-        Z29Expr::var("x"));
+        "dsl_caesar", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {}, Z29Expr::var("x"), Z29Expr::var("x"));
     REQUIRE(theory.ok());
 
     const StatusOr<DslLaunchPlan::Plan> p =

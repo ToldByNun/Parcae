@@ -5,54 +5,35 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include <nlohmann/json.hpp>
-
 /// One step along a parameter sweep (AI-"training step" analogue).
 class SearchRunStep {
 public:
-    SearchRunStep(
-        std::size_t step_id,
-        std::string transform_id,
-        nlohmann::json params,
-        double score)
-        : step_id_(step_id),
-          transform_id_(std::move(transform_id)),
-          params_(std::move(params)),
-          param_hash_(Sha256::hex_digest(params_.dump())),
-          score_(score) {}
+    SearchRunStep(std::size_t step_id, std::string transform_id, nlohmann::json params,
+                  double score)
+        : step_id_(step_id), transform_id_(std::move(transform_id)), params_(std::move(params)),
+          param_hash_(Sha256::hex_digest(params_.dump())), score_(score) {}
 
-    [[nodiscard]] std::size_t step_id() const noexcept {
-        return step_id_;
-    }
+    [[nodiscard]] std::size_t step_id() const noexcept { return step_id_; }
 
-    [[nodiscard]] const std::string& transform_id() const noexcept {
-        return transform_id_;
-    }
+    [[nodiscard]] const std::string& transform_id() const noexcept { return transform_id_; }
 
     /// Transform params for this step (replayable into decode / generators).
-    [[nodiscard]] const nlohmann::json& params() const noexcept {
-        return params_;
-    }
+    [[nodiscard]] const nlohmann::json& params() const noexcept { return params_; }
 
-    [[nodiscard]] const std::string& param_hash() const noexcept {
-        return param_hash_;
-    }
+    [[nodiscard]] const std::string& param_hash() const noexcept { return param_hash_; }
 
-    [[nodiscard]] double score() const noexcept {
-        return score_;
-    }
+    [[nodiscard]] double score() const noexcept { return score_; }
 
     [[nodiscard]] nlohmann::json to_json() const {
         return nlohmann::json{
-            {"step_id", step_id_},
-            {"transform_id", transform_id_},
-            {"params", params_},
-            {"param_hash", param_hash_},
+            {"step_id", step_id_}, {"transform_id", transform_id_},
+            {"params", params_},   {"param_hash", param_hash_},
             {"score", score_},
         };
     }
@@ -70,103 +51,60 @@ class SearchRunMetrics {
 public:
     SearchRunMetrics() = default;
 
-    void set_seed(std::uint32_t seed) noexcept {
-        seed_ = seed;
-    }
+    void set_seed(std::uint32_t seed) noexcept { seed_ = seed; }
 
-    void set_transform_id(std::string id) {
-        transform_id_ = std::move(id);
-    }
+    void set_transform_id(std::string id) { transform_id_ = std::move(id); }
 
-    void set_parameters_label(std::string label) {
-        parameters_label_ = std::move(label);
-    }
+    void set_parameters_label(std::string label) { parameters_label_ = std::move(label); }
 
-    void set_score_id(std::string id) {
-        score_id_ = std::move(id);
-    }
+    void set_score_id(std::string id) { score_id_ = std::move(id); }
 
-    void set_backend(std::string backend) {
-        backend_ = std::move(backend);
-    }
+    void set_backend(std::string backend) { backend_ = std::move(backend); }
 
-    void set_tok_per_sec(double value) noexcept {
-        tok_per_sec_ = value;
-    }
+    void set_tok_per_sec(double value) noexcept { tok_per_sec_ = value; }
 
-    void set_score_mean(double value) noexcept {
-        score_mean_ = value;
-    }
+    void set_score_mean(double value) noexcept { score_mean_ = value; }
 
-    void set_score_std(double value) noexcept {
-        score_std_ = value;
-    }
+    void set_score_std(double value) noexcept { score_std_ = value; }
 
     void set_eval(std::size_t passed, std::size_t total) noexcept {
         eval_passed_ = passed;
         eval_total_ = total;
-        eval_set_pass_rate_ = total == 0 ? 0.0 : static_cast<double>(passed) / static_cast<double>(total);
+        eval_set_pass_rate_ =
+            total == 0 ? 0.0 : static_cast<double>(passed) / static_cast<double>(total);
     }
 
-    void set_cpu_cuda_pass(std::optional<bool> value) noexcept {
-        cpu_cuda_pass_ = value;
-    }
+    void set_cpu_cuda_pass(std::optional<bool> value) noexcept { cpu_cuda_pass_ = value; }
 
-    void set_steps(std::vector<SearchRunStep> steps) {
-        steps_ = std::move(steps);
-    }
+    void set_steps(std::vector<SearchRunStep> steps) { steps_ = std::move(steps); }
 
-    [[nodiscard]] std::uint32_t seed() const noexcept {
-        return seed_;
-    }
+    [[nodiscard]] std::uint32_t seed() const noexcept { return seed_; }
 
-    [[nodiscard]] const std::string& transform_id() const noexcept {
-        return transform_id_;
-    }
+    [[nodiscard]] const std::string& transform_id() const noexcept { return transform_id_; }
 
-    [[nodiscard]] const std::string& parameters_label() const noexcept {
-        return parameters_label_;
-    }
+    [[nodiscard]] const std::string& parameters_label() const noexcept { return parameters_label_; }
 
-    [[nodiscard]] const std::string& score_id() const noexcept {
-        return score_id_;
-    }
+    [[nodiscard]] const std::string& score_id() const noexcept { return score_id_; }
 
-    [[nodiscard]] const std::string& backend() const noexcept {
-        return backend_;
-    }
+    [[nodiscard]] const std::string& backend() const noexcept { return backend_; }
 
-    [[nodiscard]] double tok_per_sec() const noexcept {
-        return tok_per_sec_;
-    }
+    [[nodiscard]] double tok_per_sec() const noexcept { return tok_per_sec_; }
 
-    [[nodiscard]] double score_mean() const noexcept {
-        return score_mean_;
-    }
+    [[nodiscard]] double score_mean() const noexcept { return score_mean_; }
 
-    [[nodiscard]] double score_std() const noexcept {
-        return score_std_;
-    }
+    [[nodiscard]] double score_std() const noexcept { return score_std_; }
 
-    [[nodiscard]] double eval_set_pass_rate() const noexcept {
-        return eval_set_pass_rate_;
-    }
+    [[nodiscard]] double eval_set_pass_rate() const noexcept { return eval_set_pass_rate_; }
 
-    [[nodiscard]] std::size_t eval_passed() const noexcept {
-        return eval_passed_;
-    }
+    [[nodiscard]] std::size_t eval_passed() const noexcept { return eval_passed_; }
 
-    [[nodiscard]] std::size_t eval_total() const noexcept {
-        return eval_total_;
-    }
+    [[nodiscard]] std::size_t eval_total() const noexcept { return eval_total_; }
 
     [[nodiscard]] const std::optional<bool>& cpu_cuda_pass() const noexcept {
         return cpu_cuda_pass_;
     }
 
-    [[nodiscard]] const std::vector<SearchRunStep>& steps() const noexcept {
-        return steps_;
-    }
+    [[nodiscard]] const std::vector<SearchRunStep>& steps() const noexcept { return steps_; }
 
     /// Agent/JSON export. When `omit_timing`, drops non-deterministic `tok_per_sec`.
     [[nodiscard]] nlohmann::json to_json(bool omit_timing = false) const {

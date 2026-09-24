@@ -1,3 +1,6 @@
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <fstream>
 #include <parcae/core/index29.hpp>
 #include <parcae/core/sha256.hpp>
 #include <parcae/hypothesis/workspace_manifest.hpp>
@@ -5,11 +8,6 @@
 #include <parcae/search/workspace_cipher.hpp>
 #include <parcae/tool/api.hpp>
 #include <parcae/tool/context.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <filesystem>
-#include <fstream>
 #include <string>
 #include <vector>
 
@@ -23,21 +21,19 @@ namespace {
     return std::filesystem::path(PARCAE_TEST_DATA_DIR);
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("WorkspaceCipher loads _example fixture_ciphertext", "[search][cipher]") {
     StatusOr<WorkspaceCipher> cipher = WorkspaceCipher::load(data_root(), "_example");
     REQUIRE(cipher.ok());
     REQUIRE(cipher.value().workspace_id() == "_example");
-    REQUIRE(
-        cipher.value().source_kind() == WorkspaceCipher::SourceKind::FixtureCiphertext);
+    REQUIRE(cipher.value().source_kind() == WorkspaceCipher::SourceKind::FixtureCiphertext);
     REQUIRE(cipher.value().fixture_id() == "a-warning");
     REQUIRE(cipher.value().size() > 0);
     REQUIRE(cipher.value().ciphertext_sha256().size() == 64);
 
     // Matches direct tokenize of fixture ciphertext (no plaintext touched).
-    const auto cipher_path =
-        data_root() / "fixtures" / "solved" / "a-warning" / "ciphertext.txt";
+    const auto cipher_path = data_root() / "fixtures" / "solved" / "a-warning" / "ciphertext.txt";
     std::ifstream in(cipher_path, std::ios::binary);
     REQUIRE(in);
     std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
@@ -45,10 +41,7 @@ TEST_CASE("WorkspaceCipher loads _example fixture_ciphertext", "[search][cipher]
     StatusOr<TokenStream> stream = ToolApi::tokenize(ctx, text);
     REQUIRE(stream.ok());
     REQUIRE(cipher.value().indices() == stream.value().consumable_indices());
-    REQUIRE(
-        cipher.value().ciphertext_sha256() ==
-        Sha256::hex_digest(
-            [&]() {
+    REQUIRE(cipher.value().ciphertext_sha256() == Sha256::hex_digest([&]() {
                 // Same LF normalization WorkspaceCipher applies.
                 std::string out;
                 out.reserve(text.size());
@@ -67,8 +60,8 @@ TEST_CASE("WorkspaceCipher loads _example fixture_ciphertext", "[search][cipher]
 }
 
 TEST_CASE("WorkspaceCipher from_indices for inline override", "[search][cipher]") {
-    StatusOr<WorkspaceCipher> cipher = WorkspaceCipher::from_indices(
-        "inline-ws", {Index29{1}, Index29{2}, Index29{3}});
+    StatusOr<WorkspaceCipher> cipher =
+        WorkspaceCipher::from_indices("inline-ws", {Index29{1}, Index29{2}, Index29{3}});
     REQUIRE(cipher.ok());
     REQUIRE(cipher.value().source_kind() == WorkspaceCipher::SourceKind::Inline);
     REQUIRE(cipher.value().size() == 3);
@@ -100,14 +93,11 @@ TEST_CASE("WorkspaceCipher loads workspace_file under workspace root", "[search]
     // Copy profiles needed for tokenize.
     std::filesystem::create_directories(tmp / "profiles" / "gematria", ec);
     std::filesystem::create_directories(tmp / "profiles" / "separators", ec);
-    std::filesystem::copy_file(
-        data_root() / "profiles" / "gematria" / "gematria-primus-v0.json",
-        tmp / "profiles" / "gematria" / "gematria-primus-v0.json",
-        ec);
+    std::filesystem::copy_file(data_root() / "profiles" / "gematria" / "gematria-primus-v0.json",
+                               tmp / "profiles" / "gematria" / "gematria-primus-v0.json", ec);
     std::filesystem::copy_file(
         data_root() / "profiles" / "separators" / "rtkd-separator-grammar-v0.json",
-        tmp / "profiles" / "separators" / "rtkd-separator-grammar-v0.json",
-        ec);
+        tmp / "profiles" / "separators" / "rtkd-separator-grammar-v0.json", ec);
 
     StatusOr<WorkspaceManifest> manifest =
         WorkspaceManifest::make("file-ws", "2026-09-21T20:00:00Z");
@@ -126,10 +116,8 @@ TEST_CASE("WorkspaceCipher loads workspace_file under workspace root", "[search]
     StatusOr<std::filesystem::path> root = WorkspacePaths::workspace_root(tmp, "file-ws");
     REQUIRE(root.ok());
     std::filesystem::create_directories(root.value() / "inputs", ec);
-    std::filesystem::copy_file(
-        data_root() / "fixtures" / "solved" / "a-warning" / "ciphertext.txt",
-        root.value() / "inputs" / "ciphertext.txt",
-        ec);
+    std::filesystem::copy_file(data_root() / "fixtures" / "solved" / "a-warning" / "ciphertext.txt",
+                               root.value() / "inputs" / "ciphertext.txt", ec);
     REQUIRE(!ec);
 
     StatusOr<WorkspaceCipher> cipher = WorkspaceCipher::load(tmp, "file-ws");
@@ -166,8 +154,7 @@ TEST_CASE("WorkspaceCipher rejects path escape and bad fixture ids", "[search][c
     REQUIRE(escaped.value().store(tmp).ok());
     REQUIRE_FALSE(WorkspaceCipher::load(tmp, "esc-ws").ok());
 
-    REQUIRE_FALSE(
-        WorkspaceCipher::from_fixture(data_root(), "_example", "../a-warning").ok());
+    REQUIRE_FALSE(WorkspaceCipher::from_fixture(data_root(), "_example", "../a-warning").ok());
     REQUIRE_FALSE(
         WorkspaceCipher::from_fixture(data_root(), "_example", "a-warning/../welcome").ok());
     REQUIRE_FALSE(

@@ -6,11 +6,10 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Explicit skip-index interrupt policy (`explicit_skip_indices_v0`).
 class InterruptPolicy {
@@ -19,9 +18,8 @@ public:
         return InterruptPolicy{"explicit_skip_indices_v0", 0, {}};
     }
 
-    [[nodiscard]] static StatusOr<InterruptPolicy> from_skip_indices(
-        std::vector<std::size_t> skip_indices,
-        std::size_t rune_index_base = 0) {
+    [[nodiscard]] static StatusOr<InterruptPolicy>
+    from_skip_indices(std::vector<std::size_t> skip_indices, std::size_t rune_index_base = 0) {
         if (rune_index_base != 0) {
             return Status::error("rune_index_base must be 0");
         }
@@ -66,33 +64,24 @@ public:
         };
     }
 
-    [[nodiscard]] const std::string& policy_id() const noexcept {
-        return policy_id_;
-    }
+    [[nodiscard]] const std::string& policy_id() const noexcept { return policy_id_; }
 
-    [[nodiscard]] std::size_t rune_index_base() const noexcept {
-        return rune_index_base_;
-    }
+    [[nodiscard]] std::size_t rune_index_base() const noexcept { return rune_index_base_; }
 
     [[nodiscard]] const std::vector<std::size_t>& skip_indices() const noexcept {
         return skip_indices_;
     }
 
-    [[nodiscard]] bool empty() const noexcept {
-        return skip_indices_.empty();
-    }
+    [[nodiscard]] bool empty() const noexcept { return skip_indices_.empty(); }
 
     [[nodiscard]] bool should_skip(std::size_t consumable_index) const {
         return std::binary_search(skip_indices_.begin(), skip_indices_.end(), consumable_index);
     }
 
 private:
-    InterruptPolicy(
-        std::string policy_id,
-        std::size_t rune_index_base,
-        std::vector<std::size_t> skip_indices)
-        : policy_id_(std::move(policy_id)),
-          rune_index_base_(rune_index_base),
+    InterruptPolicy(std::string policy_id, std::size_t rune_index_base,
+                    std::vector<std::size_t> skip_indices)
+        : policy_id_(std::move(policy_id)), rune_index_base_(rune_index_base),
           skip_indices_(std::move(skip_indices)) {}
 
     [[nodiscard]] static Status validate_sorted_unique(std::vector<std::size_t>& skip_indices) {

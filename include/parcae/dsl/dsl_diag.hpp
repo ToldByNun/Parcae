@@ -14,50 +14,29 @@
 /// Normative: docs/spec/dsl.md § Diagnostics.
 class DslDiag {
 public:
-    [[nodiscard]] static DslDiag make(
-        std::string_view rule_id,
-        std::string message,
-        std::string path = {},
-        std::optional<int> lineno = std::nullopt,
-        std::optional<int> col = std::nullopt,
-        std::string hint = {}) {
+    [[nodiscard]] static DslDiag make(std::string_view rule_id, std::string message,
+                                      std::string path = {},
+                                      std::optional<int> lineno = std::nullopt,
+                                      std::optional<int> col = std::nullopt,
+                                      std::string hint = {}) {
         return DslDiag{
-            std::string(rule_id),
-            std::move(message),
-            std::move(path),
-            lineno,
-            col,
-            std::move(hint),
+            std::string(rule_id), std::move(message), std::move(path), lineno, col, std::move(hint),
         };
     }
 
-    [[nodiscard]] const std::string& rule_id() const noexcept {
-        return rule_id_;
-    }
+    [[nodiscard]] const std::string& rule_id() const noexcept { return rule_id_; }
 
-    [[nodiscard]] const std::string& message() const noexcept {
-        return message_;
-    }
+    [[nodiscard]] const std::string& message() const noexcept { return message_; }
 
-    [[nodiscard]] const std::string& path() const noexcept {
-        return path_;
-    }
+    [[nodiscard]] const std::string& path() const noexcept { return path_; }
 
-    [[nodiscard]] std::optional<int> lineno() const noexcept {
-        return lineno_;
-    }
+    [[nodiscard]] std::optional<int> lineno() const noexcept { return lineno_; }
 
-    [[nodiscard]] std::optional<int> col() const noexcept {
-        return col_;
-    }
+    [[nodiscard]] std::optional<int> col() const noexcept { return col_; }
 
-    [[nodiscard]] const std::string& hint() const noexcept {
-        return hint_;
-    }
+    [[nodiscard]] const std::string& hint() const noexcept { return hint_; }
 
-    [[nodiscard]] bool has_location() const noexcept {
-        return lineno_.has_value();
-    }
+    [[nodiscard]] bool has_location() const noexcept { return lineno_.has_value(); }
 
     /// Primary one-line diagnostic (never a C++/Python stack trace).
     [[nodiscard]] std::string format() const {
@@ -94,24 +73,13 @@ public:
         return out;
     }
 
-    [[nodiscard]] Status to_status() const {
-        return Status::error(format_with_hint());
-    }
+    [[nodiscard]] Status to_status() const { return Status::error(format_with_hint()); }
 
 private:
-    DslDiag(
-        std::string rule_id,
-        std::string message,
-        std::string path,
-        std::optional<int> lineno,
-        std::optional<int> col,
-        std::string hint)
-        : rule_id_(std::move(rule_id)),
-          message_(std::move(message)),
-          path_(std::move(path)),
-          lineno_(lineno),
-          col_(col),
-          hint_(std::move(hint)) {}
+    DslDiag(std::string rule_id, std::string message, std::string path, std::optional<int> lineno,
+            std::optional<int> col, std::string hint)
+        : rule_id_(std::move(rule_id)), message_(std::move(message)), path_(std::move(path)),
+          lineno_(lineno), col_(col), hint_(std::move(hint)) {}
 
     std::string rule_id_;
     std::string message_;

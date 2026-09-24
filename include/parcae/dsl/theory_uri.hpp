@@ -21,8 +21,8 @@ public:
         }
         const unsigned char first = static_cast<unsigned char>(name[0]);
         if (!(first >= 'a' && first <= 'z')) {
-            return Status::error(
-                "theory name must start with a lowercase letter: " + std::string(name));
+            return Status::error("theory name must start with a lowercase letter: " +
+                                 std::string(name));
         }
         for (char ch : name) {
             const unsigned char c = static_cast<unsigned char>(ch);
@@ -56,22 +56,21 @@ public:
     [[nodiscard]] static StatusOr<TheoryUri> parse(std::string_view text) {
         constexpr std::string_view kPrefix = "parcae://theories/";
         if (text.size() < kPrefix.size() || text.substr(0, kPrefix.size()) != kPrefix) {
-            return Status::error(
-                "theory URI must start with parcae://theories/: " + std::string(text));
+            return Status::error("theory URI must start with parcae://theories/: " +
+                                 std::string(text));
         }
         const std::string_view rest = text.substr(kPrefix.size());
         const std::size_t at = rest.find('@');
         if (at == std::string_view::npos || at == 0 || at + 1 >= rest.size()) {
-            return Status::error(
-                "theory URI must be parcae://theories/<name>@<version>: " + std::string(text));
+            return Status::error("theory URI must be parcae://theories/<name>@<version>: " +
+                                 std::string(text));
         }
         const std::string_view name = rest.substr(0, at);
         const std::string_view ver_text = rest.substr(at + 1);
-        if (ver_text.empty() ||
-            (ver_text.size() > 1 && ver_text[0] == '0') ||
+        if (ver_text.empty() || (ver_text.size() > 1 && ver_text[0] == '0') ||
             ver_text.find_first_not_of("0123456789") != std::string_view::npos) {
-            return Status::error(
-                "theory URI version must be a positive decimal integer: " + std::string(text));
+            return Status::error("theory URI version must be a positive decimal integer: " +
+                                 std::string(text));
         }
         unsigned long value = 0;
         for (char ch : ver_text) {
@@ -86,13 +85,9 @@ public:
         return make(name, static_cast<std::uint32_t>(value));
     }
 
-    [[nodiscard]] const std::string& name() const noexcept {
-        return name_;
-    }
+    [[nodiscard]] const std::string& name() const noexcept { return name_; }
 
-    [[nodiscard]] std::uint32_t version() const noexcept {
-        return version_;
-    }
+    [[nodiscard]] std::uint32_t version() const noexcept { return version_; }
 
     [[nodiscard]] std::string to_string() const {
         return std::string("parcae://theories/") + name_ + "@" + std::to_string(version_);

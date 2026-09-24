@@ -21,37 +21,22 @@
 /// AST→IR lowering is `DslBuildIr` (later); this type holds the IR + checks.
 class PrimitiveIr {
 public:
-    [[nodiscard]] static StatusOr<PrimitiveIr> make(
-        std::string name,
-        std::string signature,
-        Z29Expr::Ptr body,
-        std::string source_path = {},
-        std::optional<int> lineno = std::nullopt,
-        std::optional<int> col = std::nullopt) {
+    [[nodiscard]] static StatusOr<PrimitiveIr> make(std::string name, std::string signature,
+                                                    Z29Expr::Ptr body, std::string source_path = {},
+                                                    std::optional<int> lineno = std::nullopt,
+                                                    std::optional<int> col = std::nullopt) {
         if (name.empty()) {
-            return fail(
-                DslRuleId::E032_primitive_body,
-                "primitive name must be non-empty",
-                std::move(source_path),
-                lineno,
-                col);
+            return fail(DslRuleId::E032_primitive_body, "primitive name must be non-empty",
+                        std::move(source_path), lineno, col);
         }
         if (!body) {
-            return fail(
-                DslRuleId::E032_primitive_body,
-                "primitive '" + name + "' body is null",
-                std::move(source_path),
-                lineno,
-                col);
+            return fail(DslRuleId::E032_primitive_body, "primitive '" + name + "' body is null",
+                        std::move(source_path), lineno, col);
         }
         StatusOr<std::vector<std::string>> params = parse_signature_params(signature);
         if (!params.ok()) {
-            return DslDiag::make(
-                       DslRuleId::E032_primitive_body,
-                       params.status().message(),
-                       source_path,
-                       lineno,
-                       col)
+            return DslDiag::make(DslRuleId::E032_primitive_body, params.status().message(),
+                                 source_path, lineno, col)
                 .to_status();
         }
         return PrimitiveIr{
@@ -66,8 +51,8 @@ public:
     }
 
     /// Parse `(i: Z29, c2: Z29) -> Z29` → `{"i","c2"}`.
-    [[nodiscard]] static StatusOr<std::vector<std::string>> parse_signature_params(
-        std::string_view signature) {
+    [[nodiscard]] static StatusOr<std::vector<std::string>>
+    parse_signature_params(std::string_view signature) {
         std::string_view s = trim(signature);
         if (s.empty() || s.front() != '(') {
             return Status::error("signature must start with '('");
@@ -93,9 +78,9 @@ public:
         std::size_t start = 0;
         while (start <= inner.size()) {
             std::size_t comma = inner.find(',', start);
-            const std::string_view part = trim(
-                comma == std::string_view::npos ? inner.substr(start)
-                                                : inner.substr(start, comma - start));
+            const std::string_view part =
+                trim(comma == std::string_view::npos ? inner.substr(start)
+                                                     : inner.substr(start, comma - start));
             if (part.empty()) {
                 return Status::error("empty parameter slot in signature");
             }
@@ -109,8 +94,8 @@ public:
                 return Status::error("invalid parameter name in signature");
             }
             if (ptype != "Z29") {
-                return Status::error(
-                    "signature parameter '" + std::string(pname) + "' type must be Z29");
+                return Status::error("signature parameter '" + std::string(pname) +
+                                     "' type must be Z29");
             }
             names.emplace_back(pname);
             if (comma == std::string_view::npos) {
@@ -121,25 +106,17 @@ public:
         return names;
     }
 
-    [[nodiscard]] const std::string& name() const noexcept {
-        return name_;
-    }
+    [[nodiscard]] const std::string& name() const noexcept { return name_; }
 
-    [[nodiscard]] const std::string& signature() const noexcept {
-        return signature_;
-    }
+    [[nodiscard]] const std::string& signature() const noexcept { return signature_; }
 
     [[nodiscard]] const std::vector<std::string>& param_names() const noexcept {
         return param_names_;
     }
 
-    [[nodiscard]] std::size_t arity() const noexcept {
-        return param_names_.size();
-    }
+    [[nodiscard]] std::size_t arity() const noexcept { return param_names_.size(); }
 
-    [[nodiscard]] const Z29Expr::Ptr& body() const noexcept {
-        return body_;
-    }
+    [[nodiscard]] const Z29Expr::Ptr& body() const noexcept { return body_; }
 
     [[nodiscard]] Status validate() const {
         if (name_.empty()) {
@@ -153,9 +130,8 @@ public:
             return fail_here(DslRuleId::E032_primitive_body, parsed.status().message());
         }
         if (parsed.value() != param_names_) {
-            return fail_here(
-                DslRuleId::E032_primitive_body,
-                "primitive '" + name_ + "' param_names out of sync with signature");
+            return fail_here(DslRuleId::E032_primitive_body,
+                             "primitive '" + name_ + "' param_names out of sync with signature");
         }
         return Status::success();
     }
@@ -167,10 +143,10 @@ public:
             return st;
         }
         if (args.size() != param_names_.size()) {
-            return fail_here(
-                DslRuleId::E032_primitive_body,
-                "primitive '" + name_ + "' expects " + std::to_string(param_names_.size()) +
-                    " args, got " + std::to_string(args.size()));
+            return fail_here(DslRuleId::E032_primitive_body,
+                             "primitive '" + name_ + "' expects " +
+                                 std::to_string(param_names_.size()) + " args, got " +
+                                 std::to_string(args.size()));
         }
         Z29Expr::Env env;
         for (std::size_t i = 0; i < param_names_.size(); ++i) {
@@ -180,40 +156,25 @@ public:
     }
 
 private:
-    PrimitiveIr(
-        std::string name,
-        std::string signature,
-        std::vector<std::string> param_names,
-        Z29Expr::Ptr body,
-        std::string source_path,
-        std::optional<int> lineno,
-        std::optional<int> col)
-        : name_(std::move(name)),
-          signature_(std::move(signature)),
-          param_names_(std::move(param_names)),
-          body_(std::move(body)),
-          source_path_(std::move(source_path)),
-          lineno_(lineno),
-          col_(col) {}
+    PrimitiveIr(std::string name, std::string signature, std::vector<std::string> param_names,
+                Z29Expr::Ptr body, std::string source_path, std::optional<int> lineno,
+                std::optional<int> col)
+        : name_(std::move(name)), signature_(std::move(signature)),
+          param_names_(std::move(param_names)), body_(std::move(body)),
+          source_path_(std::move(source_path)), lineno_(lineno), col_(col) {}
 
     [[nodiscard]] Status fail_here(std::string_view rule_id, std::string message) const {
-        return DslDiag::make(rule_id, std::move(message), source_path_, lineno_, col_)
-            .to_status();
+        return DslDiag::make(rule_id, std::move(message), source_path_, lineno_, col_).to_status();
     }
 
-    [[nodiscard]] static Status fail(
-        std::string_view rule_id,
-        std::string message,
-        std::string path,
-        std::optional<int> lineno,
-        std::optional<int> col) {
-        return DslDiag::make(rule_id, std::move(message), std::move(path), lineno, col)
-            .to_status();
+    [[nodiscard]] static Status fail(std::string_view rule_id, std::string message,
+                                     std::string path, std::optional<int> lineno,
+                                     std::optional<int> col) {
+        return DslDiag::make(rule_id, std::move(message), std::move(path), lineno, col).to_status();
     }
 
     [[nodiscard]] static std::string_view trim(std::string_view s) {
-        while (!s.empty() &&
-               std::isspace(static_cast<unsigned char>(s.front()))) {
+        while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) {
             s.remove_prefix(1);
         }
         while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) {

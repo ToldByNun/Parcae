@@ -19,17 +19,15 @@ class Context {
 public:
     explicit Context(std::filesystem::path data_root) : data_root_(std::move(data_root)) {}
 
-    [[nodiscard]] const std::filesystem::path& data_root() const noexcept {
-        return data_root_;
-    }
+    [[nodiscard]] const std::filesystem::path& data_root() const noexcept { return data_root_; }
 
-    [[nodiscard]] std::filesystem::path gematria_profile_path(
-        std::string_view profile_id = "gematria-primus-v0") const {
+    [[nodiscard]] std::filesystem::path
+    gematria_profile_path(std::string_view profile_id = "gematria-primus-v0") const {
         return data_root_ / "profiles" / "gematria" / (std::string(profile_id) + ".json");
     }
 
-    [[nodiscard]] std::filesystem::path separator_grammar_path(
-        std::string_view grammar_id = "rtkd-separator-grammar-v0") const {
+    [[nodiscard]] std::filesystem::path
+    separator_grammar_path(std::string_view grammar_id = "rtkd-separator-grammar-v0") const {
         return data_root_ / "profiles" / "separators" / (std::string(grammar_id) + ".json");
     }
 
@@ -38,8 +36,8 @@ public:
     }
 
     /// Absolute/existing directory wins; otherwise `fixtures/solved/<id>`.
-    [[nodiscard]] StatusOr<std::filesystem::path> resolve_fixture_dir(
-        std::string_view fixture_dir_or_id) const {
+    [[nodiscard]] StatusOr<std::filesystem::path>
+    resolve_fixture_dir(std::string_view fixture_dir_or_id) const {
         const std::filesystem::path as_path(fixture_dir_or_id);
         if (std::filesystem::is_directory(as_path)) {
             return as_path;
@@ -54,13 +52,13 @@ public:
             std::string(fixture_dir_or_id));
     }
 
-    [[nodiscard]] StatusOr<GematriaProfile> load_gematria(
-        std::string_view profile_id = "gematria-primus-v0") const {
+    [[nodiscard]] StatusOr<GematriaProfile>
+    load_gematria(std::string_view profile_id = "gematria-primus-v0") const {
         return GematriaProfileLoader::load_from_file(gematria_profile_path(profile_id).string());
     }
 
-    [[nodiscard]] StatusOr<SeparatorGrammar> load_grammar(
-        std::string_view grammar_id = "rtkd-separator-grammar-v0") const {
+    [[nodiscard]] StatusOr<SeparatorGrammar>
+    load_grammar(std::string_view grammar_id = "rtkd-separator-grammar-v0") const {
         return SeparatorGrammar::load_from_file(separator_grammar_path(grammar_id).string());
     }
 

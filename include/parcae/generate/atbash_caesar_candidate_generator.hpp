@@ -20,11 +20,11 @@
 class AtbashCaesarCandidateGenerator {
 public:
     static constexpr std::string_view generator_id = "gen_atbash_caesar";
-    static constexpr std::size_t candidate_count = Index29::modulus;  // 29
+    static constexpr std::size_t candidate_count = Index29::modulus; // 29
 
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate(
-        std::span<const Index29> ciphertext,
-        TransformDirection direction = TransformDirection::Decrypt) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    generate(std::span<const Index29> ciphertext,
+             TransformDirection direction = TransformDirection::Decrypt) {
         std::vector<TransformCandidate> out;
         out.reserve(candidate_count);
 
@@ -36,12 +36,8 @@ public:
                 return plain.status();
             }
 
-            out.emplace_back(
-                make_candidate_id(shift),
-                TransformId::compose(),
-                direction,
-                params,
-                std::move(plain.value()));
+            out.emplace_back(make_candidate_id(shift), TransformId::compose(), direction, params,
+                             std::move(plain.value()));
         }
         return out;
     }

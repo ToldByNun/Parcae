@@ -52,8 +52,7 @@ private:
 
             std::size_t end = i;
             bool saw_hex_letter = false;
-            while (end < text.size() &&
-                   std::isxdigit(static_cast<unsigned char>(text[end])) != 0) {
+            while (end < text.size() && std::isxdigit(static_cast<unsigned char>(text[end])) != 0) {
                 const unsigned char ch = static_cast<unsigned char>(text[end]);
                 if ((ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')) {
                     saw_hex_letter = true;

@@ -1,8 +1,11 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cstddef>
+#include <cstdint>
 #include <parcae/core/index29.hpp>
 #include <parcae/core/z29.hpp>
 #include <parcae/generate/affine_candidate_generator.hpp>
-#include <parcae/generate/atbash_candidate_generator.hpp>
 #include <parcae/generate/atbash_caesar_candidate_generator.hpp>
+#include <parcae/generate/atbash_candidate_generator.hpp>
 #include <parcae/generate/caesar_candidate_generator.hpp>
 #include <parcae/generate/generator_registry.hpp>
 #include <parcae/generate/vigenere_explicit_key_candidate_generator.hpp>
@@ -15,11 +18,6 @@
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
 #include <parcae/transform/vigenere_key_transform.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <cstddef>
-#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -30,9 +28,9 @@ namespace {
 }
 
 /// Among candidates, find unique exact-match=1.0 against `plain`; return its index.
-[[nodiscard]] std::size_t require_unique_exact_match_rank1(
-    const std::vector<TransformCandidate>& candidates,
-    const std::vector<Index29>& plain) {
+[[nodiscard]] std::size_t
+require_unique_exact_match_rank1(const std::vector<TransformCandidate>& candidates,
+                                 const std::vector<Index29>& plain) {
     std::size_t hits = 0;
     std::size_t hit_index = 0;
     for (std::size_t i = 0; i < candidates.size(); ++i) {
@@ -49,7 +47,7 @@ namespace {
     return hit_index;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("CaesarCandidateGenerator emits all 29 shifts in order", "[generate][caesar]") {
     const std::vector<Index29> cipher = {I(0), I(5), I(10), I(28)};
@@ -70,10 +68,9 @@ TEST_CASE("CaesarCandidateGenerator emits all 29 shifts in order", "[generate][c
         REQUIRE(c.params().at("shift").get<int>() == static_cast<int>(shift));
         REQUIRE(c.output_indices().size() == cipher.size());
 
-        StatusOr<std::vector<Index29>> expected = caesar.apply(
-            cipher,
-            nlohmann::json{{"shift", static_cast<int>(shift)}},
-            TransformDirection::Decrypt);
+        StatusOr<std::vector<Index29>> expected =
+            caesar.apply(cipher, nlohmann::json{{"shift", static_cast<int>(shift)}},
+                         TransformDirection::Decrypt);
         REQUIRE(expected.ok());
         REQUIRE(c.output_indices() == expected.value());
 
@@ -105,8 +102,7 @@ TEST_CASE("CaesarCandidateGenerator encrypt path and round-trip", "[generate][ca
     REQUIRE(decrypted.ok());
     REQUIRE(decrypted.value()[kShift].output_indices() == plain);
 
-    StatusOr<double> exact =
-        ExactMatch::score(decrypted.value()[kShift].output_indices(), plain);
+    StatusOr<double> exact = ExactMatch::score(decrypted.value()[kShift].output_indices(), plain);
     REQUIRE(exact.ok());
     REQUIRE(exact.value() == 1.0);
 }
@@ -143,9 +139,7 @@ TEST_CASE("AtbashCandidateGenerator emits a single candidate", "[generate][atbas
     REQUIRE(c.candidate_id() == "atbash");
     REQUIRE(c.transform_id() == TransformId::atbash());
     REQUIRE(c.params().empty());
-    REQUIRE(
-        c.output_indices() ==
-        std::vector<Index29>{I(28), I(24), I(14), I(0)});
+    REQUIRE(c.output_indices() == std::vector<Index29>{I(28), I(24), I(14), I(0)});
 
     // Involution: applying again recovers ciphertext.
     StatusOr<std::vector<TransformCandidate>> again =
@@ -154,7 +148,8 @@ TEST_CASE("AtbashCandidateGenerator emits a single candidate", "[generate][atbas
     REQUIRE(again.value()[0].output_indices() == cipher);
 }
 
-TEST_CASE("AtbashCaesarCandidateGenerator emits 29 Koan-1-family shifts", "[generate][atbash_caesar]") {
+TEST_CASE("AtbashCaesarCandidateGenerator emits 29 Koan-1-family shifts",
+          "[generate][atbash_caesar]") {
     const std::vector<Index29> cipher = {I(0), I(5), I(28)};
 
     StatusOr<std::vector<TransformCandidate>> candidates =
@@ -177,12 +172,11 @@ TEST_CASE("AtbashCaesarCandidateGenerator emits 29 Koan-1-family shifts", "[gene
     }
 
     // shift=3 matches the hand vector from transform tests.
-    REQUIRE(
-        candidates.value()[3].output_indices() ==
-        std::vector<Index29>{I(2), I(26), I(3)});
+    REQUIRE(candidates.value()[3].output_indices() == std::vector<Index29>{I(2), I(26), I(3)});
 }
 
-TEST_CASE("AffineCandidateGenerator enumerates 28x29=812 with documented cost", "[generate][affine]") {
+TEST_CASE("AffineCandidateGenerator enumerates 28x29=812 with documented cost",
+          "[generate][affine]") {
     REQUIRE(AffineCandidateGenerator::a_count == 28);
     REQUIRE(AffineCandidateGenerator::b_count == 29);
     REQUIRE(AffineCandidateGenerator::candidate_count == 812);
@@ -207,10 +201,8 @@ TEST_CASE("AffineCandidateGenerator enumerates 28x29=812 with documented cost", 
     REQUIRE(a2b5.params().at("b").get<int>() == 5);
 
     const AffineTransform affine;
-    StatusOr<std::vector<Index29>> expected = affine.apply(
-        cipher,
-        nlohmann::json{{"a", 2}, {"b", 5}},
-        TransformDirection::Decrypt);
+    StatusOr<std::vector<Index29>> expected =
+        affine.apply(cipher, nlohmann::json{{"a", 2}, {"b", 5}}, TransformDirection::Decrypt);
     REQUIRE(expected.ok());
     REQUIRE(a2b5.output_indices() == expected.value());
 
@@ -225,7 +217,8 @@ TEST_CASE("AffineCandidateGenerator enumerates 28x29=812 with documented cost", 
     REQUIRE(ExactMatch::score(recovered.value()[34].output_indices(), cipher).value() == 1.0);
 }
 
-TEST_CASE("VigenereExplicitKeyCandidateGenerator applies caller keys only", "[generate][vigenere]") {
+TEST_CASE("VigenereExplicitKeyCandidateGenerator applies caller keys only",
+          "[generate][vigenere]") {
     REQUIRE(VigenereExplicitKeyCandidateGenerator::generator_id == "gen_vigenere_explicit_keys");
 
     const std::vector<Index29> cipher = {I(1), I(3), I(3), I(5)};
@@ -259,55 +252,45 @@ TEST_CASE("VigenereExplicitKeyCandidateGenerator applies caller keys only", "[ge
 
         StatusOr<std::vector<TransformCandidate>> candidates =
             VigenereExplicitKeyCandidateGenerator::generate(
-                cipher,
-                keys,
-                TransformDirection::Decrypt,
-                interrupt.value());
+                cipher, keys, TransformDirection::Decrypt, interrupt.value());
         REQUIRE(candidates.ok());
         REQUIRE(candidates.value().size() == 1);
         REQUIRE(candidates.value()[0].params().at("key_latin") == "AB");
         REQUIRE(candidates.value()[0].interrupt().has_value());
         REQUIRE(candidates.value()[0].envelope().contains("interrupt"));
-        REQUIRE(
-            candidates.value()[0].envelope().at("interrupt").at("skip_indices") ==
-            nlohmann::json{1});
+        REQUIRE(candidates.value()[0].envelope().at("interrupt").at("skip_indices") ==
+                nlohmann::json{1});
     }
 }
 
-TEST_CASE(
-    "Generators include params that recover known synthetic ciphertexts at rank 1 under exact-match",
-    "[generate][rank1]") {
+TEST_CASE("Generators include params that recover known synthetic ciphertexts at rank 1 under "
+          "exact-match",
+          "[generate][rank1]") {
     const std::vector<Index29> plain = {I(0), I(1), I(2), I(3), I(10), I(14), I(28)};
 
     SECTION("gen_caesar") {
         constexpr int kShift = 7;
         StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-            plain,
-            nlohmann::json{{"shift", kShift}},
-            TransformDirection::Encrypt);
+            plain, nlohmann::json{{"shift", kShift}}, TransformDirection::Encrypt);
         REQUIRE(cipher.ok());
 
         StatusOr<std::vector<TransformCandidate>> candidates =
             CaesarCandidateGenerator::generate(cipher.value());
         REQUIRE(candidates.ok());
-        const std::size_t rank1 =
-            require_unique_exact_match_rank1(candidates.value(), plain);
+        const std::size_t rank1 = require_unique_exact_match_rank1(candidates.value(), plain);
         REQUIRE(rank1 == static_cast<std::size_t>(kShift));
         REQUIRE(candidates.value()[rank1].params().at("shift") == kShift);
     }
 
     SECTION("gen_atbash") {
-        StatusOr<std::vector<Index29>> cipher = AtbashTransform{}.apply(
-            plain,
-            nlohmann::json::object(),
-            TransformDirection::Encrypt);
+        StatusOr<std::vector<Index29>> cipher =
+            AtbashTransform{}.apply(plain, nlohmann::json::object(), TransformDirection::Encrypt);
         REQUIRE(cipher.ok());
 
         StatusOr<std::vector<TransformCandidate>> candidates =
             AtbashCandidateGenerator::generate(cipher.value());
         REQUIRE(candidates.ok());
-        const std::size_t rank1 =
-            require_unique_exact_match_rank1(candidates.value(), plain);
+        const std::size_t rank1 = require_unique_exact_match_rank1(candidates.value(), plain);
         REQUIRE(rank1 == 0);
         REQUIRE(candidates.value()[rank1].candidate_id() == "atbash");
     }
@@ -321,8 +304,7 @@ TEST_CASE(
         StatusOr<std::vector<TransformCandidate>> candidates =
             AtbashCaesarCandidateGenerator::generate(cipher.value());
         REQUIRE(candidates.ok());
-        const std::size_t rank1 =
-            require_unique_exact_match_rank1(candidates.value(), plain);
+        const std::size_t rank1 = require_unique_exact_match_rank1(candidates.value(), plain);
         REQUIRE(rank1 == kShift);
         REQUIRE(candidates.value()[rank1].params() ==
                 ComposeTransform::atbash_then_caesar_params(kShift));
@@ -332,16 +314,13 @@ TEST_CASE(
         constexpr int kA = 2;
         constexpr int kB = 5;
         StatusOr<std::vector<Index29>> cipher = AffineTransform{}.apply(
-            plain,
-            nlohmann::json{{"a", kA}, {"b", kB}},
-            TransformDirection::Encrypt);
+            plain, nlohmann::json{{"a", kA}, {"b", kB}}, TransformDirection::Encrypt);
         REQUIRE(cipher.ok());
 
         StatusOr<std::vector<TransformCandidate>> candidates =
             AffineCandidateGenerator::generate(cipher.value());
         REQUIRE(candidates.ok());
-        const std::size_t rank1 =
-            require_unique_exact_match_rank1(candidates.value(), plain);
+        const std::size_t rank1 = require_unique_exact_match_rank1(candidates.value(), plain);
         const std::size_t expected_index =
             static_cast<std::size_t>(kA - 1) * 29u + static_cast<std::size_t>(kB);
         REQUIRE(rank1 == expected_index);
@@ -359,17 +338,14 @@ TEST_CASE(
         };
 
         StatusOr<std::vector<Index29>> cipher = VigenereKeyTransform{}.apply(
-            plain,
-            nlohmann::json{{"key_indices", {1, 2, 5}}},
-            TransformDirection::Encrypt);
+            plain, nlohmann::json{{"key_indices", {1, 2, 5}}}, TransformDirection::Encrypt);
         REQUIRE(cipher.ok());
 
         StatusOr<std::vector<TransformCandidate>> candidates =
             VigenereExplicitKeyCandidateGenerator::generate(cipher.value(), key_list);
         REQUIRE(candidates.ok());
         REQUIRE(candidates.value().size() == key_list.size());
-        const std::size_t rank1 =
-            require_unique_exact_match_rank1(candidates.value(), plain);
+        const std::size_t rank1 = require_unique_exact_match_rank1(candidates.value(), plain);
         REQUIRE(rank1 == 1);
         REQUIRE(candidates.value()[rank1].params().at("key_indices") == nlohmann::json{1, 2, 5});
     }
@@ -379,11 +355,9 @@ TEST_CASE(
         StatusOr<InterruptPolicy> interrupt = InterruptPolicy::from_skip_indices({1, 3});
         REQUIRE(interrupt.ok());
 
-        StatusOr<std::vector<Index29>> cipher = VigenereKeyTransform{}.apply(
-            plain,
-            nlohmann::json{{"key_indices", {1, 2}}},
-            TransformDirection::Encrypt,
-            interrupt.value());
+        StatusOr<std::vector<Index29>> cipher =
+            VigenereKeyTransform{}.apply(plain, nlohmann::json{{"key_indices", {1, 2}}},
+                                         TransformDirection::Encrypt, interrupt.value());
         REQUIRE(cipher.ok());
 
         const std::vector<std::vector<Index29>> key_list = {
@@ -393,13 +367,9 @@ TEST_CASE(
         };
         StatusOr<std::vector<TransformCandidate>> candidates =
             VigenereExplicitKeyCandidateGenerator::generate(
-                cipher.value(),
-                key_list,
-                TransformDirection::Decrypt,
-                interrupt.value());
+                cipher.value(), key_list, TransformDirection::Decrypt, interrupt.value());
         REQUIRE(candidates.ok());
-        const std::size_t rank1 =
-            require_unique_exact_match_rank1(candidates.value(), plain);
+        const std::size_t rank1 = require_unique_exact_match_rank1(candidates.value(), plain);
         REQUIRE(rank1 == 1);
     }
 }
@@ -435,8 +405,7 @@ TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][regist
     const std::vector<Index29> cipher = {I(0), I(5), I(10)};
     StatusOr<std::vector<TransformCandidate>> via_registry =
         GeneratorRegistry::generate("gen_caesar", cipher);
-    StatusOr<std::vector<TransformCandidate>> direct =
-        CaesarCandidateGenerator::generate(cipher);
+    StatusOr<std::vector<TransformCandidate>> direct = CaesarCandidateGenerator::generate(cipher);
     REQUIRE(via_registry.ok());
     REQUIRE(direct.ok());
     REQUIRE(via_registry.value().size() == direct.value().size());
@@ -455,14 +424,13 @@ TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][regist
     const nlohmann::json vig_params = {
         {"key_indices_list", {{1, 2, 3}, {4, 5}}},
     };
-    StatusOr<std::vector<TransformCandidate>> vig =
-        GeneratorRegistry::generate("gen_vigenere_explicit_keys", cipher, TransformDirection::Decrypt, vig_params);
+    StatusOr<std::vector<TransformCandidate>> vig = GeneratorRegistry::generate(
+        "gen_vigenere_explicit_keys", cipher, TransformDirection::Decrypt, vig_params);
     REQUIRE(vig.ok());
     REQUIRE(vig.value().size() == 2);
 
-    StatusOr<std::vector<TransformCandidate>> beaufort =
-        GeneratorRegistry::generate(
-            "gen_beaufort_explicit_keys", cipher, TransformDirection::Decrypt, vig_params);
+    StatusOr<std::vector<TransformCandidate>> beaufort = GeneratorRegistry::generate(
+        "gen_beaufort_explicit_keys", cipher, TransformDirection::Decrypt, vig_params);
     REQUIRE(beaufort.ok());
     REQUIRE(beaufort.value().size() == 2);
     REQUIRE(beaufort.value()[0].transform_id() == TransformId::beaufort_key());
@@ -481,14 +449,13 @@ TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][regist
     REQUIRE(compose_default.value()[0].transform_id() == TransformId::compose());
 
     const nlohmann::json one_recipe = {
-        {"stages",
-         nlohmann::json::array(
-             {nlohmann::json{{"transform_id", "atbash"}, {"params", nlohmann::json::object()}},
-              nlohmann::json{
-                  {"transform_id", "caesar"},
-                  {"direction", "encrypt"},
-                  {"params", {{"shift", 3}}},
-              }})}};
+        {"stages", nlohmann::json::array({nlohmann::json{{"transform_id", "atbash"},
+                                                         {"params", nlohmann::json::object()}},
+                                          nlohmann::json{
+                                              {"transform_id", "caesar"},
+                                              {"direction", "encrypt"},
+                                              {"params", {{"shift", 3}}},
+                                          }})}};
     StatusOr<std::vector<TransformCandidate>> compose_one = GeneratorRegistry::generate(
         "gen_compose_recipes", cipher, TransformDirection::Decrypt, one_recipe);
     REQUIRE(compose_one.ok());
@@ -496,13 +463,10 @@ TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][regist
     REQUIRE(compose_one.value()[0].candidate_id() == "atbash_caesar:shift=3");
 
     const nlohmann::json vig_keys = {
-        {"keys",
-         {{{"key_indices", {1, 2}}, {"key_latin", "BC"}},
-          {{"key_indices", {3, 4, 5}}}}},
+        {"keys", {{{"key_indices", {1, 2}}, {"key_latin", "BC"}}, {{"key_indices", {3, 4, 5}}}}},
     };
-    StatusOr<std::vector<TransformCandidate>> vig2 =
-        GeneratorRegistry::generate(
-            "gen_vigenere_explicit_keys", cipher, TransformDirection::Decrypt, vig_keys);
+    StatusOr<std::vector<TransformCandidate>> vig2 = GeneratorRegistry::generate(
+        "gen_vigenere_explicit_keys", cipher, TransformDirection::Decrypt, vig_keys);
     REQUIRE(vig2.ok());
     REQUIRE(vig2.value().size() == 2);
     REQUIRE(vig2.value()[0].params().at("key_latin").get<std::string>() == "BC");

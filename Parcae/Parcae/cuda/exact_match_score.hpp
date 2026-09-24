@@ -17,19 +17,17 @@ class ExactMatchScore {
 public:
     /// Device pointers: count mismatches into `*device_mismatch_count` (must be
     /// zeroed by caller). No-op success if `count == 0`.
-    [[nodiscard]] static Status count_mismatches_device(
-        const std::uint8_t* device_candidate,
-        const std::uint8_t* device_reference,
-        std::size_t count,
-        unsigned long long* device_mismatch_count);
+    [[nodiscard]] static Status count_mismatches_device(const std::uint8_t* device_candidate,
+                                                        const std::uint8_t* device_reference,
+                                                        std::size_t count,
+                                                        unsigned long long* device_mismatch_count);
 
     /// H2D → integer mismatch reduce → `1.0` / `0.0`. Length mismatch → `0.0`.
-    [[nodiscard]] static StatusOr<double> score_host(
-        std::span<const std::uint8_t> candidate,
-        std::span<const std::uint8_t> reference);
+    [[nodiscard]] static StatusOr<double> score_host(std::span<const std::uint8_t> candidate,
+                                                     std::span<const std::uint8_t> reference);
 
 private:
     ExactMatchScore() = delete;
 };
 
-#endif  // EXACT_MATCH_SCORE_HPP
+#endif // EXACT_MATCH_SCORE_HPP

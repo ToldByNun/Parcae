@@ -27,14 +27,13 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Tool-facing `rank_candidates` primitive.
 ///
@@ -54,17 +53,12 @@ public:
     /// expected-frequency table from the data root (same as `tool::score`).
     /// `execution` applies only to `backend=cpu`. CUDA scores lanes serially via
     /// `CudaScore` then sorts once on the host.
-    [[nodiscard]] static StatusOr<BatchResult> run(
-        std::span<const TransformCandidate> candidates,
-        std::string_view score_id,
-        std::size_t k,
-        const Context* ctx = nullptr,
-        ScoreRequest request = ScoreRequest(),
+    [[nodiscard]] static StatusOr<BatchResult>
+    run(std::span<const TransformCandidate> candidates, std::string_view score_id, std::size_t k,
+        const Context* ctx = nullptr, ScoreRequest request = ScoreRequest(),
         const nlohmann::json& params = nlohmann::json::object(),
-        std::string_view score_version = "v0",
-        BatchExecution execution = BatchExecution::Serial,
-        Backend backend = Backend::Cpu,
-        BatchRunner::Progress progress = BatchRunner::Progress{}) {
+        std::string_view score_version = "v0", BatchExecution execution = BatchExecution::Serial,
+        Backend backend = Backend::Cpu, BatchRunner::Progress progress = BatchRunner::Progress{}) {
         if (candidates.empty()) {
             return Status::error("rank_candidates: candidates must be non-empty");
         }
@@ -85,9 +79,8 @@ public:
         if (score_id == ScoreId::chi2_english_gp_v0().str() &&
             request.expected_frequencies == nullptr) {
             if (ctx == nullptr) {
-                return Status::error(
-                    "rank_candidates: chi2_english_gp_v0 requires Context or "
-                    "ScoreRequest.expected_frequencies");
+                return Status::error("rank_candidates: chi2_english_gp_v0 requires Context or "
+                                     "ScoreRequest.expected_frequencies");
             }
             StatusOr<ExpectedFrequencyTable> table = ctx->load_english_gp_expected();
             if (!table.ok()) {
@@ -98,27 +91,18 @@ public:
         }
 
         if (backend == Backend::Cpu) {
-            return BatchRunner::run(
-                candidates,
-                score_id,
-                k,
-                request,
-                execution,
-                score_version,
-                params,
-                progress);
+            return BatchRunner::run(candidates, score_id, k, request, execution, score_version,
+                                    params, progress);
         }
 
-        return run_cuda(
-            candidates, score_id, k, request, params, score_version, progress);
+        return run_cuda(candidates, score_id, k, request, params, score_version, progress);
     }
 
     /// JSON for one hit; optionally attach the source candidate envelope + latin.
-    [[nodiscard]] static nlohmann::json hit_to_json(
-        const BatchHit& hit,
-        std::size_t rank,
-        const TransformCandidate* candidate = nullptr,
-        std::optional<std::string> latin_preview = std::nullopt) {
+    [[nodiscard]] static nlohmann::json
+    hit_to_json(const BatchHit& hit, std::size_t rank,
+                const TransformCandidate* candidate = nullptr,
+                std::optional<std::string> latin_preview = std::nullopt) {
         nlohmann::json row{
             {"rank", rank},
             {"candidate_id", hit.candidate_id()},
@@ -141,12 +125,10 @@ public:
     /// Full ranking payload for agent CLIs (`parcae.tool_response.v0` result).
     /// When `candidates` aligns with `source_index`, envelopes are included.
     /// When `ctx` is set, also attaches a Latin preview per hit.
-    [[nodiscard]] static StatusOr<nlohmann::json> result_to_json(
-        const BatchResult& result,
-        std::span<const TransformCandidate> candidates = {},
-        const Context* ctx = nullptr,
-        std::size_t latin_max_chars = 64,
-        Backend backend = Backend::Cpu) {
+    [[nodiscard]] static StatusOr<nlohmann::json>
+    result_to_json(const BatchResult& result, std::span<const TransformCandidate> candidates = {},
+                   const Context* ctx = nullptr, std::size_t latin_max_chars = 64,
+                   Backend backend = Backend::Cpu) {
         StatusOr<ScoreOrder> order = ScoreRegistry::order_of(result.score_id());
         if (!order.ok()) {
             return order.status();
@@ -189,23 +171,18 @@ public:
 private:
     RankCandidates() = delete;
 
-    [[nodiscard]] static bool score_is_better(
-        double candidate,
-        double incumbent,
-        ScoreOrder order) noexcept {
+    [[nodiscard]] static bool score_is_better(double candidate, double incumbent,
+                                              ScoreOrder order) noexcept {
         if (order == ScoreOrder::Asc) {
             return candidate < incumbent;
         }
         return candidate > incumbent;
     }
 
-    static void emit_cuda_progress(
-        ConsoleProgressSink* sink,
-        ConsoleProgressSnapshot snap,
-        std::size_t done,
-        const ConsoleProgressClock& clock,
-        const std::optional<double>& best_score,
-        const std::string& best_label) {
+    static void emit_cuda_progress(ConsoleProgressSink* sink, ConsoleProgressSnapshot snap,
+                                   std::size_t done, const ConsoleProgressClock& clock,
+                                   const std::optional<double>& best_score,
+                                   const std::string& best_label) {
         if (sink == nullptr) {
             return;
         }
@@ -219,17 +196,14 @@ private:
         sink->on_progress(snap);
     }
 
-    [[nodiscard]] static StatusOr<BatchResult> run_cuda(
-        std::span<const TransformCandidate> candidates,
-        std::string_view score_id,
-        std::size_t k,
-        const ScoreRequest& request,
-        const nlohmann::json& params,
-        std::string_view score_version,
-        BatchRunner::Progress progress) {
+    [[nodiscard]] static StatusOr<BatchResult>
+    run_cuda(std::span<const TransformCandidate> candidates, std::string_view score_id,
+             std::size_t k, const ScoreRequest& request, const nlohmann::json& params,
+             std::string_view score_version, BatchRunner::Progress progress) {
 #if defined(PARCAE_HAS_CUDA)
         if (!CudaScore::available()) {
-            return Status::error("rank_candidates: CUDA backend requested but CUDA is not available");
+            return Status::error(
+                "rank_candidates: CUDA backend requested but CUDA is not available");
         }
 
         StatusOr<ScoreOrder> order = ScoreRegistry::order_of(score_id);
@@ -252,12 +226,8 @@ private:
         std::vector<BatchHit> hits;
         hits.reserve(candidates.size());
         for (std::size_t i = 0; i < candidates.size(); ++i) {
-            StatusOr<double> value = CudaScore::score(
-                score_id,
-                candidates[i].output_indices(),
-                score_version,
-                params,
-                request);
+            StatusOr<double> value = CudaScore::score(score_id, candidates[i].output_indices(),
+                                                      score_version, params, request);
             if (!value.ok()) {
                 return value.status();
             }
@@ -267,13 +237,7 @@ private:
                 best_score = value.value();
                 best_label = candidates[i].candidate_id();
             }
-            emit_cuda_progress(
-                progress.sink,
-                base,
-                hits.size(),
-                clock,
-                best_score,
-                best_label);
+            emit_cuda_progress(progress.sink, base, hits.size(), clock, best_score, best_label);
         }
 
         std::sort(hits.begin(), hits.end(), BatchOrdering::BestFirst{order.value()});
@@ -295,11 +259,10 @@ private:
         (void)params;
         (void)score_version;
         (void)progress;
-        return Status::error(
-            "rank_candidates: CUDA backend requested but Parcae was built without "
-            "CUDA (PARCAE_BUILD_CUDA)");
+        return Status::error("rank_candidates: CUDA backend requested but Parcae was built without "
+                             "CUDA (PARCAE_BUILD_CUDA)");
 #endif
     }
 };
 
-#endif  // RANK_CANDIDATES_HPP
+#endif // RANK_CANDIDATES_HPP

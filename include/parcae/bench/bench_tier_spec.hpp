@@ -46,39 +46,27 @@ public:
     // --- Primary SLO tiers (canonical config) --------------------------------
 
     /// Caesar fused χ² (simple substitution). C=29, T=2^20, reps=64.
-    static constexpr Tier t1{
-        "T1",
-        "Caesar fused chi2 (simple sub)",
-        static_cast<std::size_t>(Index29::modulus),
-        1048576u,  // 1 << 20
-        64u,
-        15.0e9,
-        35.0e9,
-        392.0e9};
+    static constexpr Tier t1{"T1",
+                             "Caesar fused chi2 (simple sub)",
+                             static_cast<std::size_t>(Index29::modulus),
+                             1048576u, // 1 << 20
+                             64u,
+                             15.0e9,
+                             35.0e9,
+                             392.0e9};
 
     /// Filtered multi-key / autokey / dynamic-shift (worst of three).
     /// C=4096, T=2^18, reps=8.
-    static constexpr Tier t2{
-        "T2",
-        "Filtered multi-key/autokey/dyn (worst)",
-        4096u,
-        262144u,  // 1 << 18
-        8u,
-        3.0e9,
-        10.0e9,
-        402.0e9};
+    static constexpr Tier t2{"T2",    "Filtered multi-key/autokey/dyn (worst)",
+                             4096u,
+                             262144u, // 1 << 18
+                             8u,      3.0e9,
+                             10.0e9,  402.0e9};
 
     /// Caesar bigram + synthetic dictionary validation.
     /// C=512, T=2^18, reps=8. slo_max=0 → display ">=".
-    static constexpr Tier t3{
-        "T3",
-        "Caesar bigram+dict validation",
-        512u,
-        262144u,
-        8u,
-        1.0e9,
-        0.0,
-        55.0e9};
+    static constexpr Tier t3{"T3",  "Caesar bigram+dict validation", 512u, 262144u, 8u, 1.0e9, 0.0,
+                             55.0e9};
 
     static constexpr std::size_t primary_tier_count = 3;
 
@@ -172,7 +160,8 @@ public:
     }
 
     /// Identical rule to historical `ThroughputTiers::pass_tier`.
-    [[nodiscard]] static constexpr bool pass_tier(double rps, double slo_min, double peak) noexcept {
+    [[nodiscard]] static constexpr bool pass_tier(double rps, double slo_min,
+                                                  double peak) noexcept {
         if (rps < slo_min) {
             return false;
         }

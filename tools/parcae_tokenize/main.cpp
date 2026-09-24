@@ -1,14 +1,13 @@
-#include "cli_io.hpp"
-#include "tool_cli_json.hpp"
-
 #include "parcae/corpus/token_kind.hpp"
 #include "parcae/tool/api.hpp"
 
+#include "cli_io.hpp"
+#include "tool_cli_json.hpp"
+
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #ifndef PARCAE_DEFAULT_DATA_DIR
 #define PARCAE_DEFAULT_DATA_DIR ""
@@ -29,11 +28,7 @@ void print_help() {
         << "  -h, --help   Show this help\n";
 }
 
-[[nodiscard]] int fail(
-    bool json_mode,
-    ToolErrorCode code,
-    std::string message,
-    int plain_exit) {
+[[nodiscard]] int fail(bool json_mode, ToolErrorCode code, std::string message, int plain_exit) {
     if (json_mode) {
         return ToolCliJson::err(kTool, std::nullopt, code, std::move(message));
     }
@@ -41,7 +36,7 @@ void print_help() {
     return plain_exit;
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
@@ -67,17 +62,19 @@ int main(int argc, char** argv) {
         }
         if (!args[i].empty() && args[i][0] == '-') {
             print_help();
-            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + args[i], CliIo::kExitUsage);
+            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + args[i],
+                        CliIo::kExitUsage);
         }
         if (!input_path.empty()) {
-            return fail(json_mode, ToolErrorCode::Usage, "Multiple input paths provided", CliIo::kExitUsage);
+            return fail(json_mode, ToolErrorCode::Usage, "Multiple input paths provided",
+                        CliIo::kExitUsage);
         }
         input_path = args[i];
     }
     if (input_path.empty()) {
         print_help();
-        return fail(
-            json_mode, ToolErrorCode::Usage, "Missing input path (file or -)", CliIo::kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage, "Missing input path (file or -)",
+                    CliIo::kExitUsage);
     }
 
     StatusOr<Context> ctx = CliIo::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
@@ -93,7 +90,8 @@ int main(int argc, char** argv) {
     StatusOr<TokenStream> stream =
         ToolApi::tokenize(ctx.value(), source.value(), "rtkd-separator-grammar-v0", strict);
     if (!stream.ok()) {
-        return fail(json_mode, ToolErrorCode::Internal, stream.status().message(), CliIo::kExitFail);
+        return fail(json_mode, ToolErrorCode::Internal, stream.status().message(),
+                    CliIo::kExitFail);
     }
 
     if (!json_mode) {
@@ -136,12 +134,10 @@ int main(int argc, char** argv) {
         }
         tokens.push_back(std::move(row));
     }
-    return ToolCliJson::ok(
-        kTool,
-        std::nullopt,
-        nlohmann::json{
-            {"token_count", stream.value().size()},
-            {"consumable_count", stream.value().consumable_count()},
-            {"tokens", std::move(tokens)},
-        });
+    return ToolCliJson::ok(kTool, std::nullopt,
+                           nlohmann::json{
+                               {"token_count", stream.value().size()},
+                               {"consumable_count", stream.value().consumable_count()},
+                               {"tokens", std::move(tokens)},
+                           });
 }

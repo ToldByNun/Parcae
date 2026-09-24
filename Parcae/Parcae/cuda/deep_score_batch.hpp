@@ -17,55 +17,38 @@ public:
     static constexpr std::size_t kDictWordLen = 8;
 
     [[nodiscard]] static Status launch_autokey_chi2_async(
-        const std::uint8_t* device_in,
-        const std::uint8_t* device_key_bytes,
-        const std::uint32_t* device_key_begin,
-        const std::uint32_t* device_key_len,
-        const double* device_probabilities,
-        std::uint32_t* device_counts,
-        double* device_scores,
-        std::size_t candidate_count,
-        std::size_t token_count);
+        const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
+        const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
+        const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+        std::size_t candidate_count, std::size_t token_count);
 
-    [[nodiscard]] static Status launch_dynamic_shift_chi2_async(
-        const std::uint8_t* device_in,
-        const std::uint8_t* device_base,
-        const std::uint8_t* device_step,
-        const double* device_probabilities,
-        std::uint32_t* device_counts,
-        double* device_scores,
-        std::size_t candidate_count,
-        std::size_t token_count);
+    [[nodiscard]] static Status
+    launch_dynamic_shift_chi2_async(const std::uint8_t* device_in, const std::uint8_t* device_base,
+                                    const std::uint8_t* device_step,
+                                    const double* device_probabilities,
+                                    std::uint32_t* device_counts, double* device_scores,
+                                    std::size_t candidate_count, std::size_t token_count);
 
-    [[nodiscard]] static Status launch_caesar_bigram_ll_async(
-        const std::uint8_t* device_in,
-        const std::uint8_t* device_shifts,
-        const float* device_bigram_ll,
-        double* device_scores,
-        std::size_t candidate_count,
-        std::size_t token_count);
+    [[nodiscard]] static Status
+    launch_caesar_bigram_ll_async(const std::uint8_t* device_in, const std::uint8_t* device_shifts,
+                                  const float* device_bigram_ll, double* device_scores,
+                                  std::size_t candidate_count, std::size_t token_count);
 
     [[nodiscard]] static Status launch_caesar_ngram_dict_async(
-        const std::uint8_t* device_in,
-        const std::uint8_t* device_shifts,
-        const float* device_bigram_ll,
-        const std::uint8_t* device_dict_words,
-        const std::uint8_t* device_dict_lens,
-        double* device_scores,
-        std::size_t candidate_count,
-        std::size_t token_count,
-        std::size_t dict_word_count);
+        const std::uint8_t* device_in, const std::uint8_t* device_shifts,
+        const float* device_bigram_ll, const std::uint8_t* device_dict_words,
+        const std::uint8_t* device_dict_lens, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count, std::size_t dict_word_count);
 
 private:
     DeepScoreBatch() = delete;
 
     [[nodiscard]] static int tiles_for(std::size_t token_count);
 
-    [[nodiscard]] static Status clear_hist(
-        std::uint32_t* device_counts, std::size_t candidate_count);
+    [[nodiscard]] static Status clear_hist(std::uint32_t* device_counts,
+                                           std::size_t candidate_count);
 
-    [[nodiscard]] static Status zero_scores(
-        double* device_scores, std::size_t candidate_count);
+    [[nodiscard]] static Status zero_scores(double* device_scores, std::size_t candidate_count);
 };
 
-#endif  // DEEP_SCORE_BATCH_HPP
+#endif // DEEP_SCORE_BATCH_HPP

@@ -1,17 +1,15 @@
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/catch_approx.hpp>
-
 #include "parcae/cli/console_progress_clock.hpp"
 #include "parcae/cli/console_progress_mode.hpp"
 #include "parcae/cli/console_progress_snapshot.hpp"
 
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <string>
 #include <thread>
 
 TEST_CASE("ConsoleProgressMode parse accepts auto panel lines off", "[cli][progress]") {
-    REQUIRE(ConsoleProgressMode::parse("auto").value().kind() ==
-            ConsoleProgressMode::Kind::Auto);
+    REQUIRE(ConsoleProgressMode::parse("auto").value().kind() == ConsoleProgressMode::Kind::Auto);
     REQUIRE(ConsoleProgressMode::parse("PANEL").value().is_panel());
     REQUIRE(ConsoleProgressMode::parse("Lines").value().is_lines());
     REQUIRE(ConsoleProgressMode::parse("off").value().is_off());
@@ -30,12 +28,10 @@ TEST_CASE("ConsoleProgressMode parse rejects unknown tokens", "[cli][progress]")
     REQUIRE_FALSE(empty.ok());
 }
 
-TEST_CASE("ConsoleProgressMode from_flags precedence quiet > plain > progress",
-          "[cli][progress]") {
+TEST_CASE("ConsoleProgressMode from_flags precedence quiet > plain > progress", "[cli][progress]") {
     REQUIRE(ConsoleProgressMode::from_flags(true, true, "panel").value().is_off());
     REQUIRE(ConsoleProgressMode::from_flags(false, true, "panel").value().is_lines());
-    REQUIRE(
-        ConsoleProgressMode::from_flags(false, false, "panel").value().is_panel());
+    REQUIRE(ConsoleProgressMode::from_flags(false, false, "panel").value().is_panel());
     REQUIRE(ConsoleProgressMode::from_flags(false, false, "").value().is_auto());
     REQUIRE_FALSE(ConsoleProgressMode::from_flags(false, false, "nope").ok());
 }

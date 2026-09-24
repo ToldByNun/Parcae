@@ -1,9 +1,6 @@
 #ifndef CUDA_BATCH_SCORE_HPP
 #define CUDA_BATCH_SCORE_HPP
 
-#include "candidate_batch_buffers.hpp"
-#include "cuda_score.hpp"
-
 #include "parcae/batch/batch_hit.hpp"
 #include "parcae/batch/batch_ordering.hpp"
 #include "parcae/batch/batch_result.hpp"
@@ -14,15 +11,17 @@
 #include "parcae/score/score_registry.hpp"
 #include "parcae/score/score_request.hpp"
 
+#include "candidate_batch_buffers.hpp"
+#include "cuda_score.hpp"
+
 #include <algorithm>
 #include <cstddef>
+#include <nlohmann/json.hpp>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// CUDA batch scoring + host top-k (`docs/architecture/cuda-abi.md` / score-reduction).
 ///
@@ -31,27 +30,22 @@
 /// Device-side top-k heaps are out of scope for v0.
 class CudaBatchScore {
 public:
-    [[nodiscard]] static bool available() noexcept {
-        return CudaScore::available();
-    }
+    [[nodiscard]] static bool available() noexcept { return CudaScore::available(); }
 
     /// Score every candidate lane in `buffers.out_index29` into `buffers.scores()`.
     /// Requires `AllocateOptions::with_scores` and filled outputs (e.g. after a
     /// batch apply kernel).
-    [[nodiscard]] static Status score_lanes(
-        CandidateBatchBuffers& buffers,
-        std::string_view score_id,
-        const ScoreRequest& request = ScoreRequest(),
-        std::string_view score_version = "v0",
-        const nlohmann::json& params = nlohmann::json::object()) {
+    [[nodiscard]] static Status
+    score_lanes(CandidateBatchBuffers& buffers, std::string_view score_id,
+                const ScoreRequest& request = ScoreRequest(), std::string_view score_version = "v0",
+                const nlohmann::json& params = nlohmann::json::object()) {
         if (buffers.scores().empty()) {
             return Status::error("CudaBatchScore::score_lanes requires scores[C] buffer");
         }
         if (buffers.scores().size() != buffers.candidate_count()) {
             return Status::error("CudaBatchScore::score_lanes scores size must equal C");
         }
-        if (buffers.out_index29().size() !=
-            buffers.candidate_count() * buffers.token_count()) {
+        if (buffers.out_index29().size() != buffers.candidate_count() * buffers.token_count()) {
             return Status::error("CudaBatchScore::score_lanes out_index29 size mismatch");
         }
 
@@ -72,12 +66,10 @@ public:
     }
 
     /// Deterministic top-k from already-materialized `scores[C]` (host reduction).
-    [[nodiscard]] static StatusOr<BatchResult> top_k(
-        std::span<const std::string> candidate_ids,
-        std::span<const double> scores,
-        std::string_view score_id,
-        std::size_t k,
-        std::string_view score_version = "v0") {
+    [[nodiscard]] static StatusOr<BatchResult> top_k(std::span<const std::string> candidate_ids,
+                                                     std::span<const double> scores,
+                                                     std::string_view score_id, std::size_t k,
+                                                     std::string_view score_version = "v0") {
         if (k == 0) {
             return Status::error("CudaBatchScore::top_k requires k >= 1");
         }
@@ -114,14 +106,12 @@ public:
     }
 
     /// `score_lanes` then `top_k` using `buffers.scores()` and `candidate_ids`.
-    [[nodiscard]] static StatusOr<BatchResult> score_and_top_k(
-        CandidateBatchBuffers& buffers,
-        std::span<const std::string> candidate_ids,
-        std::string_view score_id,
-        std::size_t k,
-        const ScoreRequest& request = ScoreRequest(),
-        std::string_view score_version = "v0",
-        const nlohmann::json& params = nlohmann::json::object()) {
+    [[nodiscard]] static StatusOr<BatchResult>
+    score_and_top_k(CandidateBatchBuffers& buffers, std::span<const std::string> candidate_ids,
+                    std::string_view score_id, std::size_t k,
+                    const ScoreRequest& request = ScoreRequest(),
+                    std::string_view score_version = "v0",
+                    const nlohmann::json& params = nlohmann::json::object()) {
         if (candidate_ids.size() != buffers.candidate_count()) {
             return Status::error("CudaBatchScore::score_and_top_k candidate_ids size must equal C");
         }

@@ -1,6 +1,3 @@
-#include "backend.hpp"
-#include "parcae_cuda.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/interrupt/policy.hpp"
 #include "parcae/transform/affine_transform.hpp"
@@ -15,12 +12,13 @@
 #include "parcae/transform/transform_id.hpp"
 #include "parcae/transform/vigenere_key_transform.hpp"
 
+#include "backend.hpp"
+#include "parcae_cuda.hpp"
+
 #include <catch2/catch_test_macros.hpp>
-
-#include <nlohmann/json.hpp>
-
 #include <cstddef>
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <random>
 #include <string>
 #include <vector>
@@ -70,12 +68,9 @@ namespace {
     return nlohmann::json{{"key_indices", std::move(key)}};
 }
 
-void require_cuda_matches_cpu(
-    const TransformId& id,
-    const std::vector<Index29>& input,
-    const nlohmann::json& params,
-    TransformDirection direction,
-    const InterruptPolicy& interrupt) {
+void require_cuda_matches_cpu(const TransformId& id, const std::vector<Index29>& input,
+                              const nlohmann::json& params, TransformDirection direction,
+                              const InterruptPolicy& interrupt) {
     StatusOr<std::vector<Index29>> cpu =
         ApplyTransform::apply(id, input, params, direction, interrupt);
     REQUIRE(cpu.ok());
@@ -85,33 +80,29 @@ void require_cuda_matches_cpu(
     REQUIRE(cuda_out == cpu.value());
 }
 
-void require_cuda_encrypt_decrypt_round_trip(
-    const TransformId& id,
-    const std::vector<Index29>& plain,
-    const nlohmann::json& params,
-    const InterruptPolicy& interrupt) {
+void require_cuda_encrypt_decrypt_round_trip(const TransformId& id,
+                                             const std::vector<Index29>& plain,
+                                             const nlohmann::json& params,
+                                             const InterruptPolicy& interrupt) {
     require_cuda_matches_cpu(id, plain, params, TransformDirection::Encrypt, interrupt);
 
     std::vector<Index29> cipher(plain.size());
-    REQUIRE(CudaBackend::apply_into(
-                id, plain, cipher, params, TransformDirection::Encrypt, interrupt)
-                .ok());
+    REQUIRE(
+        CudaBackend::apply_into(id, plain, cipher, params, TransformDirection::Encrypt, interrupt)
+            .ok());
 
     require_cuda_matches_cpu(id, cipher, params, TransformDirection::Decrypt, interrupt);
 
     std::vector<Index29> recovered(plain.size());
-    REQUIRE(CudaBackend::apply_into(
-                id, cipher, recovered, params, TransformDirection::Decrypt, interrupt)
+    REQUIRE(CudaBackend::apply_into(id, cipher, recovered, params, TransformDirection::Decrypt,
+                                    interrupt)
                 .ok());
     REQUIRE(recovered == plain);
 }
 
-void require_cuda_involution_twice(
-    const TransformId& id,
-    const std::vector<Index29>& plain,
-    const nlohmann::json& params,
-    const InterruptPolicy& interrupt,
-    TransformDirection direction) {
+void require_cuda_involution_twice(const TransformId& id, const std::vector<Index29>& plain,
+                                   const nlohmann::json& params, const InterruptPolicy& interrupt,
+                                   TransformDirection direction) {
     require_cuda_matches_cpu(id, plain, params, direction, interrupt);
 
     std::vector<Index29> once(plain.size());
@@ -124,11 +115,10 @@ void require_cuda_involution_twice(
     REQUIRE(twice == plain);
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE(
-    "Property: CUDA invertible families round-trip random Index29 streams",
-    "[cuda][property]") {
+TEST_CASE("Property: CUDA invertible families round-trip random Index29 streams",
+          "[cuda][property]") {
     REQUIRE(ParcaeCuda::available());
     REQUIRE(CudaBackend::available());
 
@@ -142,54 +132,46 @@ TEST_CASE(
         const std::vector<Index29> plain = random_indices(rng, length);
         const InterruptPolicy interrupt = random_skips(rng, length);
 
-        require_cuda_encrypt_decrypt_round_trip(
-            TransformId::identity(), plain, nlohmann::json::object(), interrupt);
+        require_cuda_encrypt_decrypt_round_trip(TransformId::identity(), plain,
+                                                nlohmann::json::object(), interrupt);
 
-        require_cuda_involution_twice(
-            TransformId::atbash(),
-            plain,
-            nlohmann::json::object(),
-            InterruptPolicy::none(),
-            TransformDirection::Decrypt);
+        require_cuda_involution_twice(TransformId::atbash(), plain, nlohmann::json::object(),
+                                      InterruptPolicy::none(), TransformDirection::Decrypt);
 
         {
             std::uniform_int_distribution<int> shift_dist(0, 28);
             const nlohmann::json params{{"shift", shift_dist(rng)}};
-            require_cuda_encrypt_decrypt_round_trip(
-                TransformId::caesar(), plain, params, interrupt);
+            require_cuda_encrypt_decrypt_round_trip(TransformId::caesar(), plain, params,
+                                                    interrupt);
         }
 
         {
             std::uniform_int_distribution<int> a_dist(1, 28);
             std::uniform_int_distribution<int> b_dist(0, 28);
             const nlohmann::json params{{"a", a_dist(rng)}, {"b", b_dist(rng)}};
-            require_cuda_encrypt_decrypt_round_trip(
-                TransformId::affine(), plain, params, interrupt);
+            require_cuda_encrypt_decrypt_round_trip(TransformId::affine(), plain, params,
+                                                    interrupt);
         }
 
         {
             std::uniform_int_distribution<std::size_t> key_len_dist(1, 12);
             const nlohmann::json params = random_key_params(rng, key_len_dist(rng));
-            require_cuda_encrypt_decrypt_round_trip(
-                TransformId::vigenere_key(), plain, params, interrupt);
+            require_cuda_encrypt_decrypt_round_trip(TransformId::vigenere_key(), plain, params,
+                                                    interrupt);
         }
 
         {
             std::uniform_int_distribution<std::size_t> key_len_dist(1, 12);
             const nlohmann::json params = random_key_params(rng, key_len_dist(rng));
-            require_cuda_involution_twice(
-                TransformId::beaufort_key(),
-                plain,
-                params,
-                interrupt,
-                TransformDirection::Encrypt);
+            require_cuda_involution_twice(TransformId::beaufort_key(), plain, params, interrupt,
+                                          TransformDirection::Encrypt);
         }
 
         {
             std::uniform_int_distribution<int> start_dist(0, 20);
             const nlohmann::json params{{"prime_start_index", start_dist(rng)}};
-            require_cuda_encrypt_decrypt_round_trip(
-                TransformId::totient_prime_stream(), plain, params, interrupt);
+            require_cuda_encrypt_decrypt_round_trip(TransformId::totient_prime_stream(), plain,
+                                                    params, interrupt);
         }
 
         {
@@ -197,15 +179,13 @@ TEST_CASE(
             const std::uint8_t shift = static_cast<std::uint8_t>(shift_dist(rng));
             const nlohmann::json params = ComposeTransform::atbash_then_caesar_params(shift);
             // Compose interrupt support matches CPU property suite (none).
-            require_cuda_encrypt_decrypt_round_trip(
-                TransformId::compose(), plain, params, InterruptPolicy::none());
+            require_cuda_encrypt_decrypt_round_trip(TransformId::compose(), plain, params,
+                                                    InterruptPolicy::none());
         }
     }
 }
 
-TEST_CASE(
-    "Property: CUDA long-stream caesar/affine/vigenere round-trips",
-    "[cuda][property]") {
+TEST_CASE("Property: CUDA long-stream caesar/affine/vigenere round-trips", "[cuda][property]") {
     REQUIRE(ParcaeCuda::available());
 
     std::mt19937 rng(0xC0DA41u);
@@ -215,19 +195,17 @@ TEST_CASE(
 
     {
         const nlohmann::json params{{"shift", 17}};
-        require_cuda_encrypt_decrypt_round_trip(
-            TransformId::caesar(), plain, params, interrupt);
+        require_cuda_encrypt_decrypt_round_trip(TransformId::caesar(), plain, params, interrupt);
     }
     {
         const nlohmann::json params{{"a", 11}, {"b", 5}};
-        require_cuda_encrypt_decrypt_round_trip(
-            TransformId::affine(), plain, params, interrupt);
+        require_cuda_encrypt_decrypt_round_trip(TransformId::affine(), plain, params, interrupt);
     }
     {
         const nlohmann::json params = random_key_params(rng, 8);
-        require_cuda_encrypt_decrypt_round_trip(
-            TransformId::vigenere_key(), plain, params, interrupt);
+        require_cuda_encrypt_decrypt_round_trip(TransformId::vigenere_key(), plain, params,
+                                                interrupt);
     }
 }
 
-#endif  // PARCAE_HAS_CUDA
+#endif // PARCAE_HAS_CUDA

@@ -1,15 +1,13 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <parcae/core/index29.hpp>
 #include <parcae/hypothesis/hypothesis_record.hpp>
 #include <parcae/hypothesis/hypothesis_status.hpp>
 #include <parcae/hypothesis/workspace_manifest.hpp>
 #include <parcae/hypothesis/workspace_paths.hpp>
 #include <parcae/tool/tool_response.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <cstdint>
-#include <filesystem>
-#include <fstream>
 #include <string>
 #include <vector>
 
@@ -69,8 +67,8 @@ namespace {
         for (const std::string& arg : args) {
             script << ' ' << quote_arg(arg);
         }
-        script << " >" << quote_arg(out_path.string()) << " 2>"
-               << quote_arg(err_path.string()) << "\r\n";
+        script << " >" << quote_arg(out_path.string()) << " 2>" << quote_arg(err_path.string())
+               << "\r\n";
         script << "exit /B %ERRORLEVEL%\r\n";
     }
 
@@ -93,7 +91,7 @@ namespace {
 }
 #endif
 
-}  // namespace
+} // namespace
 
 TEST_CASE("sandbox: id validation blocks traversal tokens", "[hypothesis][sandbox][paths]") {
     REQUIRE_FALSE(WorkspacePaths::validate_id("..").ok());
@@ -105,9 +103,9 @@ TEST_CASE("sandbox: id validation blocks traversal tokens", "[hypothesis][sandbo
     REQUIRE_FALSE(WorkspacePaths::hypothesis_file(data_root(), "_example", "../h").ok());
 }
 
-TEST_CASE("sandbox: resolve_under rejects escape and absolute paths", "[hypothesis][sandbox][paths]") {
-    StatusOr<std::filesystem::path> ws =
-        WorkspacePaths::workspace_root(data_root(), "_example");
+TEST_CASE("sandbox: resolve_under rejects escape and absolute paths",
+          "[hypothesis][sandbox][paths]") {
+    StatusOr<std::filesystem::path> ws = WorkspacePaths::workspace_root(data_root(), "_example");
     REQUIRE(ws.ok());
 
     REQUIRE_FALSE(WorkspacePaths::resolve_under(ws.value(), "").ok());
@@ -118,7 +116,8 @@ TEST_CASE("sandbox: resolve_under rejects escape and absolute paths", "[hypothes
         WorkspacePaths::resolve_under(ws.value(), std::filesystem::path("/etc/passwd")).ok());
 #if defined(_WIN32)
     REQUIRE_FALSE(
-        WorkspacePaths::resolve_under(ws.value(), std::filesystem::path("C:/Windows/System32")).ok());
+        WorkspacePaths::resolve_under(ws.value(), std::filesystem::path("C:/Windows/System32"))
+            .ok());
 #endif
 
     StatusOr<std::filesystem::path> ok =
@@ -127,46 +126,39 @@ TEST_CASE("sandbox: resolve_under rejects escape and absolute paths", "[hypothes
     REQUIRE(WorkspacePaths::require_under(ws.value(), ok.value()).ok());
 }
 
-TEST_CASE("sandbox: fixture writes denied; workspace writes allowed", "[hypothesis][sandbox][paths]") {
+TEST_CASE("sandbox: fixture writes denied; workspace writes allowed",
+          "[hypothesis][sandbox][paths]") {
     const auto root = make_sandbox_root("parcae_hypothesis_sandbox_paths");
-    const auto fixtures_file =
-        root / "fixtures" / "solved" / "a-warning" / "manifest.json";
+    const auto fixtures_file = root / "fixtures" / "solved" / "a-warning" / "manifest.json";
     REQUIRE_FALSE(WorkspacePaths::deny_fixtures_write(root, fixtures_file).ok());
-    REQUIRE_FALSE(
-        WorkspacePaths::deny_fixtures_write(root, root / "fixtures").ok());
+    REQUIRE_FALSE(WorkspacePaths::deny_fixtures_write(root, root / "fixtures").ok());
 
-    StatusOr<HypothesisRecord> draft = HypothesisRecord::make_draft(
-        "safe-ws",
-        "h-ok",
-        "2026-09-19T22:00:00Z",
-        "sandbox",
-        nlohmann::json{
-            {"transform_id", "atbash"},
-            {"direction", "decrypt"},
-            {"params", nlohmann::json::object()},
-        });
+    StatusOr<HypothesisRecord> draft =
+        HypothesisRecord::make_draft("safe-ws", "h-ok", "2026-09-19T22:00:00Z", "sandbox",
+                                     nlohmann::json{
+                                         {"transform_id", "atbash"},
+                                         {"direction", "decrypt"},
+                                         {"params", nlohmann::json::object()},
+                                     });
     REQUIRE(draft.ok());
     draft.value().recompute_method_digest();
     REQUIRE(draft.value().store(root).ok());
-    REQUIRE(std::filesystem::exists(
-        root / "workspaces" / "safe-ws" / "hypotheses" / "h-ok.json"));
+    REQUIRE(std::filesystem::exists(root / "workspaces" / "safe-ws" / "hypotheses" / "h-ok.json"));
     REQUIRE_FALSE(std::filesystem::exists(fixtures_file));
 
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
 }
 
-TEST_CASE("sandbox: digest verify catches method and indices tampering", "[hypothesis][sandbox][digest]") {
-    StatusOr<HypothesisRecord> record = HypothesisRecord::make_draft(
-        "digest-ws",
-        "h-digest",
-        "2026-09-19T22:00:00Z",
-        "",
-        nlohmann::json{
-            {"transform_id", "caesar"},
-            {"direction", "decrypt"},
-            {"params", {{"shift", 3}}},
-        });
+TEST_CASE("sandbox: digest verify catches method and indices tampering",
+          "[hypothesis][sandbox][digest]") {
+    StatusOr<HypothesisRecord> record =
+        HypothesisRecord::make_draft("digest-ws", "h-digest", "2026-09-19T22:00:00Z", "",
+                                     nlohmann::json{
+                                         {"transform_id", "caesar"},
+                                         {"direction", "decrypt"},
+                                         {"params", {{"shift", 3}}},
+                                     });
     REQUIRE(record.ok());
     record.value().recompute_method_digest();
     REQUIRE(record.value().verify_method_digest().ok());
@@ -177,9 +169,8 @@ TEST_CASE("sandbox: digest verify catches method and indices tampering", "[hypot
         {"transform_id", "caesar"},
         {"direction", "decrypt"},
     };
-    REQUIRE(
-        HypothesisRecord::method_sha256(shuffled) ==
-        record.value().digests().at("method_sha256").get<std::string>());
+    REQUIRE(HypothesisRecord::method_sha256(shuffled) ==
+            record.value().digests().at("method_sha256").get<std::string>());
 
     // Tamper method without refreshing digest.
     REQUIRE(record.value()
@@ -201,39 +192,33 @@ TEST_CASE("sandbox: digest verify catches method and indices tampering", "[hypot
     REQUIRE_FALSE(record.value().verify_output_indices_digest(other).ok());
 }
 
-TEST_CASE(
-    "sandbox: store+reload preserves digests and rejects mismatched workspace",
-    "[hypothesis][sandbox][digest]") {
+TEST_CASE("sandbox: store+reload preserves digests and rejects mismatched workspace",
+          "[hypothesis][sandbox][digest]") {
     const auto root = make_sandbox_root("parcae_hypothesis_sandbox_digest_io");
 
-    StatusOr<WorkspaceManifest> ws = WorkspaceManifest::make(
-        "digest-io-ws", "2026-09-19T22:00:00Z", "sandbox");
+    StatusOr<WorkspaceManifest> ws =
+        WorkspaceManifest::make("digest-io-ws", "2026-09-19T22:00:00Z", "sandbox");
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
-    StatusOr<HypothesisRecord> draft = HypothesisRecord::make_draft(
-        "digest-io-ws",
-        "h-io",
-        "2026-09-19T22:00:00Z",
-        "io",
-        nlohmann::json{
-            {"transform_id", "atbash"},
-            {"direction", "decrypt"},
-            {"params", nlohmann::json::object()},
-        });
+    StatusOr<HypothesisRecord> draft =
+        HypothesisRecord::make_draft("digest-io-ws", "h-io", "2026-09-19T22:00:00Z", "io",
+                                     nlohmann::json{
+                                         {"transform_id", "atbash"},
+                                         {"direction", "decrypt"},
+                                         {"params", nlohmann::json::object()},
+                                     });
     REQUIRE(draft.ok());
     draft.value().recompute_method_digest();
     const std::vector<Index29> indices = {I(10), I(11), I(12)};
     draft.value().set_output_indices_digest(indices);
     REQUIRE(draft.value().store(root).ok());
 
-    StatusOr<HypothesisRecord> loaded =
-        HypothesisRecord::load(root, "digest-io-ws", "h-io");
+    StatusOr<HypothesisRecord> loaded = HypothesisRecord::load(root, "digest-io-ws", "h-io");
     REQUIRE(loaded.ok());
     REQUIRE(loaded.value().verify_method_digest().ok());
     REQUIRE(loaded.value().verify_output_indices_digest(indices).ok());
-    REQUIRE_FALSE(
-        loaded.value().verify_output_indices_digest(std::vector<Index29>{I(0)}).ok());
+    REQUIRE_FALSE(loaded.value().verify_output_indices_digest(std::vector<Index29>{I(0)}).ok());
 
     // Corrupt on-disk workspace_id by rewriting file under another stem — load_file rejects.
     const auto path = root / "workspaces" / "digest-io-ws" / "hypotheses" / "h-io.json";
@@ -246,15 +231,9 @@ TEST_CASE(
 #if defined(PARCAE_HAS_CLI_GOLDENS)
 TEST_CASE("sandbox CLI: rejects traversal workspace/id", "[hypothesis][sandbox][cli]") {
     {
-        const auto [exit_code, stdout_text] = run_hypothesis_cli(
-            {"--data-dir",
-             std::string(PARCAE_TEST_DATA_DIR),
-             "init",
-             "--workspace",
-             "../evil",
-             "--id",
-             "h-x",
-             "--json"});
+        const auto [exit_code, stdout_text] =
+            run_hypothesis_cli({"--data-dir", std::string(PARCAE_TEST_DATA_DIR), "init",
+                                "--workspace", "../evil", "--id", "h-x", "--json"});
         REQUIRE(exit_code != 0);
         StatusOr<nlohmann::json> envelope = ToolResponse::parse(stdout_text);
         REQUIRE(envelope.ok());
@@ -262,15 +241,9 @@ TEST_CASE("sandbox CLI: rejects traversal workspace/id", "[hypothesis][sandbox][
         REQUIRE(envelope.value().at("tool").get<std::string>() == "hypothesis_init");
     }
     {
-        const auto [exit_code, stdout_text] = run_hypothesis_cli(
-            {"--data-dir",
-             std::string(PARCAE_TEST_DATA_DIR),
-             "init",
-             "--workspace",
-             "_example",
-             "--id",
-             "h/../x",
-             "--json"});
+        const auto [exit_code, stdout_text] =
+            run_hypothesis_cli({"--data-dir", std::string(PARCAE_TEST_DATA_DIR), "init",
+                                "--workspace", "_example", "--id", "h/../x", "--json"});
         REQUIRE(exit_code != 0);
         StatusOr<nlohmann::json> envelope = ToolResponse::parse(stdout_text);
         REQUIRE(envelope.ok());
@@ -279,13 +252,9 @@ TEST_CASE("sandbox CLI: rejects traversal workspace/id", "[hypothesis][sandbox][
 }
 
 TEST_CASE("sandbox CLI: show _example and list stay read-only", "[hypothesis][sandbox][cli]") {
-    const auto [list_exit, list_out] = run_hypothesis_cli(
-        {"--data-dir",
-         std::string(PARCAE_TEST_DATA_DIR),
-         "list",
-         "--workspace",
-         "_example",
-         "--json"});
+    const auto [list_exit, list_out] =
+        run_hypothesis_cli({"--data-dir", std::string(PARCAE_TEST_DATA_DIR), "list", "--workspace",
+                            "_example", "--json"});
     REQUIRE(list_exit == 0);
     StatusOr<nlohmann::json> listed = ToolResponse::parse(list_out);
     REQUIRE(listed.ok());
@@ -293,7 +262,7 @@ TEST_CASE("sandbox CLI: show _example and list stay read-only", "[hypothesis][sa
     REQUIRE(listed.value().at("result").at("count").get<std::size_t>() >= 1);
 
     // Fixtures must remain untouched by read-only commands.
-    REQUIRE(std::filesystem::exists(
-        data_root() / "fixtures" / "solved" / "a-warning" / "ciphertext.txt"));
+    REQUIRE(std::filesystem::exists(data_root() / "fixtures" / "solved" / "a-warning" /
+                                    "ciphertext.txt"));
 }
 #endif

@@ -19,28 +19,25 @@ public:
 
     /// H2D → integer histogram → fixed-order FP finalize.
     /// `probabilities` must have size 29 and every entry > 0.
-    [[nodiscard]] static StatusOr<double> score_host(
-        std::span<const std::uint8_t> indices,
-        std::span<const double> probabilities);
+    [[nodiscard]] static StatusOr<double> score_host(std::span<const std::uint8_t> indices,
+                                                     std::span<const double> probabilities);
 
     /// Fixed-order χ² finalize from an already-reduced 29-bin histogram.
-    [[nodiscard]] static StatusOr<double> finalize(
-        std::span<const unsigned long long> observed,
-        std::size_t n,
-        std::span<const double> probabilities);
+    [[nodiscard]] static StatusOr<double> finalize(std::span<const unsigned long long> observed,
+                                                   std::size_t n,
+                                                   std::span<const double> probabilities);
 
     /// Score an Index29 stream **already on device**. Only PCIe traffic is the
     /// 29-bin histogram D2H (not the full token stream).
     /// `device_counts` must point to a zeroed (or caller-owned) 29-bin buffer;
     /// this call clears it before the histogram.
-    [[nodiscard]] static StatusOr<double> score_device(
-        const std::uint8_t* device_indices,
-        std::size_t count,
-        std::span<const double> probabilities,
-        unsigned long long* device_counts);
+    [[nodiscard]] static StatusOr<double> score_device(const std::uint8_t* device_indices,
+                                                       std::size_t count,
+                                                       std::span<const double> probabilities,
+                                                       unsigned long long* device_counts);
 
 private:
     Chi2EnglishGpScore() = delete;
 };
 
-#endif  // CHI2_ENGLISH_GP_SCORE_HPP
+#endif // CHI2_ENGLISH_GP_SCORE_HPP

@@ -46,8 +46,8 @@ public:
     };
 
     /// Replace every `{tier}` occurrence in `cmd_template`.
-    [[nodiscard]] static std::string substitute_tier(
-        std::string_view cmd_template, std::string_view tier) {
+    [[nodiscard]] static std::string substitute_tier(std::string_view cmd_template,
+                                                     std::string_view tier) {
         std::string out;
         out.reserve(cmd_template.size() + tier.size());
         constexpr std::string_view kTok = "{tier}";
@@ -66,8 +66,8 @@ public:
     }
 
     /// Spawn `command` via platform shell; kill on timeout. Captures stdout/stderr.
-    [[nodiscard]] static StatusOr<Capture> spawn_with_timeout(
-        const std::string& command, std::uint32_t timeout_ms) {
+    [[nodiscard]] static StatusOr<Capture> spawn_with_timeout(const std::string& command,
+                                                              std::uint32_t timeout_ms) {
         if (command.empty()) {
             return Status::error("BenchProbeRunner: empty command");
         }
@@ -104,12 +104,10 @@ public:
     }
 
     /// Map a parsed probe (+ optional builtin compare) to a report row.
-    [[nodiscard]] static BenchReport::Row to_row(
-        const BenchProbeProtocol::Result& result,
-        bool compare_builtin,
-        int child_exit,
-        bool timed_out,
-        std::string_view spawn_error = {}) {
+    [[nodiscard]] static BenchReport::Row to_row(const BenchProbeProtocol::Result& result,
+                                                 bool compare_builtin, int child_exit,
+                                                 bool timed_out,
+                                                 std::string_view spawn_error = {}) {
         std::ostringstream detail;
         detail << "tool=" << result.tool_id;
         detail << " oracle=" << (result.accuracy.oracle_cracked ? "true" : "false");
@@ -137,26 +135,23 @@ public:
             if (spec == nullptr) {
                 status = BenchReport::RowStatus::Fail;
                 detail << "; compare_builtin: unknown tier";
-            } else if (
-                result.config.candidates != spec->candidates ||
-                result.config.tokens != spec->tokens ||
-                result.config.repeats != spec->repeats) {
+            } else if (result.config.candidates != spec->candidates ||
+                       result.config.tokens != spec->tokens ||
+                       result.config.repeats != spec->repeats) {
                 status = BenchReport::RowStatus::Fail;
-                detail << "; compare_builtin: config mismatch (expected C="
-                       << spec->candidates << " T=" << spec->tokens
-                       << " reps=" << spec->repeats << ")";
+                detail << "; compare_builtin: config mismatch (expected C=" << spec->candidates
+                       << " T=" << spec->tokens << " reps=" << spec->repeats << ")";
             } else {
                 detail << "; compare_builtin: config_ok";
                 if (spec->slo_min > 0.0 && result.runes_per_sec > 0.0) {
                     const double ratio = result.runes_per_sec / spec->slo_min;
-                    detail << " ratio_vs_slo=" << std::fixed << std::setprecision(2)
-                           << ratio << "x";
+                    detail << " ratio_vs_slo=" << std::fixed << std::setprecision(2) << ratio
+                           << "x";
                 }
             }
         }
 
-        const double peak =
-            compare_builtin ? BenchTierSpec::estimated_peak(result.tier) : 0.0;
+        const double peak = compare_builtin ? BenchTierSpec::estimated_peak(result.tier) : 0.0;
         const double slo_min = compare_builtin
                                    ? (BenchTierSpec::find_primary(result.tier) != nullptr
                                           ? BenchTierSpec::find_primary(result.tier)->slo_min
@@ -169,57 +164,30 @@ public:
                                    : 0.0;
 
         return BenchReport::Row::make(
-            result.tier,
-            result.tool_id,
-            BenchReport::Suite::Probe,
-            result.backend,
-            status,
-            result.runes_per_sec,
-            result.keys_per_sec,
-            result.wall_seconds,
-            slo_min,
-            slo_max,
-            peak,
-            result.config.candidates,
-            result.config.tokens,
-            result.config.repeats,
-            detail.str());
+            result.tier, result.tool_id, BenchReport::Suite::Probe, result.backend, status,
+            result.runes_per_sec, result.keys_per_sec, result.wall_seconds, slo_min, slo_max, peak,
+            result.config.candidates, result.config.tokens, result.config.repeats, detail.str());
     }
 
-    [[nodiscard]] static BenchReport::Row make_fail_row(
-        std::string_view tier, std::string detail) {
-        return BenchReport::Row::make(
-            std::string(tier),
-            "probe",
-            BenchReport::Suite::Probe,
-            BenchReport::Backend::Unknown,
-            BenchReport::RowStatus::Fail,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0,
-            0,
-            0,
-            std::move(detail));
+    [[nodiscard]] static BenchReport::Row make_fail_row(std::string_view tier, std::string detail) {
+        return BenchReport::Row::make(std::string(tier), "probe", BenchReport::Suite::Probe,
+                                      BenchReport::Backend::Unknown, BenchReport::RowStatus::Fail,
+                                      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, std::move(detail));
     }
 
 private:
     BenchProbeRunner() = delete;
 
-    [[nodiscard]] static StatusOr<BenchReport::Row> run_one_tier(
-        const BenchConfig& config, const std::string& tier) {
+    [[nodiscard]] static StatusOr<BenchReport::Row> run_one_tier(const BenchConfig& config,
+                                                                 const std::string& tier) {
         const std::string cmd = substitute_tier(config.probe_cmd(), tier);
         StatusOr<Capture> cap = spawn_with_timeout(cmd, config.probe_timeout_ms());
         if (!cap.ok()) {
             return make_fail_row(tier, "spawn: " + cap.status().message());
         }
         if (cap.value().timed_out) {
-            return make_fail_row(
-                tier,
-                "timeout after " + std::to_string(config.probe_timeout_ms()) + " ms");
+            return make_fail_row(tier, "timeout after " +
+                                           std::to_string(config.probe_timeout_ms()) + " ms");
         }
 
         StatusOr<BenchProbeProtocol::Result> parsed =
@@ -233,15 +201,10 @@ private:
             return make_fail_row(tier, detail.str());
         }
         if (parsed.value().tier != tier) {
-            return make_fail_row(
-                tier,
-                "tier mismatch: probe reported '" + parsed.value().tier + "'");
+            return make_fail_row(tier,
+                                 "tier mismatch: probe reported '" + parsed.value().tier + "'");
         }
-        return to_row(
-            parsed.value(),
-            config.compare_builtin(),
-            cap.value().exit_code,
-            false);
+        return to_row(parsed.value(), config.compare_builtin(), cap.value().exit_code, false);
     }
 
     [[nodiscard]] static std::string truncate(std::string_view text, std::size_t max_n) {
@@ -252,8 +215,8 @@ private:
     }
 
 #ifdef _WIN32
-    [[nodiscard]] static StatusOr<Capture> spawn_win(
-        const std::string& command, std::uint32_t timeout_ms) {
+    [[nodiscard]] static StatusOr<Capture> spawn_win(const std::string& command,
+                                                     std::uint32_t timeout_ms) {
         SECURITY_ATTRIBUTES sa{};
         sa.nLength = sizeof(sa);
         sa.bInheritHandle = TRUE;
@@ -296,17 +259,8 @@ private:
         si.hStdError = err_write;
 
         PROCESS_INFORMATION pi{};
-        const BOOL ok = CreateProcessA(
-            nullptr,
-            mutable_cmd.data(),
-            nullptr,
-            nullptr,
-            TRUE,
-            CREATE_NO_WINDOW,
-            nullptr,
-            nullptr,
-            &si,
-            &pi);
+        const BOOL ok = CreateProcessA(nullptr, mutable_cmd.data(), nullptr, nullptr, TRUE,
+                                       CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
         CloseHandle(out_write);
         CloseHandle(err_write);
         out_write = nullptr;
@@ -315,9 +269,8 @@ private:
         if (!ok) {
             CloseHandle(out_read);
             CloseHandle(err_read);
-            return Status::error(
-                "BenchProbeRunner: CreateProcess failed; GetLastError=" +
-                std::to_string(GetLastError()));
+            return Status::error("BenchProbeRunner: CreateProcess failed; GetLastError=" +
+                                 std::to_string(GetLastError()));
         }
 
         Capture cap;
@@ -355,13 +308,13 @@ private:
         return out;
     }
 #else
-    [[nodiscard]] static StatusOr<Capture> spawn_posix(
-        const std::string& command, std::uint32_t timeout_ms) {
+    [[nodiscard]] static StatusOr<Capture> spawn_posix(const std::string& command,
+                                                       std::uint32_t timeout_ms) {
         int out_pipe[2] = {-1, -1};
         int err_pipe[2] = {-1, -1};
         if (pipe(out_pipe) != 0 || pipe(err_pipe) != 0) {
-            return Status::error(
-                std::string("BenchProbeRunner: pipe failed: ") + std::strerror(errno));
+            return Status::error(std::string("BenchProbeRunner: pipe failed: ") +
+                                 std::strerror(errno));
         }
 
         const pid_t pid = fork();
@@ -370,8 +323,8 @@ private:
             close(out_pipe[1]);
             close(err_pipe[0]);
             close(err_pipe[1]);
-            return Status::error(
-                std::string("BenchProbeRunner: fork failed: ") + std::strerror(errno));
+            return Status::error(std::string("BenchProbeRunner: fork failed: ") +
+                                 std::strerror(errno));
         }
         if (pid == 0) {
             close(out_pipe[0]);
@@ -401,9 +354,8 @@ private:
                 waitpid(pid, &status, 0);
                 close(out_pipe[0]);
                 close(err_pipe[0]);
-                return Status::error(
-                    std::string("BenchProbeRunner: waitpid failed: ") +
-                    std::strerror(errno));
+                return Status::error(std::string("BenchProbeRunner: waitpid failed: ") +
+                                     std::strerror(errno));
             }
             if (std::chrono::steady_clock::now() >= deadline) {
                 kill(pid, SIGKILL);

@@ -12,14 +12,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// Bounded generator `gen_compose_recipes`.
 ///
@@ -31,10 +30,9 @@ public:
     static constexpr std::string_view generator_id = "gen_compose_recipes";
     static constexpr std::string_view atbash_caesar_template = "atbash_caesar";
 
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate(
-        std::span<const Index29> ciphertext,
-        const std::vector<nlohmann::json>& recipes,
-        TransformDirection direction = TransformDirection::Decrypt) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    generate(std::span<const Index29> ciphertext, const std::vector<nlohmann::json>& recipes,
+             TransformDirection direction = TransformDirection::Decrypt) {
         if (recipes.empty()) {
             return Status::error("gen_compose_recipes requires a non-empty recipes list");
         }
@@ -45,33 +43,27 @@ public:
             const nlohmann::json& params = recipes[i];
             Status params_ok = require_compose_params(params);
             if (!params_ok.ok()) {
-                return Status::error(
-                    "gen_compose_recipes recipes[" + std::to_string(i) + "]: " +
-                    params_ok.message());
+                return Status::error("gen_compose_recipes recipes[" + std::to_string(i) +
+                                     "]: " + params_ok.message());
             }
 
             StatusOr<std::vector<Index29>> plain =
                 ComposeTransform{}.apply(ciphertext, params, direction);
             if (!plain.ok()) {
-                return Status::error(
-                    "gen_compose_recipes apply failed for index " + std::to_string(i) + ": " +
-                    plain.status().message());
+                return Status::error("gen_compose_recipes apply failed for index " +
+                                     std::to_string(i) + ": " + plain.status().message());
             }
 
-            out.emplace_back(
-                make_candidate_id(i, params),
-                TransformId::compose(),
-                direction,
-                params,
-                std::move(plain.value()));
+            out.emplace_back(make_candidate_id(i, params), TransformId::compose(), direction,
+                             params, std::move(plain.value()));
         }
         return out;
     }
 
     /// Expand Atbash∘Caesar shifts `0..28` (reuses `AtbashCaesarCandidateGenerator`).
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate_atbash_caesar(
-        std::span<const Index29> ciphertext,
-        TransformDirection direction = TransformDirection::Decrypt) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    generate_atbash_caesar(std::span<const Index29> ciphertext,
+                           TransformDirection direction = TransformDirection::Decrypt) {
         return AtbashCaesarCandidateGenerator::generate(ciphertext, direction);
     }
 
@@ -90,8 +82,8 @@ public:
     /// - `template` / `recipe` == `"atbash_caesar"` → Atbash∘Caesar 29
     /// - `recipes` / `params_list` → explicit compose params objects
     /// - bare `stages` → single recipe
-    [[nodiscard]] static StatusOr<std::vector<nlohmann::json>> recipes_from_param_grid(
-        const nlohmann::json& param_grid) {
+    [[nodiscard]] static StatusOr<std::vector<nlohmann::json>>
+    recipes_from_param_grid(const nlohmann::json& param_grid) {
         if (param_grid.is_null() || (param_grid.is_object() && param_grid.empty())) {
             return atbash_caesar_recipes();
         }
@@ -102,9 +94,8 @@ public:
         if (param_grid.contains("template") || param_grid.contains("recipe")) {
             const char* key = param_grid.contains("template") ? "template" : "recipe";
             if (!param_grid.at(key).is_string()) {
-                return Status::error(
-                    std::string("gen_compose_recipes param_grid.") + key +
-                    " must be a string");
+                return Status::error(std::string("gen_compose_recipes param_grid.") + key +
+                                     " must be a string");
             }
             const std::string name = param_grid.at(key).get<std::string>();
             if (name != atbash_caesar_template) {
@@ -117,18 +108,16 @@ public:
         if (param_grid.contains("recipes") || param_grid.contains("params_list")) {
             const char* key = param_grid.contains("recipes") ? "recipes" : "params_list";
             if (!param_grid.at(key).is_array() || param_grid.at(key).empty()) {
-                return Status::error(
-                    std::string("gen_compose_recipes param_grid.") + key +
-                    " must be a non-empty array");
+                return Status::error(std::string("gen_compose_recipes param_grid.") + key +
+                                     " must be a non-empty array");
             }
             std::vector<nlohmann::json> out;
             out.reserve(param_grid.at(key).size());
             for (const auto& item : param_grid.at(key)) {
                 Status ok = require_compose_params(item);
                 if (!ok.ok()) {
-                    return Status::error(
-                        std::string("gen_compose_recipes param_grid.") + key + ": " +
-                        ok.message());
+                    return Status::error(std::string("gen_compose_recipes param_grid.") + key +
+                                         ": " + ok.message());
                 }
                 out.push_back(item);
             }
@@ -149,8 +138,8 @@ public:
     }
 
     /// True when `params` match Koan-1 Atbash then Caesar(+shift, encrypt stage).
-    [[nodiscard]] static std::optional<std::uint8_t> atbash_caesar_shift(
-        const nlohmann::json& params) {
+    [[nodiscard]] static std::optional<std::uint8_t>
+    atbash_caesar_shift(const nlohmann::json& params) {
         if (!params.is_object() || !params.contains("stages") || !params.at("stages").is_array()) {
             return std::nullopt;
         }
@@ -176,7 +165,8 @@ public:
             return std::nullopt;
         }
         if (!s1.contains("params") || !s1.at("params").is_object() ||
-            !s1.at("params").contains("shift") || !s1.at("params").at("shift").is_number_integer()) {
+            !s1.at("params").contains("shift") ||
+            !s1.at("params").at("shift").is_number_integer()) {
             return std::nullopt;
         }
         const std::int64_t shift = s1.at("params").at("shift").get<std::int64_t>();
@@ -186,8 +176,8 @@ public:
         return static_cast<std::uint8_t>(shift);
     }
 
-    [[nodiscard]] static bool is_full_atbash_caesar_grid(
-        const std::vector<nlohmann::json>& recipes) {
+    [[nodiscard]] static bool
+    is_full_atbash_caesar_grid(const std::vector<nlohmann::json>& recipes) {
         if (recipes.size() != AtbashCaesarCandidateGenerator::candidate_count) {
             return false;
         }
@@ -202,9 +192,8 @@ public:
         return true;
     }
 
-    [[nodiscard]] static std::string make_candidate_id(
-        std::size_t list_index,
-        const nlohmann::json& params) {
+    [[nodiscard]] static std::string make_candidate_id(std::size_t list_index,
+                                                       const nlohmann::json& params) {
         if (std::optional<std::uint8_t> shift = atbash_caesar_shift(params)) {
             return AtbashCaesarCandidateGenerator::make_candidate_id(*shift);
         }
@@ -229,4 +218,4 @@ public:
     }
 };
 
-#endif  // COMPOSE_RECIPE_CANDIDATE_GENERATOR_HPP
+#endif // COMPOSE_RECIPE_CANDIDATE_GENERATOR_HPP

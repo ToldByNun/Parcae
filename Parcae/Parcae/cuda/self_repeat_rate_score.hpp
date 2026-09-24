@@ -18,10 +18,9 @@ public:
     /// Device: accumulate adjacent-equal count into `*device_repeat_count`
     /// (must be zeroed). `count` is stream length `N` (not edge count).
     /// No-op success if `count < 2`.
-    [[nodiscard]] static Status count_repeats_device(
-        const std::uint8_t* device_indices,
-        std::size_t count,
-        unsigned long long* device_repeat_count);
+    [[nodiscard]] static Status count_repeats_device(const std::uint8_t* device_indices,
+                                                     std::size_t count,
+                                                     unsigned long long* device_repeat_count);
 
     /// H2D → integer edge reduce → single FP divide.
     [[nodiscard]] static StatusOr<double> score_host(std::span<const std::uint8_t> indices);
@@ -30,4 +29,4 @@ private:
     SelfRepeatRateScore() = delete;
 };
 
-#endif  // SELF_REPEAT_RATE_SCORE_HPP
+#endif // SELF_REPEAT_RATE_SCORE_HPP

@@ -1,17 +1,14 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/dsl/dsl_emit_cpu.hpp>
 #include <parcae/dsl/dsl_emit_cuda.hpp>
 #include <parcae/dsl/param_ir.hpp>
 #include <parcae/dsl/primitive_ir.hpp>
 #include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/z29_expr.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
 
 TEST_CASE("DslEmitCuda emit_expr uses Z29Device", "[dsl][emit][cuda]") {
-    const Z29Expr::Ptr expr =
-        Z29Expr::add(Z29Expr::var("x"), Z29Expr::var("shift"));
+    const Z29Expr::Ptr expr = Z29Expr::add(Z29Expr::var("x"), Z29Expr::var("shift"));
     const StatusOr<std::string> cpp = DslEmitCuda::emit_expr(expr, "x", "in[i]");
     REQUIRE(cpp.ok());
     REQUIRE(cpp.value() == "Z29Device::add(in[i], shift)");
@@ -22,14 +19,10 @@ TEST_CASE("DslEmitCuda emit_theory_header Kernel façade", "[dsl][emit][cuda]") 
     REQUIRE(shift.ok());
     const Z29Expr::Ptr x = Z29Expr::var("x");
     const Z29Expr::Ptr s = Z29Expr::var("shift");
-    const StatusOr<TheoryIr> theory = TheoryIr::make(
-        "dsl_caesar",
-        TheoryIr::Family::Elementwise,
-        TheoryIr::Tier::A,
-        TheoryIr::InterruptMode::ElementwiseDefault,
-        {shift.value()},
-        Z29Expr::add(x, s),
-        Z29Expr::sub(x, s));
+    const StatusOr<TheoryIr> theory =
+        TheoryIr::make("dsl_caesar", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+                       TheoryIr::InterruptMode::ElementwiseDefault, {shift.value()},
+                       Z29Expr::add(x, s), Z29Expr::sub(x, s));
     REQUIRE(theory.ok());
 
     const StatusOr<std::string> header = DslEmitCuda::emit_theory_header(theory.value());
@@ -49,14 +42,10 @@ TEST_CASE("DslEmitCuda emit_theory_cu has Z29Device kernel", "[dsl][emit][cuda]"
     REQUIRE(shift.ok());
     const Z29Expr::Ptr x = Z29Expr::var("x");
     const Z29Expr::Ptr s = Z29Expr::var("shift");
-    const StatusOr<TheoryIr> theory = TheoryIr::make(
-        "dsl_caesar",
-        TheoryIr::Family::Elementwise,
-        TheoryIr::Tier::A,
-        TheoryIr::InterruptMode::ElementwiseDefault,
-        {shift.value()},
-        Z29Expr::add(x, s),
-        Z29Expr::sub(x, s));
+    const StatusOr<TheoryIr> theory =
+        TheoryIr::make("dsl_caesar", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+                       TheoryIr::InterruptMode::ElementwiseDefault, {shift.value()},
+                       Z29Expr::add(x, s), Z29Expr::sub(x, s));
     REQUIRE(theory.ok());
 
     const StatusOr<std::string> cu = DslEmitCuda::emit_theory_cu(theory.value());
@@ -78,14 +67,13 @@ TEST_CASE("DslEmitCuda emit_primitive_device_header", "[dsl][emit][cuda]") {
     const Z29Expr::Ptr c2 = Z29Expr::var("c2");
     const Z29Expr::Ptr c1 = Z29Expr::var("c1");
     const Z29Expr::Ptr c0 = Z29Expr::var("c0");
-    const Z29Expr::Ptr body = Z29Expr::add(
-        Z29Expr::add(Z29Expr::mul(Z29Expr::mul(c2, i), i), Z29Expr::mul(c1, i)), c0);
-    const StatusOr<PrimitiveIr> prim = PrimitiveIr::make(
-        "poly2_mod29", "(i: Z29, c2: Z29, c1: Z29, c0: Z29) -> Z29", body);
+    const Z29Expr::Ptr body =
+        Z29Expr::add(Z29Expr::add(Z29Expr::mul(Z29Expr::mul(c2, i), i), Z29Expr::mul(c1, i)), c0);
+    const StatusOr<PrimitiveIr> prim =
+        PrimitiveIr::make("poly2_mod29", "(i: Z29, c2: Z29, c1: Z29, c0: Z29) -> Z29", body);
     REQUIRE(prim.ok());
 
-    const StatusOr<std::string> header =
-        DslEmitCuda::emit_primitive_device_header(prim.value());
+    const StatusOr<std::string> header = DslEmitCuda::emit_primitive_device_header(prim.value());
     REQUIRE(header.ok());
     REQUIRE(header.value().find("class Poly2Mod29Device") != std::string::npos);
     REQUIRE(header.value().find("PARCAE_HD static std::uint8_t eval(") != std::string::npos);
@@ -97,29 +85,25 @@ TEST_CASE("DslEmitCuda emit_expr atbash via Z29Device::sub", "[dsl][emit][cuda]"
     const StatusOr<std::string> cpp =
         DslEmitCuda::emit_expr(Z29Expr::atbash(Z29Expr::var("x")), "x", "in[i]");
     REQUIRE(cpp.ok());
-    REQUIRE(
-        cpp.value() == "Z29Device::sub(static_cast<std::uint8_t>(28), in[i])");
+    REQUIRE(cpp.value() == "Z29Device::sub(static_cast<std::uint8_t>(28), in[i])");
 }
 
-TEST_CASE("DslEmitCuda emit_expr lowers Select via Z29Device::select", "[dsl][emit][cuda][select]") {
-    const Z29Expr::Ptr expr = Z29Expr::select(
-        Z29Expr::eq(Z29Expr::var("a"), Z29Expr::constant(1).value()),
-        Z29Expr::var("x"),
-        Z29Expr::constant(7).value());
+TEST_CASE("DslEmitCuda emit_expr lowers Select via Z29Device::select",
+          "[dsl][emit][cuda][select]") {
+    const Z29Expr::Ptr expr =
+        Z29Expr::select(Z29Expr::eq(Z29Expr::var("a"), Z29Expr::constant(1).value()),
+                        Z29Expr::var("x"), Z29Expr::constant(7).value());
     const StatusOr<std::string> cpp = DslEmitCuda::emit_expr(expr, "x", "in[i]");
     REQUIRE(cpp.ok());
     REQUIRE(cpp.value().find("Z29Device::select(") != std::string::npos);
     REQUIRE(cpp.value().find("Z29Device::eq(") != std::string::npos);
 }
 
-TEST_CASE(
-    "DslEmitCuda prefer_branch Select emits divergent conditional",
-    "[dsl][emit][cuda][select]") {
-    const Z29Expr::Ptr expr = Z29Expr::select(
-        Z29Expr::eq(Z29Expr::var("x"), Z29Expr::constant(0).value()),
-        Z29Expr::constant(1).value(),
-        Z29Expr::constant(2).value(),
-        true);
+TEST_CASE("DslEmitCuda prefer_branch Select emits divergent conditional",
+          "[dsl][emit][cuda][select]") {
+    const Z29Expr::Ptr expr =
+        Z29Expr::select(Z29Expr::eq(Z29Expr::var("x"), Z29Expr::constant(0).value()),
+                        Z29Expr::constant(1).value(), Z29Expr::constant(2).value(), true);
     const StatusOr<std::string> cpp = DslEmitCuda::emit_expr(expr, "x", "in[i]");
     REQUIRE(cpp.ok());
     REQUIRE(cpp.value().find("?") != std::string::npos);
@@ -127,12 +111,9 @@ TEST_CASE(
 }
 
 TEST_CASE("DslEmitCuda rejects theory without steps", "[dsl][emit][cuda]") {
-    const StatusOr<TheoryIr> theory = TheoryIr::make(
-        "no_steps",
-        TheoryIr::Family::Elementwise,
-        TheoryIr::Tier::A,
-        TheoryIr::InterruptMode::ElementwiseDefault,
-        {});
+    const StatusOr<TheoryIr> theory =
+        TheoryIr::make("no_steps", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+                       TheoryIr::InterruptMode::ElementwiseDefault, {});
     REQUIRE(theory.ok());
     REQUIRE_FALSE(DslEmitCuda::emit_theory_header(theory.value()).ok());
     REQUIRE_FALSE(DslEmitCuda::emit_theory_cu(theory.value()).ok());

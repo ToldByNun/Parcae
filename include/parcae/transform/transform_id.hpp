@@ -11,33 +11,19 @@
 /// Stable string id for a transform family (`identity`, `atbash`, …).
 class TransformId {
 public:
-    [[nodiscard]] static TransformId identity() {
-        return TransformId{"identity"};
-    }
+    [[nodiscard]] static TransformId identity() { return TransformId{"identity"}; }
 
-    [[nodiscard]] static TransformId atbash() {
-        return TransformId{"atbash"};
-    }
+    [[nodiscard]] static TransformId atbash() { return TransformId{"atbash"}; }
 
-    [[nodiscard]] static TransformId caesar() {
-        return TransformId{"caesar"};
-    }
+    [[nodiscard]] static TransformId caesar() { return TransformId{"caesar"}; }
 
-    [[nodiscard]] static TransformId affine() {
-        return TransformId{"affine"};
-    }
+    [[nodiscard]] static TransformId affine() { return TransformId{"affine"}; }
 
-    [[nodiscard]] static TransformId compose() {
-        return TransformId{"compose"};
-    }
+    [[nodiscard]] static TransformId compose() { return TransformId{"compose"}; }
 
-    [[nodiscard]] static TransformId vigenere_key() {
-        return TransformId{"vigenere_key"};
-    }
+    [[nodiscard]] static TransformId vigenere_key() { return TransformId{"vigenere_key"}; }
 
-    [[nodiscard]] static TransformId beaufort_key() {
-        return TransformId{"beaufort_key"};
-    }
+    [[nodiscard]] static TransformId beaufort_key() { return TransformId{"beaufort_key"}; }
 
     [[nodiscard]] static TransformId totient_prime_stream() {
         return TransformId{"totient_prime_stream"};
@@ -77,9 +63,7 @@ public:
         return Status::error("Unknown transform_id");
     }
 
-    [[nodiscard]] const std::string& str() const noexcept {
-        return value_;
-    }
+    [[nodiscard]] const std::string& str() const noexcept { return value_; }
 
     [[nodiscard]] bool operator==(const TransformId&) const noexcept = default;
 

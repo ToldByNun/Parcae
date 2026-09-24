@@ -29,14 +29,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <nlohmann/json.hpp>
 #include <random>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #if defined(PARCAE_HAS_CUDA)
 #include "parcae/run/search_run_cuda.hpp"
@@ -52,27 +51,25 @@ public:
     class Options {
     public:
         Backend backend = Backend::Cpu;
-        std::string family = "caesar";           // caesar (v0)
+        std::string family = "caesar"; // caesar (v0)
         std::string score_id = "chi2_english_gp_v0";
-        std::uint32_t seed = 0;                  // 0 → random_device
-        std::size_t stream_length = 4096;        // synthetic cipher length for sweep
-        std::size_t throughput_repeats = 8;      // timed loops after setup
-        bool compare_cpu_cuda = true;            // when backend is cuda
+        std::uint32_t seed = 0;             // 0 → random_device
+        std::size_t stream_length = 4096;   // synthetic cipher length for sweep
+        std::size_t throughput_repeats = 8; // timed loops after setup
+        bool compare_cpu_cuda = true;       // when backend is cuda
     };
 
     [[nodiscard]] static StatusOr<SearchRunMetrics> run(const Context& ctx) {
         return run(ctx, Options{});
     }
 
-    [[nodiscard]] static StatusOr<SearchRunMetrics> run(
-        const Context& ctx,
-        Options options) {
+    [[nodiscard]] static StatusOr<SearchRunMetrics> run(const Context& ctx, Options options) {
         Status usable = BackendUtil::ensure_usable(options.backend);
         if (!usable.ok()) {
             return usable;
         }
-        static const std::string_view kFamilies[] = {
-            "caesar", "atbash", "atbash_caesar", "affine", "vigenere"};
+        static const std::string_view kFamilies[] = {"caesar", "atbash", "atbash_caesar", "affine",
+                                                     "vigenere"};
         bool family_ok = false;
         for (std::string_view f : kFamilies) {
             if (options.family == f) {
@@ -111,10 +108,9 @@ public:
         // Synthetic plaintext → encrypt with known Caesar shift (shared input stream).
         constexpr std::uint8_t kTrueShift = 11;
         const std::vector<Index29> plain = lcg_indices(options.stream_length, seed);
-        StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-            plain,
-            nlohmann::json{{"shift", static_cast<int>(kTrueShift)}},
-            TransformDirection::Encrypt);
+        StatusOr<std::vector<Index29>> cipher =
+            CaesarTransform{}.apply(plain, nlohmann::json{{"shift", static_cast<int>(kTrueShift)}},
+                                    TransformDirection::Encrypt);
         if (!cipher.ok()) {
             return cipher.status();
         }
@@ -144,8 +140,7 @@ public:
         if (options.compare_cpu_cuda && options.backend == Backend::Cuda) {
             const std::size_t parity_n = std::min<std::size_t>(cipher.value().size(), 256);
             StatusOr<bool> parity = compare_cpu_cuda_family(
-                options.family,
-                std::span<const Index29>(cipher.value().data(), parity_n),
+                options.family, std::span<const Index29>(cipher.value().data(), parity_n),
                 freqs.value());
             if (!parity.ok()) {
                 return parity.status();
@@ -161,11 +156,10 @@ public:
         std::size_t total = 0;
     };
 
-    [[nodiscard]] static StatusOr<EvalResult> run_fixture_eval(
-        const Context& ctx,
-        std::string_view score_id,
-        const ExpectedFrequencyTable& freqs,
-        std::uint32_t seed) {
+    [[nodiscard]] static StatusOr<EvalResult> run_fixture_eval(const Context& ctx,
+                                                               std::string_view score_id,
+                                                               const ExpectedFrequencyTable& freqs,
+                                                               std::uint32_t seed) {
         StatusOr<GematriaProfile> profile = ctx.load_gematria();
         if (!profile.ok()) {
             return profile.status();
@@ -210,13 +204,13 @@ public:
             const std::vector<Index29> noise =
                 lcg_indices(plain.value().size(), seed ^ (0x9E3779B9u + eval.total));
 
-            StatusOr<double> plain_score = ScoreRegistry::score(
-                score_id, plain.value(), "v0", nlohmann::json::object(), request);
+            StatusOr<double> plain_score = ScoreRegistry::score(score_id, plain.value(), "v0",
+                                                                nlohmann::json::object(), request);
             if (!plain_score.ok()) {
                 return plain_score.status();
             }
-            StatusOr<double> noise_score = ScoreRegistry::score(
-                score_id, noise, "v0", nlohmann::json::object(), request);
+            StatusOr<double> noise_score =
+                ScoreRegistry::score(score_id, noise, "v0", nlohmann::json::object(), request);
             if (!noise_score.ok()) {
                 return noise_score.status();
             }
@@ -227,10 +221,9 @@ public:
             }
 
             ++eval.total;
-            const bool better =
-                order.value() == ScoreOrder::Asc
-                    ? (plain_score.value() < noise_score.value())
-                    : (plain_score.value() > noise_score.value());
+            const bool better = order.value() == ScoreOrder::Asc
+                                    ? (plain_score.value() < noise_score.value())
+                                    : (plain_score.value() > noise_score.value());
             if (better) {
                 ++eval.passed;
             }
@@ -288,14 +281,13 @@ private:
         return std::sqrt(acc / static_cast<double>(values.size()));
     }
 
-    [[nodiscard]] static StatusOr<SweepResult> run_family_sweep(
-        std::span<const Index29> cipher,
-        const Options& options,
-        const ExpectedFrequencyTable& freqs) {
+    [[nodiscard]] static StatusOr<SweepResult>
+    run_family_sweep(std::span<const Index29> cipher, const Options& options,
+                     const ExpectedFrequencyTable& freqs) {
         if (options.backend == Backend::Cuda) {
 #if defined(PARCAE_HAS_CUDA)
-            StatusOr<SearchRunCuda::SweepResult> cuda = SearchRunCuda::run(
-                options.family, cipher, freqs, options.throughput_repeats);
+            StatusOr<SearchRunCuda::SweepResult> cuda =
+                SearchRunCuda::run(options.family, cipher, freqs, options.throughput_repeats);
             if (!cuda.ok()) {
                 return cuda.status();
             }
@@ -314,10 +306,9 @@ private:
         return run_caesar_sweep_cpu(cipher, options, freqs);
     }
 
-    [[nodiscard]] static StatusOr<SweepResult> run_caesar_sweep_cpu(
-        std::span<const Index29> cipher,
-        const Options& options,
-        const ExpectedFrequencyTable& freqs) {
+    [[nodiscard]] static StatusOr<SweepResult>
+    run_caesar_sweep_cpu(std::span<const Index29> cipher, const Options& options,
+                         const ExpectedFrequencyTable& freqs) {
         ScoreRequest request;
         request.expected_frequencies = &freqs;
 
@@ -326,14 +317,13 @@ private:
         for (std::size_t rep = 0; rep < options.throughput_repeats; ++rep) {
             for (std::uint8_t shift = 0; shift < Index29::modulus; ++shift) {
                 StatusOr<std::vector<Index29>> out = CaesarTransform{}.apply(
-                    cipher,
-                    nlohmann::json{{"shift", static_cast<int>(shift)}},
+                    cipher, nlohmann::json{{"shift", static_cast<int>(shift)}},
                     TransformDirection::Decrypt);
                 if (!out.ok()) {
                     return out.status();
                 }
-                StatusOr<double> scored = ScoreRegistry::score(
-                    options.score_id, out.value(), "v0", nlohmann::json::object(), request);
+                StatusOr<double> scored = ScoreRegistry::score(options.score_id, out.value(), "v0",
+                                                               nlohmann::json::object(), request);
                 if (!scored.ok()) {
                     return scored.status();
                 }
@@ -343,10 +333,9 @@ private:
         const auto t1 = std::chrono::steady_clock::now();
         const double e2e_seconds = std::chrono::duration<double>(t1 - t0).count();
 
-        const double runes =
-            static_cast<double>(options.throughput_repeats) *
-            static_cast<double>(Index29::modulus) *
-            static_cast<double>(cipher.size());
+        const double runes = static_cast<double>(options.throughput_repeats) *
+                             static_cast<double>(Index29::modulus) *
+                             static_cast<double>(cipher.size());
         SweepResult result;
         result.tok_per_sec = e2e_seconds > 0.0 ? (runes / e2e_seconds) : 0.0;
         result.score_mean = mean_of(scores);
@@ -356,20 +345,16 @@ private:
         result.steps.reserve(Index29::modulus);
         for (std::uint8_t shift = 0; shift < Index29::modulus; ++shift) {
             const nlohmann::json params = {{"shift", static_cast<int>(shift)}};
-            result.steps.emplace_back(
-                static_cast<std::size_t>(shift),
-                "caesar",
-                params,
-                scores[shift]);
+            result.steps.emplace_back(static_cast<std::size_t>(shift), "caesar", params,
+                                      scores[shift]);
         }
         return result;
     }
 
 #if defined(PARCAE_HAS_CUDA)
-    [[nodiscard]] static StatusOr<std::vector<double>> cpu_family_scores(
-        std::string_view family,
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs) {
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    cpu_family_scores(std::string_view family, std::span<const Index29> cipher,
+                      const ExpectedFrequencyTable& freqs) {
         ScoreRequest request;
         request.expected_frequencies = &freqs;
         std::vector<double> scores;
@@ -378,8 +363,7 @@ private:
             scores.resize(Index29::modulus);
             for (std::uint8_t shift = 0; shift < Index29::modulus; ++shift) {
                 StatusOr<std::vector<Index29>> out = CaesarTransform{}.apply(
-                    cipher,
-                    nlohmann::json{{"shift", static_cast<int>(shift)}},
+                    cipher, nlohmann::json{{"shift", static_cast<int>(shift)}},
                     TransformDirection::Decrypt);
                 if (!out.ok()) {
                     return out.status();
@@ -399,8 +383,8 @@ private:
             if (!out.ok()) {
                 return out.status();
             }
-            StatusOr<double> scored = ScoreRegistry::score(
-                "chi2_english_gp_v0", out.value(), "v0", nlohmann::json::object(), request);
+            StatusOr<double> scored = ScoreRegistry::score("chi2_english_gp_v0", out.value(), "v0",
+                                                           nlohmann::json::object(), request);
             if (!scored.ok()) {
                 return scored.status();
             }
@@ -409,9 +393,8 @@ private:
         if (family == "atbash_caesar") {
             scores.resize(Index29::modulus);
             for (std::uint8_t shift = 0; shift < Index29::modulus; ++shift) {
-                StatusOr<std::vector<Index29>> out =
-                    ComposeTransform::apply_atbash_then_caesar(
-                        cipher, shift, TransformDirection::Decrypt);
+                StatusOr<std::vector<Index29>> out = ComposeTransform::apply_atbash_then_caesar(
+                    cipher, shift, TransformDirection::Decrypt);
                 if (!out.ok()) {
                     return out.status();
                 }
@@ -436,11 +419,7 @@ private:
                         return out.status();
                     }
                     StatusOr<double> scored = ScoreRegistry::score(
-                        "chi2_english_gp_v0",
-                        out.value(),
-                        "v0",
-                        nlohmann::json::object(),
-                        request);
+                        "chi2_english_gp_v0", out.value(), "v0", nlohmann::json::object(), request);
                     if (!scored.ok()) {
                         return scored.status();
                     }
@@ -457,8 +436,8 @@ private:
                 for (int j = 0; j < L; ++j) {
                     params["key_indices"].push_back((j + 1) % 29);
                 }
-                StatusOr<std::vector<Index29>> out = VigenereKeyTransform{}.apply(
-                    cipher, params, TransformDirection::Decrypt);
+                StatusOr<std::vector<Index29>> out =
+                    VigenereKeyTransform{}.apply(cipher, params, TransformDirection::Decrypt);
                 if (!out.ok()) {
                     return out.status();
                 }
@@ -474,10 +453,9 @@ private:
         return Status::error("SearchRun: unknown family for CPU reference");
     }
 
-    [[nodiscard]] static StatusOr<bool> compare_cpu_cuda_family(
-        std::string_view family,
-        std::span<const Index29> cipher,
-        const ExpectedFrequencyTable& freqs) {
+    [[nodiscard]] static StatusOr<bool>
+    compare_cpu_cuda_family(std::string_view family, std::span<const Index29> cipher,
+                            const ExpectedFrequencyTable& freqs) {
         StatusOr<std::vector<double>> cpu = cpu_family_scores(family, cipher, freqs);
         if (!cpu.ok()) {
             return cpu.status();
@@ -498,10 +476,9 @@ private:
         return true;
     }
 #else
-    [[nodiscard]] static StatusOr<bool> compare_cpu_cuda_family(
-        std::string_view,
-        std::span<const Index29>,
-        const ExpectedFrequencyTable&) {
+    [[nodiscard]] static StatusOr<bool> compare_cpu_cuda_family(std::string_view,
+                                                                std::span<const Index29>,
+                                                                const ExpectedFrequencyTable&) {
         return Status::error("SearchRun: CUDA not built");
     }
 #endif

@@ -27,25 +27,15 @@ public:
 
     explicit ConsoleProgressMode(Kind kind) noexcept : kind_(kind) {}
 
-    [[nodiscard]] Kind kind() const noexcept {
-        return kind_;
-    }
+    [[nodiscard]] Kind kind() const noexcept { return kind_; }
 
-    [[nodiscard]] bool is_off() const noexcept {
-        return kind_ == Kind::Off;
-    }
+    [[nodiscard]] bool is_off() const noexcept { return kind_ == Kind::Off; }
 
-    [[nodiscard]] bool is_auto() const noexcept {
-        return kind_ == Kind::Auto;
-    }
+    [[nodiscard]] bool is_auto() const noexcept { return kind_ == Kind::Auto; }
 
-    [[nodiscard]] bool is_panel() const noexcept {
-        return kind_ == Kind::Panel;
-    }
+    [[nodiscard]] bool is_panel() const noexcept { return kind_ == Kind::Panel; }
 
-    [[nodiscard]] bool is_lines() const noexcept {
-        return kind_ == Kind::Lines;
-    }
+    [[nodiscard]] bool is_lines() const noexcept { return kind_ == Kind::Lines; }
 
     [[nodiscard]] std::string_view to_string() const noexcept {
         switch (kind_) {
@@ -80,19 +70,16 @@ public:
         if (lowered == "off") {
             return ConsoleProgressMode{Kind::Off};
         }
-        return Status::error(
-            "ConsoleProgressMode: expected auto|panel|lines|off, got '" + std::string(text) +
-            "'");
+        return Status::error("ConsoleProgressMode: expected auto|panel|lines|off, got '" +
+                             std::string(text) + "'");
     }
 
     /// Map CLI flags to a requested mode before TTY resolution.
     ///
     /// Precedence: `quiet` → Off; else `plain_progress` → Lines; else `progress_flag`
     /// (default `"auto"` when empty).
-    [[nodiscard]] static StatusOr<ConsoleProgressMode> from_flags(
-        bool quiet,
-        bool plain_progress,
-        std::string_view progress_flag) {
+    [[nodiscard]] static StatusOr<ConsoleProgressMode> from_flags(bool quiet, bool plain_progress,
+                                                                  std::string_view progress_flag) {
         if (quiet) {
             return ConsoleProgressMode{Kind::Off};
         }

@@ -18,9 +18,7 @@
 /// Canonical fold: every accepted alias maps to the profile preferred label.
 class LatinLabels {
 public:
-    explicit LatinLabels(const GematriaProfile& profile) : profile_(&profile) {
-        rebuild_maps();
-    }
+    explicit LatinLabels(const GematriaProfile& profile) : profile_(&profile) { rebuild_maps(); }
 
     [[nodiscard]] const std::string& preferred(Index29 index) const {
         return profile_->entry_at(index).preferred();
@@ -99,15 +97,13 @@ private:
         for (const auto& [label, _index] : label_to_index_) {
             labels_by_length_desc_.push_back(label);
         }
-        std::sort(
-            labels_by_length_desc_.begin(),
-            labels_by_length_desc_.end(),
-            [](const std::string& left, const std::string& right) {
-                if (left.size() != right.size()) {
-                    return left.size() > right.size();
-                }
-                return left < right;
-            });
+        std::sort(labels_by_length_desc_.begin(), labels_by_length_desc_.end(),
+                  [](const std::string& left, const std::string& right) {
+                      if (left.size() != right.size()) {
+                          return left.size() > right.size();
+                      }
+                      return left < right;
+                  });
     }
 
     const GematriaProfile* profile_;

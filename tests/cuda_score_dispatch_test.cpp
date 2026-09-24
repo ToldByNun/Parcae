@@ -1,18 +1,16 @@
-#include "cuda_score.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/score/expected_frequency_loader.hpp"
 #include "parcae/score/score_registry.hpp"
 #include "parcae/score/score_request.hpp"
 
-#include <catch2/catch_test_macros.hpp>
+#include "cuda_score.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <random>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #ifndef PARCAE_TEST_DATA_DIR
 #error "PARCAE_TEST_DATA_DIR must be defined"
@@ -46,7 +44,8 @@ TEST_CASE("CudaScore rejects bad version and unknown id", "[cuda][score][dispatc
 
 #if defined(PARCAE_HAS_CUDA)
 
-TEST_CASE("CudaScore dispatch matches ScoreRegistry for all Tier A ids", "[cuda][score][dispatch]") {
+TEST_CASE("CudaScore dispatch matches ScoreRegistry for all Tier A ids",
+          "[cuda][score][dispatch]") {
     if (!CudaScore::available()) {
         SUCCEED("CUDA linked but device unavailable; skipping dispatch apply");
         return;
@@ -75,8 +74,10 @@ TEST_CASE("CudaScore dispatch matches ScoreRegistry for all Tier A ids", "[cuda]
     chi2_req.expected_frequencies = &table.value();
 
     const auto check = [&](const char* id, const ScoreRequest& req = {}) {
-        StatusOr<double> cpu = ScoreRegistry::score(id, candidate, "v0", nlohmann::json::object(), req);
-        StatusOr<double> cuda = CudaScore::score(id, candidate, "v0", nlohmann::json::object(), req);
+        StatusOr<double> cpu =
+            ScoreRegistry::score(id, candidate, "v0", nlohmann::json::object(), req);
+        StatusOr<double> cuda =
+            CudaScore::score(id, candidate, "v0", nlohmann::json::object(), req);
         REQUIRE(cpu.ok());
         REQUIRE(cuda.ok());
         REQUIRE(cuda.value() == cpu.value());
@@ -98,8 +99,7 @@ TEST_CASE("CudaScore pairwise via params.reference JSON", "[cuda][score][dispatc
     const std::vector<Index29> cand{Index29{0}, Index29{1}, Index29{2}, Index29{3}};
     const nlohmann::json params{{"reference", {0, 9, 2, 8}}};
 
-    StatusOr<double> cpu =
-        ScoreRegistry::score("hamming_agreement", cand, "v0", params);
+    StatusOr<double> cpu = ScoreRegistry::score("hamming_agreement", cand, "v0", params);
     StatusOr<double> cuda = CudaScore::score("hamming_agreement", cand, "v0", params);
     REQUIRE(cpu.ok());
     REQUIRE(cuda.ok());

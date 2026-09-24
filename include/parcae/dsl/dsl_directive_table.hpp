@@ -8,8 +8,8 @@
 #include "parcae/dsl/dsl_rule_id.hpp"
 
 #include <algorithm>
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -50,9 +50,7 @@ public:
             return *this;
         }
 
-        [[nodiscard]] bool allow_dsl_ignores() const noexcept {
-            return allow_dsl_ignores_;
-        }
+        [[nodiscard]] bool allow_dsl_ignores() const noexcept { return allow_dsl_ignores_; }
 
     private:
         bool allow_dsl_ignores_;
@@ -63,9 +61,8 @@ public:
                flag == flag_host_loop_bound;
     }
 
-    [[nodiscard]] static StatusOr<DslDirectiveTable> build(
-        const DslAstDocument& doc,
-        Options options = {}) {
+    [[nodiscard]] static StatusOr<DslDirectiveTable> build(const DslAstDocument& doc,
+                                                           Options options = {}) {
         DslDirectiveTable table;
         table.source_path_ = doc.source_path();
         table.allow_dsl_ignores_ = options.allow_dsl_ignores();
@@ -77,21 +74,16 @@ public:
 
         if (!options.allow_dsl_ignores()) {
             const int line = dirs.front().lineno();
-            return DslDiag::make(
-                       DslRuleId::E031_forbidden_construct,
-                       "DSL_FLAG ignore not allowed without --allow-dsl-ignores",
-                       doc.source_path(),
-                       line,
-                       0,
-                       "Pass --allow-dsl-ignores to honor #ignore DSL_FLAG (emits W010)")
+            return DslDiag::make(DslRuleId::E031_forbidden_construct,
+                                 "DSL_FLAG ignore not allowed without --allow-dsl-ignores",
+                                 doc.source_path(), line, 0,
+                                 "Pass --allow-dsl-ignores to honor #ignore DSL_FLAG (emits W010)")
                 .to_status();
         }
 
         if (!doc.module()) {
-            return DslDiag::make(
-                       DslRuleId::E031_forbidden_construct,
-                       "document has no module AST",
-                       doc.source_path())
+            return DslDiag::make(DslRuleId::E031_forbidden_construct, "document has no module AST",
+                                 doc.source_path())
                 .to_status();
         }
 
@@ -102,23 +94,17 @@ public:
             if (!is_known_flag(dir.flag())) {
                 return DslDiag::make(
                            DslRuleId::E031_forbidden_construct,
-                           "unknown DSL_FLAG '" + dir.flag() + "'",
-                           doc.source_path(),
-                           dir.lineno(),
-                           0,
-                           "Recognized: divergent_branch, hotloop_restriction, host_loop_bound")
+                           "unknown DSL_FLAG '" + dir.flag() + "'", doc.source_path(), dir.lineno(),
+                           0, "Recognized: divergent_branch, hotloop_restriction, host_loop_bound")
                     .to_status();
             }
 
             const DslAstNode* target = bind_directive(dir.lineno(), bodies);
             if (target == nullptr) {
-                return DslDiag::make(
-                           DslRuleId::E031_forbidden_construct,
-                           "DSL_FLAG '" + dir.flag() +
-                               "' has no following statement to bind",
-                           doc.source_path(),
-                           dir.lineno(),
-                           0)
+                return DslDiag::make(DslRuleId::E031_forbidden_construct,
+                                     "DSL_FLAG '" + dir.flag() +
+                                         "' has no following statement to bind",
+                                     doc.source_path(), dir.lineno(), 0)
                     .to_status();
             }
 
@@ -133,9 +119,7 @@ public:
         return table;
     }
 
-    [[nodiscard]] bool allow_dsl_ignores() const noexcept {
-        return allow_dsl_ignores_;
-    }
+    [[nodiscard]] bool allow_dsl_ignores() const noexcept { return allow_dsl_ignores_; }
 
     [[nodiscard]] bool covers(std::string_view flag, const DslAstNode& node) const noexcept {
         const auto it = by_node_.find(&node);
@@ -147,15 +131,13 @@ public:
 
     /// If `node` is covered by `flag`, record **W010** and return true (suppress).
     /// Otherwise return false (caller keeps the hard diagnostic).
-    [[nodiscard]] bool honor(
-        std::string_view flag,
-        const DslAstNode& node,
-        std::string_view suppressed_rule) {
+    [[nodiscard]] bool honor(std::string_view flag, const DslAstNode& node,
+                             std::string_view suppressed_rule) {
         if (!covers(flag, node)) {
             return false;
         }
-        const std::string key = std::string(flag) + "@" +
-                                std::to_string(reinterpret_cast<std::uintptr_t>(&node));
+        const std::string key =
+            std::string(flag) + "@" + std::to_string(reinterpret_cast<std::uintptr_t>(&node));
         if (honored_keys_.insert(key).second) {
             const int dir_line =
                 directive_lineno_for(flag, node).value_or(node.lineno().value_or(0));
@@ -163,12 +145,8 @@ public:
             msg += flag;
             msg += " suppressed ";
             msg += suppressed_rule;
-            warnings_.push_back(DslDiag::make(
-                DslRuleId::W010_dsl_ignore_used,
-                std::move(msg),
-                source_path_,
-                dir_line,
-                0));
+            warnings_.push_back(DslDiag::make(DslRuleId::W010_dsl_ignore_used, std::move(msg),
+                                              source_path_, dir_line, 0));
             applied_.insert(std::string(flag));
         }
         return true;
@@ -176,10 +154,8 @@ public:
 
     /// Honor a flag bound to an enclosing statement whose source span covers `lineno`
     /// (for nested `IfExp` under `Return` / `Assign`).
-    [[nodiscard]] bool honor_at_line(
-        std::string_view flag,
-        int lineno,
-        std::string_view suppressed_rule) {
+    [[nodiscard]] bool honor_at_line(std::string_view flag, int lineno,
+                                     std::string_view suppressed_rule) {
         for (const Binding& b : bindings_) {
             if (b.flag != flag || b.node == nullptr || !b.node->lineno().has_value()) {
                 continue;
@@ -193,9 +169,7 @@ public:
         return false;
     }
 
-    [[nodiscard]] const std::vector<DslDiag>& warnings() const noexcept {
-        return warnings_;
-    }
+    [[nodiscard]] const std::vector<DslDiag>& warnings() const noexcept { return warnings_; }
 
     [[nodiscard]] std::vector<std::string> flags_applied() const {
         std::vector<std::string> out(applied_.begin(), applied_.end());
@@ -203,9 +177,7 @@ public:
         return out;
     }
 
-    [[nodiscard]] std::size_t binding_count() const noexcept {
-        return bindings_.size();
-    }
+    [[nodiscard]] std::size_t binding_count() const noexcept { return bindings_.size(); }
 
 private:
     struct Binding {
@@ -222,9 +194,8 @@ private:
 
     DslDirectiveTable() = default;
 
-    [[nodiscard]] std::optional<int> directive_lineno_for(
-        std::string_view flag,
-        const DslAstNode& node) const {
+    [[nodiscard]] std::optional<int> directive_lineno_for(std::string_view flag,
+                                                          const DslAstNode& node) const {
         for (const Binding& b : bindings_) {
             if (b.node == &node && b.flag == flag) {
                 return b.directive_lineno;
@@ -233,9 +204,8 @@ private:
         return std::nullopt;
     }
 
-    [[nodiscard]] static const DslAstNode* bind_directive(
-        int directive_lineno,
-        const std::vector<BodyCtx>& bodies) {
+    [[nodiscard]] static const DslAstNode* bind_directive(int directive_lineno,
+                                                          const std::vector<BodyCtx>& bodies) {
         const DslAstNode* best = nullptr;
         int best_depth = -1;
         int best_lineno = 0;
@@ -261,8 +231,7 @@ private:
             if (first == nullptr) {
                 continue;
             }
-            if (body.depth > best_depth ||
-                (body.depth == best_depth && first_line < best_lineno)) {
+            if (body.depth > best_depth || (body.depth == best_depth && first_line < best_lineno)) {
                 best = first;
                 best_depth = body.depth;
                 best_lineno = first_line;
@@ -271,11 +240,8 @@ private:
         return best;
     }
 
-    static void collect_bodies(
-        const DslAstNode& node,
-        int parent_lineno,
-        int depth,
-        std::vector<BodyCtx>& out) {
+    static void collect_bodies(const DslAstNode& node, int parent_lineno, int depth,
+                               std::vector<BodyCtx>& out) {
         auto take_list = [&](const char* field) {
             const DslAstValue* list = node.find_field(field);
             if (!list || list->type() != DslAstValue::Type::Array) {
@@ -313,11 +279,8 @@ private:
         }
     }
 
-    static void walk_value_for_bodies(
-        const DslAstValue& value,
-        int parent_lineno,
-        int depth,
-        std::vector<BodyCtx>& out) {
+    static void walk_value_for_bodies(const DslAstValue& value, int parent_lineno, int depth,
+                                      std::vector<BodyCtx>& out) {
         if (value.type() == DslAstValue::Type::Node && value.as_node()) {
             collect_bodies(*value.as_node(), parent_lineno, depth, out);
         } else if (value.type() == DslAstValue::Type::Array) {

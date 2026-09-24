@@ -27,11 +27,10 @@ public:
         out << "params=" << metrics.parameters_label() << "  seed=" << metrics.seed() << '\n';
         out << '\n';
         out << score_bars(metrics);
-        out << "Fixture Eval    " << metrics.eval_passed() << " / " << metrics.eval_total()
-            << '\n';
+        out << "Fixture Eval    " << metrics.eval_passed() << " / " << metrics.eval_total() << '\n';
         if (metrics.cpu_cuda_pass().has_value()) {
-            out << "CPU <-> CUDA      "
-                << (metrics.cpu_cuda_pass().value() ? "PASS" : "FAIL") << '\n';
+            out << "CPU <-> CUDA      " << (metrics.cpu_cuda_pass().value() ? "PASS" : "FAIL")
+                << '\n';
         }
         out << ConsoleDashboard::format_line(snap) << "  [done]\n";
         return out.str();
@@ -101,12 +100,11 @@ private:
         const std::size_t cols = std::min(steps.size(), max_cols);
         std::vector<int> heights(cols, 1);
         for (std::size_t i = 0; i < cols; ++i) {
-            const std::size_t src =
-                cols == 1 ? 0 : (i * (steps.size() - 1)) / (cols - 1);
+            const std::size_t src = cols == 1 ? 0 : (i * (steps.size() - 1)) / (cols - 1);
             int h = 1;
             if (span > 0.0) {
-                h = 1 + static_cast<int>(std::lround(
-                    ((steps[src].score() - lo) / span) * (bar_rows - 1)));
+                h = 1 + static_cast<int>(
+                            std::lround(((steps[src].score() - lo) / span) * (bar_rows - 1)));
             }
             heights[i] = std::clamp(h, 1, bar_rows);
         }
@@ -129,8 +127,8 @@ private:
         }
         out << "  sweep\n";
         out << std::setprecision(4) << std::fixed;
-        out << "                mean=" << metrics.score_mean()
-            << "  std=" << metrics.score_std() << '\n';
+        out << "                mean=" << metrics.score_mean() << "  std=" << metrics.score_std()
+            << '\n';
         return out.str();
     }
 };

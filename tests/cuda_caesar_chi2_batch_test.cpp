@@ -2,11 +2,6 @@
 
 #if defined(PARCAE_HAS_CUDA)
 
-#include "caesar_chi2_batch.hpp"
-#include "device_buffer.hpp"
-#include "params.hpp"
-#include "parcae_cuda.hpp"
-
 #include "parcae/core/index29.hpp"
 #include "parcae/score/expected_frequency_loader.hpp"
 #include "parcae/score/score_registry.hpp"
@@ -14,13 +9,16 @@
 #include "parcae/transform/caesar_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
 
+#include "caesar_chi2_batch.hpp"
+#include "device_buffer.hpp"
+#include "params.hpp"
+#include "parcae_cuda.hpp"
+
 #include <cstdint>
+#include <nlohmann/json.hpp>
+#include <span>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
-
-#include <span>
 
 #ifndef PARCAE_TEST_DATA_DIR
 #error "PARCAE_TEST_DATA_DIR must be defined"
@@ -38,8 +36,8 @@ TEST_CASE("CaesarChi2Batch matches CPU chi2 per shift", "[cuda][batch][chi2][fus
     for (std::uint8_t i = 0; i < 128; ++i) {
         plain.push_back(Index29{static_cast<std::uint8_t>(i % 29)});
     }
-    StatusOr<std::vector<Index29>> cipher = CaesarTransform{}.apply(
-        plain, nlohmann::json{{"shift", 7}}, TransformDirection::Encrypt);
+    StatusOr<std::vector<Index29>> cipher =
+        CaesarTransform{}.apply(plain, nlohmann::json{{"shift", 7}}, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
 
     constexpr std::size_t C = Index29::modulus;
@@ -70,15 +68,10 @@ TEST_CASE("CaesarChi2Batch matches CPU chi2 per shift", "[cuda][batch][chi2][fus
     StatusOr<DeviceBuffer<double>> device_scores = DeviceBuffer<double>::allocate(C);
     REQUIRE(device_scores.ok());
 
-    REQUIRE(CaesarChi2Batch::launch(
-                device_in.value().data(),
-                device_shifts.value().data(),
-                device_dirs.value().data(),
-                device_probs.value().data(),
-                device_counts.value().data(),
-                device_scores.value().data(),
-                C,
-                T)
+    REQUIRE(CaesarChi2Batch::launch(device_in.value().data(), device_shifts.value().data(),
+                                    device_dirs.value().data(), device_probs.value().data(),
+                                    device_counts.value().data(), device_scores.value().data(), C,
+                                    T)
                 .ok());
 
     std::vector<double> gpu(C, 0.0);
@@ -88,12 +81,11 @@ TEST_CASE("CaesarChi2Batch matches CPU chi2 per shift", "[cuda][batch][chi2][fus
     request.expected_frequencies = &freqs.value();
     for (std::uint8_t shift = 0; shift < Index29::modulus; ++shift) {
         StatusOr<std::vector<Index29>> out = CaesarTransform{}.apply(
-            cipher.value(),
-            nlohmann::json{{"shift", static_cast<int>(shift)}},
+            cipher.value(), nlohmann::json{{"shift", static_cast<int>(shift)}},
             TransformDirection::Decrypt);
         REQUIRE(out.ok());
-        StatusOr<double> cpu = ScoreRegistry::score(
-            "chi2_english_gp_v0", out.value(), "v0", nlohmann::json::object(), request);
+        StatusOr<double> cpu = ScoreRegistry::score("chi2_english_gp_v0", out.value(), "v0",
+                                                    nlohmann::json::object(), request);
         REQUIRE(cpu.ok());
         REQUIRE(gpu[shift] == cpu.value());
     }

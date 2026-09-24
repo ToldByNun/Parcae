@@ -1,13 +1,10 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include "parcae/cli/console_ansi.hpp"
 
+#include <catch2/catch_test_macros.hpp>
 #include <string>
 
 struct ConsoleAnsiOverrideGuard {
-    ~ConsoleAnsiOverrideGuard() {
-        ConsoleAnsi::clear_overrides();
-    }
+    ~ConsoleAnsiOverrideGuard() { ConsoleAnsi::clear_overrides(); }
 };
 
 TEST_CASE("ConsoleAnsi cursor_up and clear helpers", "[cli][ansi]") {

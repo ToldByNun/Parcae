@@ -5,8 +5,8 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/generate/affine_candidate_generator.hpp"
-#include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
+#include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
 #include "parcae/generate/compose_recipe_candidate_generator.hpp"
@@ -18,50 +18,33 @@
 #include "parcae/transform/transform_id.hpp"
 
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 /// String-id dispatch for bounded candidate generators (`gen_*`).
 class GeneratorRegistry {
 public:
     [[nodiscard]] static std::vector<GeneratorCatalogEntry> catalog() {
         return {
-            {std::string(AtbashCandidateGenerator::generator_id),
-             TransformId::atbash().str(),
-             AtbashCandidateGenerator::candidate_count,
-             false},
-            {std::string(CaesarCandidateGenerator::generator_id),
-             TransformId::caesar().str(),
-             CaesarCandidateGenerator::candidate_count,
-             false},
+            {std::string(AtbashCandidateGenerator::generator_id), TransformId::atbash().str(),
+             AtbashCandidateGenerator::candidate_count, false},
+            {std::string(CaesarCandidateGenerator::generator_id), TransformId::caesar().str(),
+             CaesarCandidateGenerator::candidate_count, false},
             {std::string(AtbashCaesarCandidateGenerator::generator_id),
-             TransformId::compose().str(),
-             AtbashCaesarCandidateGenerator::candidate_count,
-             false},
-            {std::string(AffineCandidateGenerator::generator_id),
-             TransformId::affine().str(),
-             AffineCandidateGenerator::candidate_count,
-             false},
+             TransformId::compose().str(), AtbashCaesarCandidateGenerator::candidate_count, false},
+            {std::string(AffineCandidateGenerator::generator_id), TransformId::affine().str(),
+             AffineCandidateGenerator::candidate_count, false},
             {std::string(VigenereExplicitKeyCandidateGenerator::generator_id),
-             TransformId::vigenere_key().str(),
-             0,
-             true},
+             TransformId::vigenere_key().str(), 0, true},
             {std::string(BeaufortExplicitKeyCandidateGenerator::generator_id),
-             TransformId::beaufort_key().str(),
-             0,
-             true},
+             TransformId::beaufort_key().str(), 0, true},
             {std::string(TotientOffsetCandidateGenerator::generator_id),
-             TransformId::totient_prime_stream().str(),
-             0,
-             true},
+             TransformId::totient_prime_stream().str(), 0, true},
             {std::string(ComposeRecipeCandidateGenerator::generator_id),
-             TransformId::compose().str(),
-             0,
-             true},
+             TransformId::compose().str(), 0, true},
         };
     }
 
@@ -89,11 +72,10 @@ public:
     /// `gen_totient_offsets`: `params.prime_start_indices` (array of ints) required.
     /// `gen_compose_recipes`: empty → Atbash∘Caesar 29; or `recipes` / `params_list` /
     /// `stages` / `template`=`atbash_caesar` (see ComposeRecipeCandidateGenerator).
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate(
-        std::string_view generator_id,
-        std::span<const Index29> ciphertext,
-        TransformDirection direction = TransformDirection::Decrypt,
-        const nlohmann::json& params = nlohmann::json::object()) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    generate(std::string_view generator_id, std::span<const Index29> ciphertext,
+             TransformDirection direction = TransformDirection::Decrypt,
+             const nlohmann::json& params = nlohmann::json::object()) {
         if (generator_id == AtbashCandidateGenerator::generator_id) {
             return AtbashCandidateGenerator::generate(ciphertext, direction);
         }
@@ -112,8 +94,8 @@ public:
             if (!keys.ok()) {
                 return keys.status();
             }
-            return VigenereExplicitKeyCandidateGenerator::generate(
-                ciphertext, keys.value(), direction);
+            return VigenereExplicitKeyCandidateGenerator::generate(ciphertext, keys.value(),
+                                                                   direction);
         }
         if (generator_id == BeaufortExplicitKeyCandidateGenerator::generator_id) {
             StatusOr<std::vector<ExplicitVigenereKey>> keys =
@@ -121,8 +103,8 @@ public:
             if (!keys.ok()) {
                 return keys.status();
             }
-            return BeaufortExplicitKeyCandidateGenerator::generate(
-                ciphertext, keys.value(), direction);
+            return BeaufortExplicitKeyCandidateGenerator::generate(ciphertext, keys.value(),
+                                                                   direction);
         }
         if (generator_id == TotientOffsetCandidateGenerator::generator_id) {
             return generate_totient(ciphertext, direction, params);
@@ -136,10 +118,9 @@ public:
 private:
     GeneratorRegistry() = delete;
 
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate_compose(
-        std::span<const Index29> ciphertext,
-        TransformDirection direction,
-        const nlohmann::json& params) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    generate_compose(std::span<const Index29> ciphertext, TransformDirection direction,
+                     const nlohmann::json& params) {
         StatusOr<std::vector<nlohmann::json>> recipes =
             ComposeRecipeCandidateGenerator::recipes_from_param_grid(
                 params.is_null() ? nlohmann::json::object() : params);
@@ -149,21 +130,18 @@ private:
         if (ComposeRecipeCandidateGenerator::is_full_atbash_caesar_grid(recipes.value())) {
             return ComposeRecipeCandidateGenerator::generate_atbash_caesar(ciphertext, direction);
         }
-        return ComposeRecipeCandidateGenerator::generate(
-            ciphertext, recipes.value(), direction);
+        return ComposeRecipeCandidateGenerator::generate(ciphertext, recipes.value(), direction);
     }
 
-    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> generate_totient(
-        std::span<const Index29> ciphertext,
-        TransformDirection direction,
-        const nlohmann::json& params) {
+    [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
+    generate_totient(std::span<const Index29> ciphertext, TransformDirection direction,
+                     const nlohmann::json& params) {
         if (!params.is_object()) {
             return Status::error("gen_totient_offsets params must be an object");
         }
         if (!params.contains("prime_start_indices") ||
             !params.at("prime_start_indices").is_array()) {
-            return Status::error(
-                "gen_totient_offsets requires params.prime_start_indices array");
+            return Status::error("gen_totient_offsets requires params.prime_start_indices array");
         }
         std::vector<std::size_t> starts;
         starts.reserve(params.at("prime_start_indices").size());
@@ -182,17 +160,16 @@ private:
         return TotientOffsetCandidateGenerator::generate(ciphertext, starts, direction);
     }
 
-    [[nodiscard]] static StatusOr<std::vector<ExplicitVigenereKey>> parse_explicit_keys(
-        const nlohmann::json& params,
-        std::string_view generator_id) {
+    [[nodiscard]] static StatusOr<std::vector<ExplicitVigenereKey>>
+    parse_explicit_keys(const nlohmann::json& params, std::string_view generator_id) {
         if (!params.is_object()) {
             return Status::error(std::string(generator_id) + " params must be an object");
         }
 
         if (params.contains("key_indices_list")) {
             if (!params.at("key_indices_list").is_array()) {
-                return Status::error(
-                    std::string(generator_id) + " params.key_indices_list must be an array");
+                return Status::error(std::string(generator_id) +
+                                     " params.key_indices_list must be an array");
             }
             std::vector<ExplicitVigenereKey> keys;
             keys.reserve(params.at("key_indices_list").size());
@@ -215,12 +192,12 @@ private:
             keys.reserve(params.at("keys").size());
             for (const auto& item : params.at("keys")) {
                 if (!item.is_object()) {
-                    return Status::error(
-                        std::string(generator_id) + " params.keys entries must be objects");
+                    return Status::error(std::string(generator_id) +
+                                         " params.keys entries must be objects");
                 }
                 if (!item.contains("key_indices")) {
-                    return Status::error(
-                        std::string(generator_id) + " params.keys[].key_indices is required");
+                    return Status::error(std::string(generator_id) +
+                                         " params.keys[].key_indices is required");
                 }
                 StatusOr<std::vector<Index29>> indices =
                     parse_index_array(item.at("key_indices"), generator_id, "keys[].key_indices");
@@ -231,9 +208,8 @@ private:
                 key.key_indices = std::move(indices.value());
                 if (item.contains("key_latin")) {
                     if (!item.at("key_latin").is_string()) {
-                        return Status::error(
-                            std::string(generator_id) +
-                            " params.keys[].key_latin must be a string");
+                        return Status::error(std::string(generator_id) +
+                                             " params.keys[].key_latin must be a string");
                     }
                     key.key_latin = item.at("key_latin").get<std::string>();
                 }
@@ -242,32 +218,28 @@ private:
             return keys;
         }
 
-        return Status::error(
-            std::string(generator_id) + " requires params.key_indices_list or params.keys");
+        return Status::error(std::string(generator_id) +
+                             " requires params.key_indices_list or params.keys");
     }
 
-    [[nodiscard]] static StatusOr<std::vector<Index29>> parse_index_array(
-        const nlohmann::json& arr,
-        std::string_view generator_id,
-        std::string_view field_name) {
+    [[nodiscard]] static StatusOr<std::vector<Index29>>
+    parse_index_array(const nlohmann::json& arr, std::string_view generator_id,
+                      std::string_view field_name) {
         if (!arr.is_array()) {
-            return Status::error(
-                std::string(generator_id) + " " + std::string(field_name) +
-                " must be an array");
+            return Status::error(std::string(generator_id) + " " + std::string(field_name) +
+                                 " must be an array");
         }
         std::vector<Index29> out;
         out.reserve(arr.size());
         for (const auto& item : arr) {
             if (!item.is_number_integer()) {
-                return Status::error(
-                    std::string(generator_id) + " " + std::string(field_name) +
-                    " entries must be integers");
+                return Status::error(std::string(generator_id) + " " + std::string(field_name) +
+                                     " entries must be integers");
             }
             const int value = item.get<int>();
             if (value < 0 || value >= static_cast<int>(Index29::modulus)) {
-                return Status::error(
-                    std::string(generator_id) + " " + std::string(field_name) +
-                    " entry out of range [0,28]");
+                return Status::error(std::string(generator_id) + " " + std::string(field_name) +
+                                     " entry out of range [0,28]");
             }
             out.push_back(Index29{static_cast<std::uint8_t>(value)});
         }
@@ -275,4 +247,4 @@ private:
     }
 };
 
-#endif  // GENERATOR_REGISTRY_HPP
+#endif // GENERATOR_REGISTRY_HPP

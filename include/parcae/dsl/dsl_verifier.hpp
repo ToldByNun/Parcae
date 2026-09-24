@@ -46,29 +46,17 @@ public:
     public:
         Report() = default;
 
-        [[nodiscard]] Mode mode() const noexcept {
-            return mode_;
-        }
+        [[nodiscard]] Mode mode() const noexcept { return mode_; }
 
-        [[nodiscard]] bool passed() const noexcept {
-            return passed_;
-        }
+        [[nodiscard]] bool passed() const noexcept { return passed_; }
 
-        [[nodiscard]] std::size_t samples_checked() const noexcept {
-            return samples_checked_;
-        }
+        [[nodiscard]] std::size_t samples_checked() const noexcept { return samples_checked_; }
 
-        [[nodiscard]] const std::string& primitive_name() const noexcept {
-            return primitive_name_;
-        }
+        [[nodiscard]] const std::string& primitive_name() const noexcept { return primitive_name_; }
 
-        [[nodiscard]] const std::string& detail() const noexcept {
-            return detail_;
-        }
+        [[nodiscard]] const std::string& detail() const noexcept { return detail_; }
 
-        [[nodiscard]] std::optional<std::uint32_t> seed() const noexcept {
-            return seed_;
-        }
+        [[nodiscard]] std::optional<std::uint32_t> seed() const noexcept { return seed_; }
 
     private:
         friend class DslVerifier;
@@ -91,7 +79,8 @@ public:
 
     /// Exhaustive gate over `0..28^arity`. Arity 0 checks a single empty eval.
     /// Arity > 4 → E050 (use fuzz).
-    [[nodiscard]] static StatusOr<Report> verify_primitive_exhaustive(const PrimitiveIr& primitive) {
+    [[nodiscard]] static StatusOr<Report>
+    verify_primitive_exhaustive(const PrimitiveIr& primitive) {
         Status st = primitive.validate();
         if (!st.ok()) {
             return st;
@@ -101,8 +90,7 @@ public:
         if (arity > max_exhaustive_arity) {
             return fail_verify(
                 primitive,
-                "arity " + std::to_string(arity) + " > " +
-                    std::to_string(max_exhaustive_arity) +
+                "arity " + std::to_string(arity) + " > " + std::to_string(max_exhaustive_arity) +
                     "; exhaustive mode unsupported (use verify_primitive_fuzz / seed 0xC1CADA)");
         }
 
@@ -134,11 +122,9 @@ public:
         }
 
         if (report.samples_checked_ != total) {
-            return fail_verify(
-                primitive,
-                "internal exhaustive sample count mismatch (got " +
-                    std::to_string(report.samples_checked_) + ", expected " +
-                    std::to_string(total) + ")");
+            return fail_verify(primitive, "internal exhaustive sample count mismatch (got " +
+                                              std::to_string(report.samples_checked_) +
+                                              ", expected " + std::to_string(total) + ")");
         }
 
         report.passed_ = true;
@@ -149,10 +135,9 @@ public:
 
     /// Seeded property fuzz (totality + determinism + CPU↔CUDA mirror).
     /// Intended for arity > 4; also usable on smaller arities.
-    [[nodiscard]] static StatusOr<Report> verify_primitive_fuzz(
-        const PrimitiveIr& primitive,
-        std::uint32_t seed = default_fuzz_seed,
-        std::size_t sample_count = default_fuzz_samples) {
+    [[nodiscard]] static StatusOr<Report>
+    verify_primitive_fuzz(const PrimitiveIr& primitive, std::uint32_t seed = default_fuzz_seed,
+                          std::size_t sample_count = default_fuzz_samples) {
         Status st = primitive.validate();
         if (!st.ok()) {
             return st;
@@ -163,10 +148,8 @@ public:
 
         const std::size_t arity = primitive.arity();
         if (arity > max_fuzz_arity) {
-            return fail_verify(
-                primitive,
-                "arity " + std::to_string(arity) + " > max_fuzz_arity " +
-                    std::to_string(max_fuzz_arity));
+            return fail_verify(primitive, "arity " + std::to_string(arity) + " > max_fuzz_arity " +
+                                              std::to_string(max_fuzz_arity));
         }
 
         Report report;
@@ -208,9 +191,9 @@ private:
     }
 
     /// Returns false when the counter wraps past the last sample.
-    [[nodiscard]] static bool increment_digits(
-        std::array<std::uint8_t, max_exhaustive_arity>& digits,
-        std::size_t arity) noexcept {
+    [[nodiscard]] static bool
+    increment_digits(std::array<std::uint8_t, max_exhaustive_arity>& digits,
+                     std::size_t arity) noexcept {
         if (arity == 0) {
             return false;
         }
@@ -234,9 +217,8 @@ private:
         return out;
     }
 
-    [[nodiscard]] static std::string format_args(
-        const PrimitiveIr& primitive,
-        std::span<const Index29> args) {
+    [[nodiscard]] static std::string format_args(const PrimitiveIr& primitive,
+                                                 std::span<const Index29> args) {
         std::ostringstream oss;
         oss << primitive.name() << "(";
         for (std::size_t i = 0; i < args.size(); ++i) {
@@ -252,36 +234,28 @@ private:
         return oss.str();
     }
 
-    [[nodiscard]] static Status check_sample(
-        const PrimitiveIr& primitive,
-        std::span<const Index29> args) {
+    [[nodiscard]] static Status check_sample(const PrimitiveIr& primitive,
+                                             std::span<const Index29> args) {
         StatusOr<Index29> first = primitive.eval(args);
         if (!first.ok()) {
-            return fail_verify(
-                primitive,
-                "totality failed at " + format_args(primitive, args) + ": " +
-                    first.status().message());
+            return fail_verify(primitive, "totality failed at " + format_args(primitive, args) +
+                                              ": " + first.status().message());
         }
         if (first.value().value() >= modulus) {
-            return fail_verify(
-                primitive,
-                "totality failed: result out of Index29 domain at " +
-                    format_args(primitive, args));
+            return fail_verify(primitive, "totality failed: result out of Index29 domain at " +
+                                              format_args(primitive, args));
         }
 
         StatusOr<Index29> second = primitive.eval(args);
         if (!second.ok()) {
-            return fail_verify(
-                primitive,
-                "determinism failed (second eval error) at " + format_args(primitive, args) +
-                    ": " + second.status().message());
+            return fail_verify(primitive, "determinism failed (second eval error) at " +
+                                              format_args(primitive, args) + ": " +
+                                              second.status().message());
         }
         if (first.value() != second.value()) {
-            return fail_verify(
-                primitive,
-                "determinism failed at " + format_args(primitive, args) +
-                    ": first=" + std::to_string(first.value().value()) +
-                    " second=" + std::to_string(second.value().value()));
+            return fail_verify(primitive, "determinism failed at " + format_args(primitive, args) +
+                                              ": first=" + std::to_string(first.value().value()) +
+                                              " second=" + std::to_string(second.value().value()));
         }
 
         // CPU ↔ CUDA op-sequence mirror (Z29Expr::eval_cuda_mirror / DslEmitCuda).
@@ -291,28 +265,22 @@ private:
         }
         StatusOr<Index29> cuda_mirror = primitive.body()->eval_cuda_mirror(env);
         if (!cuda_mirror.ok()) {
-            return fail_verify(
-                primitive,
-                "cuda mirror failed at " + format_args(primitive, args) + ": " +
-                    cuda_mirror.status().message());
+            return fail_verify(primitive, "cuda mirror failed at " + format_args(primitive, args) +
+                                              ": " + cuda_mirror.status().message());
         }
         if (cuda_mirror.value() != first.value()) {
-            return fail_verify(
-                primitive,
-                "cpu/cuda mirror mismatch at " + format_args(primitive, args) +
-                    ": cpu=" + std::to_string(first.value().value()) +
-                    " cuda_mirror=" + std::to_string(cuda_mirror.value().value()));
+            return fail_verify(primitive,
+                               "cpu/cuda mirror mismatch at " + format_args(primitive, args) +
+                                   ": cpu=" + std::to_string(first.value().value()) +
+                                   " cuda_mirror=" + std::to_string(cuda_mirror.value().value()));
         }
         return Status::success();
     }
 
     [[nodiscard]] static Status fail_verify(const PrimitiveIr& primitive, std::string message) {
-        return DslDiag::make(
-                   DslRuleId::E050_verify_failed,
-                   "primitive '" + primitive.name() + "': " + std::move(message),
-                   /*path=*/{},
-                   std::nullopt,
-                   std::nullopt)
+        return DslDiag::make(DslRuleId::E050_verify_failed,
+                             "primitive '" + primitive.name() + "': " + std::move(message),
+                             /*path=*/{}, std::nullopt, std::nullopt)
             .to_status();
     }
 };

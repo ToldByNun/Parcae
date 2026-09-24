@@ -24,16 +24,12 @@ class BeaufortKeyTransform : public Transform {
 public:
     BeaufortKeyTransform() = default;
 
-    [[nodiscard]] TransformId id() const override {
-        return TransformId::beaufort_key();
-    }
+    [[nodiscard]] TransformId id() const override { return TransformId::beaufort_key(); }
 
     /// Allocation-free keyed kernel. In-place OK.
-    [[nodiscard]] static Status kernel(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        std::span<const Index29> key,
-        std::span<const std::size_t> skip_indices_sorted) {
+    [[nodiscard]] static Status kernel(std::span<const Index29> input, std::span<Index29> output,
+                                       std::span<const Index29> key,
+                                       std::span<const std::size_t> skip_indices_sorted) {
         Status sizes = TransformBuffer::require_same_length(input, output);
         if (!sizes.ok()) {
             return sizes;
@@ -56,12 +52,10 @@ public:
         return Status::success();
     }
 
-    [[nodiscard]] Status apply_into(
-        std::span<const Index29> input,
-        std::span<Index29> output,
-        const nlohmann::json& params,
-        TransformDirection /*direction*/,
-        const InterruptPolicy& interrupt = InterruptPolicy::none()) const override {
+    [[nodiscard]] Status
+    apply_into(std::span<const Index29> input, std::span<Index29> output,
+               const nlohmann::json& params, TransformDirection /*direction*/,
+               const InterruptPolicy& interrupt = InterruptPolicy::none()) const override {
         StatusOr<std::vector<Index29>> key = parse_key_indices(params);
         if (!key.ok()) {
             return key.status();
@@ -71,13 +65,12 @@ public:
         if (!range.ok()) {
             return range;
         }
-        return kernel(
-            input, output, key.value(), TransformBuffer::skip_span(interrupt));
+        return kernel(input, output, key.value(), TransformBuffer::skip_span(interrupt));
     }
 
 private:
-    [[nodiscard]] static StatusOr<std::vector<Index29>> parse_key_indices(
-        const nlohmann::json& params) {
+    [[nodiscard]] static StatusOr<std::vector<Index29>>
+    parse_key_indices(const nlohmann::json& params) {
         if (!params.is_object()) {
             return Status::error("beaufort_key params must be an object");
         }

@@ -20,17 +20,11 @@ public:
         }
     }
 
-    [[nodiscard]] bool ok() const noexcept {
-        return status_.ok() && value_.has_value();
-    }
+    [[nodiscard]] bool ok() const noexcept { return status_.ok() && value_.has_value(); }
 
-    [[nodiscard]] explicit operator bool() const noexcept {
-        return ok();
-    }
+    [[nodiscard]] explicit operator bool() const noexcept { return ok(); }
 
-    [[nodiscard]] const Status& status() const noexcept {
-        return status_;
-    }
+    [[nodiscard]] const Status& status() const noexcept { return status_; }
 
     [[nodiscard]] T& value() & {
         require_value();
@@ -54,9 +48,7 @@ private:
         }
     }
 
-    [[noreturn]] static void fatal_invalid() noexcept {
-        std::abort();
-    }
+    [[noreturn]] static void fatal_invalid() noexcept { std::abort(); }
 
     Status status_;
     std::optional<T> value_;

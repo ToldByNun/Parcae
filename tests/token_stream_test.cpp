@@ -1,11 +1,9 @@
+#include <catch2/catch_test_macros.hpp>
 #include <parcae/core/status.hpp>
 #include <parcae/core/status_or.hpp>
 #include <parcae/corpus/consumable_mask.hpp>
 #include <parcae/corpus/token.hpp>
 #include <parcae/corpus/token_stream.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
 #include <string>
 #include <vector>
 
@@ -71,9 +69,8 @@ TEST_CASE("TokenStream consumable mask defaults to all true", "[token_stream]") 
 }
 
 TEST_CASE("ConsumableMask rejects size mismatch", "[token_stream]") {
-    StatusOr<ConsumableMask> bad = ConsumableMask::create(
-        std::vector<Index29>{Index29{0}},
-        std::vector<std::uint8_t>{1, 0});
+    StatusOr<ConsumableMask> bad =
+        ConsumableMask::create(std::vector<Index29>{Index29{0}}, std::vector<std::uint8_t>{1, 0});
     REQUIRE_FALSE(bad.ok());
 }
 

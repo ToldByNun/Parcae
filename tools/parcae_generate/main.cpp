@@ -1,18 +1,17 @@
-#include "cli_io.hpp"
-#include "tool_cli_json.hpp"
-
 #include "parcae/generate/generator_registry.hpp"
 #include "parcae/generate/transform_candidate.hpp"
 #include "parcae/tool/generate_candidates.hpp"
 #include "parcae/transform/transform_direction.hpp"
 
+#include "cli_io.hpp"
+#include "tool_cli_json.hpp"
+
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #ifndef PARCAE_DEFAULT_DATA_DIR
 #define PARCAE_DEFAULT_DATA_DIR ""
@@ -45,11 +44,7 @@ void print_help() {
         << "  -h, --help       Show this help\n";
 }
 
-[[nodiscard]] int fail(
-    bool json_mode,
-    ToolErrorCode code,
-    std::string message,
-    int plain_exit) {
+[[nodiscard]] int fail(bool json_mode, ToolErrorCode code, std::string message, int plain_exit) {
     if (json_mode) {
         return ToolCliJson::err(kTool, std::nullopt, code, std::move(message));
     }
@@ -57,7 +52,7 @@ void print_help() {
     return plain_exit;
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
@@ -82,52 +77,43 @@ int main(int argc, char** argv) {
             }
             return CliIo::kExitOk;
         }
-        return ToolCliJson::ok(
-            kTool,
-            std::nullopt,
-            nlohmann::json{{"generator_ids", ids}});
+        return ToolCliJson::ok(kTool, std::nullopt, nlohmann::json{{"generator_ids", ids}});
     }
 
     StatusOr<std::string> generator_id = CliIo::require_option(args, "--generator-id");
     if (!generator_id.ok()) {
         print_help();
-        return fail(json_mode, ToolErrorCode::Usage, generator_id.status().message(), CliIo::kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage, generator_id.status().message(),
+                    CliIo::kExitUsage);
     }
     if (!GeneratorRegistry::is_known(generator_id.value())) {
-        return fail(
-            json_mode,
-            ToolErrorCode::Usage,
-            "Unknown generator_id: " + generator_id.value(),
-            CliIo::kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage,
+                    "Unknown generator_id: " + generator_id.value(), CliIo::kExitUsage);
     }
 
     StatusOr<std::string> input_path = CliIo::require_option(args, "--input");
     if (!input_path.ok()) {
         print_help();
-        return fail(json_mode, ToolErrorCode::Usage, input_path.status().message(), CliIo::kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage, input_path.status().message(),
+                    CliIo::kExitUsage);
     }
 
     const bool mode_latin = CliIo::has_flag(args, "--latin");
     const bool mode_runes = CliIo::has_flag(args, "--runes");
     const bool mode_indices = CliIo::has_flag(args, "--indices");
-    const int modes =
-        static_cast<int>(mode_latin) + static_cast<int>(mode_runes) +
-        static_cast<int>(mode_indices);
+    const int modes = static_cast<int>(mode_latin) + static_cast<int>(mode_runes) +
+                      static_cast<int>(mode_indices);
     if (modes > 1) {
-        return fail(
-            json_mode,
-            ToolErrorCode::Usage,
-            "Choose at most one of --latin, --runes, --indices",
-            CliIo::kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage,
+                    "Choose at most one of --latin, --runes, --indices", CliIo::kExitUsage);
     }
-    const std::string_view input_mode =
-        mode_latin ? "latin" : (mode_indices ? "indices" : "runes");
+    const std::string_view input_mode = mode_latin ? "latin" : (mode_indices ? "indices" : "runes");
 
     const std::string direction_text = CliIo::optional_option(args, "--direction", "decrypt");
-    StatusOr<TransformDirection> direction =
-        TransformDirectionUtil::from_string(direction_text);
+    StatusOr<TransformDirection> direction = TransformDirectionUtil::from_string(direction_text);
     if (!direction.ok()) {
-        return fail(json_mode, ToolErrorCode::Usage, direction.status().message(), CliIo::kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage, direction.status().message(),
+                    CliIo::kExitUsage);
     }
 
     nlohmann::json params = nlohmann::json::object();
@@ -136,18 +122,12 @@ int main(int argc, char** argv) {
         try {
             params = nlohmann::json::parse(params_json);
         } catch (const nlohmann::json::exception& ex) {
-            return fail(
-                json_mode,
-                ToolErrorCode::Schema,
-                std::string("Invalid --params-json: ") + ex.what(),
-                CliIo::kExitUsage);
+            return fail(json_mode, ToolErrorCode::Schema,
+                        std::string("Invalid --params-json: ") + ex.what(), CliIo::kExitUsage);
         }
         if (!params.is_object()) {
-            return fail(
-                json_mode,
-                ToolErrorCode::Schema,
-                "--params-json must be an object",
-                CliIo::kExitUsage);
+            return fail(json_mode, ToolErrorCode::Schema, "--params-json must be an object",
+                        CliIo::kExitUsage);
         }
     }
 
@@ -157,18 +137,10 @@ int main(int argc, char** argv) {
     }
 
     StatusOr<std::vector<TransformCandidate>> candidates = GenerateCandidates::from_source(
-        ctx.value(),
-        generator_id.value(),
-        source.value(),
-        input_mode,
-        direction.value(),
-        params);
+        ctx.value(), generator_id.value(), source.value(), input_mode, direction.value(), params);
     if (!candidates.ok()) {
-        return fail(
-            json_mode,
-            ToolErrorCode::Internal,
-            candidates.status().message(),
-            CliIo::kExitFail);
+        return fail(json_mode, ToolErrorCode::Internal, candidates.status().message(),
+                    CliIo::kExitFail);
     }
 
     if (!json_mode) {
@@ -184,14 +156,12 @@ int main(int argc, char** argv) {
     for (const TransformCandidate& c : candidates.value()) {
         rows.push_back(c.to_json());
     }
-    return ToolCliJson::ok(
-        kTool,
-        std::nullopt,
-        nlohmann::json{
-            {"generator_id", generator_id.value()},
-            {"direction", TransformDirectionUtil::to_string(direction.value())},
-            {"input_mode", std::string(input_mode)},
-            {"count", candidates.value().size()},
-            {"candidates", std::move(rows)},
-        });
+    return ToolCliJson::ok(kTool, std::nullopt,
+                           nlohmann::json{
+                               {"generator_id", generator_id.value()},
+                               {"direction", TransformDirectionUtil::to_string(direction.value())},
+                               {"input_mode", std::string(input_mode)},
+                               {"count", candidates.value().size()},
+                               {"candidates", std::move(rows)},
+                           });
 }

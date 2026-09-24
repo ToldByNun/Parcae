@@ -8,11 +8,10 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <string_view>
 #include <utility>
-
-#include <nlohmann/json.hpp>
 
 /// Parse / validate external bench probe JSON (`probe_schema_version` 1.0.0).
 ///
@@ -30,9 +29,9 @@ public:
 
     class Config {
     public:
-        std::size_t candidates = 0;  // C
-        std::size_t tokens = 0;      // T
-        std::size_t repeats = 0;     // reps
+        std::size_t candidates = 0; // C
+        std::size_t tokens = 0;     // T
+        std::size_t repeats = 0;    // reps
     };
 
     class Result {
@@ -54,8 +53,8 @@ public:
         try {
             j = nlohmann::json::parse(text);
         } catch (const nlohmann::json::exception& ex) {
-            return Status::error(
-                std::string("BenchProbeProtocol: invalid JSON (") + ex.what() + ")");
+            return Status::error(std::string("BenchProbeProtocol: invalid JSON (") + ex.what() +
+                                 ")");
         }
         if (!j.is_object()) {
             return Status::error("BenchProbeProtocol: stdout must be one JSON object");
@@ -69,9 +68,8 @@ public:
         }
         const std::string version = j.at("probe_schema_version").get<std::string>();
         if (version != schema_version) {
-            return Status::error(
-                "BenchProbeProtocol: unsupported probe_schema_version '" + version +
-                "' (need " + std::string(schema_version) + ")");
+            return Status::error("BenchProbeProtocol: unsupported probe_schema_version '" +
+                                 version + "' (need " + std::string(schema_version) + ")");
         }
 
         Result out;
@@ -128,37 +126,36 @@ public:
 private:
     BenchProbeProtocol() = delete;
 
-    [[nodiscard]] static StatusOr<std::string> require_nonempty_string(
-        const nlohmann::json& j, const char* key) {
+    [[nodiscard]] static StatusOr<std::string> require_nonempty_string(const nlohmann::json& j,
+                                                                       const char* key) {
         if (!j.contains(key) || !j.at(key).is_string()) {
-            return Status::error(
-                std::string("BenchProbeProtocol: missing string field '") + key + "'");
+            return Status::error(std::string("BenchProbeProtocol: missing string field '") + key +
+                                 "'");
         }
         std::string value = j.at(key).get<std::string>();
         if (value.empty()) {
-            return Status::error(
-                std::string("BenchProbeProtocol: empty string field '") + key + "'");
+            return Status::error(std::string("BenchProbeProtocol: empty string field '") + key +
+                                 "'");
         }
         return value;
     }
 
-    [[nodiscard]] static StatusOr<double> require_finite_nonneg(
-        const nlohmann::json& j, const char* key) {
+    [[nodiscard]] static StatusOr<double> require_finite_nonneg(const nlohmann::json& j,
+                                                                const char* key) {
         if (!j.contains(key) || !j.at(key).is_number()) {
-            return Status::error(
-                std::string("BenchProbeProtocol: missing number field '") + key + "'");
+            return Status::error(std::string("BenchProbeProtocol: missing number field '") + key +
+                                 "'");
         }
         const double value = j.at(key).get<double>();
         if (!std::isfinite(value) || value < 0.0) {
-            return Status::error(
-                std::string("BenchProbeProtocol: field '") + key +
-                "' must be finite and >= 0");
+            return Status::error(std::string("BenchProbeProtocol: field '") + key +
+                                 "' must be finite and >= 0");
         }
         return value;
     }
 
-    [[nodiscard]] static StatusOr<BenchReport::Backend> parse_backend_field(
-        const nlohmann::json& j) {
+    [[nodiscard]] static StatusOr<BenchReport::Backend>
+    parse_backend_field(const nlohmann::json& j) {
         StatusOr<std::string> raw = require_nonempty_string(j, "backend");
         if (!raw.ok()) {
             return raw.status();
@@ -175,9 +172,8 @@ private:
         if (raw.value() == "unknown") {
             return BenchReport::Backend::Unknown;
         }
-        return Status::error(
-            "BenchProbeProtocol: backend must be cpu|cuda|both|unknown (got '" +
-            raw.value() + "')");
+        return Status::error("BenchProbeProtocol: backend must be cpu|cuda|both|unknown (got '" +
+                             raw.value() + "')");
     }
 
     [[nodiscard]] static StatusOr<Accuracy> parse_accuracy(const nlohmann::json& j) {
@@ -228,16 +224,16 @@ private:
         return out;
     }
 
-    [[nodiscard]] static StatusOr<std::size_t> require_positive_size(
-        const nlohmann::json& j, const char* key) {
+    [[nodiscard]] static StatusOr<std::size_t> require_positive_size(const nlohmann::json& j,
+                                                                     const char* key) {
         if (!j.contains(key) || !j.at(key).is_number_integer()) {
-            return Status::error(
-                std::string("BenchProbeProtocol: config.") + key + " must be integer");
+            return Status::error(std::string("BenchProbeProtocol: config.") + key +
+                                 " must be integer");
         }
         const std::int64_t raw = j.at(key).get<std::int64_t>();
         if (raw < 1) {
-            return Status::error(
-                std::string("BenchProbeProtocol: config.") + key + " must be >= 1");
+            return Status::error(std::string("BenchProbeProtocol: config.") + key +
+                                 " must be >= 1");
         }
         return static_cast<std::size_t>(raw);
     }

@@ -52,62 +52,37 @@ public:
                "keys/s = repeats x C / elapsed\n";
         out << "Peaks: practical ceilings (%peak must stay at or under 100)\n\n";
 
-        emit_section(
-            out,
-            "SLO TIERS",
-            doc,
-            [](const BenchReport::Row& r) {
-                return r.suite() == BenchReport::Suite::Slo &&
-                       (r.name() == "T1" || r.name() == "T2" || r.name() == "T3");
-            });
-        emit_section(
-            out,
-            "TRANSFORM FAMILIES",
-            doc,
-            [](const BenchReport::Row& r) {
-                return r.name().size() >= 2 && r.name()[0] == 'F' && r.name()[1] == '.';
-            });
-        emit_section(
-            out,
-            "COMPOSE",
-            doc,
-            [](const BenchReport::Row& r) {
-                return r.name().size() >= 2 && r.name()[0] == 'C' && r.name()[1] == '.';
-            });
-        emit_section(
-            out,
-            "ACCURACY",
-            doc,
-            [](const BenchReport::Row& r) { return r.suite() == BenchReport::Suite::Accuracy; });
-        emit_section(
-            out,
-            "HARDWARE",
-            doc,
-            [](const BenchReport::Row& r) { return r.suite() == BenchReport::Suite::Hardware; });
-        emit_section(
-            out,
-            "PROBE",
-            doc,
-            [](const BenchReport::Row& r) { return r.suite() == BenchReport::Suite::Probe; });
+        emit_section(out, "SLO TIERS", doc, [](const BenchReport::Row& r) {
+            return r.suite() == BenchReport::Suite::Slo &&
+                   (r.name() == "T1" || r.name() == "T2" || r.name() == "T3");
+        });
+        emit_section(out, "TRANSFORM FAMILIES", doc, [](const BenchReport::Row& r) {
+            return r.name().size() >= 2 && r.name()[0] == 'F' && r.name()[1] == '.';
+        });
+        emit_section(out, "COMPOSE", doc, [](const BenchReport::Row& r) {
+            return r.name().size() >= 2 && r.name()[0] == 'C' && r.name()[1] == '.';
+        });
+        emit_section(out, "ACCURACY", doc, [](const BenchReport::Row& r) {
+            return r.suite() == BenchReport::Suite::Accuracy;
+        });
+        emit_section(out, "HARDWARE", doc, [](const BenchReport::Row& r) {
+            return r.suite() == BenchReport::Suite::Hardware;
+        });
+        emit_section(out, "PROBE", doc, [](const BenchReport::Row& r) {
+            return r.suite() == BenchReport::Suite::Probe;
+        });
 
         // Catch-all for rows that did not match a named section (e.g. suite=all extras).
-        emit_section(
-            out,
-            "OTHER",
-            doc,
-            [&](const BenchReport::Row& r) {
-                const bool slo_primary =
-                    r.suite() == BenchReport::Suite::Slo &&
-                    (r.name() == "T1" || r.name() == "T2" || r.name() == "T3");
-                const bool family =
-                    r.name().size() >= 2 && r.name()[0] == 'F' && r.name()[1] == '.';
-                const bool compose =
-                    r.name().size() >= 2 && r.name()[0] == 'C' && r.name()[1] == '.';
-                const bool accuracy = r.suite() == BenchReport::Suite::Accuracy;
-                const bool hardware = r.suite() == BenchReport::Suite::Hardware;
-                const bool probe = r.suite() == BenchReport::Suite::Probe;
-                return !(slo_primary || family || compose || accuracy || hardware || probe);
-            });
+        emit_section(out, "OTHER", doc, [&](const BenchReport::Row& r) {
+            const bool slo_primary = r.suite() == BenchReport::Suite::Slo &&
+                                     (r.name() == "T1" || r.name() == "T2" || r.name() == "T3");
+            const bool family = r.name().size() >= 2 && r.name()[0] == 'F' && r.name()[1] == '.';
+            const bool compose = r.name().size() >= 2 && r.name()[0] == 'C' && r.name()[1] == '.';
+            const bool accuracy = r.suite() == BenchReport::Suite::Accuracy;
+            const bool hardware = r.suite() == BenchReport::Suite::Hardware;
+            const bool probe = r.suite() == BenchReport::Suite::Probe;
+            return !(slo_primary || family || compose || accuracy || hardware || probe);
+        });
 
         out << (doc.all_pass() ? "ALL ROWS PASS\n" : "ROWS FAILED\n");
         return out.str();
@@ -117,11 +92,8 @@ private:
     BenchFormatter() = delete;
 
     template <typename Pred>
-    static void emit_section(
-        std::ostringstream& out,
-        std::string_view title,
-        const BenchReport::Document& doc,
-        Pred&& pred) {
+    static void emit_section(std::ostringstream& out, std::string_view title,
+                             const BenchReport::Document& doc, Pred&& pred) {
         bool any = false;
         for (const BenchReport::Row& row : doc.rows()) {
             if (pred(row)) {
@@ -148,8 +120,8 @@ private:
                 << " " << std::right << std::setw(10) << format_rps(row.runes_per_sec()) << "  "
                 << std::left << std::setw(11) << format_target(row.target_min(), row.target_max())
                 << "  " << std::right << std::setw(8) << format_rps(row.estimated_peak()) << "  "
-                << std::setw(5) << std::fixed << std::setprecision(0) << pct << "%"
-                << "  " << BenchReport::status_str(row.status()) << '\n';
+                << std::setw(5) << std::fixed << std::setprecision(0) << pct << "%" << "  "
+                << BenchReport::status_str(row.status()) << '\n';
             out << "      C=" << row.candidates() << " T=" << row.tokens()
                 << " reps=" << row.repeats();
             if (!row.detail().empty()) {

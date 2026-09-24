@@ -1,3 +1,6 @@
+#include <catch2/catch_test_macros.hpp>
+#include <cctype>
+#include <cstddef>
 #include <parcae/corpus/fixture_loader.hpp>
 #include <parcae/corpus/separator_grammar.hpp>
 #include <parcae/corpus/tokenizer.hpp>
@@ -8,11 +11,6 @@
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
 #include <parcae/validate/fixture_validator.hpp>
-
-#include <catch2/catch_test_macros.hpp>
-
-#include <cctype>
-#include <cstddef>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -49,7 +47,8 @@ void require_validation_ok(const ValidationReport& report) {
     for (const ValidationCheck& check : report.checks()) {
         INFO("check=" << check.name() << " ok=" << check.ok() << " msg=" << check.message());
         if (!check.ok()) {
-            std::string detail = "validation check failed: " + check.name() + " — " + check.message();
+            std::string detail =
+                "validation check failed: " + check.name() + " — " + check.message();
             if (report.diff_excerpt().has_value()) {
                 detail += " | " + report.diff_excerpt().value();
             }
@@ -60,8 +59,8 @@ void require_validation_ok(const ValidationReport& report) {
 }
 
 /// Negative-control policy: every consumable ciphertext F (index 0) is skipped.
-[[nodiscard]] std::vector<std::size_t> skip_all_ciphertext_f(
-    const std::vector<Index29>& cipher_indices) {
+[[nodiscard]] std::vector<std::size_t>
+skip_all_ciphertext_f(const std::vector<Index29>& cipher_indices) {
     std::vector<std::size_t> skips;
     for (std::size_t i = 0; i < cipher_indices.size(); ++i) {
         if (cipher_indices[i].value() == 0) {
@@ -82,7 +81,7 @@ void require_validation_ok(const ValidationReport& report) {
     return letters;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("Validation runner reproduces a-warning (Atbash)", "[validation][a-warning]") {
     const GematriaProfile profile = load_profile();
@@ -94,9 +93,8 @@ TEST_CASE("Validation runner reproduces a-warning (Atbash)", "[validation][a-war
     require_validation_ok(report);
 }
 
-TEST_CASE(
-    "Validation runner reproduces identity pages (wisdom, loss, instruction, 57)",
-    "[validation][identity]") {
+TEST_CASE("Validation runner reproduces identity pages (wisdom, loss, instruction, 57)",
+          "[validation][identity]") {
     const GematriaProfile profile = load_profile();
     const SeparatorGrammar grammar = load_grammar();
     const FixtureValidator validator(profile, grammar);
@@ -121,9 +119,7 @@ TEST_CASE("Validation runner reproduces koan-1 (Atbash then Caesar +3)", "[valid
     require_validation_ok(report);
 }
 
-TEST_CASE(
-    "Validation runner reproduces welcome (DIVINITY + skips)",
-    "[validation][welcome]") {
+TEST_CASE("Validation runner reproduces welcome (DIVINITY + skips)", "[validation][welcome]") {
     const GematriaProfile profile = load_profile();
     const SeparatorGrammar grammar = load_grammar();
     const FixtureValidator validator(profile, grammar);
@@ -133,9 +129,8 @@ TEST_CASE(
     require_validation_ok(report);
 }
 
-TEST_CASE(
-    "Welcome fails under ciphertext-F-all-skip negative control",
-    "[validation][welcome][negative]") {
+TEST_CASE("Welcome fails under ciphertext-F-all-skip negative control",
+          "[validation][welcome][negative]") {
     const GematriaProfile profile = load_profile();
     const SeparatorGrammar grammar = load_grammar();
     const LatinCodec codec(profile);
@@ -157,12 +152,9 @@ TEST_CASE(
     StatusOr<InterruptPolicy> bad_interrupt = InterruptPolicy::from_skip_indices(bad_skips);
     REQUIRE(bad_interrupt.ok());
 
-    StatusOr<std::vector<Index29>> decrypted = ApplyTransform::apply(
-        TransformId::vigenere_key(),
-        cipher,
-        fixture.value().params(),
-        TransformDirection::Decrypt,
-        bad_interrupt.value());
+    StatusOr<std::vector<Index29>> decrypted =
+        ApplyTransform::apply(TransformId::vigenere_key(), cipher, fixture.value().params(),
+                              TransformDirection::Decrypt, bad_interrupt.value());
     REQUIRE(decrypted.ok());
 
     const std::string actual = codec.latinize(decrypted.value());
@@ -177,19 +169,14 @@ TEST_CASE(
     StatusOr<InterruptPolicy> good_interrupt =
         InterruptPolicy::from_skip_indices(fixture.value().skip_indices());
     REQUIRE(good_interrupt.ok());
-    StatusOr<std::vector<Index29>> good = ApplyTransform::apply(
-        TransformId::vigenere_key(),
-        cipher,
-        fixture.value().params(),
-        TransformDirection::Decrypt,
-        good_interrupt.value());
+    StatusOr<std::vector<Index29>> good =
+        ApplyTransform::apply(TransformId::vigenere_key(), cipher, fixture.value().params(),
+                              TransformDirection::Decrypt, good_interrupt.value());
     REQUIRE(good.ok());
     REQUIRE(codec.latinize(good.value()) == expected.value());
 }
 
-TEST_CASE(
-    "Validation runner reproduces koan-2 (FIRFUMFERENFE + skips)",
-    "[validation][koan-2]") {
+TEST_CASE("Validation runner reproduces koan-2 (FIRFUMFERENFE + skips)", "[validation][koan-2]") {
     const GematriaProfile profile = load_profile();
     const SeparatorGrammar grammar = load_grammar();
     const FixtureValidator validator(profile, grammar);
@@ -199,9 +186,8 @@ TEST_CASE(
     require_validation_ok(report);
 }
 
-TEST_CASE(
-    "Validation runner reproduces an-end (totient stream + F pass-through)",
-    "[validation][an-end]") {
+TEST_CASE("Validation runner reproduces an-end (totient stream + F pass-through)",
+          "[validation][an-end]") {
     const GematriaProfile profile = load_profile();
     const SeparatorGrammar grammar = load_grammar();
     const FixtureValidator validator(profile, grammar);

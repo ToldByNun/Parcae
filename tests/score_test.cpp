@@ -1,3 +1,8 @@
+#include <array>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <cstdint>
+#include <iostream>
 #include <parcae/core/index29.hpp>
 #include <parcae/corpus/fixture_loader.hpp>
 #include <parcae/gematria/gematria_profile_loader.hpp>
@@ -14,13 +19,6 @@
 #include <parcae/score/score_registry.hpp>
 #include <parcae/score/self_repeat_rate.hpp>
 #include <parcae/validate/plaintext_normalizer.hpp>
-
-#include <catch2/catch_approx.hpp>
-#include <catch2/catch_test_macros.hpp>
-
-#include <array>
-#include <cstdint>
-#include <iostream>
 #include <string>
 #include <vector>
 
@@ -46,8 +44,8 @@ namespace {
     LatinCodec codec(profile);
     PlaintextNormalizer normalizer(codec);
 
-    StatusOr<Fixture> fixture = FixtureLoader::load_directory(
-        std::string(PARCAE_TEST_DATA_DIR) + "/fixtures/solved/" + fixture_id);
+    StatusOr<Fixture> fixture = FixtureLoader::load_directory(std::string(PARCAE_TEST_DATA_DIR) +
+                                                              "/fixtures/solved/" + fixture_id);
     REQUIRE(fixture.ok());
     REQUIRE(fixture.value().verification_status() == "locked");
 
@@ -78,7 +76,7 @@ namespace {
     return out;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("ScoreId parses Tier A ids", "[score]") {
     REQUIRE(ScoreId::from_string("exact_match").value() == ScoreId::exact_match());
@@ -101,12 +99,12 @@ TEST_CASE("ScoreRegistry catalogs Tier A ids for tool API", "[score][registry]")
 
     const std::vector<std::string> ids = ScoreRegistry::known_ids();
     REQUIRE(ids == std::vector<std::string>{
-        "exact_match",
-        "hamming_agreement",
-        "ic_mod29",
-        "chi2_english_gp_v0",
-        "self_repeat_rate",
-    });
+                       "exact_match",
+                       "hamming_agreement",
+                       "ic_mod29",
+                       "chi2_english_gp_v0",
+                       "self_repeat_rate",
+                   });
 
     REQUIRE(ScoreRegistry::is_known("ic_mod29"));
     REQUIRE_FALSE(ScoreRegistry::is_known("nope"));
@@ -284,9 +282,9 @@ TEST_CASE("ExactMatch and HammingAgreement on fixture plaintext", "[score][exact
     REQUIRE(ExactMatch::score(flipped, plain).value() == 0.0);
     StatusOr<double> partial = HammingAgreement::score(flipped, plain);
     REQUIRE(partial.ok());
-    REQUIRE(partial.value() == Catch::Approx(
-        static_cast<double>(plain.size() - 1) / static_cast<double>(plain.size()))
-                                    .epsilon(1e-12));
+    REQUIRE(partial.value() ==
+            Catch::Approx(static_cast<double>(plain.size() - 1) / static_cast<double>(plain.size()))
+                .epsilon(1e-12));
 }
 
 TEST_CASE("Scores on plaintext vs random Index29 noise separate cleanly", "[score][noise]") {
@@ -366,8 +364,9 @@ TEST_CASE("SelfRepeatRate hand vectors", "[score][self-repeat]") {
     }
 }
 
-TEST_CASE("SelfRepeatRate on solved plaintext is in (0,1) and below chance 1/29 floor is not assumed",
-          "[score][self-repeat]") {
+TEST_CASE(
+    "SelfRepeatRate on solved plaintext is in (0,1) and below chance 1/29 floor is not assumed",
+    "[score][self-repeat]") {
     // Chance under independent uniform draws is 1/29 ≈ 0.0345; language may differ.
     // We only assert a well-formed rate — no Tier C external target.
     const std::vector<Index29> plain = plaintext_indices_of("welcome");
@@ -493,15 +492,8 @@ TEST_CASE("Chi2EnglishGp vs locked english-gp-expected-v0", "[score][chi2]") {
 
 TEST_CASE("Dump empirical English-GP counts from locked fixtures", "[.][freqdump]") {
     const char* ids[] = {
-        "a-warning",
-        "some-wisdom",
-        "loss-of-divinity",
-        "an-instruction",
-        "koan-1",
-        "welcome",
-        "koan-2",
-        "an-end",
-        "lp2-57-identity",
+        "a-warning", "some-wisdom", "loss-of-divinity", "an-instruction",  "koan-1",
+        "welcome",   "koan-2",      "an-end",           "lp2-57-identity",
     };
 
     std::array<std::uint64_t, 29> total_counts{};

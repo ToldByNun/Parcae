@@ -1,10 +1,9 @@
+#include "parcae/transform/compose_transform.hpp"
+
 #include "params.hpp"
 #include "params_json.hpp"
 
-#include "parcae/transform/compose_transform.hpp"
-
 #include <catch2/catch_test_macros.hpp>
-
 #include <nlohmann/json.hpp>
 
 TEST_CASE("CUDA POD params caesar / affine from JSON", "[cuda][params]") {
@@ -22,10 +21,8 @@ TEST_CASE("CUDA POD params caesar / affine from JSON", "[cuda][params]") {
         REQUIRE(p.ok());
         REQUIRE(p.value().a == 2);
         REQUIRE(p.value().b == 5);
-        REQUIRE(
-            CudaParamsJson::affine_to_json(p.value()) == nlohmann::json{{"a", 2}, {"b", 5}});
-        REQUIRE_FALSE(
-            CudaParamsJson::affine_from_json(nlohmann::json{{"a", 0}, {"b", 1}}).ok());
+        REQUIRE(CudaParamsJson::affine_to_json(p.value()) == nlohmann::json{{"a", 2}, {"b", 5}});
+        REQUIRE_FALSE(CudaParamsJson::affine_from_json(nlohmann::json{{"a", 0}, {"b", 1}}).ok());
     }
 }
 
@@ -69,15 +66,12 @@ TEST_CASE("CUDA POD params compose atbash_then_caesar", "[cuda][params]") {
 TEST_CASE("CUDA Dir matches TransformDirection", "[cuda][params]") {
     REQUIRE(CudaDirUtil::from_transform_direction(TransformDirection::Decrypt) == CudaDir::Decrypt);
     REQUIRE(CudaDirUtil::from_transform_direction(TransformDirection::Encrypt) == CudaDir::Encrypt);
-    REQUIRE(
-        CudaDirUtil::to_transform_direction(CudaDir::Encrypt) == TransformDirection::Encrypt);
+    REQUIRE(CudaDirUtil::to_transform_direction(CudaDir::Encrypt) == TransformDirection::Encrypt);
 }
 
 TEST_CASE("CUDA FamilyId from TransformId", "[cuda][params]") {
-    REQUIRE(
-        CudaFamilyIdUtil::from_transform_id(TransformId::caesar()).value() ==
-        CudaFamilyId::Caesar);
-    REQUIRE(
-        CudaFamilyIdUtil::from_transform_id(TransformId::vigenere_key()).value() ==
-        CudaFamilyId::VigenereKey);
+    REQUIRE(CudaFamilyIdUtil::from_transform_id(TransformId::caesar()).value() ==
+            CudaFamilyId::Caesar);
+    REQUIRE(CudaFamilyIdUtil::from_transform_id(TransformId::vigenere_key()).value() ==
+            CudaFamilyId::VigenereKey);
 }

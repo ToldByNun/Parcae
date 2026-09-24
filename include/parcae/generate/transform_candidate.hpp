@@ -5,45 +5,30 @@
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
 
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include <nlohmann/json.hpp>
-
 /// One bounded generator hit: stable id + transform envelope + plaintext indices.
 class TransformCandidate {
 public:
-    TransformCandidate(
-        std::string candidate_id,
-        TransformId transform_id,
-        TransformDirection direction,
-        nlohmann::json params,
-        std::vector<Index29> output_indices,
-        std::optional<nlohmann::json> interrupt = std::nullopt)
-        : candidate_id_(std::move(candidate_id)),
-          transform_id_(std::move(transform_id)),
-          direction_(direction),
-          params_(std::move(params)),
-          output_indices_(std::move(output_indices)),
-          interrupt_(std::move(interrupt)) {}
+    TransformCandidate(std::string candidate_id, TransformId transform_id,
+                       TransformDirection direction, nlohmann::json params,
+                       std::vector<Index29> output_indices,
+                       std::optional<nlohmann::json> interrupt = std::nullopt)
+        : candidate_id_(std::move(candidate_id)), transform_id_(std::move(transform_id)),
+          direction_(direction), params_(std::move(params)),
+          output_indices_(std::move(output_indices)), interrupt_(std::move(interrupt)) {}
 
-    [[nodiscard]] const std::string& candidate_id() const noexcept {
-        return candidate_id_;
-    }
+    [[nodiscard]] const std::string& candidate_id() const noexcept { return candidate_id_; }
 
-    [[nodiscard]] const TransformId& transform_id() const noexcept {
-        return transform_id_;
-    }
+    [[nodiscard]] const TransformId& transform_id() const noexcept { return transform_id_; }
 
-    [[nodiscard]] TransformDirection direction() const noexcept {
-        return direction_;
-    }
+    [[nodiscard]] TransformDirection direction() const noexcept { return direction_; }
 
-    [[nodiscard]] const nlohmann::json& params() const noexcept {
-        return params_;
-    }
+    [[nodiscard]] const nlohmann::json& params() const noexcept { return params_; }
 
     [[nodiscard]] const std::vector<Index29>& output_indices() const noexcept {
         return output_indices_;

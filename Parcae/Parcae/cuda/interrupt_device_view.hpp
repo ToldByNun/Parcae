@@ -27,9 +27,8 @@ public:
         SortedSkips = 1,
     };
 
-    [[nodiscard]] static StatusOr<InterruptDeviceView> from_policy(
-        const InterruptPolicy& policy,
-        std::size_t consumable_length) {
+    [[nodiscard]] static StatusOr<InterruptDeviceView> from_policy(const InterruptPolicy& policy,
+                                                                   std::size_t consumable_length) {
         StatusOr<std::vector<std::uint32_t>> skips = to_u32_skips(policy);
         if (!skips.ok()) {
             return skips.status();
@@ -65,13 +64,9 @@ public:
         return view;
     }
 
-    [[nodiscard]] Encoding encoding() const noexcept {
-        return encoding_;
-    }
+    [[nodiscard]] Encoding encoding() const noexcept { return encoding_; }
 
-    [[nodiscard]] std::size_t consumable_length() const noexcept {
-        return consumable_length_;
-    }
+    [[nodiscard]] std::size_t consumable_length() const noexcept { return consumable_length_; }
 
     [[nodiscard]] const std::vector<std::uint32_t>& bitmask_words() const noexcept {
         return bitmask_words_;
@@ -91,10 +86,8 @@ public:
             const std::uint32_t bit = 1u << (consumable_index % 32u);
             return (bitmask_words_[word] & bit) != 0u;
         }
-        return std::binary_search(
-            sorted_skips_.begin(),
-            sorted_skips_.end(),
-            static_cast<std::uint32_t>(consumable_index));
+        return std::binary_search(sorted_skips_.begin(), sorted_skips_.end(),
+                                  static_cast<std::uint32_t>(consumable_index));
     }
 
     [[nodiscard]] static std::size_t bitmask_word_count(std::size_t consumable_length) noexcept {
@@ -107,8 +100,8 @@ public:
 private:
     InterruptDeviceView() = default;
 
-    [[nodiscard]] static StatusOr<std::vector<std::uint32_t>> to_u32_skips(
-        const InterruptPolicy& policy) {
+    [[nodiscard]] static StatusOr<std::vector<std::uint32_t>>
+    to_u32_skips(const InterruptPolicy& policy) {
         std::vector<std::uint32_t> out;
         out.reserve(policy.skip_indices().size());
         for (std::size_t index : policy.skip_indices()) {
