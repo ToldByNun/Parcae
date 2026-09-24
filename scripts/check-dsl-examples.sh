@@ -5,8 +5,8 @@
 # Usage:
 #   scripts/check-dsl-examples.sh <parcae-compile> <parcae-validate> [workdir]
 #
-# Exit 0 only when both example theories compile and the stale fixture fails
-# validate (non-zero exit / all_ok false).
+# Exit 0 only when portable example theories compile, ignore-without-allow is
+# rejected, and the stale-major fixture fails validate (non-zero exit / all_ok false).
 
 set -euo pipefail
 
@@ -41,6 +41,22 @@ echo "== compile new_math_example.py =="
 "${COMPILE}" "${EXAMPLES}/new_math_example.py" --data-dir "${WORKDIR}"
 echo "== compile full_lifecycle_example.py =="
 "${COMPILE}" "${EXAMPLES}/full_lifecycle_example.py" --data-dir "${WORKDIR}"
+echo "== compile param_select_example.py =="
+"${COMPILE}" "${EXAMPLES}/param_select_example.py" --data-dir "${WORKDIR}"
+
+echo "== ignore_divergent_example.py must fail without --allow-dsl-ignores =="
+set +e
+"${COMPILE}" "${EXAMPLES}/ignore_divergent_example.py" --data-dir "${WORKDIR}" \
+  >/tmp/parcae-ignore-denied.out 2>/tmp/parcae-ignore-denied.err
+ignore_rc=$?
+set -e
+if [[ "${ignore_rc}" -eq 0 ]]; then
+  echo "expected non-zero exit when #ignore is used without --allow-dsl-ignores" >&2
+  cat /tmp/parcae-ignore-denied.out >&2 || true
+  cat /tmp/parcae-ignore-denied.err >&2 || true
+  exit 1
+fi
+echo "ignore without allow rejected (exit ${ignore_rc}) — ok"
 
 echo "== stale fixture must fail validate =="
 set +e

@@ -62,16 +62,24 @@ python -m parcae.dsl.ast_dump path/to/theory.py
 # Authoritative compile + verify (C++ CLI)
 parcae-compile --status --json
 parcae-compile path/to/theory.py
+
+# Research-only: honor #ignore DSL_FLAG (emits W010; off by default)
+parcae-compile path/to/theory.py --allow-dsl-ignores
 ```
 
 Stub unit tests live in [`python/tests/test_stubs_fail_loud.py`](../../python/tests/test_stubs_fail_loud.py).
 If a semantic call returns without raising, the stub package is broken.
+
+`ast_dump` also emits a top-level `directives[]` for `#ignore DSL_FLAG:…`
+comments ([dsl-ast-json.md](../spec/dsl-ast-json.md)); binding / suppress is
+compile-time only (`DslDirectiveTable`).
 
 ## Spec anchors
 
 | Topic | Doc |
 |-------|-----|
 | Fail-loud stub obligations | [dsl.md](../spec/dsl.md) |
-| AST JSON protocol | [dsl-ast-json.md](../spec/dsl-ast-json.md) |
+| AST JSON protocol + directives | [dsl-ast-json.md](../spec/dsl-ast-json.md) |
+| OuterControl vs HotLoop / `#ignore` | [dsl.md](../spec/dsl.md) § Execution scopes · [python-transpiler.md](python-transpiler.md) |
 | Ready artifacts only after verify | [theory-artifact.md](../spec/theory-artifact.md) |
 | `parcae-compile` CLI | [tools.md](../spec/tools.md) § `parcae-compile` |

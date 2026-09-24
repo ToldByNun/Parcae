@@ -228,6 +228,11 @@ workspace. **Closed-loop ownership** (scheduler, batch artifacts, priors):
 [`search-engine.md`](search-engine.md). Operator details:
 [`search-handbook.md`](search-handbook.md).
 
+Compiled theories (`parcae://theories/…`) come from `parcae-compile` — see
+[`python-transpiler.md`](python-transpiler.md) and
+[`theories/examples/`](../../theories/examples/). Prefer Param/`Select` theories;
+`#ignore DSL_FLAG` needs `--allow-dsl-ignores` (not the agent default path).
+
 ToolBridge injects `--workspace`, `--json`, `--omit-timing`, and `--quiet` for
 cycle runs so agent transcripts stay free of ConsoleDashboard stderr progress.
 Pass `--quiet` yourself when invoking the CLI from scripts. Human operators who

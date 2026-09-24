@@ -65,6 +65,10 @@ committed solved fixtures (`fixture_ciphertext`) are fine; **research** on an
 unsolved page MUST use a local workspace whose ciphertext lives under
 `inputs/` — never assume a fixture plaintext exists.
 
+A helper `parcae.corpus.load_page` (solved-fixture warning + workspace resolve)
+is **deferred** — until it lands, copy ciphertext into `inputs/ciphertext.txt`
+manually as below.
+
 ### Layout
 
 ```text
@@ -325,7 +329,15 @@ the same bounded key grid as Vigenère (`max_key_length`, default 20).
 Require `allow_theory_uri: true` (job JSON) or CLI `--allow-theory-uri`, and a
 job file whose `param_grid` lists the URI plus a **bounded** `params_list`
 (no TheorySweep expansion). Prefer `--job` over `--family theory` (family mode
-has an empty param grid and will fail validation):
+has an empty param grid and will fail validation).
+
+Compile the theory first (`parcae-compile`); search only consumes ready
+`parcae://theories/…` artifacts. Prefer Param/const HotLoop branches
+([`param_select_example.py`](../../theories/examples/param_select_example.py)).
+Research theories that use `#ignore DSL_FLAG:…` need
+`parcae-compile … --allow-dsl-ignores` and leave `dsl_ignores_applied` on the
+manifest for review — see [tools.md](../spec/tools.md) § `parcae-compile` and
+[python-transpiler.md](python-transpiler.md) § Execution scopes.
 
 ```bash
 parcae-search-cycle \

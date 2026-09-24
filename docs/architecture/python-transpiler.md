@@ -332,6 +332,8 @@ Community `.py` / hostile JSON must not crash the compiler:
 - [x] Specs: dsl, dsl-ast-json, theory-artifact (normative)
 - [x] `parcae-compile` on `theories/examples/new_math_example.py`
 - [x] `parcae-compile` on `theories/examples/full_lifecycle_example.py`
+- [x] `parcae-compile` on `theories/examples/param_select_example.py` (Select mux)
+- [x] Smart compiler goldens `[dsl][golden]` + `#ignore` denied without `--allow-dsl-ignores`
 - [x] Exhaustive gate for arity-4 demo primitive (`poly2_mod29`)
 - [x] Fail-loud stub package + operator guide ([dsl-stubs.md](dsl-stubs.md))
 - [x] Stale `dsl_spec_version` rejected by registry/validate
@@ -346,11 +348,14 @@ Community `.py` / hostile JSON must not crash the compiler:
 - [x] Toolkit version **0.5.0** (`v0.5.0-theory-dsl`)
 - [x] Artifact paths use stable names (no numbered-stage prefixes in DSL paths)
 
-**Smart-compiler follow-on (docs first):** OuterControl vs HotLoop is normative in
-[dsl.md](../spec/dsl.md) § Execution scopes; implementation classes listed under
-§ Execution scopes above. Not part of the `v0.5.0-theory-dsl` exit.
+**Smart compiler (scopes + directives):** OuterControl vs HotLoop, `Z29Expr::Select`,
+and `#ignore DSL_FLAG` / `--allow-dsl-ignores` are implemented — see § Execution
+scopes above and examples under [`theories/examples/`](../../theories/examples/)
+(`param_select_example.py`, `ignore_divergent_example.py`). A Python
+`parcae.corpus.load_page` helper for LP2 workspaces is **deferred**.
 
-**Exit:** compiler workstream complete at toolkit 0.5.0.
+**Exit:** theory-DSL workstream complete at toolkit 0.5.0; smart-compiler language
+surface lands toward toolkit **0.8.0** (`dsl-console` cut).
 
 ---
 

@@ -43,11 +43,11 @@ Architecture guide: **[`python-transpiler.md`](python-transpiler.md)**.
 
 | Piece | Location |
 |-------|----------|
-| Normative language | [`docs/spec/dsl.md`](../spec/dsl.md) |
+| Normative language | [`docs/spec/dsl.md`](../spec/dsl.md) (incl. OuterControl / HotLoop / `#ignore`) |
 | AST wire format | [`docs/spec/dsl-ast-json.md`](../spec/dsl-ast-json.md) |
 | Artifacts / URIs | [`docs/spec/theory-artifact.md`](../spec/theory-artifact.md) |
 | IDE stubs (fail-loud) | [`python/parcae/dsl/`](../../python/parcae/dsl/) — [`dsl-stubs.md`](dsl-stubs.md) |
-| Example theories | [`theories/examples/`](../../theories/examples/) |
+| Example theories | [`theories/examples/`](../../theories/examples/) (Select + research `#ignore`) |
 | C++ compiler headers | [`include/parcae/dsl/`](../../include/parcae/dsl/) |
 | Compiled artifacts | [`data/theories/`](../../data/theories/) (`parcae://theories/<name>@<ver>`) |
 
@@ -55,7 +55,7 @@ Architecture guide: **[`python-transpiler.md`](python-transpiler.md)**.
 
 ```text
 theories/examples/*.py
-    → parcae-compile          (ast_dump → IR → verify → emit)
+    → parcae-compile [--allow-dsl-ignores]   (ast_dump → gates → IR → verify → emit)
     → data/theories/…/        (manifest, apply_ir.json, envelope.json, CPU/CUDA text)
     → TheoryDispatch          (catalog ApplyTransform | theory URI + apply_ir)
 ```

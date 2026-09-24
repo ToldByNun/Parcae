@@ -151,8 +151,8 @@ legal and whether code may run inside a per-rune / CUDA hot path.
 `interrupt_policy` **predicates** that consume a plaintext/ciphertext rune value
 are HotLoop-shaped for divergence analysis even when defined as a method: their
 boolean result **MUST NOT** introduce thread-divergent control flow in emitted
-kernels unless an explicit ignore directive is honored (see follow-on compiler
-work; rule id **E033**).
+kernels unless an explicit ignore directive is honored (**E033** /
+`DslDivergenceGate`).
 
 #### Control flow by scope
 

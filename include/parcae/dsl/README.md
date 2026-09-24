@@ -97,9 +97,17 @@ Tests: `[dsl][examples][i40]` `theories/examples/full_lifecycle_example.py` comp
 Tests: `[dsl][dispatch][i41]` TheoryDispatch catalog + theory URI apply.
 Tests: `[cuda][dsl][smoke]` DslEmitCuda text + `DslSmokeCaesarKernel` (device when CUDA ON).
 
+Authoring examples (also CI via `scripts/check-dsl-examples.sh`):
+[`theories/examples/`](../../../theories/examples/) — `param_select_example.py`
+(Param → Select / **W011**); `ignore_divergent_example.py` denied without
+`--allow-dsl-ignores` (**E031**). Handbook:
+[python-transpiler.md](../../../docs/architecture/python-transpiler.md)
+§ Execution scopes.
+
 ## Status
 
-Toolkit **0.7.0** (`v0.7.0-search-engine`; DSL exit was `v0.5.0-theory-dsl`). CI gates:
+Toolkit **0.7.0** (`v0.7.0-search-engine`; DSL exit was `v0.5.0-theory-dsl`;
+smart-compiler language surface toward **0.8.0**). CI gates:
 `[dsl][examples]`, `[dsl][registry][stale]`, plus `dsl-examples-cli` /
 `dsl-stubs-pytest` jobs in `.github/workflows/ci.yml`.
 

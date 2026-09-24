@@ -195,7 +195,7 @@ presented as ready-to-run.
 
 ```text
 parcae-compile --status [--json] [--data-dir <path>]
-parcae-compile <theory.py> [--json] [--data-dir <path>]
+parcae-compile <theory.py> [--json] [--data-dir <path>] [--allow-dsl-ignores]
 ```
 
 Compiles a theory DSL `.py` source into a versioned artifact under
@@ -207,11 +207,20 @@ see Envelope bridge in theory-artifact.md).
 
 `--status` reports toolchain / `dsl_spec_version` / AST-JSON protocol versions
 and `pipeline_ready`. Compiling a `.py` file spawns `python -m parcae.dsl.ast_dump`,
-runs ingest → semantic gate → `DslBuildIr` → verify → emit → `TheoryArtifact::store`.
-`--json` uses `parcae.tool_response.v0` with `tool: "compile"`.
+runs ingest → semantic gate → divergence / host-glue → `DslBuildIr` → verify →
+emit → `TheoryArtifact::store`. `--json` uses `parcae.tool_response.v0` with
+`tool: "compile"`; success payloads **MAY** include `warnings[]` (**W010** /
+**W011**) and `dsl_ignores_applied`.
+
+`--allow-dsl-ignores` honors `#ignore DSL_FLAG:…` comments collected by
+`ast_dump` ([dsl-ast-json.md](dsl-ast-json.md) § Directives). **Default is off:**
+any ignore without the flag is **E031**. When honored, compile prints **W010** on
+stderr and may record `dsl_ignores_applied` on the manifest. Portable / CI
+theories **SHOULD** avoid ignores (prefer Param/const predicates → `Select`).
 
 IDE `parcae.dsl` stubs and `ast_dump` alone are **not** substitutes for this tool —
-see [dsl-stubs.md](../architecture/dsl-stubs.md).
+see [dsl-stubs.md](../architecture/dsl-stubs.md). Smart-compiler scopes:
+[python-transpiler.md](../architecture/python-transpiler.md) § Execution scopes.
 
 ### `parcae-sweep`
 
