@@ -51,7 +51,7 @@ constexpr std::uint32_t k_ordering_fuzz_seed = 0x00B47Cu;
         score_id,
         "v0",
         score,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         rank);
 }
 
@@ -68,7 +68,7 @@ constexpr std::uint32_t k_ordering_fuzz_seed = 0x00B47Cu;
         "caesar",
         score_id,
         "v0",
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         k,
         1,
         std::move(lines));

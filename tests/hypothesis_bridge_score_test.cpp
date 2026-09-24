@@ -83,7 +83,7 @@ namespace {
     std::vector<nlohmann::json> lines) {
     const std::size_t k = lines.empty() ? 1 : lines.size();
     StatusOr<SearchJob> job = SearchJob::make(
-        workspace_id, "caesar", "chi2_english_gp_v0", k, 1, parcae::tool::Backend::Cpu, 64);
+        workspace_id, "caesar", "chi2_english_gp_v0", k, 1, Backend::Cpu, 64);
     if (!job.ok()) {
         return job.status();
     }
@@ -101,7 +101,7 @@ namespace {
         "caesar",
         "chi2_english_gp_v0",
         "v0",
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         k,
         1,
         std::move(lines));
@@ -110,7 +110,7 @@ namespace {
 /// Mirror `parcae-hypothesis score` library path (search-loop post-pass).
 [[nodiscard]] Status score_hypothesis_like_cli(
     const std::filesystem::path& data_root,
-    const parcae::tool::Context& ctx,
+    const Context& ctx,
     std::string_view workspace_id,
     std::string_view hypothesis_id,
     std::span<const Index29> cipher,
@@ -123,22 +123,22 @@ namespace {
     }
     HypothesisRecord record = std::move(loaded.value());
 
-    StatusOr<parcae::tool::TransformEnvelope> envelope =
-        parcae::tool::TransformEnvelope::from_json(record.method());
+    StatusOr<TransformEnvelope> envelope =
+        TransformEnvelope::from_json(record.method());
     if (!envelope.ok()) {
         return envelope.status();
     }
     StatusOr<std::vector<Index29>> plain =
-        parcae::tool::apply_to_indices(cipher, envelope.value());
+        ToolApi::apply_to_indices(cipher, envelope.value());
     if (!plain.ok()) {
         return plain.status();
     }
-    StatusOr<double> value = parcae::tool::score(ctx, plain.value(), score_id);
+    StatusOr<double> value = ToolApi::score(ctx, plain.value(), score_id);
     if (!value.ok()) {
         return value.status();
     }
 
-    StatusOr<std::string> latin = parcae::tool::to_latin(ctx, plain.value());
+    StatusOr<std::string> latin = ToolApi::to_latin(ctx, plain.value());
     if (!latin.ok()) {
         return latin.status();
     }
@@ -227,7 +227,7 @@ TEST_CASE(
     "ingest → hypothesis_score path → set-status rejected/promoted",
     "[search][bridge][score]") {
     const auto root = make_sandbox("parcae_hypothesis_bridge_f22_score");
-    const parcae::tool::Context ctx{root};
+    const Context ctx{root};
 
     StatusOr<WorkspaceManifest> ws =
         WorkspaceManifest::make("f22-ws", "2026-09-22T12:00:00Z", "f22");
@@ -255,14 +255,14 @@ TEST_CASE(
         "chi2_english_gp_v0",
         "v0",
         1.0,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         0));
     lines.push_back(BatchArtifact::candidate_wire(
         caesar_candidate(3, out3.value()),
         "chi2_english_gp_v0",
         "v0",
         9.0,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         1));
 
     StatusOr<BatchArtifact> art = make_batch("f22-ws", "b-f22-0001", std::move(lines));
@@ -375,7 +375,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         "v0",
         1.0,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         0));
     StatusOr<BatchArtifact> art = make_batch("f22-cli-ws", "b-f22-cli", std::move(lines));
     REQUIRE(art.ok());

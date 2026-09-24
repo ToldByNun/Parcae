@@ -224,8 +224,8 @@ public:
             const HypothesisStatus status = record.value().status();
             if (status == HypothesisStatus::Promoted ||
                 (options.include_scored_as_seeds && status == HypothesisStatus::Scored)) {
-                StatusOr<parcae::tool::TransformEnvelope> envelope =
-                    parcae::tool::TransformEnvelope::from_json(record.value().method());
+                StatusOr<TransformEnvelope> envelope =
+                    TransformEnvelope::from_json(record.value().method());
                 if (!envelope.ok()) {
                     return Status::error(
                         "SearchPrior seed envelope invalid for " + hid + ": " +
@@ -233,8 +233,8 @@ public:
                 }
                 seeds.emplace_back(hid, envelope.value().to_json());
             } else if (status == HypothesisStatus::Rejected) {
-                StatusOr<parcae::tool::TransformEnvelope> envelope =
-                    parcae::tool::TransformEnvelope::from_json(record.value().method());
+                StatusOr<TransformEnvelope> envelope =
+                    TransformEnvelope::from_json(record.value().method());
                 if (!envelope.ok()) {
                     return Status::error(
                         "SearchPrior exclusion envelope invalid for " + hid + ": " +
@@ -401,8 +401,8 @@ private:
         if (!hid.ok()) {
             return hid.status();
         }
-        StatusOr<parcae::tool::TransformEnvelope> envelope =
-            parcae::tool::TransformEnvelope::from_json(seed.envelope_);
+        StatusOr<TransformEnvelope> envelope =
+            TransformEnvelope::from_json(seed.envelope_);
         if (!envelope.ok()) {
             return Status::error(
                 "SearchPrior.seeds.envelope invalid: " + envelope.status().message());
@@ -437,8 +437,8 @@ private:
             return Status::error(
                 "SearchPrior.seeds[" + std::to_string(index) + "].envelope must be an object");
         }
-        StatusOr<parcae::tool::TransformEnvelope> envelope =
-            parcae::tool::TransformEnvelope::from_json(item.at("envelope"));
+        StatusOr<TransformEnvelope> envelope =
+            TransformEnvelope::from_json(item.at("envelope"));
         if (!envelope.ok()) {
             return Status::error(
                 "SearchPrior.seeds[" + std::to_string(index) + "].envelope invalid: " +

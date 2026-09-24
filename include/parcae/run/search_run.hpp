@@ -51,7 +51,7 @@ class SearchRun {
 public:
     class Options {
     public:
-        parcae::tool::Backend backend = parcae::tool::Backend::Cpu;
+        Backend backend = Backend::Cpu;
         std::string family = "caesar";           // caesar (v0)
         std::string score_id = "chi2_english_gp_v0";
         std::uint32_t seed = 0;                  // 0 → random_device
@@ -60,14 +60,14 @@ public:
         bool compare_cpu_cuda = true;            // when backend is cuda
     };
 
-    [[nodiscard]] static StatusOr<SearchRunMetrics> run(const parcae::tool::Context& ctx) {
+    [[nodiscard]] static StatusOr<SearchRunMetrics> run(const Context& ctx) {
         return run(ctx, Options{});
     }
 
     [[nodiscard]] static StatusOr<SearchRunMetrics> run(
-        const parcae::tool::Context& ctx,
+        const Context& ctx,
         Options options) {
-        Status usable = parcae::tool::BackendUtil::ensure_usable(options.backend);
+        Status usable = BackendUtil::ensure_usable(options.backend);
         if (!usable.ok()) {
             return usable;
         }
@@ -84,7 +84,7 @@ public:
             return Status::error(
                 "SearchRun: family must be caesar|atbash|atbash_caesar|affine|vigenere");
         }
-        if (options.backend == parcae::tool::Backend::Cpu && options.family != "caesar") {
+        if (options.backend == Backend::Cpu && options.family != "caesar") {
             return Status::error(
                 "SearchRun: CPU backend currently supports family=caesar; use --backend cuda");
         }
@@ -122,7 +122,7 @@ public:
         SearchRunMetrics metrics;
         metrics.set_seed(seed);
         metrics.set_score_id(options.score_id);
-        metrics.set_backend(std::string(parcae::tool::BackendUtil::to_string(options.backend)));
+        metrics.set_backend(std::string(BackendUtil::to_string(options.backend)));
 
         StatusOr<SweepResult> sweep = run_family_sweep(cipher.value(), options, freqs.value());
         if (!sweep.ok()) {
@@ -141,7 +141,7 @@ public:
         }
         metrics.set_eval(eval.value().passed, eval.value().total);
 
-        if (options.compare_cpu_cuda && options.backend == parcae::tool::Backend::Cuda) {
+        if (options.compare_cpu_cuda && options.backend == Backend::Cuda) {
             const std::size_t parity_n = std::min<std::size_t>(cipher.value().size(), 256);
             StatusOr<bool> parity = compare_cpu_cuda_family(
                 options.family,
@@ -162,7 +162,7 @@ public:
     };
 
     [[nodiscard]] static StatusOr<EvalResult> run_fixture_eval(
-        const parcae::tool::Context& ctx,
+        const Context& ctx,
         std::string_view score_id,
         const ExpectedFrequencyTable& freqs,
         std::uint32_t seed) {
@@ -292,7 +292,7 @@ private:
         std::span<const Index29> cipher,
         const Options& options,
         const ExpectedFrequencyTable& freqs) {
-        if (options.backend == parcae::tool::Backend::Cuda) {
+        if (options.backend == Backend::Cuda) {
 #if defined(PARCAE_HAS_CUDA)
             StatusOr<SearchRunCuda::SweepResult> cuda = SearchRunCuda::run(
                 options.family, cipher, freqs, options.throughput_repeats);

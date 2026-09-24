@@ -287,8 +287,8 @@ private:
             return hypothesis_id;
         }
 
-        StatusOr<parcae::tool::TransformEnvelope> envelope =
-            parcae::tool::TransformEnvelope::from_json(line.at("envelope"));
+        StatusOr<TransformEnvelope> envelope =
+            TransformEnvelope::from_json(line.at("envelope"));
         if (!envelope.ok()) {
             return envelope.status();
         }

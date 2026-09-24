@@ -115,18 +115,16 @@ void print_help() {
 }  // namespace
 
 int main(int argc, char** argv) {
-    using namespace parcae::cli;
-
-    const std::vector<std::string> args = argv_tail(argc, argv);
-    if (has_flag(args, "-h") || has_flag(args, "--help")) {
+    const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
+    if (CliIo::has_flag(args, "-h") || CliIo::has_flag(args, "--help")) {
         print_help();
-        return kExitOk;
+        return CliIo::kExitOk;
     }
 
-    const bool json_mode = has_flag(args, "--json");
-    const bool want_status = has_flag(args, "--status");
-    const bool allow_dsl_ignores = has_flag(args, "--allow-dsl-ignores");
-    const std::string data_dir = optional_option(args, "--data-dir");
+    const bool json_mode = CliIo::has_flag(args, "--json");
+    const bool want_status = CliIo::has_flag(args, "--status");
+    const bool allow_dsl_ignores = CliIo::has_flag(args, "--allow-dsl-ignores");
+    const std::string data_dir = CliIo::optional_option(args, "--data-dir");
     const std::vector<std::string> positionals = positional_args(args);
 
     for (std::size_t i = 0; i < args.size(); ++i) {
@@ -143,13 +141,13 @@ int main(int argc, char** argv) {
                 json_mode,
                 ToolErrorCode::Usage,
                 "Unknown option: " + a,
-                kExitUsage);
+                CliIo::kExitUsage);
         }
     }
 
-    StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
+    StatusOr<Context> ctx = CliIo::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        return fail(json_mode, ToolErrorCode::Io, ctx.status().message(), kExitUsage);
+        return fail(json_mode, ToolErrorCode::Io, ctx.status().message(), CliIo::kExitUsage);
     }
     const std::filesystem::path data_root = ctx.value().data_root();
 
@@ -159,7 +157,7 @@ int main(int argc, char** argv) {
                 json_mode,
                 ToolErrorCode::Usage,
                 "--status does not take a theory path",
-                kExitUsage);
+                CliIo::kExitUsage);
         }
         nlohmann::json result = status_result(data_root);
         if (json_mode) {
@@ -173,7 +171,7 @@ int main(int argc, char** argv) {
                   << (result.at("pipeline_ready").get<bool>() ? "true" : "false") << '\n'
                   << "  data_dir:             " << data_root.string() << '\n'
                   << "  theories_dir:         " << (data_root / "theories").string() << '\n';
-        return kExitOk;
+        return CliIo::kExitOk;
     }
 
     if (positionals.empty()) {
@@ -182,10 +180,10 @@ int main(int argc, char** argv) {
                 json_mode,
                 ToolErrorCode::Usage,
                 "Usage: parcae-compile --status [--json] | parcae-compile <theory.py> [--json]",
-                kExitUsage);
+                CliIo::kExitUsage);
         }
         print_help();
-        return kExitUsage;
+        return CliIo::kExitUsage;
     }
 
     if (positionals.size() != 1) {
@@ -193,7 +191,7 @@ int main(int argc, char** argv) {
             json_mode,
             ToolErrorCode::Usage,
             "Expected exactly one theory.py path",
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
     const std::filesystem::path theory_path = positionals[0];
@@ -202,7 +200,7 @@ int main(int argc, char** argv) {
             json_mode,
             ToolErrorCode::Io,
             "Theory source is not a readable file: " + theory_path.string(),
-            kExitFail,
+            CliIo::kExitFail,
             nlohmann::json{{"path", theory_path.string()}});
     }
 
@@ -276,5 +274,5 @@ int main(int argc, char** argv) {
     for (const TheoryArtifact& a : compiled.value().artifacts()) {
         std::cout << "  " << a.uri().to_string() << '\n';
     }
-    return kExitOk;
+    return CliIo::kExitOk;
 }

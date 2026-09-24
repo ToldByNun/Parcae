@@ -21,8 +21,8 @@
 
 namespace {
 
-[[nodiscard]] parcae::tool::Context test_context() {
-    return parcae::tool::Context{std::string(PARCAE_TEST_DATA_DIR)};
+[[nodiscard]] Context test_context() {
+    return Context{std::string(PARCAE_TEST_DATA_DIR)};
 }
 
 [[nodiscard]] std::vector<Index29> a_warning_cipher() {
@@ -54,7 +54,7 @@ void require_same_topk(
 TEST_CASE(
     "CpuCandidateExport a-warning CPU path: atbash / caesar / atbash_caesar",
     "[search][export][parity][a-warning]") {
-    const parcae::tool::Context ctx = test_context();
+    const Context ctx = test_context();
     const std::vector<Index29> cipher = a_warning_cipher();
 
     {
@@ -62,7 +62,7 @@ TEST_CASE(
             cipher, "atbash", "chi2_english_gp_v0", 1, ctx);
         REQUIRE(atbash.ok());
         REQUIRE(atbash.value().size() == 1);
-        REQUIRE(atbash.value().backend() == parcae::tool::Backend::Cpu);
+        REQUIRE(atbash.value().backend() == Backend::Cpu);
         REQUIRE(
             atbash.value().rows()[0].candidate().candidate_id() ==
             AtbashCandidateGenerator::make_candidate_id());
@@ -99,7 +99,7 @@ TEST_CASE(
         SKIP("No CUDA device");
     }
 
-    const parcae::tool::Context ctx = test_context();
+    const Context ctx = test_context();
     const std::vector<Index29> cipher = a_warning_cipher();
     StatusOr<ExpectedFrequencyTable> freqs = ctx.load_english_gp_expected();
     REQUIRE(freqs.ok());
@@ -111,7 +111,7 @@ TEST_CASE(
         StatusOr<GpuCandidateExport::Result> gpu =
             GpuCandidateExport::atbash(cipher, freqs.value(), 1);
         REQUIRE(gpu.ok());
-        REQUIRE(gpu.value().backend() == parcae::tool::Backend::Cuda);
+        REQUIRE(gpu.value().backend() == Backend::Cuda);
         require_same_topk(cpu.value(), gpu.value());
     }
 

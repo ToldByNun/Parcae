@@ -55,7 +55,7 @@ public:
         return seed_;
     }
 
-    [[nodiscard]] parcae::tool::Backend backend() const noexcept {
+    [[nodiscard]] Backend backend() const noexcept {
         return backend_;
     }
 
@@ -169,7 +169,7 @@ public:
         std::string_view score_id,
         std::size_t k,
         std::uint32_t seed,
-        parcae::tool::Backend backend,
+        Backend backend,
         std::size_t max_candidates,
         TransformDirection direction = TransformDirection::Decrypt,
         nlohmann::json param_grid = nlohmann::json::object(),
@@ -286,8 +286,8 @@ public:
         const std::uint64_t seed_u = static_cast<std::uint64_t>(seed_i);
         const std::uint64_t max_u = static_cast<std::uint64_t>(max_i);
 
-        StatusOr<parcae::tool::Backend> backend =
-            parcae::tool::BackendUtil::from_string(root.at("backend").get<std::string>());
+        StatusOr<Backend> backend =
+            BackendUtil::from_string(root.at("backend").get<std::string>());
         if (!backend.ok()) {
             return backend.status();
         }
@@ -403,7 +403,7 @@ public:
             {"score_version", score_version_},
             {"k", k_},
             {"seed", seed_},
-            {"backend", std::string(parcae::tool::BackendUtil::to_string(backend_))},
+            {"backend", std::string(BackendUtil::to_string(backend_))},
             {"max_candidates", max_candidates_},
             {"direction", std::string(TransformDirectionUtil::to_string(direction_))},
             {"param_grid", param_grid_.empty() ? nlohmann::json(nullptr) : param_grid_},
@@ -476,7 +476,7 @@ private:
     std::string score_version_ = "v0";
     std::size_t k_ = 1;
     std::uint32_t seed_ = 1;
-    parcae::tool::Backend backend_ = parcae::tool::Backend::Cpu;
+    Backend backend_ = Backend::Cpu;
     std::size_t max_candidates_ = 1;
     TransformDirection direction_ = TransformDirection::Decrypt;
     nlohmann::json param_grid_ = nlohmann::json::object();

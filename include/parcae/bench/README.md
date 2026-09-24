@@ -56,6 +56,28 @@ Compat: `parcae-throughput-tiers` ≡ `--suite slo --extended --allow-cuda`.
 
 **Agent policy:** `bench` / `parcae-bench` (and `throughput-tiers` / `parcae-throughput-tiers`) are on `AgentPolicy::default_deny_binaries()` and `agents/parcae_agent/allowlist.py` `DENIED_BINARIES`. Operators run from a shell; agents use `search_cycle`.
 
+## Catch2 / CI tags
+
+Hosted CI **`Gate [bench]`** (`.github/workflows/ci.yml`) runs only the
+deterministic OR-filter:
+
+```text
+[bench][spec],[bench][probe],[bench][accuracy],[bench][report]
+```
+
+| Tag | Hosted gate? | Notes |
+|-----|--------------|-------|
+| `[bench][spec]` | yes | `BenchTierSpec` sync |
+| `[bench][probe]` | yes | Probe 1.0.0 parse + spawn |
+| `[bench][accuracy]` | yes | Accuracy CPU smoke |
+| `[bench][report]` | yes | Report / `--omit-timing` |
+| `[bench][metric]` / `[bench][timer]` | no | Timing helpers |
+| `[bench][slo]` / `[bench][slo][cuda]` | no | Absolute SLO / GPU |
+| `[bench][hardware]` | no | CPU vs CUDA compare |
+
+Full tag map + CI policy: [`docs/architecture/cuda-build.md`](../../../docs/architecture/cuda-build.md)
+§ Catch2 tags (bench / diagnostics).
+
 ## Sync rule
 
 `BenchTierSpec` is the **single source of truth** for:

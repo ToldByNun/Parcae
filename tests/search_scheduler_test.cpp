@@ -134,7 +134,7 @@ TEST_CASE(
     "SearchScheduler::run_once CPU cycle writes batch and proposes hypotheses",
     "[search][scheduler]") {
     const auto root = make_sandbox("parcae_search_scheduler_g23");
-    const parcae::tool::Context ctx{root};
+    const Context ctx{root};
 
     StatusOr<WorkspaceManifest> ws =
         make_fixture_workspace("g23-ws", "2026-09-22T15:00:00Z");
@@ -147,7 +147,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         /*k=*/1,
         /*seed=*/1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         /*max_candidates=*/8);
     REQUIRE(job.ok());
 
@@ -225,7 +225,7 @@ TEST_CASE(
     SUCCEED("CUDA build — NotBuilt path covered by BackendUtil elsewhere");
 #else
     const auto root = make_sandbox("parcae_search_scheduler_g23_cuda");
-    const parcae::tool::Context ctx{root};
+    const Context ctx{root};
     StatusOr<WorkspaceManifest> ws =
         make_fixture_workspace("g23-cuda-ws", "2026-09-22T15:00:00Z");
     REQUIRE(ws.ok());
@@ -237,7 +237,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         3,
         1,
-        parcae::tool::Backend::Cuda,
+        Backend::Cuda,
         64);
     REQUIRE(job.ok());
 
@@ -257,7 +257,7 @@ TEST_CASE(
     "SearchScheduler::run_loop hits completed_iterations across two batches",
     "[search][scheduler][loop]") {
     const auto root = make_sandbox("parcae_search_scheduler_g24_loop");
-    const parcae::tool::Context ctx{root};
+    const Context ctx{root};
     StatusOr<WorkspaceManifest> ws =
         make_fixture_workspace("g24-ws", "2026-09-22T16:00:00Z");
     REQUIRE(ws.ok());
@@ -269,7 +269,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         /*k=*/2,
         /*seed=*/1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         /*max_candidates=*/64);
     REQUIRE(job.ok());
 
@@ -299,7 +299,7 @@ TEST_CASE(
     "SearchScheduler::run_loop stops on wall_budget before any cycle",
     "[search][scheduler][loop]") {
     const auto root = make_sandbox("parcae_search_scheduler_g24_wall");
-    const parcae::tool::Context ctx{root};
+    const Context ctx{root};
     StatusOr<WorkspaceManifest> ws =
         make_fixture_workspace("g24-wall-ws", "2026-09-22T16:00:00Z");
     REQUIRE(ws.ok());
@@ -311,7 +311,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         1,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         8);
     REQUIRE(job.ok());
 
@@ -335,7 +335,7 @@ TEST_CASE(
     "SearchScheduler::run_loop stops on success_promoted",
     "[search][scheduler][loop]") {
     const auto root = make_sandbox("parcae_search_scheduler_g24_promoted");
-    const parcae::tool::Context ctx{root};
+    const Context ctx{root};
     StatusOr<WorkspaceManifest> ws =
         make_fixture_workspace("g24-prom-ws", "2026-09-22T16:00:00Z");
     REQUIRE(ws.ok());
@@ -364,7 +364,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         1,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         64);
     REQUIRE(job.ok());
 
@@ -397,7 +397,7 @@ TEST_CASE(
     "SearchScheduler::run_loop stops on success_validate",
     "[search][scheduler][loop]") {
     const auto root = make_sandbox("parcae_search_scheduler_g24_validate");
-    const parcae::tool::Context ctx{root};
+    const Context ctx{root};
     StatusOr<WorkspaceManifest> ws =
         make_fixture_workspace("g24-val-ws", "2026-09-22T16:00:00Z");
     REQUIRE(ws.ok());
@@ -409,7 +409,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         1,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         8);
     REQUIRE(job.ok());
 
@@ -440,7 +440,7 @@ TEST_CASE(
     "SearchScheduler::run_loop stops on no_new_candidates after prior exclusion",
     "[search][scheduler][loop]") {
     const auto root = make_sandbox("parcae_search_scheduler_g24_empty");
-    const parcae::tool::Context ctx{root};
+    const Context ctx{root};
     StatusOr<WorkspaceManifest> ws =
         make_fixture_workspace("g24-empty-ws", "2026-09-22T16:00:00Z");
     REQUIRE(ws.ok());
@@ -469,7 +469,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         1,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         8);
     REQUIRE(job.ok());
 
@@ -508,7 +508,7 @@ TEST_CASE(
     "SearchScheduler next cycle excludes rejected params from prior",
     "[search][scheduler][prior]") {
     const auto root = make_sandbox("parcae_search_scheduler_g25_excl");
-    const parcae::tool::Context ctx{root};
+    const Context ctx{root};
     StatusOr<WorkspaceManifest> ws =
         make_fixture_workspace("g25-excl-ws", "2026-09-22T17:00:00Z");
     REQUIRE(ws.ok());
@@ -520,7 +520,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         /*k=*/5,
         /*seed=*/1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         /*max_candidates=*/64);
     REQUIRE(job.ok());
 
@@ -579,7 +579,7 @@ TEST_CASE(
     "SearchScheduler next cycle forces promoted seed into export",
     "[search][scheduler][prior]") {
     const auto root = make_sandbox("parcae_search_scheduler_g25_seed");
-    const parcae::tool::Context ctx{root};
+    const Context ctx{root};
     StatusOr<WorkspaceManifest> ws =
         make_fixture_workspace("g25-seed-ws", "2026-09-22T17:00:00Z");
     REQUIRE(ws.ok());
@@ -621,7 +621,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         /*k=*/29,
         /*seed=*/1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         /*max_candidates=*/64);
     REQUIRE(job.ok());
 
@@ -657,7 +657,7 @@ TEST_CASE(
     "SearchScheduler prefers inline SearchJob.prior over workspace rebuild",
     "[search][scheduler][prior]") {
     const auto root = make_sandbox("parcae_search_scheduler_g25_inline");
-    const parcae::tool::Context ctx{root};
+    const Context ctx{root};
     StatusOr<WorkspaceManifest> ws =
         make_fixture_workspace("g25-inline-ws", "2026-09-22T17:00:00Z");
     REQUIRE(ws.ok());
@@ -690,7 +690,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         /*k=*/29,
         /*seed=*/1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         /*max_candidates=*/64,
         TransformDirection::Decrypt,
         nlohmann::json::object(),
@@ -730,7 +730,7 @@ TEST_CASE(
     auto run_twice = [](std::string_view sandbox_name) {
         const auto root = make_sandbox(sandbox_name);
         const std::string fixture_sha_before = fixture_ciphertext_sha256(root);
-        const parcae::tool::Context ctx{root};
+        const Context ctx{root};
 
         StatusOr<WorkspaceManifest> ws =
             make_fixture_workspace("g26-ws", "2026-09-22T18:00:00Z");
@@ -743,7 +743,7 @@ TEST_CASE(
             "chi2_english_gp_v0",
             /*k=*/5,
             /*seed=*/1,
-            parcae::tool::Backend::Cpu,
+            Backend::Cpu,
             /*max_candidates=*/64);
         REQUIRE(job.ok());
         const std::string job_digest = job.value().job_digest_sha256();
@@ -809,7 +809,7 @@ TEST_CASE(
     // Exit-criteria path: job → artifact → hypotheses → prior → second iteration.
     auto run_feedback = [](std::string_view sandbox_name) {
         const auto root = make_sandbox(sandbox_name);
-        const parcae::tool::Context ctx{root};
+        const Context ctx{root};
 
         StatusOr<WorkspaceManifest> ws =
             make_fixture_workspace("g26-fb-ws", "2026-09-22T18:00:00Z");
@@ -822,7 +822,7 @@ TEST_CASE(
             "chi2_english_gp_v0",
             /*k=*/5,
             /*seed=*/1,
-            parcae::tool::Backend::Cpu,
+            Backend::Cpu,
             /*max_candidates=*/64);
         REQUIRE(job.ok());
 
@@ -917,8 +917,8 @@ TEST_CASE(
     "[search][scheduler][loop][progress]") {
     const auto root_silent = make_sandbox("parcae_search_scheduler_g28_silent");
     const auto root_live = make_sandbox("parcae_search_scheduler_g28_live");
-    const parcae::tool::Context ctx_silent{root_silent};
-    const parcae::tool::Context ctx_live{root_live};
+    const Context ctx_silent{root_silent};
+    const Context ctx_live{root_live};
 
     StatusOr<WorkspaceManifest> ws_silent =
         make_fixture_workspace("g28-ws", "2026-09-22T17:00:00Z");
@@ -936,7 +936,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         /*k=*/2,
         /*seed=*/1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         /*max_candidates=*/64);
     REQUIRE(job.ok());
 

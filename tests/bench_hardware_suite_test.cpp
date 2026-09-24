@@ -30,7 +30,7 @@ TEST_CASE("BenchHardwareSuite Options defaults", "[bench][hardware]") {
 }
 
 TEST_CASE("BenchHardwareSuite CPU smoke rows for T1–T3", "[bench][hardware]") {
-    const parcae::tool::Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
+    const Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
     BenchHardwareSuite::Options opts;
     opts.set_backend(BenchHardwareSuite::BackendSelect::Cpu);
     StatusOr<BenchReport::Document> doc = BenchHardwareSuite::run(ctx, opts);
@@ -61,7 +61,7 @@ TEST_CASE("BenchHardwareSuite CPU smoke rows for T1–T3", "[bench][hardware]") 
 TEST_CASE(
     "BenchHardwareSuite CUDA skipped_not_built when allow_cuda without device",
     "[bench][hardware]") {
-    const parcae::tool::Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
+    const Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
     BenchHardwareSuite::Options opts;
     opts.set_backend(BenchHardwareSuite::BackendSelect::Both);
     opts.set_allow_cuda(true);
@@ -83,7 +83,7 @@ TEST_CASE(
 }
 
 TEST_CASE("BenchHardwareSuite require_cuda fails without device", "[bench][hardware]") {
-    const parcae::tool::Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
+    const Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
     BenchHardwareSuite::Options opts;
     opts.set_backend(BenchHardwareSuite::BackendSelect::Cuda);
     opts.set_require_cuda(true);
@@ -99,7 +99,7 @@ TEST_CASE("BenchHardwareSuite require_cuda fails without device", "[bench][hardw
 
 TEST_CASE(
     "BenchHardwareSuite cuda-only allow_skip yields skipped rows", "[bench][hardware]") {
-    const parcae::tool::Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
+    const Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
     BenchHardwareSuite::Options opts;
     opts.set_backend(BenchHardwareSuite::BackendSelect::Cuda);
     opts.set_allow_cuda(true);

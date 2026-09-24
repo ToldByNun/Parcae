@@ -196,7 +196,7 @@ public:
     /// workspace feed the next job (`search-loop.md` / search-engine cycle step 6).
     [[nodiscard]] static StatusOr<CycleResult> run_once(
         const std::filesystem::path& data_root,
-        const parcae::tool::Context& ctx,
+        const Context& ctx,
         const SearchJob& job,
         const Options& options) {
         if (options.created_utc.empty()) {
@@ -206,7 +206,7 @@ public:
             return Status::error("SearchScheduler::run_once: job.workspace_id is required");
         }
 
-        Status usable = parcae::tool::BackendUtil::ensure_usable(job.backend());
+        Status usable = BackendUtil::ensure_usable(job.backend());
         if (!usable.ok()) {
             return usable;
         }
@@ -286,7 +286,7 @@ public:
             report = nlohmann::json{
                 {"candidate_count", lines.size()},
                 {"backend",
-                 std::string(parcae::tool::BackendUtil::to_string(exported.value().backend()))},
+                 std::string(BackendUtil::to_string(exported.value().backend()))},
             };
         }
 
@@ -343,7 +343,7 @@ public:
     /// Repeat `run_once` until budget / stop reason (`search-loop.md` § `run_loop`).
     [[nodiscard]] static StatusOr<CycleResult> run_loop(
         const std::filesystem::path& data_root,
-        const parcae::tool::Context& ctx,
+        const Context& ctx,
         const SearchJob& job,
         const LoopOptions& options) {
         if (options.created_utc.empty() && options.created_utcs.empty()) {
@@ -616,11 +616,11 @@ private:
     [[nodiscard]] static StatusOr<CpuCandidateExport::Result> export_candidates(
         std::span<const Index29> cipher,
         const SearchJob& job,
-        const parcae::tool::Context& ctx,
+        const Context& ctx,
         const SearchPrior& prior,
         BatchRunner::Progress progress = BatchRunner::Progress{}) {
         // Theory-URI jobs are CPU-only (TheoryDispatch / apply_ir); no fused CUDA path.
-        if (job.backend() == parcae::tool::Backend::Cpu || SearchJob::is_theory_family(job.family())) {
+        if (job.backend() == Backend::Cpu || SearchJob::is_theory_family(job.family())) {
             return CpuCandidateExport::from_job(cipher, job, ctx, &prior, progress);
         }
 

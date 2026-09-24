@@ -99,7 +99,7 @@ private:
         TransformDirection direction,
         const InterruptPolicy& interrupt,
         std::size_t depth) {
-        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        Status sizes = TransformBuffer::require_same_length(input, output);
         if (!sizes.ok()) {
             return sizes;
         }

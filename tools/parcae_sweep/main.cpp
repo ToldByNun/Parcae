@@ -52,16 +52,14 @@ void print_help() {
 }  // namespace
 
 int main(int argc, char** argv) {
-    using namespace parcae::cli;
-
-    const std::vector<std::string> args = argv_tail(argc, argv);
-    if (has_flag(args, "-h") || has_flag(args, "--help") || args.empty()) {
+    const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
+    if (CliIo::has_flag(args, "-h") || CliIo::has_flag(args, "--help") || args.empty()) {
         print_help();
-        return args.empty() ? kExitUsage : kExitOk;
+        return args.empty() ? CliIo::kExitUsage : CliIo::kExitOk;
     }
 
-    const bool json_mode = has_flag(args, "--json");
-    const std::string data_dir = optional_option(args, "--data-dir");
+    const bool json_mode = CliIo::has_flag(args, "--json");
+    const std::string data_dir = CliIo::optional_option(args, "--data-dir");
 
     for (std::size_t i = 0; i < args.size(); ++i) {
         const std::string& arg = args[i];
@@ -74,35 +72,35 @@ int main(int argc, char** argv) {
         }
         if (!arg.empty() && arg[0] == '-') {
             print_help();
-            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + arg, kExitUsage);
+            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + arg, CliIo::kExitUsage);
         }
         print_help();
-        return fail(json_mode, ToolErrorCode::Usage, "Unexpected argument: " + arg, kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage, "Unexpected argument: " + arg, CliIo::kExitUsage);
     }
 
-    StatusOr<std::string> theory = require_option(args, "--theory");
+    StatusOr<std::string> theory = CliIo::require_option(args, "--theory");
     if (!theory.ok()) {
         print_help();
-        return fail(json_mode, ToolErrorCode::Usage, theory.status().message(), kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage, theory.status().message(), CliIo::kExitUsage);
     }
 
     TheorySweep::Options opt;
-    if (has_flag(args, "--limit")) {
-        StatusOr<std::string> lim = require_option(args, "--limit");
+    if (CliIo::has_flag(args, "--limit")) {
+        StatusOr<std::string> lim = CliIo::require_option(args, "--limit");
         if (!lim.ok()) {
-            return fail(json_mode, ToolErrorCode::Usage, lim.status().message(), kExitUsage);
+            return fail(json_mode, ToolErrorCode::Usage, lim.status().message(), CliIo::kExitUsage);
         }
         char* end = nullptr;
         const unsigned long long v = std::strtoull(lim.value().c_str(), &end, 10);
         if (end == lim.value().c_str() || (end && *end != '\0')) {
-            return fail(json_mode, ToolErrorCode::Usage, "Invalid --limit", kExitUsage);
+            return fail(json_mode, ToolErrorCode::Usage, "Invalid --limit", CliIo::kExitUsage);
         }
         opt.set_limit(static_cast<std::size_t>(v));
     }
 
-    StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
+    StatusOr<Context> ctx = CliIo::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        return fail(json_mode, ToolErrorCode::Io, ctx.status().message(), kExitUsage);
+        return fail(json_mode, ToolErrorCode::Io, ctx.status().message(), CliIo::kExitUsage);
     }
 
     const std::filesystem::path theories_root = ctx.value().data_root() / "theories";
@@ -160,5 +158,5 @@ int main(int argc, char** argv) {
     if (p.candidates().size() > kPreview) {
         std::cout << "  …\t(" << (p.candidates().size() - kPreview) << " more)\n";
     }
-    return kExitOk;
+    return CliIo::kExitOk;
 }

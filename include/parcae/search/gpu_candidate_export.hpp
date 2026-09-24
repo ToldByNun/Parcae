@@ -110,14 +110,14 @@ public:
             return source_index_;
         }
 
-        [[nodiscard]] nlohmann::json to_wire(parcae::tool::Backend backend) const {
+        [[nodiscard]] nlohmann::json to_wire(Backend backend) const {
             nlohmann::json base = candidate_.to_json();
             base["rank"] = rank_;
             base["score"] = nlohmann::json{
                 {"score_id", std::string(score_id)},
                 {"score_version", std::string(score_version)},
                 {"value", score_},
-                {"backend", std::string(parcae::tool::BackendUtil::to_string(backend))},
+                {"backend", std::string(BackendUtil::to_string(backend))},
             };
             return base;
         }
@@ -133,7 +133,7 @@ public:
     public:
         Result() = default;
 
-        explicit Result(std::vector<Row> rows, parcae::tool::Backend backend)
+        explicit Result(std::vector<Row> rows, Backend backend)
             : rows_(std::move(rows)), backend_(backend) {}
 
         [[nodiscard]] const std::vector<Row>& rows() const noexcept {
@@ -144,7 +144,7 @@ public:
             return rows_.size();
         }
 
-        [[nodiscard]] parcae::tool::Backend backend() const noexcept {
+        [[nodiscard]] Backend backend() const noexcept {
             return backend_;
         }
 
@@ -159,7 +159,7 @@ public:
 
     private:
         std::vector<Row> rows_;
-        parcae::tool::Backend backend_ = parcae::tool::Backend::Cuda;
+        Backend backend_ = Backend::Cuda;
     };
 
     // --- Caesar ----------------------------------------------------------------
@@ -169,7 +169,7 @@ public:
         std::span<const double> scores_by_shift,
         std::size_t k,
         TransformDirection direction = TransformDirection::Decrypt,
-        parcae::tool::Backend backend = parcae::tool::Backend::Cpu,
+        Backend backend = Backend::Cpu,
         BatchRunner::Progress progress = BatchRunner::Progress{}
     ) {
         prepare_progress(progress, cipher);
@@ -241,7 +241,7 @@ public:
             return scores.status();
         }
         return caesar_from_host_scores(
-            cipher, scores.value(), k, TransformDirection::Decrypt, parcae::tool::Backend::Cuda,
+            cipher, scores.value(), k, TransformDirection::Decrypt, Backend::Cuda,
             progress);
 #endif
     }
@@ -253,7 +253,7 @@ public:
         std::span<const double> scores,
         std::size_t k,
         TransformDirection direction = TransformDirection::Decrypt,
-        parcae::tool::Backend backend = parcae::tool::Backend::Cpu,
+        Backend backend = Backend::Cpu,
         BatchRunner::Progress progress = BatchRunner::Progress{}
     ) {
         prepare_progress(progress, cipher);
@@ -318,7 +318,7 @@ public:
             return scores.status();
         }
         return atbash_from_host_scores(
-            cipher, scores.value(), k, TransformDirection::Decrypt, parcae::tool::Backend::Cuda,
+            cipher, scores.value(), k, TransformDirection::Decrypt, Backend::Cuda,
             progress);
 #endif
     }
@@ -330,7 +330,7 @@ public:
         std::span<const double> scores_by_shift,
         std::size_t k,
         TransformDirection direction = TransformDirection::Decrypt,
-        parcae::tool::Backend backend = parcae::tool::Backend::Cpu,
+        Backend backend = Backend::Cpu,
         BatchRunner::Progress progress = BatchRunner::Progress{}
     ) {
         prepare_progress(progress, cipher);
@@ -403,7 +403,7 @@ public:
             return scores.status();
         }
         return atbash_caesar_from_host_scores(
-            cipher, scores.value(), k, TransformDirection::Decrypt, parcae::tool::Backend::Cuda,
+            cipher, scores.value(), k, TransformDirection::Decrypt, Backend::Cuda,
             progress);
 #endif
     }
@@ -455,7 +455,7 @@ public:
         std::span<const double> scores,
         std::size_t k,
         TransformDirection direction = TransformDirection::Decrypt,
-        parcae::tool::Backend backend = parcae::tool::Backend::Cpu,
+        Backend backend = Backend::Cpu,
         BatchRunner::Progress progress = BatchRunner::Progress{}
     ) {
         prepare_progress(progress, cipher);
@@ -534,7 +534,7 @@ public:
             return scores.status();
         }
         return affine_from_host_scores(
-            cipher, scores.value(), k, TransformDirection::Decrypt, parcae::tool::Backend::Cuda,
+            cipher, scores.value(), k, TransformDirection::Decrypt, Backend::Cuda,
             progress);
 #endif
     }
@@ -577,7 +577,7 @@ public:
         std::span<const double> scores,
         std::size_t k,
         TransformDirection direction = TransformDirection::Decrypt,
-        parcae::tool::Backend backend = parcae::tool::Backend::Cpu,
+        Backend backend = Backend::Cpu,
         BatchRunner::Progress progress = BatchRunner::Progress{}
     ) {
         prepare_progress(progress, cipher);
@@ -665,7 +665,7 @@ public:
             scores.value(),
             k,
             TransformDirection::Decrypt,
-            parcae::tool::Backend::Cuda,
+            Backend::Cuda,
             progress);
 #endif
     }
@@ -695,7 +695,7 @@ public:
         std::span<const double> scores,
         std::size_t k,
         TransformDirection direction = TransformDirection::Decrypt,
-        parcae::tool::Backend backend = parcae::tool::Backend::Cpu,
+        Backend backend = Backend::Cpu,
         BatchRunner::Progress progress = BatchRunner::Progress{}
     ) {
         prepare_progress(progress, cipher);
@@ -778,7 +778,7 @@ public:
         }
         return beaufort_from_host_scores(
             cipher, keys, scores.value(), k, TransformDirection::Decrypt,
-            parcae::tool::Backend::Cuda,
+            Backend::Cuda,
             progress);
 #endif
     }
@@ -829,7 +829,7 @@ public:
         std::span<const double> scores,
         std::size_t k,
         TransformDirection direction = TransformDirection::Decrypt,
-        parcae::tool::Backend backend = parcae::tool::Backend::Cpu,
+        Backend backend = Backend::Cpu,
         BatchRunner::Progress progress = BatchRunner::Progress{}
     ) {
         prepare_progress(progress, cipher);
@@ -917,7 +917,7 @@ public:
             scores.value(),
             k,
             TransformDirection::Decrypt,
-            parcae::tool::Backend::Cuda,
+            Backend::Cuda,
             progress);
 #endif
     }
@@ -1058,11 +1058,11 @@ private:
             return hits.status();
         }
 
-        const parcae::tool::Backend backend =
+        const Backend backend =
 #if defined(PARCAE_HAS_CUDA)
-            ParcaeCuda::available() ? parcae::tool::Backend::Cuda : parcae::tool::Backend::Cpu;
+            ParcaeCuda::available() ? Backend::Cuda : Backend::Cpu;
 #else
-            parcae::tool::Backend::Cpu;
+            Backend::Cpu;
 #endif
         std::vector<Row> rows;
         rows.reserve(hits.value().size());

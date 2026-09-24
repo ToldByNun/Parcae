@@ -128,7 +128,7 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
 
 [[nodiscard]] StatusOr<bool> fixture_is_locked(const std::filesystem::path& dir) {
     const std::filesystem::path manifest = dir / "manifest.json";
-    StatusOr<std::string> text = parcae::cli::read_file_utf8(manifest);
+    StatusOr<std::string> text = CliIo::read_file_utf8(manifest);
     if (!text.ok()) {
         return text.status();
     }
@@ -144,7 +144,7 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
 }
 
 [[nodiscard]] StatusOr<std::vector<std::string>> list_solved_fixture_ids(
-    const parcae::tool::Context& ctx,
+    const Context& ctx,
     bool locked_only) {
     const std::filesystem::path solved = ctx.data_root() / "fixtures" / "solved";
     if (!std::filesystem::is_directory(solved)) {
@@ -185,13 +185,11 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
     bool all_mode,
     bool has_id,
     const std::vector<std::string>& args,
-    const parcae::tool::Context& ctx) {
-    using namespace parcae::cli;
-
+    const Context& ctx) {
     if (static_cast<int>(all_mode) + static_cast<int>(has_id) != 1) {
         print_help();
         return fail(json_mode, ToolErrorCode::Usage, "Choose exactly one of --id or --all",
-                    kExitUsage);
+                    CliIo::kExitUsage);
     }
 
     std::vector<std::string> targets;
@@ -199,14 +197,14 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
         StatusOr<std::vector<std::string>> ids =
             list_solved_fixture_ids(ctx, /*locked_only=*/require_locked);
         if (!ids.ok()) {
-            return fail(json_mode, ToolErrorCode::Io, ids.status().message(), kExitUsage);
+            return fail(json_mode, ToolErrorCode::Io, ids.status().message(), CliIo::kExitUsage);
         }
         targets = std::move(ids.value());
     } else {
-        StatusOr<std::string> id = require_option(args, "--id");
+        StatusOr<std::string> id = CliIo::require_option(args, "--id");
         if (!id.ok()) {
             print_help();
-            return fail(json_mode, ToolErrorCode::Usage, id.status().message(), kExitUsage);
+            return fail(json_mode, ToolErrorCode::Usage, id.status().message(), CliIo::kExitUsage);
         }
         targets.push_back(id.value());
     }
@@ -216,7 +214,7 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
 
     for (const std::string& target : targets) {
         const ValidationReport report =
-            parcae::tool::validate_fixture(ctx, target, require_locked);
+            ToolApi::validate_fixture(ctx, target, require_locked);
         if (!report.ok()) {
             all_ok = false;
         }
@@ -245,7 +243,7 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
             "One or more fixtures failed validation",
             std::move(result));
     }
-    return all_ok ? kExitOk : kExitFail;
+    return all_ok ? CliIo::kExitOk : CliIo::kExitFail;
 }
 
 [[nodiscard]] int run_theory_mode(
@@ -253,16 +251,14 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
     bool theories_all,
     bool has_theory,
     const std::vector<std::string>& args,
-    const parcae::tool::Context& ctx) {
-    using namespace parcae::cli;
-
+    const Context& ctx) {
     if (static_cast<int>(theories_all) + static_cast<int>(has_theory) != 1) {
         print_help();
         return fail(
             json_mode,
             ToolErrorCode::Usage,
             "Choose exactly one of --theory or --theories",
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
     const std::filesystem::path theories_root = ctx.data_root() / "theories";
@@ -272,14 +268,14 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
         StatusOr<std::vector<TheoryValidate::Report>> all =
             TheoryValidate::validate_all(theories_root);
         if (!all.ok()) {
-            return fail(json_mode, ToolErrorCode::Io, all.status().message(), kExitUsage);
+            return fail(json_mode, ToolErrorCode::Io, all.status().message(), CliIo::kExitUsage);
         }
         reports = std::move(all.value());
     } else {
-        StatusOr<std::string> ref = require_option(args, "--theory");
+        StatusOr<std::string> ref = CliIo::require_option(args, "--theory");
         if (!ref.ok()) {
             print_help();
-            return fail(json_mode, ToolErrorCode::Usage, ref.status().message(), kExitUsage);
+            return fail(json_mode, ToolErrorCode::Usage, ref.status().message(), CliIo::kExitUsage);
         }
         reports.push_back(TheoryValidate::validate_target(theories_root, ref.value()));
     }
@@ -318,27 +314,25 @@ void print_theory_report_human(const TheoryValidate::Report& report) {
     if (reports.empty() && theories_all) {
         std::cout << "PASS\t(no theory artifacts under " << theories_root.string() << ")\n";
     }
-    return all_ok ? kExitOk : kExitFail;
+    return all_ok ? CliIo::kExitOk : CliIo::kExitFail;
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
-    using namespace parcae::cli;
-
-    const std::vector<std::string> args = argv_tail(argc, argv);
-    if (has_flag(args, "-h") || has_flag(args, "--help") || args.empty()) {
+    const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
+    if (CliIo::has_flag(args, "-h") || CliIo::has_flag(args, "--help") || args.empty()) {
         print_help();
-        return args.empty() ? kExitUsage : kExitOk;
+        return args.empty() ? CliIo::kExitUsage : CliIo::kExitOk;
     }
 
-    const bool json_mode = has_flag(args, "--json");
-    const bool require_locked = has_flag(args, "--require-locked");
-    const bool all_mode = has_flag(args, "--all");
-    const bool has_id = has_flag(args, "--id");
-    const bool theories_all = has_flag(args, "--theories");
-    const bool has_theory = has_flag(args, "--theory");
-    const std::string data_dir = optional_option(args, "--data-dir");
+    const bool json_mode = CliIo::has_flag(args, "--json");
+    const bool require_locked = CliIo::has_flag(args, "--require-locked");
+    const bool all_mode = CliIo::has_flag(args, "--all");
+    const bool has_id = CliIo::has_flag(args, "--id");
+    const bool theories_all = CliIo::has_flag(args, "--theories");
+    const bool has_theory = CliIo::has_flag(args, "--theory");
+    const std::string data_dir = CliIo::optional_option(args, "--data-dir");
 
     const bool fixture_mode = all_mode || has_id;
     const bool theory_mode = theories_all || has_theory;
@@ -348,7 +342,7 @@ int main(int argc, char** argv) {
             json_mode,
             ToolErrorCode::Usage,
             "Do not mix fixture flags (--id/--all) with theory flags (--theory/--theories)",
-            kExitUsage);
+            CliIo::kExitUsage);
     }
     if (!fixture_mode && !theory_mode) {
         print_help();
@@ -356,14 +350,14 @@ int main(int argc, char** argv) {
             json_mode,
             ToolErrorCode::Usage,
             "Choose fixture mode (--id/--all) or theory mode (--theory/--theories)",
-            kExitUsage);
+            CliIo::kExitUsage);
     }
     if (require_locked && theory_mode) {
         return fail(
             json_mode,
             ToolErrorCode::Usage,
             "--require-locked applies only to fixture mode",
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
     // Reject unknown options.
@@ -379,13 +373,13 @@ int main(int argc, char** argv) {
         }
         if (!arg.empty() && arg[0] == '-') {
             print_help();
-            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + arg, kExitUsage);
+            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + arg, CliIo::kExitUsage);
         }
     }
 
-    StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
+    StatusOr<Context> ctx = CliIo::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        return fail(json_mode, ToolErrorCode::Io, ctx.status().message(), kExitUsage);
+        return fail(json_mode, ToolErrorCode::Io, ctx.status().message(), CliIo::kExitUsage);
     }
 
     if (theory_mode) {

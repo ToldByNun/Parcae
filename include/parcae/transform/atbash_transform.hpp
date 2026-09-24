@@ -19,7 +19,7 @@ public:
     [[nodiscard]] static Status kernel(
         std::span<const Index29> input,
         std::span<Index29> output) {
-        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        Status sizes = TransformBuffer::require_same_length(input, output);
         if (!sizes.ok()) {
             return sizes;
         }

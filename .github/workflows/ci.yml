@@ -122,6 +122,14 @@ jobs:
           "[cli][dashboard],[tool][search_cycle][progress]"
           --reporter console
 
+      - name: Gate [bench]
+        # Deterministic bench surface only (schema / probe parse / accuracy smoke /
+        # report JSON). No absolute runes/s SLO or CUDA throughput on hosted CI.
+        run: >-
+          ${{ matrix.test_bin }}
+          "[bench][spec],[bench][probe],[bench][accuracy],[bench][report]"
+          --reporter console
+
       - name: Gate [dsl][examples] (compile theories/examples)
         run: ${{ matrix.test_bin }} "[dsl][examples]" --reporter console
 

@@ -25,8 +25,8 @@
 
 namespace {
 
-[[nodiscard]] parcae::tool::Context test_context() {
-    return parcae::tool::Context{std::string(PARCAE_TEST_DATA_DIR)};
+[[nodiscard]] Context test_context() {
+    return Context{std::string(PARCAE_TEST_DATA_DIR)};
 }
 
 [[nodiscard]] std::vector<Index29> a_warning_cipher() {
@@ -71,7 +71,7 @@ void require_same_topk(
 TEST_CASE(
     "Compose job CPU smoke: default grid and explicit recipes",
     "[search][export][compose][parity]") {
-    const parcae::tool::Context ctx = test_context();
+    const Context ctx = test_context();
     const std::vector<Index29> cipher = a_warning_cipher();
 
     constexpr std::size_t k = 5;
@@ -81,14 +81,14 @@ TEST_CASE(
         "chi2_english_gp_v0",
         k,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         64);
     REQUIRE(default_job.ok());
     StatusOr<CpuCandidateExport::Result> def =
         CpuCandidateExport::from_job(cipher, default_job.value(), ctx);
     REQUIRE(def.ok());
     REQUIRE(def.value().size() == k);
-    REQUIRE(def.value().backend() == parcae::tool::Backend::Cpu);
+    REQUIRE(def.value().backend() == Backend::Cpu);
 
     StatusOr<CpuCandidateExport::Result> atbash_caesar = CpuCandidateExport::run(
         cipher, "atbash_caesar", "chi2_english_gp_v0", k, ctx);
@@ -105,7 +105,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         2,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         64,
         TransformDirection::Decrypt,
         grid);
@@ -130,7 +130,7 @@ TEST_CASE(
         SKIP("No CUDA device");
     }
 
-    const parcae::tool::Context ctx = test_context();
+    const Context ctx = test_context();
     const std::vector<Index29> cipher = a_warning_cipher();
     StatusOr<ExpectedFrequencyTable> freqs = ctx.load_english_gp_expected();
     REQUIRE(freqs.ok());
@@ -146,7 +146,7 @@ TEST_CASE(
             GpuCandidateExport::compose_from_param_grid(
                 cipher, freqs.value(), nlohmann::json::object(), k);
         REQUIRE(gpu_compose.ok());
-        REQUIRE(gpu_compose.value().backend() == parcae::tool::Backend::Cuda);
+        REQUIRE(gpu_compose.value().backend() == Backend::Cuda);
         require_same_topk(cpu.value(), gpu_compose.value());
 
         StatusOr<GpuCandidateExport::Result> gpu_atbash =
@@ -178,7 +178,7 @@ TEST_CASE(
             GpuCandidateExport::compose_from_param_grid(
                 cipher, freqs.value(), grid, k);
         REQUIRE(gpu.ok());
-        REQUIRE(gpu.value().backend() == parcae::tool::Backend::Cuda);
+        REQUIRE(gpu.value().backend() == Backend::Cuda);
         require_same_topk(cpu.value(), gpu.value());
     }
 
@@ -191,7 +191,7 @@ TEST_CASE(
             "chi2_english_gp_v0",
             3,
             1,
-            parcae::tool::Backend::Cuda,
+            Backend::Cuda,
             64);
         REQUIRE(job.ok());
         StatusOr<GpuCandidateExport::Result> gpu =

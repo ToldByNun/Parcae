@@ -76,7 +76,7 @@ TEST_CASE("BenchSloSuite run errors without CUDA", "[bench][slo]") {
 
 #if defined(PARCAE_HAS_CUDA)
 TEST_CASE("BenchSloSuite run primary T1-T3 on CUDA", "[bench][slo][cuda]") {
-    const parcae::tool::Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
+    const Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
     StatusOr<ExpectedFrequencyTable> freqs = ctx.load_english_gp_expected();
     REQUIRE(freqs.ok());
 
@@ -103,7 +103,7 @@ TEST_CASE("BenchSloSuite run primary T1-T3 on CUDA", "[bench][slo][cuda]") {
 }
 
 TEST_CASE("BenchSloSuite run extended includes F and C rows", "[bench][slo][cuda]") {
-    const parcae::tool::Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
+    const Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
     StatusOr<ExpectedFrequencyTable> freqs = ctx.load_english_gp_expected();
     REQUIRE(freqs.ok());
 

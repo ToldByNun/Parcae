@@ -180,13 +180,13 @@ struct LoadedCase {
 
 [[nodiscard]] StatusOr<std::pair<std::vector<Index29>, ParityRecord>> apply_and_capture(
     const LoadedCase& loaded,
-    parcae::tool::Backend backend) {
-    Status usable = parcae::tool::BackendUtil::ensure_usable(backend);
+    Backend backend) {
+    Status usable = BackendUtil::ensure_usable(backend);
     if (!usable.ok()) {
         return usable;
     }
 
-    if (backend == parcae::tool::Backend::Cpu) {
+    if (backend == Backend::Cpu) {
         return ParityRecord::apply_and_capture(
             loaded.id,
             loaded.input,
@@ -237,7 +237,7 @@ struct CheckResult {
     }
 
     StatusOr<std::pair<std::vector<Index29>, ParityRecord>> cpu =
-        apply_and_capture(loaded.value(), parcae::tool::Backend::Cpu);
+        apply_and_capture(loaded.value(), Backend::Cpu);
     if (!cpu.ok()) {
         result.message = cpu.status().message();
         return result;
@@ -255,7 +255,7 @@ struct CheckResult {
     }
 
     StatusOr<std::pair<std::vector<Index29>, ParityRecord>> cuda =
-        apply_and_capture(loaded.value(), parcae::tool::Backend::Cuda);
+        apply_and_capture(loaded.value(), Backend::Cuda);
     if (!cuda.ok()) {
         result.message = cuda.status().message();
         return result;
@@ -273,12 +273,10 @@ struct CheckResult {
 }  // namespace
 
 int main(int argc, char** argv) {
-    using namespace parcae::cli;
-
-    const std::vector<std::string> args = argv_tail(argc, argv);
-    if (has_flag(args, "-h") || has_flag(args, "--help") || args.empty()) {
+    const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
+    if (CliIo::has_flag(args, "-h") || CliIo::has_flag(args, "--help") || args.empty()) {
         print_help();
-        return args.empty() ? kExitUsage : kExitOk;
+        return args.empty() ? CliIo::kExitUsage : CliIo::kExitOk;
     }
 
     std::string command;
@@ -287,7 +285,7 @@ int main(int argc, char** argv) {
         if (arg == "check" || arg == "dump") {
             if (!command.empty()) {
                 std::cerr << "Multiple commands specified\n";
-                return kExitUsage;
+                return CliIo::kExitUsage;
             }
             command = arg;
             continue;
@@ -295,7 +293,7 @@ int main(int argc, char** argv) {
         if (arg == "--data-dir" || arg == "--parity-dir" || arg == "--name" || arg == "--backend") {
             if (i + 1 >= args.size()) {
                 std::cerr << "Missing value for " << arg << '\n';
-                return kExitUsage;
+                return CliIo::kExitUsage;
             }
             ++i;  // skip value
             continue;
@@ -306,97 +304,97 @@ int main(int argc, char** argv) {
         }
         std::cerr << "Unknown argument: " << arg << '\n';
         print_help();
-        return kExitUsage;
+        return CliIo::kExitUsage;
     }
     if (command.empty()) {
         std::cerr << "Missing command (expected check|dump)\n";
         print_help();
-        return kExitUsage;
+        return CliIo::kExitUsage;
     }
 
-    const std::string data_dir_flag = optional_option(args, "--data-dir");
-    StatusOr<parcae::tool::Context> ctx = make_context(data_dir_flag, PARCAE_DEFAULT_DATA_DIR);
+    const std::string data_dir_flag = CliIo::optional_option(args, "--data-dir");
+    StatusOr<Context> ctx = CliIo::make_context(data_dir_flag, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
         std::cerr << ctx.status().message() << '\n';
-        return kExitUsage;
+        return CliIo::kExitUsage;
     }
 
-    std::string parity_dir = optional_option(args, "--parity-dir");
+    std::string parity_dir = CliIo::optional_option(args, "--parity-dir");
     if (parity_dir.empty()) {
         parity_dir = (ctx.value().data_root() / "parity").string();
     }
     const std::filesystem::path parity_path(parity_dir);
     if (!std::filesystem::is_directory(parity_path)) {
         std::cerr << "Parity dir is not a directory: " << parity_dir << '\n';
-        return kExitUsage;
+        return CliIo::kExitUsage;
     }
 
-    const bool json_mode = has_flag(args, "--json");
+    const bool json_mode = CliIo::has_flag(args, "--json");
 
     if (command == "dump") {
-        StatusOr<std::string> name = require_option(args, "--name");
+        StatusOr<std::string> name = CliIo::require_option(args, "--name");
         if (!name.ok()) {
             std::cerr << name.status().message() << '\n';
             print_help();
-            return kExitUsage;
+            return CliIo::kExitUsage;
         }
-        StatusOr<parcae::tool::Backend> backend = parcae::tool::BackendUtil::from_string(
-            optional_option(args, "--backend", "cpu"));
+        StatusOr<Backend> backend = BackendUtil::from_string(
+            CliIo::optional_option(args, "--backend", "cpu"));
         if (!backend.ok()) {
             std::cerr << backend.status().message() << '\n';
-            return kExitUsage;
+            return CliIo::kExitUsage;
         }
-        Status backend_ok = parcae::tool::BackendUtil::ensure_usable(backend.value());
+        Status backend_ok = BackendUtil::ensure_usable(backend.value());
         if (!backend_ok.ok()) {
             std::cerr << backend_ok.message() << '\n';
-            return kExitUsage;
+            return CliIo::kExitUsage;
         }
 
         StatusOr<LoadedCase> loaded = load_case(parity_path, name.value());
         if (!loaded.ok()) {
             std::cerr << loaded.status().message() << '\n';
-            return kExitFail;
+            return CliIo::kExitFail;
         }
         StatusOr<std::pair<std::vector<Index29>, ParityRecord>> captured =
             apply_and_capture(loaded.value(), backend.value());
         if (!captured.ok()) {
             std::cerr << captured.status().message() << '\n';
-            return kExitFail;
+            return CliIo::kExitFail;
         }
         std::cout << captured.value().second.to_json().dump(2) << '\n';
-        return kExitOk;
+        return CliIo::kExitOk;
     }
 
     // check
-    const bool compare_cuda = has_flag(args, "--compare-cuda");
+    const bool compare_cuda = CliIo::has_flag(args, "--compare-cuda");
     if (compare_cuda) {
-        Status backend_ok = parcae::tool::BackendUtil::ensure_usable(parcae::tool::Backend::Cuda);
+        Status backend_ok = BackendUtil::ensure_usable(Backend::Cuda);
         if (!backend_ok.ok()) {
             std::cerr << backend_ok.message() << '\n';
-            return kExitUsage;
+            return CliIo::kExitUsage;
         }
     }
 
-    const bool has_name = has_flag(args, "--name");
-    const bool has_all = has_flag(args, "--all");
+    const bool has_name = CliIo::has_flag(args, "--name");
+    const bool has_all = CliIo::has_flag(args, "--all");
     if (has_name && has_all) {
         std::cerr << "Choose at most one of --name and --all\n";
-        return kExitUsage;
+        return CliIo::kExitUsage;
     }
 
     std::vector<std::string> names;
     if (has_name) {
-        StatusOr<std::string> name = require_option(args, "--name");
+        StatusOr<std::string> name = CliIo::require_option(args, "--name");
         if (!name.ok()) {
             std::cerr << name.status().message() << '\n';
-            return kExitUsage;
+            return CliIo::kExitUsage;
         }
         names.push_back(name.value());
     } else {
         StatusOr<std::vector<std::string>> manifest = load_manifest_names(parity_path);
         if (!manifest.ok()) {
             std::cerr << manifest.status().message() << '\n';
-            return kExitFail;
+            return CliIo::kExitFail;
         }
         names = std::move(manifest.value());
     }
@@ -447,5 +445,5 @@ int main(int argc, char** argv) {
         }
     }
 
-    return all_ok ? kExitOk : kExitFail;
+    return all_ok ? CliIo::kExitOk : CliIo::kExitFail;
 }

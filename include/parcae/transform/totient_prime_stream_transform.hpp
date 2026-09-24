@@ -29,14 +29,14 @@ public:
         std::span<const Index29> shifts,
         std::span<const std::size_t> skip_indices_sorted,
         TransformDirection direction) {
-        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        Status sizes = TransformBuffer::require_same_length(input, output);
         if (!sizes.ok()) {
             return sizes;
         }
 
         std::size_t stream_cursor = 0;
         for (std::size_t i = 0; i < input.size(); ++i) {
-            if (parcae::transform_buf::should_skip(skip_indices_sorted, i)) {
+            if (TransformBuffer::should_skip(skip_indices_sorted, i)) {
                 output[i] = input[i];
                 continue;
             }
@@ -67,7 +67,7 @@ public:
             return start.status();
         }
 
-        Status range = parcae::transform_buf::validate_interrupt_range(
+        Status range = TransformBuffer::validate_interrupt_range(
             interrupt, input.size(), "totient_prime_stream");
         if (!range.ok()) {
             return range;
@@ -91,7 +91,7 @@ public:
             input,
             output,
             shifts,
-            parcae::transform_buf::skip_span(interrupt),
+            TransformBuffer::skip_span(interrupt),
             direction);
     }
 

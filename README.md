@@ -356,6 +356,7 @@ Full notes (flags, Catch2 tags, skip behavior when Toolkit is absent):
 
 Hosted CI (`.github/workflows/ci.yml`) stays **CPU-default** (`PARCAE_BUILD_CUDA=OFF`).
 It also gates smart DSL (`[dsl-smart]`), console progress (`[cli-progress]`),
+deterministic bench (`[bench]` — spec/probe/accuracy/report; no absolute runes/s),
 theory examples (`[dsl][examples]`), stale-spec rejection (`[dsl][registry][stale]`),
 stub pytest, and `scripts/check-dsl-examples.sh`.
 

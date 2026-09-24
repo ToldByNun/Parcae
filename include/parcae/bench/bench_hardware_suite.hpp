@@ -126,7 +126,7 @@ public:
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Document> run(
-        const parcae::tool::Context& ctx, const Options& options = Options{}) {
+        const Context& ctx, const Options& options = Options{}) {
         StatusOr<ExpectedFrequencyTable> freqs = ctx.load_english_gp_expected();
         if (!freqs.ok()) {
             return freqs.status();
@@ -151,7 +151,7 @@ public:
         if (attempt_cuda) {
 #if defined(PARCAE_HAS_CUDA)
             cuda_usable =
-                parcae::tool::BackendUtil::cuda_built() && ParcaeCuda::available();
+                BackendUtil::cuda_built() && ParcaeCuda::available();
 #else
             cuda_usable = false;
 #endif

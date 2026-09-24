@@ -15,10 +15,10 @@
 #endif
 
 TEST_CASE("SearchRun CPU caesar sweep + fixture eval", "[run][search]") {
-    const parcae::tool::Context ctx{PARCAE_TEST_DATA_DIR};
+    const Context ctx{PARCAE_TEST_DATA_DIR};
 
     SearchRun::Options options;
-    options.backend = parcae::tool::Backend::Cpu;
+    options.backend = Backend::Cpu;
     options.family = "caesar";
     options.seed = 2109016688u;
     options.stream_length = 256;
@@ -63,10 +63,10 @@ TEST_CASE("SearchRun CPU caesar sweep + fixture eval", "[run][search]") {
 }
 #if defined(PARCAE_HAS_CUDA)
 TEST_CASE("SearchRun CUDA caesar sweep + CPU↔CUDA parity", "[run][search][cuda]") {
-    const parcae::tool::Context ctx{PARCAE_TEST_DATA_DIR};
+    const Context ctx{PARCAE_TEST_DATA_DIR};
 
     SearchRun::Options options;
-    options.backend = parcae::tool::Backend::Cuda;
+    options.backend = Backend::Cuda;
     options.family = "caesar";
     options.seed = 2109016688u;
     options.stream_length = 256;
@@ -89,12 +89,12 @@ TEST_CASE("SearchRun CUDA caesar sweep + CPU↔CUDA parity", "[run][search][cuda
 }
 
 TEST_CASE("SearchRun CUDA all families parity", "[run][search][cuda][families]") {
-    const parcae::tool::Context ctx{PARCAE_TEST_DATA_DIR};
+    const Context ctx{PARCAE_TEST_DATA_DIR};
     const std::vector<std::string> families = {
         "caesar", "atbash", "atbash_caesar", "affine", "vigenere"};
     for (const std::string& family : families) {
         SearchRun::Options options;
-        options.backend = parcae::tool::Backend::Cuda;
+        options.backend = Backend::Cuda;
         options.family = family;
         options.seed = 42u;
         options.stream_length = 128;

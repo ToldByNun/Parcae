@@ -58,12 +58,12 @@ public:
         std::span<const TransformCandidate> candidates,
         std::string_view score_id,
         std::size_t k,
-        const parcae::tool::Context* ctx = nullptr,
+        const Context* ctx = nullptr,
         ScoreRequest request = ScoreRequest(),
         const nlohmann::json& params = nlohmann::json::object(),
         std::string_view score_version = "v0",
         BatchExecution execution = BatchExecution::Serial,
-        parcae::tool::Backend backend = parcae::tool::Backend::Cpu,
+        Backend backend = Backend::Cpu,
         BatchRunner::Progress progress = BatchRunner::Progress{}) {
         if (candidates.empty()) {
             return Status::error("rank_candidates: candidates must be non-empty");
@@ -72,7 +72,7 @@ public:
             return Status::error("rank_candidates: k must be >= 1");
         }
 
-        Status usable = parcae::tool::BackendUtil::ensure_usable(backend);
+        Status usable = BackendUtil::ensure_usable(backend);
         if (!usable.ok()) {
             return usable;
         }
@@ -97,7 +97,7 @@ public:
             request.expected_frequencies = &owned_table.value();
         }
 
-        if (backend == parcae::tool::Backend::Cpu) {
+        if (backend == Backend::Cpu) {
             return BatchRunner::run(
                 candidates,
                 score_id,
@@ -144,9 +144,9 @@ public:
     [[nodiscard]] static StatusOr<nlohmann::json> result_to_json(
         const BatchResult& result,
         std::span<const TransformCandidate> candidates = {},
-        const parcae::tool::Context* ctx = nullptr,
+        const Context* ctx = nullptr,
         std::size_t latin_max_chars = 64,
-        parcae::tool::Backend backend = parcae::tool::Backend::Cpu) {
+        Backend backend = Backend::Cpu) {
         StatusOr<ScoreOrder> order = ScoreRegistry::order_of(result.score_id());
         if (!order.ok()) {
             return order.status();
@@ -161,7 +161,7 @@ public:
                 candidate = &candidates[hit.source_index()];
                 if (ctx != nullptr) {
                     StatusOr<std::string> text =
-                        parcae::tool::to_latin(*ctx, candidate->output_indices());
+                        ToolApi::to_latin(*ctx, candidate->output_indices());
                     if (!text.ok()) {
                         return text.status();
                     }
@@ -179,7 +179,7 @@ public:
             {"score_id", result.score_id()},
             {"score_version", result.score_version()},
             {"order", std::string(ScoreOrderUtil::to_string(order.value()))},
-            {"backend", std::string(parcae::tool::BackendUtil::to_string(backend))},
+            {"backend", std::string(BackendUtil::to_string(backend))},
             {"k", result.top().size()},
             {"scored_count", result.scored_count()},
             {"hits", std::move(hits)},

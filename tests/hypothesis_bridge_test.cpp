@@ -44,7 +44,7 @@ namespace {
         "chi2_english_gp_v0",
         k,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         64);
     if (!job.ok()) {
         return job.status();
@@ -63,7 +63,7 @@ namespace {
         "caesar",
         "chi2_english_gp_v0",
         "v0",
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         k,
         1,
         std::move(lines));
@@ -83,10 +83,10 @@ TEST_CASE(
     std::vector<nlohmann::json> lines;
     lines.push_back(BatchArtifact::candidate_wire(
         caesar_candidate(3), "chi2_english_gp_v0", "v0", 12.34,
-        parcae::tool::Backend::Cpu, 0));
+        Backend::Cpu, 0));
     lines.push_back(BatchArtifact::candidate_wire(
         caesar_candidate(7), "chi2_english_gp_v0", "v0", 20.0,
-        parcae::tool::Backend::Cpu, 1));
+        Backend::Cpu, 1));
 
     StatusOr<BatchArtifact> art =
         make_test_batch("bridge-ws", "b-caesar-0001", std::move(lines));
@@ -152,7 +152,7 @@ TEST_CASE(
     std::vector<nlohmann::json> lines;
     lines.push_back(BatchArtifact::candidate_wire(
         caesar_candidate(3), "chi2_english_gp_v0", "v0", 1.0,
-        parcae::tool::Backend::Cpu, 0));
+        Backend::Cpu, 0));
 
     StatusOr<BatchArtifact> art =
         make_test_batch("bridge-ws-skip", "b-skip-0001", std::move(lines));
@@ -184,7 +184,7 @@ TEST_CASE(
     std::vector<nlohmann::json> lines;
     lines.push_back(BatchArtifact::candidate_wire(
         caesar_candidate(3), "chi2_english_gp_v0", "v0", 1.0,
-        parcae::tool::Backend::Cpu, 0));
+        Backend::Cpu, 0));
 
     StatusOr<BatchArtifact> art =
         make_test_batch("bridge-ws-scored", "b-scored-0001", std::move(lines));
@@ -262,7 +262,7 @@ TEST_CASE(
             "chi2_english_gp_v0",
             "v0",
             1.0,
-            parcae::tool::Backend::Cpu,
+            Backend::Cpu,
             rank);
     };
 

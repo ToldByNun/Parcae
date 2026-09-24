@@ -116,7 +116,7 @@ CLI: `parcae-search-run --backend cuda --family caesar|atbash|atbash_caesar|affi
 
 | Surface | CPU | CUDA |
 |---------|-----|------|
-| `parcae::tool::Backend` | default | requires `PARCAE_HAS_CUDA` |
+| `Backend` (tool API) | default | requires `PARCAE_HAS_CUDA` |
 | `parcae-decode` / `parcae-score` | `--backend cpu` | `--backend cuda` (exit 2 if not built) |
 | `parcae-parity check` | golden digests | `--compare-cuda` |
 | `parcae-search-run` | `family=caesar` only | all fused families |

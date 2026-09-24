@@ -232,8 +232,8 @@ public:
     }
 
     [[nodiscard]] Status set_method(nlohmann::json method) {
-        StatusOr<parcae::tool::TransformEnvelope> envelope =
-            parcae::tool::TransformEnvelope::from_json(method);
+        StatusOr<TransformEnvelope> envelope =
+            TransformEnvelope::from_json(method);
         if (!envelope.ok()) {
             return envelope.status();
         }
@@ -380,8 +380,8 @@ public:
         if (!root.contains("method") || !root.at("method").is_object()) {
             return Status::error("HypothesisRecord.method must be an object");
         }
-        StatusOr<parcae::tool::TransformEnvelope> envelope =
-            parcae::tool::TransformEnvelope::from_json(root.at("method"));
+        StatusOr<TransformEnvelope> envelope =
+            TransformEnvelope::from_json(root.at("method"));
         if (!envelope.ok()) {
             return Status::error(
                 "HypothesisRecord.method is not a valid TransformEnvelope: " +
@@ -575,8 +575,8 @@ public:
         if (!hid.ok()) {
             return hid.status();
         }
-        StatusOr<parcae::tool::TransformEnvelope> envelope =
-            parcae::tool::TransformEnvelope::from_json(method);
+        StatusOr<TransformEnvelope> envelope =
+            TransformEnvelope::from_json(method);
         if (!envelope.ok()) {
             return envelope.status();
         }

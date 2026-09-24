@@ -62,7 +62,7 @@ TEST_CASE("TheoryEnvelopeBridge parses catalog TransformEnvelope", "[dsl][envelo
     REQUIRE_FALSE(env.value().is_theory());
     REQUIRE(env.value().transform_id() == "caesar");
 
-    StatusOr<parcae::tool::TransformEnvelope> catalog = env.value().to_catalog_envelope();
+    StatusOr<TransformEnvelope> catalog = env.value().to_catalog_envelope();
     REQUIRE(catalog.ok());
     REQUIRE(catalog.value().transform_id() == TransformId::caesar());
     REQUIRE(catalog.value().params().at("shift") == 3);
@@ -82,7 +82,7 @@ TEST_CASE("TheoryEnvelopeBridge parses theory URI extension", "[dsl][envelope]")
         env.value().theory_uri()->to_string() ==
         "parcae://theories/quadratic_polynomial_stream@1");
 
-    StatusOr<parcae::tool::TransformEnvelope> lowered = env.value().to_catalog_envelope();
+    StatusOr<TransformEnvelope> lowered = env.value().to_catalog_envelope();
     REQUIRE_FALSE(lowered.ok());
     REQUIRE(lowered.status().message().find("cannot be lowered") != std::string::npos);
     REQUIRE(lowered.status().message().find("TheoryDispatch") != std::string::npos);
@@ -182,14 +182,14 @@ TEST_CASE("catalog TransformEnvelope still parses via tool API", "[dsl][envelope
         {"direction", "encrypt"},
         {"params", {{"a", 3}, {"b", 5}}},
     };
-    StatusOr<parcae::tool::TransformEnvelope> direct =
-        parcae::tool::TransformEnvelope::from_json(root);
+    StatusOr<TransformEnvelope> direct =
+        TransformEnvelope::from_json(root);
     REQUIRE(direct.ok());
 
     StatusOr<TheoryEnvelopeBridge::Envelope> via_bridge =
         TheoryEnvelopeBridge::from_json(root);
     REQUIRE(via_bridge.ok());
-    StatusOr<parcae::tool::TransformEnvelope> lowered =
+    StatusOr<TransformEnvelope> lowered =
         via_bridge.value().to_catalog_envelope();
     REQUIRE(lowered.ok());
     REQUIRE(lowered.value().to_json() == direct.value().to_json());

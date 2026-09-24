@@ -332,11 +332,11 @@ TEST_CASE(
         "chi2_english_gp_v0",
         5,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         10);
     REQUIRE(tight.ok());
 
-    const parcae::tool::Context ctx(data);
+    const Context ctx(data);
     StatusOr<WorkspaceCipher> cipher = WorkspaceCipher::load(data, "l44_caps");
     REQUIRE(cipher.ok());
 
@@ -361,7 +361,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         5,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         29);
     REQUIRE(ok_job.ok());
     opts.batch_id = "b_l44_caps_ok";

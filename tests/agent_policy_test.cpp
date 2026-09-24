@@ -59,21 +59,21 @@ TEST_CASE("AgentPolicy allow-list and deny-list", "[tool][policy]") {
 
 TEST_CASE("AgentPolicy CUDA requires allow_cuda opt-in", "[tool][policy][backend]") {
     AgentPolicy denied(data_root(), /*allow_cuda=*/false);
-    REQUIRE(denied.allow_backend(parcae::tool::Backend::Cpu).ok());
-    REQUIRE_FALSE(denied.allow_backend(parcae::tool::Backend::Cuda).ok());
+    REQUIRE(denied.allow_backend(Backend::Cpu).ok());
+    REQUIRE_FALSE(denied.allow_backend(Backend::Cuda).ok());
     REQUIRE(
-        AgentPolicy::error_code_for(denied.allow_backend(parcae::tool::Backend::Cuda)) ==
+        AgentPolicy::error_code_for(denied.allow_backend(Backend::Cuda)) ==
         ToolErrorCode::Policy);
 
-    StatusOr<parcae::tool::Backend> checked = denied.check_backend_string("cuda");
+    StatusOr<Backend> checked = denied.check_backend_string("cuda");
     REQUIRE_FALSE(checked.ok());
     REQUIRE(AgentPolicy::error_code_for(checked.status()) == ToolErrorCode::Policy);
 
     AgentPolicy allowed(data_root(), /*allow_cuda=*/true);
-    REQUIRE(allowed.allow_backend(parcae::tool::Backend::Cuda).ok());
+    REQUIRE(allowed.allow_backend(Backend::Cuda).ok());
     // Build availability is orthogonal — ensure_usable may still fail without CUDA.
-    Status usable = parcae::tool::BackendUtil::ensure_usable(parcae::tool::Backend::Cuda);
-    if (!parcae::tool::BackendUtil::cuda_built()) {
+    Status usable = BackendUtil::ensure_usable(Backend::Cuda);
+    if (!BackendUtil::cuda_built()) {
         REQUIRE_FALSE(usable.ok());
     }
 }

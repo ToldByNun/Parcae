@@ -34,8 +34,8 @@
 
 namespace {
 
-[[nodiscard]] parcae::tool::Context test_ctx() {
-    return parcae::tool::Context{std::filesystem::path(PARCAE_TEST_DATA_DIR)};
+[[nodiscard]] Context test_ctx() {
+    return Context{std::filesystem::path(PARCAE_TEST_DATA_DIR)};
 }
 
 [[nodiscard]] Index29 I(std::uint8_t v) {
@@ -60,7 +60,7 @@ TEST_CASE("tool::tokenize round-trips a-warning ciphertext", "[tool][tokenize]")
     REQUIRE(ciphertext.ok());
 
     StatusOr<TokenStream> stream =
-        parcae::tool::tokenize(ctx, ciphertext.value(), "rtkd-separator-grammar-v0", true);
+        ToolApi::tokenize(ctx, ciphertext.value(), "rtkd-separator-grammar-v0", true);
     REQUIRE(stream.ok());
     REQUIRE(stream.value().consumable_count() > 0);
     REQUIRE(stream.value().text() == ciphertext.value());
@@ -69,7 +69,7 @@ TEST_CASE("tool::tokenize round-trips a-warning ciphertext", "[tool][tokenize]")
 TEST_CASE("tool::apply_to_indices and apply_and_rebuild_text", "[tool][apply]") {
     const auto ctx = test_ctx();
 
-    StatusOr<parcae::tool::TransformEnvelope> env = parcae::tool::TransformEnvelope::from_json(
+    StatusOr<TransformEnvelope> env = TransformEnvelope::from_json(
         nlohmann::json{
             {"transform_id", "caesar"},
             {"direction", "encrypt"},
@@ -79,11 +79,11 @@ TEST_CASE("tool::apply_to_indices and apply_and_rebuild_text", "[tool][apply]") 
 
     const std::vector<Index29> plain = {I(0), I(1), I(2)};
     StatusOr<std::vector<Index29>> cipher =
-        parcae::tool::apply_to_indices(plain, env.value());
+        ToolApi::apply_to_indices(plain, env.value());
     REQUIRE(cipher.ok());
     REQUIRE(cipher.value() == std::vector<Index29>{I(3), I(4), I(5)});
 
-    StatusOr<parcae::tool::TransformEnvelope> decrypt = parcae::tool::TransformEnvelope::from_json(
+    StatusOr<TransformEnvelope> decrypt = TransformEnvelope::from_json(
         nlohmann::json{
             {"transform_id", "caesar"},
             {"direction", "decrypt"},
@@ -91,7 +91,7 @@ TEST_CASE("tool::apply_to_indices and apply_and_rebuild_text", "[tool][apply]") 
         });
     REQUIRE(decrypt.ok());
     StatusOr<std::vector<Index29>> recovered =
-        parcae::tool::apply_to_indices(cipher.value(), decrypt.value());
+        ToolApi::apply_to_indices(cipher.value(), decrypt.value());
     REQUIRE(recovered.ok());
     REQUIRE(recovered.value() == plain);
 
@@ -103,11 +103,11 @@ TEST_CASE("tool::apply_to_indices and apply_and_rebuild_text", "[tool][apply]") 
     REQUIRE(r0.ok());
     REQUIRE(r1.ok());
     const std::string mixed = r0.value() + "-" + r1.value();
-    StatusOr<TokenStream> stream = parcae::tool::tokenize(ctx, mixed);
+    StatusOr<TokenStream> stream = ToolApi::tokenize(ctx, mixed);
     REQUIRE(stream.ok());
 
     StatusOr<std::string> rebuilt =
-        parcae::tool::apply_and_rebuild_text(ctx, stream.value(), env.value());
+        ToolApi::apply_and_rebuild_text(ctx, stream.value(), env.value());
     REQUIRE(rebuilt.ok());
     StatusOr<std::string> e3 = RuneCodec{profile.value()}.encode(I(3));
     StatusOr<std::string> e4 = RuneCodec{profile.value()}.encode(I(4));
@@ -117,17 +117,17 @@ TEST_CASE("tool::apply_to_indices and apply_and_rebuild_text", "[tool][apply]") 
 }
 
 TEST_CASE("tool::apply_to_indices Backend::Cuda matches CPU when available", "[tool][backend]") {
-    StatusOr<parcae::tool::Backend> parsed = parcae::tool::BackendUtil::from_string("cuda");
+    StatusOr<Backend> parsed = BackendUtil::from_string("cuda");
     REQUIRE(parsed.ok());
-    REQUIRE(parsed.value() == parcae::tool::Backend::Cuda);
-    REQUIRE(parcae::tool::BackendUtil::from_string("cpu").value() == parcae::tool::Backend::Cpu);
-    REQUIRE_FALSE(parcae::tool::BackendUtil::from_string("gpu").ok());
+    REQUIRE(parsed.value() == Backend::Cuda);
+    REQUIRE(BackendUtil::from_string("cpu").value() == Backend::Cpu);
+    REQUIRE_FALSE(BackendUtil::from_string("gpu").ok());
 
 #if defined(PARCAE_HAS_CUDA)
-    REQUIRE(parcae::tool::BackendUtil::cuda_built());
-    REQUIRE(parcae::tool::BackendUtil::ensure_usable(parcae::tool::Backend::Cuda).ok());
+    REQUIRE(BackendUtil::cuda_built());
+    REQUIRE(BackendUtil::ensure_usable(Backend::Cuda).ok());
 
-    StatusOr<parcae::tool::TransformEnvelope> env = parcae::tool::TransformEnvelope::from_json(
+    StatusOr<TransformEnvelope> env = TransformEnvelope::from_json(
         nlohmann::json{
             {"transform_id", "caesar"},
             {"direction", "decrypt"},
@@ -137,24 +137,24 @@ TEST_CASE("tool::apply_to_indices Backend::Cuda matches CPU when available", "[t
 
     const std::vector<Index29> cipher = {I(5), I(6), I(7), I(10)};
     StatusOr<std::vector<Index29>> cpu =
-        parcae::tool::apply_to_indices(cipher, env.value(), parcae::tool::Backend::Cpu);
+        ToolApi::apply_to_indices(cipher, env.value(), Backend::Cpu);
     StatusOr<std::vector<Index29>> cuda =
-        parcae::tool::apply_to_indices(cipher, env.value(), parcae::tool::Backend::Cuda);
+        ToolApi::apply_to_indices(cipher, env.value(), Backend::Cuda);
     REQUIRE(cpu.ok());
     REQUIRE(cuda.ok());
     REQUIRE(cuda.value() == cpu.value());
 
     StatusOr<double> cpu_score =
-        parcae::tool::score(test_ctx(), cpu.value(), "ic_mod29", "v0", {}, {}, parcae::tool::Backend::Cpu);
+        ToolApi::score(test_ctx(), cpu.value(), "ic_mod29", "v0", {}, {}, Backend::Cpu);
     StatusOr<double> cuda_score =
-        parcae::tool::score(test_ctx(), cpu.value(), "ic_mod29", "v0", {}, {}, parcae::tool::Backend::Cuda);
+        ToolApi::score(test_ctx(), cpu.value(), "ic_mod29", "v0", {}, {}, Backend::Cuda);
     REQUIRE(cpu_score.ok());
     REQUIRE(cuda_score.ok());
     REQUIRE(cuda_score.value() == cpu_score.value());
 #else
-    REQUIRE_FALSE(parcae::tool::BackendUtil::cuda_built());
-    REQUIRE_FALSE(parcae::tool::BackendUtil::ensure_usable(parcae::tool::Backend::Cuda).ok());
-    StatusOr<parcae::tool::TransformEnvelope> env = parcae::tool::TransformEnvelope::from_json(
+    REQUIRE_FALSE(BackendUtil::cuda_built());
+    REQUIRE_FALSE(BackendUtil::ensure_usable(Backend::Cuda).ok());
+    StatusOr<TransformEnvelope> env = TransformEnvelope::from_json(
         nlohmann::json{
             {"transform_id", "identity"},
             {"direction", "decrypt"},
@@ -162,7 +162,7 @@ TEST_CASE("tool::apply_to_indices Backend::Cuda matches CPU when available", "[t
         });
     REQUIRE(env.ok());
     REQUIRE_FALSE(
-        parcae::tool::apply_to_indices(std::vector<Index29>{I(1)}, env.value(), parcae::tool::Backend::Cuda)
+        ToolApi::apply_to_indices(std::vector<Index29>{I(1)}, env.value(), Backend::Cuda)
             .ok());
 #endif
 }
@@ -171,7 +171,7 @@ TEST_CASE("tool::to_latin preferred labels", "[tool][latin]") {
     const auto ctx = test_ctx();
     // Index 0 preferred is typically F; 1 is U — join without spaces.
     StatusOr<std::string> latin =
-        parcae::tool::to_latin(ctx, std::vector<Index29>{I(0), I(1)});
+        ToolApi::to_latin(ctx, std::vector<Index29>{I(0), I(1)});
     REQUIRE(latin.ok());
     REQUIRE_FALSE(latin.value().empty());
     REQUIRE(latin.value().find(' ') == std::string::npos);
@@ -180,11 +180,11 @@ TEST_CASE("tool::to_latin preferred labels", "[tool][latin]") {
 TEST_CASE("tool::score ic and chi2", "[tool][score]") {
     const auto ctx = test_ctx();
     const std::vector<Index29> xs = {I(3), I(3), I(3), I(3)};
-    StatusOr<double> ic = parcae::tool::score(ctx, xs, "ic_mod29");
+    StatusOr<double> ic = ToolApi::score(ctx, xs, "ic_mod29");
     REQUIRE(ic.ok());
     REQUIRE(ic.value() == Catch::Approx(1.0).margin(0.0));
 
-    StatusOr<double> chi2 = parcae::tool::score(ctx, xs, "chi2_english_gp_v0");
+    StatusOr<double> chi2 = ToolApi::score(ctx, xs, "chi2_english_gp_v0");
     REQUIRE(chi2.ok());
     REQUIRE(chi2.value() >= 0.0);
 }
@@ -193,24 +193,24 @@ TEST_CASE("tool::validate_fixture by id and path", "[tool][validate]") {
     const auto ctx = test_ctx();
 
     const ValidationReport by_id =
-        parcae::tool::validate_fixture(ctx, "a-warning", /*require_locked=*/true);
+        ToolApi::validate_fixture(ctx, "a-warning", /*require_locked=*/true);
     REQUIRE(by_id.fixture_id() == "a-warning");
     REQUIRE(by_id.ok());
 
     const auto path = (ctx.data_root() / "fixtures" / "solved" / "welcome").string();
     const ValidationReport by_path =
-        parcae::tool::validate_fixture(ctx, path, /*require_locked=*/true);
+        ToolApi::validate_fixture(ctx, path, /*require_locked=*/true);
     REQUIRE(by_path.fixture_id() == "welcome");
     REQUIRE(by_path.ok());
 }
 
 TEST_CASE("tool::list registries", "[tool]") {
-    const auto transforms = parcae::tool::list_transform_ids();
+    const auto transforms = ToolApi::list_transform_ids();
     REQUIRE(transforms.size() >= 8);
     REQUIRE(
         std::find(transforms.begin(), transforms.end(), "caesar") != transforms.end());
 
-    const auto scores = parcae::tool::list_score_ids();
+    const auto scores = ToolApi::list_score_ids();
     REQUIRE(scores.size() == 5);
     REQUIRE(std::find(scores.begin(), scores.end(), "ic_mod29") != scores.end());
 }
@@ -245,7 +245,7 @@ TEST_CASE("GenerateCandidates from_indices and from_source", "[tool][generate]")
     REQUIRE(in);
     std::ostringstream buf;
     buf << in.rdbuf();
-    StatusOr<TokenStream> stream = parcae::tool::tokenize(ctx, buf.str());
+    StatusOr<TokenStream> stream = ToolApi::tokenize(ctx, buf.str());
     REQUIRE(stream.ok());
     StatusOr<std::vector<TransformCandidate>> from_stream =
         GenerateCandidates::from_stream("gen_atbash", stream.value());
@@ -262,14 +262,14 @@ TEST_CASE("RankCandidates top-k stable ties and JSON", "[tool][rank]") {
 
     const std::vector<Index29> plain = {I(0), I(1), I(2), I(3)};
     StatusOr<std::vector<Index29>> cipher = [&]() {
-        StatusOr<parcae::tool::TransformEnvelope> env =
-            parcae::tool::TransformEnvelope::from_json(nlohmann::json{
+        StatusOr<TransformEnvelope> env =
+            TransformEnvelope::from_json(nlohmann::json{
                 {"transform_id", "caesar"},
                 {"direction", "encrypt"},
                 {"params", {{"shift", 7}}},
             });
         REQUIRE(env.ok());
-        return parcae::tool::apply_to_indices(plain, env.value());
+        return ToolApi::apply_to_indices(plain, env.value());
     }();
     REQUIRE(cipher.ok());
 
@@ -345,7 +345,7 @@ TEST_CASE("RankCandidates CUDA backend path", "[tool][rank][cuda]") {
         nlohmann::json::object(),
         "v0",
         BatchExecution::Serial,
-        parcae::tool::Backend::Cuda);
+        Backend::Cuda);
     REQUIRE_FALSE(no_cuda.ok());
     REQUIRE(no_cuda.status().message().find("CUDA") != std::string::npos);
 #else
@@ -362,7 +362,7 @@ TEST_CASE("RankCandidates CUDA backend path", "[tool][rank][cuda]") {
         nlohmann::json::object(),
         "v0",
         BatchExecution::Serial,
-        parcae::tool::Backend::Cpu);
+        Backend::Cpu);
     REQUIRE(cpu.ok());
 
     StatusOr<BatchResult> cuda = RankCandidates::run(
@@ -374,7 +374,7 @@ TEST_CASE("RankCandidates CUDA backend path", "[tool][rank][cuda]") {
         nlohmann::json::object(),
         "v0",
         BatchExecution::Serial,
-        parcae::tool::Backend::Cuda);
+        Backend::Cuda);
     REQUIRE(cuda.ok());
     REQUIRE(cuda.value().top().size() == cpu.value().top().size());
     for (std::size_t i = 0; i < cpu.value().top().size(); ++i) {
@@ -388,7 +388,7 @@ TEST_CASE("RankCandidates CUDA backend path", "[tool][rank][cuda]") {
         candidates.value(),
         &ctx,
         64,
-        parcae::tool::Backend::Cuda);
+        Backend::Cuda);
     REQUIRE(payload.ok());
     REQUIRE(payload.value().at("backend").get<std::string>() == "cuda");
 #endif
@@ -501,7 +501,7 @@ TEST_CASE("RankCandidates forwards progress sink; top-k unchanged", "[tool][rank
         nlohmann::json::object(),
         "v0",
         BatchExecution::Serial,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         progress);
     REQUIRE(with_sink.ok());
 

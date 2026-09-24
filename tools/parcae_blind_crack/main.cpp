@@ -12,26 +12,26 @@
 #endif
 
 int main(int argc, char** argv) {
-    const std::vector<std::string> args = parcae::cli::argv_tail(argc, argv);
-    if (parcae::cli::has_flag(args, "-h") || parcae::cli::has_flag(args, "--help")) {
+    const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
+    if (CliIo::has_flag(args, "-h") || CliIo::has_flag(args, "--help")) {
         BlindCrackCli::print_help();
-        return parcae::cli::kExitOk;
+        return CliIo::kExitOk;
     }
 
-    const std::string data_dir = parcae::cli::optional_option(args, "--data-dir");
-    StatusOr<parcae::tool::Context> ctx =
-        parcae::cli::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
+    const std::string data_dir = CliIo::optional_option(args, "--data-dir");
+    StatusOr<Context> ctx =
+        CliIo::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
         std::cerr << ctx.status().message() << '\n';
-        return parcae::cli::kExitUsage;
+        return CliIo::kExitUsage;
     }
 
     StatusOr<BlindCrack::Report> report = BlindCrack::run_all_locked(ctx.value());
     if (!report.ok()) {
         std::cerr << report.status().message() << '\n';
-        return parcae::cli::kExitFail;
+        return CliIo::kExitFail;
     }
 
     std::cout << BlindCrack::format(report.value());
-    return parcae::cli::kExitOk;
+    return CliIo::kExitOk;
 }

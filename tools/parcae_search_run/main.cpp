@@ -54,53 +54,51 @@ void print_help() {
 }  // namespace
 
 int main(int argc, char** argv) {
-    using namespace parcae::cli;
-
-    const std::vector<std::string> args = argv_tail(argc, argv);
-    if (has_flag(args, "-h") || has_flag(args, "--help")) {
+    const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
+    if (CliIo::has_flag(args, "-h") || CliIo::has_flag(args, "--help")) {
         print_help();
-        return kExitOk;
+        return CliIo::kExitOk;
     }
 
-    const bool json_mode = has_flag(args, "--json");
-    const bool omit_timing = has_flag(args, "--omit-timing");
+    const bool json_mode = CliIo::has_flag(args, "--json");
+    const bool omit_timing = CliIo::has_flag(args, "--omit-timing");
     if (omit_timing && !json_mode) {
         std::cerr << "--omit-timing requires --json\n";
         print_help();
-        return kExitUsage;
+        return CliIo::kExitUsage;
     }
 
-    const std::string data_dir = optional_option(args, "--data-dir");
+    const std::string data_dir = CliIo::optional_option(args, "--data-dir");
     std::optional<std::string> backend_label;
 
-    StatusOr<parcae::tool::Backend> backend = parcae::tool::BackendUtil::from_string(
-        optional_option(args, "--backend", "cpu"));
+    StatusOr<Backend> backend = BackendUtil::from_string(
+        CliIo::optional_option(args, "--backend", "cpu"));
     if (!backend.ok()) {
         print_help();
         return fail(json_mode, std::nullopt, ToolErrorCode::Usage, backend.status().message(),
-                    kExitUsage);
+                    CliIo::kExitUsage);
     }
-    backend_label = std::string(parcae::tool::BackendUtil::to_string(backend.value()));
+    backend_label = std::string(BackendUtil::to_string(backend.value()));
 
-    Status backend_ok = parcae::tool::BackendUtil::ensure_usable(backend.value());
+    Status backend_ok = BackendUtil::ensure_usable(backend.value());
     if (!backend_ok.ok()) {
         return fail(json_mode, backend_label, ToolErrorCode::NotBuilt, backend_ok.message(),
-                    kExitUsage);
+                    CliIo::kExitUsage);
     }
 
-    StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
+    StatusOr<Context> ctx = CliIo::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
         return fail(json_mode, backend_label, ToolErrorCode::Io, ctx.status().message(),
-                    kExitUsage);
+                    CliIo::kExitUsage);
     }
 
     SearchRun::Options options;
     options.backend = backend.value();
-    options.family = optional_option(args, "--family", "caesar");
-    options.score_id = optional_option(args, "--score-id", "chi2_english_gp_v0");
-    options.compare_cpu_cuda = !has_flag(args, "--no-compare");
+    options.family = CliIo::optional_option(args, "--family", "caesar");
+    options.score_id = CliIo::optional_option(args, "--score-id", "chi2_english_gp_v0");
+    options.compare_cpu_cuda = !CliIo::has_flag(args, "--no-compare");
 
-    if (backend.value() == parcae::tool::Backend::Cuda) {
+    if (backend.value() == Backend::Cuda) {
         if (options.family == "affine") {
             options.stream_length = 1u << 18;
             options.throughput_repeats = 16;
@@ -110,40 +108,40 @@ int main(int argc, char** argv) {
         }
     }
 
-    const std::string seed_text = optional_option(args, "--seed");
+    const std::string seed_text = CliIo::optional_option(args, "--seed");
     if (!seed_text.empty()) {
         try {
             options.seed = static_cast<std::uint32_t>(std::stoul(seed_text));
         } catch (const std::exception&) {
             return fail(json_mode, backend_label, ToolErrorCode::Usage, "Invalid --seed",
-                        kExitUsage);
+                        CliIo::kExitUsage);
         }
     }
 
-    const std::string len_text = optional_option(args, "--stream-length");
+    const std::string len_text = CliIo::optional_option(args, "--stream-length");
     if (!len_text.empty()) {
         try {
             options.stream_length = static_cast<std::size_t>(std::stoull(len_text));
         } catch (const std::exception&) {
             return fail(json_mode, backend_label, ToolErrorCode::Usage, "Invalid --stream-length",
-                        kExitUsage);
+                        CliIo::kExitUsage);
         }
     }
 
-    const std::string reps_text = optional_option(args, "--repeats");
+    const std::string reps_text = CliIo::optional_option(args, "--repeats");
     if (!reps_text.empty()) {
         try {
             options.throughput_repeats = static_cast<std::size_t>(std::stoull(reps_text));
         } catch (const std::exception&) {
             return fail(json_mode, backend_label, ToolErrorCode::Usage, "Invalid --repeats",
-                        kExitUsage);
+                        CliIo::kExitUsage);
         }
     }
 
     StatusOr<SearchRunMetrics> metrics = SearchRun::run(ctx.value(), options);
     if (!metrics.ok()) {
         return fail(json_mode, backend_label, ToolErrorCode::Internal, metrics.status().message(),
-                    kExitFail);
+                    CliIo::kExitFail);
     }
 
     const bool eval_ok = metrics.value().eval_set_pass_rate() >= 1.0;
@@ -166,7 +164,7 @@ int main(int argc, char** argv) {
 
     std::cout << SearchRunConsole::format(metrics.value());
     if (!eval_ok || !parity_ok) {
-        return kExitFail;
+        return CliIo::kExitFail;
     }
-    return kExitOk;
+    return CliIo::kExitOk;
 }

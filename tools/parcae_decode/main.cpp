@@ -62,7 +62,7 @@ void print_help() {
     return plain_exit;
 }
 
-[[nodiscard]] StatusOr<parcae::tool::TransformEnvelope> envelope_from_fixture(
+[[nodiscard]] StatusOr<TransformEnvelope> envelope_from_fixture(
     const Fixture& fixture) {
     nlohmann::json root{
         {"transform_id", fixture.transform_id()},
@@ -77,20 +77,20 @@ void print_help() {
         }
         root["interrupt"] = interrupt.value().to_json();
     }
-    return parcae::tool::TransformEnvelope::from_json(root);
+    return TransformEnvelope::from_json(root);
 }
 
-[[nodiscard]] StatusOr<parcae::tool::TransformEnvelope> envelope_from_flags(
+[[nodiscard]] StatusOr<TransformEnvelope> envelope_from_flags(
     const std::vector<std::string>& args) {
-    StatusOr<std::string> transform_id = parcae::cli::require_option(args, "--transform-id");
+    StatusOr<std::string> transform_id = CliIo::require_option(args, "--transform-id");
     if (!transform_id.ok()) {
         return transform_id.status();
     }
 
-    const std::string direction = parcae::cli::optional_option(args, "--direction", "decrypt");
+    const std::string direction = CliIo::optional_option(args, "--direction", "decrypt");
     nlohmann::json params = nlohmann::json::object();
 
-    const std::string params_json = parcae::cli::optional_option(args, "--params-json");
+    const std::string params_json = CliIo::optional_option(args, "--params-json");
     if (!params_json.empty()) {
         try {
             params = nlohmann::json::parse(params_json);
@@ -101,19 +101,19 @@ void print_help() {
             return Status::error("--params-json must be an object");
         }
     } else {
-        const std::string key_indices = parcae::cli::optional_option(args, "--key-indices");
+        const std::string key_indices = CliIo::optional_option(args, "--key-indices");
         if (!key_indices.empty()) {
-            StatusOr<std::vector<int>> indices = parcae::cli::parse_int_list(key_indices);
+            StatusOr<std::vector<int>> indices = CliIo::parse_int_list(key_indices);
             if (!indices.ok()) {
                 return indices.status();
             }
             params["key_indices"] = indices.value();
         }
-        const std::string key_latin = parcae::cli::optional_option(args, "--key-latin");
+        const std::string key_latin = CliIo::optional_option(args, "--key-latin");
         if (!key_latin.empty()) {
             params["key_latin"] = key_latin;
         }
-        const std::string shift = parcae::cli::optional_option(args, "--shift");
+        const std::string shift = CliIo::optional_option(args, "--shift");
         if (!shift.empty()) {
             try {
                 params["shift"] = std::stoi(shift);
@@ -129,9 +129,9 @@ void print_help() {
         {"params", params},
     };
 
-    const std::string skips = parcae::cli::optional_option(args, "--skip-indices");
+    const std::string skips = CliIo::optional_option(args, "--skip-indices");
     if (!skips.empty()) {
-        StatusOr<std::vector<std::size_t>> skip_indices = parcae::cli::parse_size_list(skips);
+        StatusOr<std::vector<std::size_t>> skip_indices = CliIo::parse_size_list(skips);
         if (!skip_indices.ok()) {
             return skip_indices.status();
         }
@@ -143,37 +143,37 @@ void print_help() {
         root["interrupt"] = interrupt.value().to_json();
     }
 
-    return parcae::tool::TransformEnvelope::from_json(root);
+    return TransformEnvelope::from_json(root);
 }
 
 [[nodiscard]] int emit_result(
-    const parcae::tool::Context& ctx,
+    const Context& ctx,
     const TokenStream& stream,
-    const parcae::tool::TransformEnvelope& envelope,
-    parcae::tool::Backend backend,
+    const TransformEnvelope& envelope,
+    Backend backend,
     bool json_mode,
     bool rebuild_text,
     const std::string& backend_label) {
     StatusOr<std::vector<Index29>> indices =
-        parcae::tool::apply_to_indices(stream, envelope, backend);
+        ToolApi::apply_to_indices(stream, envelope, backend);
     if (!indices.ok()) {
         return fail(json_mode, backend_label, ToolErrorCode::Internal, indices.status().message(),
-                    parcae::cli::kExitFail);
+                    CliIo::kExitFail);
     }
 
-    StatusOr<std::string> latin = parcae::tool::to_latin(ctx, indices.value());
+    StatusOr<std::string> latin = ToolApi::to_latin(ctx, indices.value());
     if (!latin.ok()) {
         return fail(json_mode, backend_label, ToolErrorCode::Internal, latin.status().message(),
-                    parcae::cli::kExitFail);
+                    CliIo::kExitFail);
     }
 
     std::optional<std::string> rebuilt;
     if (rebuild_text) {
         StatusOr<std::string> text =
-            parcae::tool::apply_and_rebuild_text(ctx, stream, envelope, backend);
+            ToolApi::apply_and_rebuild_text(ctx, stream, envelope, backend);
         if (!text.ok()) {
             return fail(json_mode, backend_label, ToolErrorCode::Internal, text.status().message(),
-                        parcae::cli::kExitFail);
+                        CliIo::kExitFail);
         }
         rebuilt = std::move(text.value());
     }
@@ -184,7 +184,7 @@ void print_help() {
         } else {
             std::cout << latin.value() << '\n';
         }
-        return parcae::cli::kExitOk;
+        return CliIo::kExitOk;
     }
 
     nlohmann::json index_json = nlohmann::json::array();
@@ -206,40 +206,38 @@ void print_help() {
 }  // namespace
 
 int main(int argc, char** argv) {
-    using namespace parcae::cli;
-
-    const std::vector<std::string> args = argv_tail(argc, argv);
-    if (has_flag(args, "-h") || has_flag(args, "--help") || args.empty()) {
+    const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
+    if (CliIo::has_flag(args, "-h") || CliIo::has_flag(args, "--help") || args.empty()) {
         print_help();
-        return args.empty() ? kExitUsage : kExitOk;
+        return args.empty() ? CliIo::kExitUsage : CliIo::kExitOk;
     }
 
-    const bool json_mode = has_flag(args, "--json");
-    const bool rebuild_text = has_flag(args, "--rebuild-text");
-    const std::string data_dir = optional_option(args, "--data-dir");
+    const bool json_mode = CliIo::has_flag(args, "--json");
+    const bool rebuild_text = CliIo::has_flag(args, "--rebuild-text");
+    const std::string data_dir = CliIo::optional_option(args, "--data-dir");
     std::optional<std::string> backend_label;
 
-    StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
+    StatusOr<Context> ctx = CliIo::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
         return fail(json_mode, std::nullopt, ToolErrorCode::Io, ctx.status().message(),
-                    kExitUsage);
+                    CliIo::kExitUsage);
     }
 
     const AgentPolicy policy = AgentPolicyCli::make(ctx.value(), args);
-    StatusOr<parcae::tool::Backend> backend = AgentPolicyCli::resolve_backend(policy, args);
+    StatusOr<Backend> backend = AgentPolicyCli::resolve_backend(policy, args);
     if (!backend.ok()) {
         const ToolErrorCode code = AgentPolicyCli::backend_error_code(backend.status());
         if (code == ToolErrorCode::Usage) {
             print_help();
         }
-        backend_label = optional_option(args, "--backend", "cpu");
-        return fail(json_mode, backend_label, code, backend.status().message(), kExitUsage);
+        backend_label = CliIo::optional_option(args, "--backend", "cpu");
+        return fail(json_mode, backend_label, code, backend.status().message(), CliIo::kExitUsage);
     }
-    backend_label = std::string(parcae::tool::BackendUtil::to_string(backend.value()));
+    backend_label = std::string(BackendUtil::to_string(backend.value()));
 
-    const bool has_manifest = has_flag(args, "--manifest");
-    const bool has_transform_json = has_flag(args, "--transform-json");
-    const bool has_transform_id = has_flag(args, "--transform-id");
+    const bool has_manifest = CliIo::has_flag(args, "--manifest");
+    const bool has_transform_json = CliIo::has_flag(args, "--transform-json");
+    const bool has_transform_id = CliIo::has_flag(args, "--transform-id");
     const int modes =
         static_cast<int>(has_manifest) + static_cast<int>(has_transform_json) +
         static_cast<int>(has_transform_id);
@@ -250,14 +248,14 @@ int main(int argc, char** argv) {
             backend_label,
             ToolErrorCode::Usage,
             "Choose exactly one of --manifest, --transform-json, or --transform-id",
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
     if (has_manifest) {
-        StatusOr<std::string> manifest_path = require_option(args, "--manifest");
+        StatusOr<std::string> manifest_path = CliIo::require_option(args, "--manifest");
         if (!manifest_path.ok()) {
             return fail(json_mode, backend_label, ToolErrorCode::Usage,
-                        manifest_path.status().message(), kExitUsage);
+                        manifest_path.status().message(), CliIo::kExitUsage);
         }
 
         std::filesystem::path fixture_dir(manifest_path.value());
@@ -268,20 +266,20 @@ int main(int argc, char** argv) {
         StatusOr<Fixture> fixture = FixtureLoader::load_directory(fixture_dir.string());
         if (!fixture.ok()) {
             return fail(json_mode, backend_label, ToolErrorCode::Io, fixture.status().message(),
-                        kExitFail);
+                        CliIo::kExitFail);
         }
 
-        StatusOr<parcae::tool::TransformEnvelope> envelope = envelope_from_fixture(fixture.value());
+        StatusOr<TransformEnvelope> envelope = envelope_from_fixture(fixture.value());
         if (!envelope.ok()) {
             return fail(json_mode, backend_label, ToolErrorCode::Schema,
-                        envelope.status().message(), kExitFail);
+                        envelope.status().message(), CliIo::kExitFail);
         }
 
         StatusOr<TokenStream> stream =
-            parcae::tool::tokenize(ctx.value(), fixture.value().ciphertext());
+            ToolApi::tokenize(ctx.value(), fixture.value().ciphertext());
         if (!stream.ok()) {
             return fail(json_mode, backend_label, ToolErrorCode::Internal,
-                        stream.status().message(), kExitFail);
+                        stream.status().message(), CliIo::kExitFail);
         }
 
         return emit_result(
@@ -294,43 +292,43 @@ int main(int argc, char** argv) {
             *backend_label);
     }
 
-    StatusOr<std::string> input_path = require_option(args, "--input");
+    StatusOr<std::string> input_path = CliIo::require_option(args, "--input");
     if (!input_path.ok()) {
         print_help();
         return fail(json_mode, backend_label, ToolErrorCode::Usage, input_path.status().message(),
-                    kExitUsage);
+                    CliIo::kExitUsage);
     }
-    StatusOr<std::string> source = read_all_utf8(input_path.value());
+    StatusOr<std::string> source = CliIo::read_all_utf8(input_path.value());
     if (!source.ok()) {
         return fail(json_mode, backend_label, ToolErrorCode::Io, source.status().message(),
-                    kExitUsage);
+                    CliIo::kExitUsage);
     }
 
-    StatusOr<parcae::tool::TransformEnvelope> envelope{Status::error("unset")};
+    StatusOr<TransformEnvelope> envelope{Status::error("unset")};
     if (has_transform_json) {
-        StatusOr<std::string> path = require_option(args, "--transform-json");
+        StatusOr<std::string> path = CliIo::require_option(args, "--transform-json");
         if (!path.ok()) {
             return fail(json_mode, backend_label, ToolErrorCode::Usage, path.status().message(),
-                        kExitUsage);
+                        CliIo::kExitUsage);
         }
-        StatusOr<std::string> json_text = read_file_utf8(path.value());
+        StatusOr<std::string> json_text = CliIo::read_file_utf8(path.value());
         if (!json_text.ok()) {
             return fail(json_mode, backend_label, ToolErrorCode::Io, json_text.status().message(),
-                        kExitUsage);
+                        CliIo::kExitUsage);
         }
-        envelope = parcae::tool::TransformEnvelope::from_string(json_text.value());
+        envelope = TransformEnvelope::from_string(json_text.value());
     } else {
         envelope = envelope_from_flags(args);
     }
     if (!envelope.ok()) {
         return fail(json_mode, backend_label, ToolErrorCode::Schema, envelope.status().message(),
-                    kExitFail);
+                    CliIo::kExitFail);
     }
 
-    StatusOr<TokenStream> stream = parcae::tool::tokenize(ctx.value(), source.value());
+    StatusOr<TokenStream> stream = ToolApi::tokenize(ctx.value(), source.value());
     if (!stream.ok()) {
         return fail(json_mode, backend_label, ToolErrorCode::Internal, stream.status().message(),
-                    kExitFail);
+                    CliIo::kExitFail);
     }
 
     return emit_result(

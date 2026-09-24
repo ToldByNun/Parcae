@@ -86,7 +86,7 @@ public:
         }
 
         /// Lower to a frozen-catalog TransformEnvelope. Theory URIs fail loudly.
-        [[nodiscard]] StatusOr<parcae::tool::TransformEnvelope> to_catalog_envelope() const {
+        [[nodiscard]] StatusOr<TransformEnvelope> to_catalog_envelope() const {
             if (kind_ == Kind::Theory) {
                 return Status::error(
                     "envelope transform_id is a theory URI and cannot be lowered to the "
@@ -99,7 +99,7 @@ public:
                     "envelope transform_id is not a catalog id: " + transform_id_ + " (" +
                     id.status().message() + ")");
             }
-            return parcae::tool::TransformEnvelope{
+            return TransformEnvelope{
                 id.value(), direction_, params_, interrupt_};
         }
 
@@ -262,7 +262,7 @@ public:
         const Envelope& envelope,
         const TheoryArtifact& artifact) {
         if (envelope.is_catalog()) {
-            StatusOr<parcae::tool::TransformEnvelope> lowered = envelope.to_catalog_envelope();
+            StatusOr<TransformEnvelope> lowered = envelope.to_catalog_envelope();
             if (!lowered.ok()) {
                 return lowered.status();
             }

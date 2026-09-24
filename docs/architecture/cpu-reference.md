@@ -21,7 +21,7 @@ under a parallel `include/parcae/cuda/` tree.
    `TokenStream`; kernels never see them.
 3. **Interrupts are explicit** — `InterruptPolicy` skip indices on the consumable
    rune stream; never inferred inside a kernel.
-4. **Tools are thin** — CLIs and `parcae::tool` wrap the library; no search / LLM
+4. **Tools are thin** — CLIs and `ToolApi` wrap the library; no search / LLM
    logic in the crypto core.
 5. **Determinism** — same inputs ⇒ same Index29 bits and score IEEE bits
    (see [`parity.md`](../spec/parity.md)).

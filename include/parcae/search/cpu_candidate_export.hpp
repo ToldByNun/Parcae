@@ -62,7 +62,7 @@ public:
     [[nodiscard]] static StatusOr<Result> from_job(
         std::span<const Index29> cipher,
         const SearchJob& job,
-        const parcae::tool::Context& ctx,
+        const Context& ctx,
         const SearchPrior* prior = nullptr,
         BatchRunner::Progress progress = BatchRunner::Progress{}) {
         std::optional<SearchPrior> owned_prior;
@@ -95,7 +95,7 @@ public:
         std::string_view family,
         std::string_view score_id,
         std::size_t k,
-        const parcae::tool::Context& ctx,
+        const Context& ctx,
         TransformDirection direction = TransformDirection::Decrypt,
         const nlohmann::json& param_grid = nlohmann::json::object(),
         const SearchPrior* prior = nullptr,
@@ -164,13 +164,13 @@ public:
             nlohmann::json::object(),
             score_version,
             BatchExecution::Serial,
-            parcae::tool::Backend::Cpu,
+            Backend::Cpu,
             progress);
         if (!ranked.ok()) {
             return ranked.status();
         }
 
-        return rows_from_batch(ranked.value(), candidates, parcae::tool::Backend::Cpu);
+        return rows_from_batch(ranked.value(), candidates, Backend::Cpu);
     }
 
     [[nodiscard]] static StatusOr<std::string_view> generator_id_for_family(
@@ -253,7 +253,7 @@ private:
         std::string_view family,
         TransformDirection direction,
         const nlohmann::json& param_grid,
-        const parcae::tool::Context& ctx) {
+        const Context& ctx) {
         if (family == "theory") {
             StatusOr<nlohmann::json> gen_params = theory_family_params(param_grid);
             if (!gen_params.ok()) {
@@ -451,13 +451,13 @@ private:
         if (!seed.envelope().is_object()) {
             return Status::error("CpuCandidateExport: seed envelope must be an object");
         }
-        StatusOr<parcae::tool::TransformEnvelope> parsed =
-            parcae::tool::TransformEnvelope::from_json(seed.envelope());
+        StatusOr<TransformEnvelope> parsed =
+            TransformEnvelope::from_json(seed.envelope());
         if (!parsed.ok()) {
             return parsed.status();
         }
 
-        const parcae::tool::TransformEnvelope& envelope = parsed.value();
+        const TransformEnvelope& envelope = parsed.value();
 
         std::optional<nlohmann::json> interrupt;
         if (!envelope.interrupt().skip_indices().empty()) {
@@ -489,13 +489,13 @@ private:
                 std::move(interrupt));
         }
 
-        const parcae::tool::TransformEnvelope call(
+        const TransformEnvelope call(
             envelope.transform_id(),
             job_direction,
             envelope.params(),
             envelope.interrupt());
         StatusOr<std::vector<Index29>> plain =
-            parcae::tool::apply_to_indices(cipher, call, parcae::tool::Backend::Cpu);
+            ToolApi::apply_to_indices(cipher, call, Backend::Cpu);
         if (!plain.ok()) {
             return plain.status();
         }
@@ -512,7 +512,7 @@ private:
     [[nodiscard]] static StatusOr<Result> rows_from_batch(
         const BatchResult& batch,
         std::span<const TransformCandidate> candidates,
-        parcae::tool::Backend backend) {
+        Backend backend) {
         std::vector<Row> rows;
         rows.reserve(batch.top().size());
         for (std::size_t rank = 0; rank < batch.top().size(); ++rank) {

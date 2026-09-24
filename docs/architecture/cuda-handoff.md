@@ -32,7 +32,7 @@ All of the following SHOULD be true before tagging `v0.2.0-cpu-reference`
 - [x] Scores: exact_match, hamming_agreement, ic_mod29, chi2_english_gp_v0,
       self_repeat_rate via `ScoreRegistry`
 - [x] Generators + `BatchRunner` (serial + ordered parallel)
-- [x] `parcae::tool` — tokenize / apply / to_latin / score / validate_fixture
+- [x] `ToolApi` — tokenize / apply / to_latin / score / validate_fixture
 - [x] `ParityRecord` for params + I/O + interrupt digests
 
 ### Tools & docs
@@ -110,7 +110,7 @@ Document reduction associativity before claiming parallel CUDA score speedups
 
 - Tokenizer / UTF-8 / gematria profile load
 - Fixture loader / validator / plaintext normalizer
-- CLIs and `parcae::tool` wrappers (they **call** backends)
+- CLIs and `ToolApi` wrappers (they **call** backends)
 - JSON param parsing (cold); device gets POD / SoA
 
 ### Where twins are implemented

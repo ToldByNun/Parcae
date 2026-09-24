@@ -13,8 +13,6 @@
 
 #include <nlohmann/json.hpp>
 
-namespace parcae::tool {
-
 /// Serializable transform call: id + direction + params + optional interrupt.
 class TransformEnvelope {
 public:
@@ -122,7 +120,5 @@ private:
     nlohmann::json params_;
     InterruptPolicy interrupt_;
 };
-
-}  // namespace parcae::tool
 
 #endif // TOOL_TRANSFORM_ENVELOPE_HPP

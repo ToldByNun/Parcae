@@ -28,7 +28,7 @@ public:
         std::span<const Index29> key,
         std::span<const std::size_t> skip_indices_sorted,
         TransformDirection direction) {
-        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        Status sizes = TransformBuffer::require_same_length(input, output);
         if (!sizes.ok()) {
             return sizes;
         }
@@ -39,7 +39,7 @@ public:
         const std::size_t key_len = key.size();
         std::size_t key_cursor = 0;
         for (std::size_t i = 0; i < input.size(); ++i) {
-            if (parcae::transform_buf::should_skip(skip_indices_sorted, i)) {
+            if (TransformBuffer::should_skip(skip_indices_sorted, i)) {
                 output[i] = input[i];
                 continue;
             }
@@ -65,7 +65,7 @@ public:
             return key.status();
         }
         Status range =
-            parcae::transform_buf::validate_interrupt_range(interrupt, input.size(), "vigenere_key");
+            TransformBuffer::validate_interrupt_range(interrupt, input.size(), "vigenere_key");
         if (!range.ok()) {
             return range;
         }
@@ -73,7 +73,7 @@ public:
             input,
             output,
             key.value(),
-            parcae::transform_buf::skip_span(interrupt),
+            TransformBuffer::skip_span(interrupt),
             direction);
     }
 

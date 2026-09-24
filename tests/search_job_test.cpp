@@ -46,14 +46,14 @@ TEST_CASE("SearchJob make and round-trip JSON", "[search][job]") {
         "chi2_english_gp_v0",
         16,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         4096);
     REQUIRE(job.ok());
     REQUIRE(job.value().workspace_id() == "_example");
     REQUIRE(job.value().family() == "caesar");
     REQUIRE(job.value().k() == 16);
     REQUIRE(job.value().max_candidates() == 4096);
-    REQUIRE(job.value().backend() == parcae::tool::Backend::Cpu);
+    REQUIRE(job.value().backend() == Backend::Cpu);
     REQUIRE(job.value().direction() == TransformDirection::Decrypt);
     REQUIRE(job.value().score_version() == "v0");
     REQUIRE_FALSE(job.value().prior().has_value());
@@ -194,7 +194,7 @@ TEST_CASE("SearchJob require_workspace_dir fails for missing id", "[search][job]
         "ic_mod29",
         1,
         42,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         1);
     REQUIRE(job.ok());
     REQUIRE_FALSE(job.value().require_workspace_dir(data_root()).ok());

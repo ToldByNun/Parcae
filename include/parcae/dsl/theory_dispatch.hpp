@@ -41,7 +41,7 @@ public:
         std::span<const Index29> input,
         std::span<Index29> output) {
         if (envelope.is_catalog()) {
-            StatusOr<parcae::tool::TransformEnvelope> catalog =
+            StatusOr<TransformEnvelope> catalog =
                 envelope.to_catalog_envelope();
             if (!catalog.ok()) {
                 return catalog.status();

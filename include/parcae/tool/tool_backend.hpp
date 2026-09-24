@@ -8,8 +8,6 @@
 #include <string>
 #include <string_view>
 
-namespace parcae::tool {
-
 /// Transform / score execution backend for tool + CLI façades.
 enum class Backend : std::uint8_t {
     Cpu = 0,
@@ -56,7 +54,5 @@ public:
 private:
     BackendUtil() = delete;
 };
-
-}  // namespace parcae::tool
 
 #endif // TOOL_BACKEND_HPP

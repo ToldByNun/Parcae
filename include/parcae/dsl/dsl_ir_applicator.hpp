@@ -53,20 +53,20 @@ public:
                            "' collides with a fixed param binding")
                 .to_status();
         }
-        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        Status sizes = TransformBuffer::require_same_length(input, output);
         if (!sizes.ok()) {
             return sizes;
         }
-        Status range = parcae::transform_buf::validate_interrupt_range(
+        Status range = TransformBuffer::validate_interrupt_range(
             interrupt, input.size(), "DslIrApplicator");
         if (!range.ok()) {
             return range;
         }
 
-        const auto skips = parcae::transform_buf::skip_span(interrupt);
+        const auto skips = TransformBuffer::skip_span(interrupt);
         Z29Expr::Env env = params;
         for (std::size_t i = 0; i < input.size(); ++i) {
-            if (parcae::transform_buf::should_skip(skips, i)) {
+            if (TransformBuffer::should_skip(skips, i)) {
                 output[i] = input[i];
                 continue;
             }
@@ -158,20 +158,20 @@ public:
                            "InterruptPolicy rejected (CPU↔CUDA parity)")
                 .to_status();
         }
-        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        Status sizes = TransformBuffer::require_same_length(input, output);
         if (!sizes.ok()) {
             return sizes;
         }
-        Status range = parcae::transform_buf::validate_interrupt_range(
+        Status range = TransformBuffer::validate_interrupt_range(
             interrupt, input.size(), "DslIrApplicator");
         if (!range.ok()) {
             return range;
         }
 
-        const auto skips = parcae::transform_buf::skip_span(interrupt);
+        const auto skips = TransformBuffer::skip_span(interrupt);
         Z29Expr::Env run = env.value();
         for (std::size_t idx = 0; idx < input.size(); ++idx) {
-            if (parcae::transform_buf::should_skip(skips, idx)) {
+            if (TransformBuffer::should_skip(skips, idx)) {
                 output[idx] = input[idx];
                 continue;
             }

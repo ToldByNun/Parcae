@@ -83,7 +83,7 @@ TEST_CASE(
         GpuCandidateExport::caesar_from_host_scores(cipher, scores, k);
     REQUIRE(exported.ok());
     REQUIRE(exported.value().size() == k);
-    REQUIRE(exported.value().backend() == parcae::tool::Backend::Cpu);
+    REQUIRE(exported.value().backend() == Backend::Cpu);
 
     // Best-first under Asc χ²: scores must be non-decreasing.
     for (std::size_t i = 1; i < exported.value().size(); ++i) {
@@ -413,7 +413,7 @@ TEST_CASE(
             scores,
             k,
             TransformDirection::Decrypt,
-            parcae::tool::Backend::Cpu,
+            Backend::Cpu,
             progress);
     REQUIRE(with_sink.ok());
 
@@ -501,7 +501,7 @@ TEST_CASE(
     StatusOr<GpuCandidateExport::Result> gpu =
         GpuCandidateExport::caesar(cipher, freqs.value(), k);
     REQUIRE(gpu.ok());
-    REQUIRE(gpu.value().backend() == parcae::tool::Backend::Cuda);
+    REQUIRE(gpu.value().backend() == Backend::Cuda);
     REQUIRE(gpu.value().size() == k);
 
     StatusOr<GpuCandidateExport::Result> host =

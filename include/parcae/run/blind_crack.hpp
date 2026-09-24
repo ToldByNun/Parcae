@@ -80,7 +80,7 @@ public:
         double aggregate_runes_per_sec = 0.0;
     };
 
-    [[nodiscard]] static StatusOr<Report> run_all_locked(const parcae::tool::Context& ctx) {
+    [[nodiscard]] static StatusOr<Report> run_all_locked(const Context& ctx) {
         const std::filesystem::path solved = ctx.data_root() / "fixtures" / "solved";
         if (!std::filesystem::is_directory(solved)) {
             return Status::error("BlindCrack: fixtures/solved missing");
@@ -265,12 +265,12 @@ private:
     }
 
     [[nodiscard]] static StatusOr<FixtureReport> crack_one(
-        const parcae::tool::Context& ctx,
+        const Context& ctx,
         const Fixture& fixture,
         const ExpectedFrequencyTable& freqs,
         const LatinCodec& codec,
         const PlaintextNormalizer& normalizer) {
-        StatusOr<TokenStream> stream = parcae::tool::tokenize(ctx, fixture.ciphertext());
+        StatusOr<TokenStream> stream = ToolApi::tokenize(ctx, fixture.ciphertext());
         if (!stream.ok()) {
             return stream.status();
         }

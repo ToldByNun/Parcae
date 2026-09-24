@@ -47,7 +47,7 @@ TEST_CASE("BatchArtifact store/load round-trip", "[search][batch]") {
         "chi2_english_gp_v0",
         2,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         64);
     REQUIRE(job.ok());
 
@@ -61,14 +61,14 @@ TEST_CASE("BatchArtifact store/load round-trip", "[search][batch]") {
         "chi2_english_gp_v0",
         "v0",
         12.34,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         0));
     lines.push_back(BatchArtifact::candidate_wire(
         caesar_candidate(7),
         "chi2_english_gp_v0",
         "v0",
         20.0,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         1));
 
     StatusOr<BatchArtifact> art = BatchArtifact::make(
@@ -80,7 +80,7 @@ TEST_CASE("BatchArtifact store/load round-trip", "[search][batch]") {
         "caesar",
         "chi2_english_gp_v0",
         "v0",
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         2,
         1,
         lines,
@@ -111,7 +111,7 @@ TEST_CASE("BatchArtifact rejects bad ranks, dup ids, timing report", "[search][b
         "chi2_english_gp_v0",
         "v0",
         1.0,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         0);
 
     {
@@ -126,7 +126,7 @@ TEST_CASE("BatchArtifact rejects bad ranks, dup ids, timing report", "[search][b
                            "caesar",
                            "chi2_english_gp_v0",
                            "v0",
-                           parcae::tool::Backend::Cpu,
+                           Backend::Cpu,
                            1,
                            1,
                            {bad})
@@ -145,7 +145,7 @@ TEST_CASE("BatchArtifact rejects bad ranks, dup ids, timing report", "[search][b
                            "caesar",
                            "chi2_english_gp_v0",
                            "v0",
-                           parcae::tool::Backend::Cpu,
+                           Backend::Cpu,
                            2,
                            1,
                            {a, b})
@@ -161,7 +161,7 @@ TEST_CASE("BatchArtifact rejects bad ranks, dup ids, timing report", "[search][b
                            "caesar",
                            "chi2_english_gp_v0",
                            "v0",
-                           parcae::tool::Backend::Cpu,
+                           Backend::Cpu,
                            1,
                            1,
                            {good},
@@ -178,7 +178,7 @@ TEST_CASE("BatchArtifact rejects bad ranks, dup ids, timing report", "[search][b
                            "caesar",
                            "chi2_english_gp_v0",
                            "v0",
-                           parcae::tool::Backend::Cpu,
+                           Backend::Cpu,
                            1,
                            1,
                            {good})
@@ -197,7 +197,7 @@ TEST_CASE("BatchArtifact load rejects count mismatch", "[search][batch]") {
         "chi2_english_gp_v0",
         "v0",
         1.0,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         0);
     StatusOr<BatchArtifact> art = BatchArtifact::make(
         "batch-ws",
@@ -208,7 +208,7 @@ TEST_CASE("BatchArtifact load rejects count mismatch", "[search][batch]") {
         "caesar",
         "chi2_english_gp_v0",
         "v0",
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         1,
         1,
         {line});

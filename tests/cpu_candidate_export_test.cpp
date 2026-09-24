@@ -63,8 +63,8 @@ namespace {
     return cipher.value();
 }
 
-[[nodiscard]] parcae::tool::Context test_context() {
-    return parcae::tool::Context{std::string(PARCAE_TEST_DATA_DIR)};
+[[nodiscard]] Context test_context() {
+    return Context{std::string(PARCAE_TEST_DATA_DIR)};
 }
 
 [[nodiscard]] std::vector<double> cpu_chi2_by_shift(
@@ -92,7 +92,7 @@ namespace {
 TEST_CASE(
     "CpuCandidateExport caesar top-k matches GpuCandidateExport host scores",
     "[search][export][cpu][caesar]") {
-    const parcae::tool::Context ctx = test_context();
+    const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
     constexpr std::size_t k = 5;
@@ -125,7 +125,7 @@ TEST_CASE(
 }
 
 TEST_CASE("CpuCandidateExport exclusion removes rejected params", "[search][export][cpu]") {
-    const parcae::tool::Context ctx = test_context();
+    const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
     const nlohmann::json shift7_params = {{"shift", 7}};
@@ -157,7 +157,7 @@ TEST_CASE("CpuCandidateExport exclusion removes rejected params", "[search][expo
 }
 
 TEST_CASE("CpuCandidateExport seed envelope is ranked when not in grid params", "[search][export][cpu]") {
-    const parcae::tool::Context ctx = test_context();
+    const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
     // Compose envelope not produced by gen_caesar (different transform) — forced seed lane.
@@ -192,7 +192,7 @@ TEST_CASE("CpuCandidateExport seed envelope is ranked when not in grid params", 
 }
 
 TEST_CASE("CpuCandidateExport rejects expansion above max_candidates", "[search][export][cpu]") {
-    const parcae::tool::Context ctx = test_context();
+    const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
     StatusOr<CpuCandidateExport::Result> ok = CpuCandidateExport::run(
@@ -225,7 +225,7 @@ TEST_CASE("CpuCandidateExport rejects expansion above max_candidates", "[search]
 TEST_CASE(
     "CpuCandidateExport opt-in beaufort / totient families",
     "[search][export][cpu][extended]") {
-    const parcae::tool::Context ctx = test_context();
+    const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
     StatusOr<SearchJob> denied = SearchJob::make(
@@ -234,7 +234,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         3,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         64);
     REQUIRE_FALSE(denied.ok());
 
@@ -244,7 +244,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         3,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         64,
         TransformDirection::Decrypt,
         nlohmann::json{{"prime_start_count", 8}},
@@ -266,7 +266,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         2,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         64,
         TransformDirection::Decrypt,
         nlohmann::json{{"max_key_length", 4}},
@@ -285,7 +285,7 @@ TEST_CASE(
 TEST_CASE(
     "CpuCandidateExport compose recipes reuse AtbashCaesar grid",
     "[search][export][cpu][compose]") {
-    const parcae::tool::Context ctx = test_context();
+    const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
     StatusOr<SearchJob> default_job = SearchJob::make(
@@ -294,7 +294,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         5,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         64);
     REQUIRE(default_job.ok());
     StatusOr<CpuCandidateExport::Result> def =
@@ -309,7 +309,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         5,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         64);
     REQUIRE(atbash_job.ok());
     StatusOr<CpuCandidateExport::Result> atbash =
@@ -333,7 +333,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         2,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         64,
         TransformDirection::Decrypt,
         recipes);
@@ -388,7 +388,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         2,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         64,
         TransformDirection::Decrypt,
         param_grid);
@@ -400,7 +400,7 @@ TEST_CASE(
         "chi2_english_gp_v0",
         2,
         1,
-        parcae::tool::Backend::Cpu,
+        Backend::Cpu,
         64,
         TransformDirection::Decrypt,
         param_grid,
@@ -411,7 +411,7 @@ TEST_CASE(
     REQUIRE(job.ok());
     REQUIRE(job.value().allow_theory_uri());
 
-    const parcae::tool::Context ctx{root};
+    const Context ctx{root};
     const std::vector<Index29> cipher = synthetic_cipher();
     StatusOr<CpuCandidateExport::Result> exported =
         CpuCandidateExport::from_job(cipher, job.value(), ctx);
@@ -455,7 +455,7 @@ public:
 TEST_CASE(
     "CpuCandidateExport emits expand then score; rows match without sink",
     "[search][export][cpu][progress]") {
-    const parcae::tool::Context ctx = test_context();
+    const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
     CpuExportProgressRecordingSink sink;
@@ -506,7 +506,7 @@ TEST_CASE(
 TEST_CASE(
     "CpuCandidateExport emits filter stage when prior is set",
     "[search][export][cpu][progress]") {
-    const parcae::tool::Context ctx = test_context();
+    const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
 
     const nlohmann::json shift7_params = {{"shift", 7}};

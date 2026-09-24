@@ -188,7 +188,7 @@ private:
         {"search_prior_schema", std::string(SearchPrior::schema_id)},
         {"batch_artifact_schema", std::string(BatchArtifact::schema_id)},
         {"search_cycle_result_schema", std::string(SearchScheduler::result_schema_id)},
-        {"cuda_built", parcae::tool::BackendUtil::cuda_built()},
+        {"cuda_built", BackendUtil::cuda_built()},
         {"data_dir", data_root.string()},
         {"message",
          "parcae-search-cycle ready: --workspace + (--job | --family) runs SearchScheduler"},
@@ -219,8 +219,7 @@ private:
     const std::vector<std::string>& args,
     std::string_view flag,
     std::size_t default_value) {
-    using namespace parcae::cli;
-    const std::string text = optional_option(args, flag);
+    const std::string text = CliIo::optional_option(args, flag);
     if (text.empty()) {
         return default_value;
     }
@@ -236,8 +235,7 @@ private:
     const std::vector<std::string>& args,
     std::string_view flag,
     std::uint32_t default_value) {
-    using namespace parcae::cli;
-    const std::string text = optional_option(args, flag);
+    const std::string text = CliIo::optional_option(args, flag);
     if (text.empty()) {
         return default_value;
     }
@@ -254,7 +252,7 @@ private:
 
 [[nodiscard]] StatusOr<SearchJob> job_with_backend(
     const SearchJob& job,
-    parcae::tool::Backend backend,
+    Backend backend,
     bool allow_extended_families,
     bool allow_theory_uri) {
     const bool extended = job.allow_extended_families() || allow_extended_families;
@@ -283,12 +281,11 @@ private:
     const std::filesystem::path& data_root,
     const std::vector<std::string>& args,
     std::string_view workspace_id,
-    parcae::tool::Backend backend) {
-    using namespace parcae::cli;
-    const std::string job_path = optional_option(args, "--job");
-    const std::string family = optional_option(args, "--family");
-    const bool allow_extended = has_flag(args, "--allow-extended-families");
-    const bool allow_theory = has_flag(args, "--allow-theory-uri");
+    Backend backend) {
+    const std::string job_path = CliIo::optional_option(args, "--job");
+    const std::string family = CliIo::optional_option(args, "--family");
+    const bool allow_extended = CliIo::has_flag(args, "--allow-extended-families");
+    const bool allow_theory = CliIo::has_flag(args, "--allow-theory-uri");
 
     if (!job_path.empty() && !family.empty()) {
         return Status::error("Use either --job or --family, not both");
@@ -315,7 +312,7 @@ private:
     if (!manifest.ok()) {
         return manifest.status();
     }
-    std::string score_id = optional_option(args, "--score-id");
+    std::string score_id = CliIo::optional_option(args, "--score-id");
     if (score_id.empty()) {
         score_id = manifest.value().default_score_id().empty()
                        ? std::string("chi2_english_gp_v0")
@@ -379,8 +376,7 @@ private:
 }
 
 [[nodiscard]] StatusOr<std::string> resolve_created_utc(const std::vector<std::string>& args) {
-    using namespace parcae::cli;
-    const std::string text = optional_option(args, "--created-utc");
+    const std::string text = CliIo::optional_option(args, "--created-utc");
     if (text.empty()) {
         return utc_now_rfc3339();
     }
@@ -395,10 +391,9 @@ private:
 
 [[nodiscard]] StatusOr<ConsoleProgressMode> resolve_progress_mode(
     const std::vector<std::string>& args) {
-    using namespace parcae::cli;
-    const bool quiet = has_flag(args, "--quiet");
-    const bool plain = has_flag(args, "--plain-progress");
-    const std::string progress_flag = optional_option(args, "--progress");
+    const bool quiet = CliIo::has_flag(args, "--quiet");
+    const bool plain = CliIo::has_flag(args, "--plain-progress");
+    const std::string progress_flag = CliIo::optional_option(args, "--progress");
     StatusOr<ConsoleProgressMode> requested =
         ConsoleProgressMode::from_flags(quiet, plain, progress_flag);
     if (!requested.ok()) {
@@ -410,24 +405,22 @@ private:
 }  // namespace
 
 int main(int argc, char** argv) {
-    using namespace parcae::cli;
-
-    const std::vector<std::string> args = argv_tail(argc, argv);
-    if (has_flag(args, "-h") || has_flag(args, "--help")) {
+    const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
+    if (CliIo::has_flag(args, "-h") || CliIo::has_flag(args, "--help")) {
         print_help();
-        return kExitOk;
+        return CliIo::kExitOk;
     }
 
-    const bool json_mode = has_flag(args, "--json");
-    const bool want_status = has_flag(args, "--status");
-    const bool omit_timing_flag = has_flag(args, "--omit-timing");
-    const std::string data_dir = optional_option(args, "--data-dir");
+    const bool json_mode = CliIo::has_flag(args, "--json");
+    const bool want_status = CliIo::has_flag(args, "--status");
+    const bool omit_timing_flag = CliIo::has_flag(args, "--omit-timing");
+    const std::string data_dir = CliIo::optional_option(args, "--data-dir");
     std::optional<std::string> backend_label;
 
     if (omit_timing_flag && !json_mode) {
         std::cerr << "--omit-timing requires --json\n";
         print_help();
-        return kExitUsage;
+        return CliIo::kExitUsage;
     }
 
     for (std::size_t i = 0; i < args.size(); ++i) {
@@ -444,32 +437,32 @@ int main(int argc, char** argv) {
                 std::nullopt,
                 ToolErrorCode::Usage,
                 "Unknown option: " + a,
-                kExitUsage);
+                CliIo::kExitUsage);
         }
         return fail(
             json_mode,
             std::nullopt,
             ToolErrorCode::Usage,
             "Unexpected argument: " + a,
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
-    StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
+    StatusOr<Context> ctx = CliIo::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        return fail(json_mode, std::nullopt, ToolErrorCode::Io, ctx.status().message(), kExitUsage);
+        return fail(json_mode, std::nullopt, ToolErrorCode::Io, ctx.status().message(), CliIo::kExitUsage);
     }
     const std::filesystem::path data_root = ctx.value().data_root();
 
     if (want_status) {
-        if (!optional_option(args, "--workspace").empty() ||
-            !optional_option(args, "--job").empty() ||
-            !optional_option(args, "--family").empty()) {
+        if (!CliIo::optional_option(args, "--workspace").empty() ||
+            !CliIo::optional_option(args, "--job").empty() ||
+            !CliIo::optional_option(args, "--family").empty()) {
             return fail(
                 json_mode,
                 std::nullopt,
                 ToolErrorCode::Usage,
                 "--status does not take cycle-run flags",
-                kExitUsage);
+                CliIo::kExitUsage);
         }
         nlohmann::json result = status_result(data_root);
         if (json_mode) {
@@ -483,12 +476,12 @@ int main(int argc, char** argv) {
                   << "  scheduler_ready:              true\n"
                   << "  run_ready:                    true\n"
                   << "  cuda_built:                   "
-                  << (parcae::tool::BackendUtil::cuda_built() ? "true" : "false") << '\n'
+                  << (BackendUtil::cuda_built() ? "true" : "false") << '\n'
                   << "  data_dir:                     " << data_root.string() << '\n';
-        return kExitOk;
+        return CliIo::kExitOk;
     }
 
-    const std::string workspace = optional_option(args, "--workspace");
+    const std::string workspace = CliIo::optional_option(args, "--workspace");
     if (workspace.empty()) {
         if (json_mode) {
             return fail(
@@ -496,25 +489,25 @@ int main(int argc, char** argv) {
                 std::nullopt,
                 ToolErrorCode::Usage,
                 "Cycle run requires --workspace <id> (or use --status)",
-                kExitUsage);
+                CliIo::kExitUsage);
         }
         print_help();
-        return kExitUsage;
+        return CliIo::kExitUsage;
     }
 
     const AgentPolicy policy = AgentPolicyCli::make(ctx.value(), args);
-    StatusOr<parcae::tool::Backend> backend = AgentPolicyCli::resolve_backend(policy, args);
+    StatusOr<Backend> backend = AgentPolicyCli::resolve_backend(policy, args);
     if (!backend.ok()) {
         const ToolErrorCode code = AgentPolicyCli::backend_error_code(backend.status());
-        backend_label = optional_option(args, "--backend", "cpu");
+        backend_label = CliIo::optional_option(args, "--backend", "cpu");
         return fail(
             json_mode,
             backend_label,
             code,
             backend.status().message(),
-            code == ToolErrorCode::NotBuilt ? ToolErrorCodeUtil::exit_status(code) : kExitUsage);
+            code == ToolErrorCode::NotBuilt ? ToolErrorCodeUtil::exit_status(code) : CliIo::kExitUsage);
     }
-    backend_label = std::string(parcae::tool::BackendUtil::to_string(backend.value()));
+    backend_label = std::string(BackendUtil::to_string(backend.value()));
 
     // Gate writes before touching the workspace (fixtures / path escape → policy).
     Status write_gate = policy.allow_workspace_write(workspace, "batches");
@@ -524,36 +517,36 @@ int main(int argc, char** argv) {
             backend_label,
             AgentPolicy::error_code_for(write_gate),
             write_gate.message(),
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
     StatusOr<std::size_t> iterations = parse_size(args, "--iterations", 1);
     if (!iterations.ok()) {
         return fail(
             json_mode, backend_label, ToolErrorCode::Usage, iterations.status().message(),
-            kExitUsage);
+            CliIo::kExitUsage);
     }
     if (iterations.value() == 0) {
         return fail(
             json_mode, backend_label, ToolErrorCode::Usage, "--iterations must be >= 1",
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
     StatusOr<SearchJob> job = resolve_job(data_root, args, workspace, backend.value());
     if (!job.ok()) {
         return fail(
-            json_mode, backend_label, ToolErrorCode::Usage, job.status().message(), kExitUsage);
+            json_mode, backend_label, ToolErrorCode::Usage, job.status().message(), CliIo::kExitUsage);
     }
     Status ws_ok = job.value().require_workspace_dir(data_root);
     if (!ws_ok.ok()) {
-        return fail(json_mode, backend_label, ToolErrorCode::Io, ws_ok.message(), kExitFail);
+        return fail(json_mode, backend_label, ToolErrorCode::Io, ws_ok.message(), CliIo::kExitFail);
     }
 
     StatusOr<std::string> created_utc = resolve_created_utc(args);
     if (!created_utc.ok()) {
         return fail(
             json_mode, backend_label, ToolErrorCode::Usage, created_utc.status().message(),
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
     StatusOr<ConsoleProgressMode> progress_mode = resolve_progress_mode(args);
@@ -563,7 +556,7 @@ int main(int argc, char** argv) {
             backend_label,
             ToolErrorCode::Usage,
             progress_mode.status().message(),
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
     // Agent / --json defaults to omit_timing; human runs may write a digest-only report.
@@ -631,5 +624,5 @@ int main(int argc, char** argv) {
     for (const SearchScheduler::BatchSummary& b : cycle.value().batches()) {
         std::cout << "    - " << b.batch_id() << "  candidates=" << b.candidate_count() << '\n';
     }
-    return kExitOk;
+    return CliIo::kExitOk;
 }

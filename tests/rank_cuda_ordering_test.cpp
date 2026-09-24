@@ -33,8 +33,8 @@
 
 namespace {
 
-[[nodiscard]] parcae::tool::Context test_ctx() {
-    return parcae::tool::Context{std::string(PARCAE_TEST_DATA_DIR)};
+[[nodiscard]] Context test_ctx() {
+    return Context{std::string(PARCAE_TEST_DATA_DIR)};
 }
 
 [[nodiscard]] Index29 I(std::uint8_t v) {
@@ -77,9 +77,9 @@ void require_same_ranking(const BatchResult& cpu, const BatchResult& cuda) {
     std::span<const TransformCandidate> candidates,
     std::string_view score_id,
     std::size_t k,
-    const parcae::tool::Context& ctx,
+    const Context& ctx,
     ScoreRequest request,
-    parcae::tool::Backend backend) {
+    Backend backend) {
     return RankCandidates::run(
         candidates,
         score_id,
@@ -182,9 +182,9 @@ TEST_CASE(
             make_candidate("m-mid", plain),
         };
         StatusOr<BatchResult> cpu =
-            rank_backend(tied, "chi2_english_gp_v0", 3, ctx, {}, parcae::tool::Backend::Cpu);
+            rank_backend(tied, "chi2_english_gp_v0", 3, ctx, {}, Backend::Cpu);
         StatusOr<BatchResult> cuda =
-            rank_backend(tied, "chi2_english_gp_v0", 3, ctx, {}, parcae::tool::Backend::Cuda);
+            rank_backend(tied, "chi2_english_gp_v0", 3, ctx, {}, Backend::Cuda);
         REQUIRE(cpu.ok());
         REQUIRE(cuda.ok());
         require_same_ranking(cpu.value(), cuda.value());
@@ -207,9 +207,9 @@ TEST_CASE(
             ScoreRequest req = (std::string_view(score_id) == "exact_match") ? request : ScoreRequest{};
             constexpr std::size_t k = 7;
             StatusOr<BatchResult> cpu = rank_backend(
-                candidates.value(), score_id, k, ctx, req, parcae::tool::Backend::Cpu);
+                candidates.value(), score_id, k, ctx, req, Backend::Cpu);
             StatusOr<BatchResult> cuda = rank_backend(
-                candidates.value(), score_id, k, ctx, req, parcae::tool::Backend::Cuda);
+                candidates.value(), score_id, k, ctx, req, Backend::Cuda);
             REQUIRE(cpu.ok());
             REQUIRE(cuda.ok());
             require_same_ranking(cpu.value(), cuda.value());
@@ -237,9 +237,9 @@ TEST_CASE(
         }
 
         StatusOr<BatchResult> cpu = rank_backend(
-            pool, "chi2_english_gp_v0", /*k=*/5, ctx, {}, parcae::tool::Backend::Cpu);
+            pool, "chi2_english_gp_v0", /*k=*/5, ctx, {}, Backend::Cpu);
         StatusOr<BatchResult> cuda = rank_backend(
-            pool, "chi2_english_gp_v0", /*k=*/5, ctx, {}, parcae::tool::Backend::Cuda);
+            pool, "chi2_english_gp_v0", /*k=*/5, ctx, {}, Backend::Cuda);
         REQUIRE(cpu.ok());
         REQUIRE(cuda.ok());
         require_same_ranking(cpu.value(), cuda.value());

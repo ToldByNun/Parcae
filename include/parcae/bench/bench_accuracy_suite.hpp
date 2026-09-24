@@ -105,7 +105,7 @@ public:
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Document> run(
-        const parcae::tool::Context& ctx, const Options& options = Options{}) {
+        const Context& ctx, const Options& options = Options{}) {
         StatusOr<ExpectedFrequencyTable> freqs = ctx.load_english_gp_expected();
         if (!freqs.ok()) {
             return freqs.status();
@@ -133,7 +133,7 @@ public:
 
         if (options.allow_cuda()) {
 #if defined(PARCAE_HAS_CUDA)
-            if (!parcae::tool::BackendUtil::cuda_built() || !ParcaeCuda::available()) {
+            if (!BackendUtil::cuda_built() || !ParcaeCuda::available()) {
                 doc.add_row(make_check_row(
                     "A.fused_parity",
                     "CaesarChi2Batch vs CPU chi2",
@@ -201,7 +201,7 @@ private:
     BenchAccuracySuite() = delete;
 
     [[nodiscard]] static StatusOr<std::vector<Index29>> plaintext_indices_of(
-        const parcae::tool::Context& ctx, std::string_view fixture_id) {
+        const Context& ctx, std::string_view fixture_id) {
         StatusOr<GematriaProfile> profile = ctx.load_gematria();
         if (!profile.ok()) {
             return profile.status();
@@ -225,7 +225,7 @@ private:
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Row> check_fixture_eval(
-        const parcae::tool::Context& ctx,
+        const Context& ctx,
         const ExpectedFrequencyTable& freqs,
         std::uint32_t seed) {
         StatusOr<SearchRun::EvalResult> eval =
@@ -246,7 +246,7 @@ private:
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Row> check_chi2_sanity(
-        const parcae::tool::Context& ctx, const ExpectedFrequencyTable& freqs) {
+        const Context& ctx, const ExpectedFrequencyTable& freqs) {
         StatusOr<std::vector<Index29>> welcome = plaintext_indices_of(ctx, "welcome");
         if (!welcome.ok()) {
             return welcome.status();
@@ -282,7 +282,7 @@ private:
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Row> check_oracle_rank(
-        const parcae::tool::Context& ctx) {
+        const Context& ctx) {
         StatusOr<WorkspaceCipher> cipher =
             WorkspaceCipher::from_fixture(ctx.data_root(), "bench-acc", "a-warning");
         if (!cipher.ok()) {

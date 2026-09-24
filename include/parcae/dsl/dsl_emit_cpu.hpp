@@ -110,12 +110,12 @@ public:
         }
         out << "        TransformDirection direction,\n";
         out << "        std::span<const std::size_t> skip_indices_sorted) {\n";
-        out << "        Status sizes = parcae::transform_buf::require_same_length(input, output);\n";
+        out << "        Status sizes = TransformBuffer::require_same_length(input, output);\n";
         out << "        if (!sizes.ok()) {\n";
         out << "            return sizes;\n";
         out << "        }\n";
         out << "        for (std::size_t i = 0; i < input.size(); ++i) {\n";
-        out << "            if (parcae::transform_buf::should_skip(skip_indices_sorted, i)) {\n";
+        out << "            if (TransformBuffer::should_skip(skip_indices_sorted, i)) {\n";
         out << "                output[i] = input[i];\n";
         out << "                continue;\n";
         out << "            }\n";
@@ -139,7 +139,7 @@ public:
         out << "        if (!parsed.ok()) {\n";
         out << "            return parsed.status();\n";
         out << "        }\n";
-        out << "        Status range = parcae::transform_buf::validate_interrupt_range(\n";
+        out << "        Status range = TransformBuffer::validate_interrupt_range(\n";
         out << "            interrupt, input.size(), \"" << theory.name() << "\");\n";
         out << "        if (!range.ok()) {\n";
         out << "            return range;\n";
@@ -158,7 +158,7 @@ public:
             out << "            parsed.value()." << p.name() << ",\n";
         }
         out << "            direction,\n";
-        out << "            parcae::transform_buf::skip_span(interrupt));\n";
+        out << "            TransformBuffer::skip_span(interrupt));\n";
         out << "    }\n\n";
 
         out << "    [[nodiscard]] static StatusOr<std::vector<Index29>> apply(\n";

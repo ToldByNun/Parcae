@@ -212,8 +212,8 @@ private:
         if (normalized.empty()) {
             return Status::error("WorkspaceCipher: ciphertext text is empty");
         }
-        const parcae::tool::Context ctx(data_root);
-        StatusOr<TokenStream> stream = parcae::tool::tokenize(ctx, normalized);
+        const Context ctx(data_root);
+        StatusOr<TokenStream> stream = ToolApi::tokenize(ctx, normalized);
         if (!stream.ok()) {
             return stream.status();
         }

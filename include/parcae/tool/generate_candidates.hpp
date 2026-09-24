@@ -57,7 +57,7 @@ public:
     /// `input_mode`: `indices` (0..28 list), `runes` (tokenize Liber Primus text),
     /// or `latin` (letters → delatinize).
     [[nodiscard]] static StatusOr<std::vector<TransformCandidate>> from_source(
-        const parcae::tool::Context& ctx,
+        const Context& ctx,
         std::string_view generator_id,
         const std::string& source_utf8,
         std::string_view input_mode = "runes",
@@ -74,14 +74,14 @@ private:
     GenerateCandidates() = delete;
 
     [[nodiscard]] static StatusOr<std::vector<Index29>> load_indices(
-        const parcae::tool::Context& ctx,
+        const Context& ctx,
         const std::string& source,
         std::string_view mode) {
         if (mode == "indices") {
             return parse_indices_text(source);
         }
         if (mode == "runes") {
-            StatusOr<TokenStream> stream = parcae::tool::tokenize(ctx, source);
+            StatusOr<TokenStream> stream = ToolApi::tokenize(ctx, source);
             if (!stream.ok()) {
                 return stream.status();
             }

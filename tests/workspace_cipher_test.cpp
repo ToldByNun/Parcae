@@ -41,8 +41,8 @@ TEST_CASE("WorkspaceCipher loads _example fixture_ciphertext", "[search][cipher]
     std::ifstream in(cipher_path, std::ios::binary);
     REQUIRE(in);
     std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    const parcae::tool::Context ctx(data_root());
-    StatusOr<TokenStream> stream = parcae::tool::tokenize(ctx, text);
+    const Context ctx(data_root());
+    StatusOr<TokenStream> stream = ToolApi::tokenize(ctx, text);
     REQUIRE(stream.ok());
     REQUIRE(cipher.value().indices() == stream.value().consumable_indices());
     REQUIRE(

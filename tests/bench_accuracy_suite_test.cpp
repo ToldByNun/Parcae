@@ -17,7 +17,7 @@ TEST_CASE("BenchAccuracySuite Options defaults", "[bench][accuracy]") {
 }
 
 TEST_CASE("BenchAccuracySuite CPU checks pass on locked fixtures", "[bench][accuracy]") {
-    const parcae::tool::Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
+    const Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
     BenchAccuracySuite::Options opts;
     StatusOr<BenchReport::Document> doc = BenchAccuracySuite::run(ctx, opts);
     REQUIRE(doc.ok());
@@ -42,7 +42,7 @@ TEST_CASE("BenchAccuracySuite CPU checks pass on locked fixtures", "[bench][accu
 }
 
 TEST_CASE("BenchAccuracySuite CUDA skipped rows when allow_cuda without device", "[bench][accuracy]") {
-    const parcae::tool::Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
+    const Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
     BenchAccuracySuite::Options opts;
     opts.set_allow_cuda(true);
     StatusOr<BenchReport::Document> doc = BenchAccuracySuite::run(ctx, opts);

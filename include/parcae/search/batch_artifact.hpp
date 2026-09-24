@@ -76,7 +76,7 @@ public:
         return score_version_;
     }
 
-    [[nodiscard]] parcae::tool::Backend backend() const noexcept {
+    [[nodiscard]] Backend backend() const noexcept {
         return backend_;
     }
 
@@ -115,7 +115,7 @@ public:
         std::string_view score_id,
         std::string_view score_version,
         double score_value,
-        parcae::tool::Backend backend,
+        Backend backend,
         std::size_t rank) {
         nlohmann::json base = candidate.to_json();
         base["rank"] = rank;
@@ -123,7 +123,7 @@ public:
             {"score_id", std::string(score_id)},
             {"score_version", std::string(score_version)},
             {"value", score_value},
-            {"backend", std::string(parcae::tool::BackendUtil::to_string(backend))},
+            {"backend", std::string(BackendUtil::to_string(backend))},
         };
         return base;
     }
@@ -137,7 +137,7 @@ public:
         std::string_view family,
         std::string_view score_id,
         std::string_view score_version,
-        parcae::tool::Backend backend,
+        Backend backend,
         std::size_t k,
         std::uint32_t seed,
         std::vector<nlohmann::json> candidates,
@@ -272,8 +272,8 @@ public:
         if (!root.contains("backend") || !root.at("backend").is_string()) {
             return Status::error("BatchArtifact.backend must be a string");
         }
-        StatusOr<parcae::tool::Backend> backend =
-            parcae::tool::BackendUtil::from_string(root.at("backend").get<std::string>());
+        StatusOr<Backend> backend =
+            BackendUtil::from_string(root.at("backend").get<std::string>());
         if (!backend.ok()) {
             return backend.status();
         }
@@ -377,7 +377,7 @@ public:
             {"family", family_},
             {"score_id", score_id_},
             {"score_version", score_version_},
-            {"backend", std::string(parcae::tool::BackendUtil::to_string(backend_))},
+            {"backend", std::string(BackendUtil::to_string(backend_))},
             {"k", k_},
             {"candidate_count", candidates_.size()},
             {"seed", seed_},
@@ -607,7 +607,7 @@ private:
         const std::vector<nlohmann::json>& candidates,
         std::string_view expected_score_id,
         std::string_view expected_score_version,
-        parcae::tool::Backend expected_backend) {
+        Backend expected_backend) {
         std::unordered_set<std::string> seen_ids;
         seen_ids.reserve(candidates.size());
 
@@ -651,8 +651,8 @@ private:
                     "BatchArtifact candidates[" + std::to_string(i) +
                     "].envelope must be an object");
             }
-            StatusOr<parcae::tool::TransformEnvelope> envelope =
-                parcae::tool::TransformEnvelope::from_json(row.at("envelope"));
+            StatusOr<TransformEnvelope> envelope =
+                TransformEnvelope::from_json(row.at("envelope"));
             if (!envelope.ok()) {
                 return Status::error(
                     "BatchArtifact candidates[" + std::to_string(i) +
@@ -705,8 +705,8 @@ private:
                     "BatchArtifact candidates[" + std::to_string(i) +
                     "].score.backend must be a string");
             }
-            StatusOr<parcae::tool::Backend> backend =
-                parcae::tool::BackendUtil::from_string(score.at("backend").get<std::string>());
+            StatusOr<Backend> backend =
+                BackendUtil::from_string(score.at("backend").get<std::string>());
             if (!backend.ok() || backend.value() != expected_backend) {
                 return Status::error(
                     "BatchArtifact candidates[" + std::to_string(i) +
@@ -787,7 +787,7 @@ private:
     std::string family_;
     std::string score_id_;
     std::string score_version_ = "v0";
-    parcae::tool::Backend backend_ = parcae::tool::Backend::Cpu;
+    Backend backend_ = Backend::Cpu;
     std::size_t k_ = 1;
     std::uint32_t seed_ = 1;
     std::string candidates_relpath_ = std::string(default_candidates_file);

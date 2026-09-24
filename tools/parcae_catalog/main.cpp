@@ -63,7 +63,7 @@ void print_help() {
     });
     backends.push_back({
         {"id", "cuda"},
-        {"available", parcae::tool::BackendUtil::cuda_built()},
+        {"available", BackendUtil::cuda_built()},
     });
     return backends;
 }
@@ -99,7 +99,7 @@ void print_human(
     const std::vector<TheoryRegistry::CatalogEntry>* theories) {
     if (want_transforms) {
         std::cout << "transforms:\n";
-        for (const std::string& id : parcae::tool::list_transform_ids()) {
+        for (const std::string& id : ToolApi::list_transform_ids()) {
             std::cout << "  " << id << '\n';
         }
     }
@@ -123,7 +123,7 @@ void print_human(
         std::cout << "backends:\n";
         std::cout << "  cpu\tavailable\n";
         std::cout << "  cuda\t"
-                  << (parcae::tool::BackendUtil::cuda_built() ? "available" : "not_built")
+                  << (BackendUtil::cuda_built() ? "available" : "not_built")
                   << '\n';
     }
     if (want_theories && theories != nullptr) {
@@ -134,22 +134,20 @@ void print_human(
 }  // namespace
 
 int main(int argc, char** argv) {
-    using namespace parcae::cli;
-
-    const std::vector<std::string> args = argv_tail(argc, argv);
-    if (has_flag(args, "-h") || has_flag(args, "--help")) {
+    const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
+    if (CliIo::has_flag(args, "-h") || CliIo::has_flag(args, "--help")) {
         print_help();
-        return kExitOk;
+        return CliIo::kExitOk;
     }
 
-    const bool json_mode = has_flag(args, "--json");
-    const bool flag_all = has_flag(args, "--all");
-    const bool flag_transforms = has_flag(args, "--transforms");
-    const bool flag_scores = has_flag(args, "--scores");
-    const bool flag_generators = has_flag(args, "--generators");
-    const bool flag_backends = has_flag(args, "--backends");
-    const bool flag_theories = has_flag(args, "--theories");
-    const std::string data_dir = optional_option(args, "--data-dir");
+    const bool json_mode = CliIo::has_flag(args, "--json");
+    const bool flag_all = CliIo::has_flag(args, "--all");
+    const bool flag_transforms = CliIo::has_flag(args, "--transforms");
+    const bool flag_scores = CliIo::has_flag(args, "--scores");
+    const bool flag_generators = CliIo::has_flag(args, "--generators");
+    const bool flag_backends = CliIo::has_flag(args, "--backends");
+    const bool flag_theories = CliIo::has_flag(args, "--theories");
+    const std::string data_dir = CliIo::optional_option(args, "--data-dir");
 
     const bool any_section = flag_transforms || flag_scores || flag_generators || flag_backends ||
                              flag_theories;
@@ -158,7 +156,7 @@ int main(int argc, char** argv) {
             json_mode,
             ToolErrorCode::Usage,
             "Use either --all or specific section flags, not both",
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
     const bool want_all = flag_all || !any_section;
@@ -182,15 +180,15 @@ int main(int argc, char** argv) {
         }
         if (!arg.empty() && arg[0] == '-') {
             print_help();
-            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + arg, kExitUsage);
+            return fail(json_mode, ToolErrorCode::Usage, "Unknown option: " + arg, CliIo::kExitUsage);
         }
         print_help();
-        return fail(json_mode, ToolErrorCode::Usage, "Unexpected argument: " + arg, kExitUsage);
+        return fail(json_mode, ToolErrorCode::Usage, "Unexpected argument: " + arg, CliIo::kExitUsage);
     }
 
-    StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
+    StatusOr<Context> ctx = CliIo::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        return fail(json_mode, ToolErrorCode::Io, ctx.status().message(), kExitUsage);
+        return fail(json_mode, ToolErrorCode::Io, ctx.status().message(), CliIo::kExitUsage);
     }
 
     std::vector<TheoryRegistry::CatalogEntry> theories;
@@ -198,7 +196,7 @@ int main(int argc, char** argv) {
         StatusOr<std::vector<TheoryRegistry::CatalogEntry>> listed =
             load_theories(ctx.value().data_root() / "theories");
         if (!listed.ok()) {
-            return fail(json_mode, ToolErrorCode::Io, listed.status().message(), kExitUsage);
+            return fail(json_mode, ToolErrorCode::Io, listed.status().message(), CliIo::kExitUsage);
         }
         theories = std::move(listed.value());
     }
@@ -211,12 +209,12 @@ int main(int argc, char** argv) {
             want_backends,
             want_theories,
             want_theories ? &theories : nullptr);
-        return kExitOk;
+        return CliIo::kExitOk;
     }
 
     nlohmann::json result = nlohmann::json::object();
     if (want_transforms) {
-        result["transforms"] = parcae::tool::list_transform_ids();
+        result["transforms"] = ToolApi::list_transform_ids();
     }
     if (want_scores) {
         nlohmann::json scores = nlohmann::json::array();

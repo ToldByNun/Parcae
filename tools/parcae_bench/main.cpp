@@ -28,9 +28,6 @@ namespace {
 
 constexpr std::string_view kTool = "bench";
 
-using parcae::cli::has_flag;
-using parcae::cli::optional_option;
-
 [[nodiscard]] int fail(
     bool json_mode,
     const std::optional<std::string>& backend,
@@ -58,7 +55,7 @@ using parcae::cli::optional_option;
         return ToolCliJson::ok(kTool, backend, doc.to_json(omit_timing));
     }
     std::cout << BenchFormatter::format(doc);
-    return doc.all_pass() ? parcae::cli::kExitOk : parcae::cli::kExitFail;
+    return doc.all_pass() ? CliIo::kExitOk : CliIo::kExitFail;
 }
 
 [[nodiscard]] void append_rows(BenchReport::Document& dest, const BenchReport::Document& src) {
@@ -69,11 +66,11 @@ using parcae::cli::optional_option;
 
 [[nodiscard]] StatusOr<BenchConfig> load_probe_config(const std::vector<std::string>& args) {
     BenchConfig cfg;
-    const std::string cmd = optional_option(args, "--probe-cmd");
+    const std::string cmd = CliIo::optional_option(args, "--probe-cmd");
     if (!cmd.empty()) {
         cfg.set_probe_cmd(cmd);
     }
-    const std::string tiers_raw = optional_option(args, "--probe-tiers");
+    const std::string tiers_raw = CliIo::optional_option(args, "--probe-tiers");
     if (!tiers_raw.empty()) {
         StatusOr<std::vector<std::string>> tiers = BenchConfig::parse_probe_tiers(tiers_raw);
         if (!tiers.ok()) {
@@ -81,7 +78,7 @@ using parcae::cli::optional_option;
         }
         cfg.set_probe_tiers(std::move(tiers.value()));
     }
-    const std::string timeout_raw = optional_option(args, "--probe-timeout-ms");
+    const std::string timeout_raw = CliIo::optional_option(args, "--probe-timeout-ms");
     if (!timeout_raw.empty()) {
         StatusOr<std::uint32_t> ms = BenchConfig::parse_timeout_ms(timeout_raw);
         if (!ms.ok()) {
@@ -89,24 +86,24 @@ using parcae::cli::optional_option;
         }
         cfg.set_probe_timeout_ms(ms.value());
     }
-    cfg.set_compare_builtin(has_flag(args, "--compare-builtin"));
+    cfg.set_compare_builtin(CliIo::has_flag(args, "--compare-builtin"));
     return cfg;
 }
 
 [[nodiscard]] StatusOr<BenchReport::Document> run_accuracy(
-    const parcae::tool::Context& ctx, const std::vector<std::string>& args) {
+    const Context& ctx, const std::vector<std::string>& args) {
     BenchAccuracySuite::Options opts;
-    opts.set_allow_cuda(has_flag(args, "--allow-cuda"));
+    opts.set_allow_cuda(CliIo::has_flag(args, "--allow-cuda"));
     return BenchAccuracySuite::run(ctx, opts);
 }
 
 [[nodiscard]] StatusOr<BenchReport::Document> run_slo(
-    const parcae::tool::Context& ctx, const std::vector<std::string>& args) {
-    if (!has_flag(args, "--allow-cuda")) {
+    const Context& ctx, const std::vector<std::string>& args) {
+    if (!CliIo::has_flag(args, "--allow-cuda")) {
         return Status::error("BenchSloSuite requires --allow-cuda");
     }
     Status backend_ok =
-        parcae::tool::BackendUtil::ensure_usable(parcae::tool::Backend::Cuda);
+        BackendUtil::ensure_usable(Backend::Cuda);
     if (!backend_ok.ok()) {
         return backend_ok;
     }
@@ -114,24 +111,24 @@ using parcae::cli::optional_option;
     if (!freqs.ok()) {
         return freqs.status();
     }
-    BenchSloSuite::Options opts(has_flag(args, "--extended"));
+    BenchSloSuite::Options opts(CliIo::has_flag(args, "--extended"));
     return BenchSloSuite::run(freqs.value(), opts);
 }
 
 [[nodiscard]] StatusOr<BenchReport::Document> run_hardware(
-    const parcae::tool::Context& ctx, const std::vector<std::string>& args) {
+    const Context& ctx, const std::vector<std::string>& args) {
     BenchHardwareSuite::Options opts;
-    const std::string backend_arg = optional_option(args, "--backend", "both");
+    const std::string backend_arg = CliIo::optional_option(args, "--backend", "both");
     StatusOr<BenchHardwareSuite::BackendSelect> backend =
         BenchHardwareSuite::parse_backend(backend_arg);
     if (!backend.ok()) {
         return backend.status();
     }
     opts.set_backend(backend.value());
-    opts.set_allow_cuda(has_flag(args, "--allow-cuda"));
-    opts.set_require_cuda(has_flag(args, "--require-cuda"));
-    opts.set_allow_skip(has_flag(args, "--allow-skip"));
-    opts.set_cpu_full(has_flag(args, "--cpu-full"));
+    opts.set_allow_cuda(CliIo::has_flag(args, "--allow-cuda"));
+    opts.set_require_cuda(CliIo::has_flag(args, "--require-cuda"));
+    opts.set_allow_skip(CliIo::has_flag(args, "--allow-skip"));
+    opts.set_cpu_full(CliIo::has_flag(args, "--cpu-full"));
     return BenchHardwareSuite::run(ctx, opts);
 }
 
@@ -149,47 +146,45 @@ using parcae::cli::optional_option;
 }  // namespace
 
 int main(int argc, char** argv) {
-    using namespace parcae::cli;
-
-    const std::vector<std::string> args = argv_tail(argc, argv);
-    if (has_flag(args, "-h") || has_flag(args, "--help")) {
+    const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
+    if (CliIo::has_flag(args, "-h") || CliIo::has_flag(args, "--help")) {
         BenchCli::print_help();
-        return kExitOk;
+        return CliIo::kExitOk;
     }
 
-    const bool json_mode = has_flag(args, "--json");
-    const bool omit_timing = has_flag(args, "--omit-timing");
+    const bool json_mode = CliIo::has_flag(args, "--json");
+    const bool omit_timing = CliIo::has_flag(args, "--omit-timing");
     if (omit_timing && !json_mode) {
         return fail(
             false,
             std::nullopt,
             ToolErrorCode::Usage,
             "--omit-timing requires --json",
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
-    const std::string data_dir = optional_option(args, "--data-dir");
-    StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
+    const std::string data_dir = CliIo::optional_option(args, "--data-dir");
+    StatusOr<Context> ctx = CliIo::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        return fail(json_mode, std::nullopt, ToolErrorCode::Io, ctx.status().message(), kExitUsage);
+        return fail(json_mode, std::nullopt, ToolErrorCode::Io, ctx.status().message(), CliIo::kExitUsage);
     }
 
-    const bool want_status = has_flag(args, "--status");
-    const std::string suite = optional_option(args, "--suite", want_status ? "" : "slo");
+    const bool want_status = CliIo::has_flag(args, "--status");
+    const std::string suite = CliIo::optional_option(args, "--suite", want_status ? "" : "slo");
 
     if (want_status) {
-        if (has_flag(args, "--suite") || has_flag(args, "--extended") ||
-            has_flag(args, "--allow-cuda") || has_flag(args, "--require-cuda") ||
-            has_flag(args, "--allow-skip") || has_flag(args, "--cpu-full") ||
-            has_flag(args, "--backend") || has_flag(args, "--probe-cmd") ||
-            has_flag(args, "--probe-tiers") || has_flag(args, "--probe-timeout-ms") ||
-            has_flag(args, "--compare-builtin")) {
+        if (CliIo::has_flag(args, "--suite") || CliIo::has_flag(args, "--extended") ||
+            CliIo::has_flag(args, "--allow-cuda") || CliIo::has_flag(args, "--require-cuda") ||
+            CliIo::has_flag(args, "--allow-skip") || CliIo::has_flag(args, "--cpu-full") ||
+            CliIo::has_flag(args, "--backend") || CliIo::has_flag(args, "--probe-cmd") ||
+            CliIo::has_flag(args, "--probe-tiers") || CliIo::has_flag(args, "--probe-timeout-ms") ||
+            CliIo::has_flag(args, "--compare-builtin")) {
             return fail(
                 json_mode,
                 std::nullopt,
                 ToolErrorCode::Usage,
                 "--status does not take suite-run flags",
-                kExitUsage);
+                CliIo::kExitUsage);
         }
         nlohmann::json result = BenchCli::status_result(ctx.value().data_root().string());
         if (json_mode) {
@@ -207,7 +202,7 @@ int main(int argc, char** argv) {
                   << "  suites.all:      ready\n"
                   << "  data_dir:        " << result.at("data_dir").get<std::string>() << '\n'
                   << "  " << result.at("message").get<std::string>() << '\n';
-        return kExitOk;
+        return CliIo::kExitOk;
     }
 
     if (suite.empty() || !is_known_suite(suite)) {
@@ -217,19 +212,19 @@ int main(int argc, char** argv) {
             std::nullopt,
             ToolErrorCode::Usage,
             "unknown or missing --suite (use slo|accuracy|hardware|probe|all)",
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
     if (suite == "accuracy") {
-        if (has_flag(args, "--extended") || has_flag(args, "--backend") ||
-            has_flag(args, "--require-cuda") || has_flag(args, "--allow-skip") ||
-            has_flag(args, "--cpu-full") || has_flag(args, "--probe-cmd")) {
+        if (CliIo::has_flag(args, "--extended") || CliIo::has_flag(args, "--backend") ||
+            CliIo::has_flag(args, "--require-cuda") || CliIo::has_flag(args, "--allow-skip") ||
+            CliIo::has_flag(args, "--cpu-full") || CliIo::has_flag(args, "--probe-cmd")) {
             return fail(
                 json_mode,
                 std::nullopt,
                 ToolErrorCode::Usage,
                 "accuracy does not take slo/hardware/probe-only flags",
-                kExitUsage);
+                CliIo::kExitUsage);
         }
         StatusOr<BenchReport::Document> doc = run_accuracy(ctx.value(), args);
         if (!doc.ok()) {
@@ -238,22 +233,22 @@ int main(int argc, char** argv) {
                 std::nullopt,
                 ToolErrorCode::Internal,
                 doc.status().message(),
-                kExitFail);
+                CliIo::kExitFail);
         }
         std::optional<std::string> backend =
-            has_flag(args, "--allow-cuda") ? std::optional<std::string>("cuda")
+            CliIo::has_flag(args, "--allow-cuda") ? std::optional<std::string>("cuda")
                                            : std::optional<std::string>("cpu");
         return emit_doc(json_mode, omit_timing, backend, doc.value());
     }
 
     if (suite == "hardware") {
-        if (has_flag(args, "--extended") || has_flag(args, "--probe-cmd")) {
+        if (CliIo::has_flag(args, "--extended") || CliIo::has_flag(args, "--probe-cmd")) {
             return fail(
                 json_mode,
                 std::nullopt,
                 ToolErrorCode::Usage,
                 "hardware does not take --extended/--probe-cmd",
-                kExitUsage);
+                CliIo::kExitUsage);
         }
         StatusOr<BenchReport::Document> doc = run_hardware(ctx.value(), args);
         if (!doc.ok()) {
@@ -266,19 +261,19 @@ int main(int argc, char** argv) {
                 std::nullopt,
                 policy ? ToolErrorCode::Policy : ToolErrorCode::Internal,
                 doc.status().message(),
-                policy ? kExitUsage : kExitFail);
+                policy ? CliIo::kExitUsage : CliIo::kExitFail);
         }
         return emit_doc(json_mode, omit_timing, std::string("both"), doc.value());
     }
 
     if (suite == "probe") {
-        if (has_flag(args, "--extended")) {
+        if (CliIo::has_flag(args, "--extended")) {
             return fail(
                 json_mode,
                 std::nullopt,
                 ToolErrorCode::Usage,
                 "--extended applies only to --suite slo",
-                kExitUsage);
+                CliIo::kExitUsage);
         }
         StatusOr<BenchReport::Document> doc = run_probe(args);
         if (!doc.ok()) {
@@ -291,7 +286,7 @@ int main(int argc, char** argv) {
                 std::nullopt,
                 usage ? ToolErrorCode::Usage : ToolErrorCode::Internal,
                 doc.status().message(),
-                usage ? kExitUsage : kExitFail);
+                usage ? CliIo::kExitUsage : CliIo::kExitFail);
         }
         return emit_doc(json_mode, omit_timing, std::string("probe"), doc.value());
     }
@@ -306,11 +301,11 @@ int main(int argc, char** argv) {
                 std::nullopt,
                 ToolErrorCode::Internal,
                 accuracy.status().message(),
-                kExitFail);
+                CliIo::kExitFail);
         }
         append_rows(merged, accuracy.value());
 
-        if (has_flag(args, "--allow-cuda")) {
+        if (CliIo::has_flag(args, "--allow-cuda")) {
             StatusOr<BenchReport::Document> slo = run_slo(ctx.value(), args);
             if (!slo.ok()) {
                 // Soft-skip SLO when CUDA unavailable under --suite all.
@@ -324,7 +319,7 @@ int main(int argc, char** argv) {
                         std::string("cuda"),
                         ToolErrorCode::Internal,
                         slo.status().message(),
-                        kExitFail);
+                        CliIo::kExitFail);
                 }
             } else {
                 append_rows(merged, slo.value());
@@ -338,11 +333,11 @@ int main(int argc, char** argv) {
                 std::nullopt,
                 ToolErrorCode::Internal,
                 hardware.status().message(),
-                kExitFail);
+                CliIo::kExitFail);
         }
         append_rows(merged, hardware.value());
 
-        if (has_flag(args, "--probe-cmd")) {
+        if (CliIo::has_flag(args, "--probe-cmd")) {
             StatusOr<BenchReport::Document> probe = run_probe(args);
             if (!probe.ok()) {
                 return fail(
@@ -350,7 +345,7 @@ int main(int argc, char** argv) {
                     std::nullopt,
                     ToolErrorCode::Internal,
                     probe.status().message(),
-                    kExitFail);
+                    CliIo::kExitFail);
             }
             append_rows(merged, probe.value());
         }
@@ -360,14 +355,14 @@ int main(int argc, char** argv) {
     }
 
     // suite == slo
-    if (has_flag(args, "--probe-cmd") || has_flag(args, "--backend") ||
-        has_flag(args, "--cpu-full")) {
+    if (CliIo::has_flag(args, "--probe-cmd") || CliIo::has_flag(args, "--backend") ||
+        CliIo::has_flag(args, "--cpu-full")) {
         return fail(
             json_mode,
             std::nullopt,
             ToolErrorCode::Usage,
             "slo does not take --probe-cmd/--backend/--cpu-full",
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
     StatusOr<BenchReport::Document> doc = run_slo(ctx.value(), args);
@@ -380,7 +375,7 @@ int main(int argc, char** argv) {
             std::string("cuda"),
             policy ? ToolErrorCode::Policy : ToolErrorCode::Internal,
             doc.status().message(),
-            policy ? kExitUsage : kExitFail);
+            policy ? CliIo::kExitUsage : CliIo::kExitFail);
     }
     return emit_doc(json_mode, omit_timing, std::string("cuda"), doc.value());
 }

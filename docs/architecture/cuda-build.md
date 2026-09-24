@@ -124,6 +124,39 @@ below. Digests / `--json` stdout must stay invariant under `--quiet`.
 
 Operator notes: [`search-handbook.md`](search-handbook.md) § Console progress.
 
+### Catch2 tags (bench / diagnostics)
+
+Umbrella CLI `parcae-bench` (`include/parcae/bench/`). Hosted CI **`Gate [bench]`**
+OR-filters the **deterministic** tags below — schema, probe parse, accuracy smoke,
+and report JSON stability. Absolute runes/s / fused CUDA SLO are **not** a hosted
+gate (non-deterministic timing); run those locally with a CUDA build.
+
+| Tag | Without Toolkit (`PARCAE_BUILD_CUDA=OFF`) | Notes |
+|-----|-------------------------------------------|-------|
+| `[bench][spec]` | Always — **part of Gate [bench]** | `BenchTierSpec` C/T/reps + peak sync vs `DslPeakSanity` |
+| `[bench][probe]` | Always — **part of Gate [bench]** | Probe JSON 1.0.0 parse + spawn/timeout (`docs/spec/bench-probe.md`) |
+| `[bench][accuracy]` | Always — **part of Gate [bench]** | Accuracy-suite CPU smoke; CUDA rows skip when no device |
+| `[bench][report]` | Always — **part of Gate [bench]** | `BenchReport` / `BenchFormatter`; `--omit-timing` digests |
+| `[bench][metric]` | Always (not in hosted gate) | Rate formulas / median-of-3 math |
+| `[bench][timer]` / `[bench][timer][cuda]` | Always / CUDA when linked | Timing protocol (not hosted SLO gate) |
+| `[bench][slo]` / `[bench][slo][cuda]` | CPU error path / GPU when linked | Fused SLO T1–T3 — **local/CUDA only** |
+| `[bench][hardware]` | Always (not in hosted gate) | CPU vs CUDA compare; skip / require-cuda paths |
+
+Operator / contributor suite map: [`include/parcae/bench/README.md`](../../include/parcae/bench/README.md).
+CLI contract: [`docs/spec/tools.md`](../spec/tools.md) § `parcae-bench`. Throughput
+recalibration: [`cuda-throughput.md`](cuda-throughput.md).
+
+```bash
+# Hosted CI matrix — Gate [bench] (deterministic only)
+build/tests/Release/parcae_tests.exe "[bench][spec],[bench][probe],[bench][accuracy],[bench][report]"
+
+# Broader local smoke (includes metric/timer/hardware; still CPU-safe)
+ctest --test-dir build -C Release -R "bench|cli_bench" --output-on-failure
+
+# Full fused SLO (CUDA build + GPU; not hosted)
+build-cuda/tools/Release/parcae-bench.exe --suite slo --extended --allow-cuda
+```
+
 ### Catch2 tags (search engine / scheduler)
 
 Closed-loop search (`include/parcae/search/`, `parcae-search-cycle`). Hosted CI
@@ -170,6 +203,9 @@ build/tests/Release/parcae_tests.exe "[search][scheduler]"
 build/tests/Release/parcae_tests.exe "[dsl][scope],[dsl][divergence],[dsl][directive],[dsl][directives]"
 build/tests/Release/parcae_tests.exe "[cli][dashboard],[tool][search_cycle][progress]"
 
+# Bench diagnostics (hosted CI matrix — Gate [bench]; no absolute runes/s)
+build/tests/Release/parcae_tests.exe "[bench][spec],[bench][probe],[bench][accuracy],[bench][report]"
+
 # Real device smoke (CUDA build)
 build-cuda/tests/Release/parcae_tests.exe "[cuda][smoke]" -s
 build-cuda/tests/Release/parcae_tests.exe "[search][export][parity]" -s
@@ -184,7 +220,7 @@ CPU-default workflows under [`.github/workflows/`](../../.github/workflows/):
 
 | Workflow | Role |
 |----------|------|
-| [`ci.yml`](../../.github/workflows/ci.yml) | Matrix: Ubuntu GCC/Clang, macOS, Windows — full `ctest` + `[solved]` / `[parity]` / `[search]` / `[cuda]` host gates + **`[dsl-smart]`** / **`[cli-progress]`** + `[dsl][examples]` / `[dsl][registry][stale]`; ASan+UBSan job; `parity-goldens` regen+byte-compare; optional self-hosted CUDA via `workflow_dispatch` |
+| [`ci.yml`](../../.github/workflows/ci.yml) | Matrix: Ubuntu GCC/Clang, macOS, Windows — full `ctest` + `[solved]` / `[parity]` / `[search]` / `[cuda]` host gates + **`[dsl-smart]`** / **`[cli-progress]`** / **`[bench]`** + `[dsl][examples]` / `[dsl][registry][stale]`; ASan+UBSan job; `parity-goldens` regen+byte-compare; optional self-hosted CUDA via `workflow_dispatch` |
 | [`clang-format.yml`](../../.github/workflows/clang-format.yml) | `clang-format --dry-run --Werror` on `include/`, `tests/`, `tools/`, `Parcae/Parcae/cuda/` |
 | [`codeql.yml`](../../.github/workflows/codeql.yml) | CodeQL C/C++ analysis (PR + weekly) |
 
@@ -200,6 +236,7 @@ Rules:
 ```text
 Parcae/Parcae/cuda/     canonical .cu / CUDA headers (VS + optional CMake)
 include/parcae/         CPU reference (header-only) — unchanged
+include/parcae/bench/   benchmark & diagnostics (`parcae-bench` / Gate [bench])
 include/parcae/search/  closed-loop SearchScheduler / BatchArtifact / export
 include/parcae/run/     SearchRun metrics / console / CUDA sweeps
 ```

@@ -22,7 +22,7 @@
 
 /// Dispatch a catalog transform id onto its concrete applicator.
 /// Theory URIs (`parcae://theories/…`) are not catalog ids — use
-/// `TheoryDispatch` / `parcae::tool::apply_to_indices` with a
+/// `TheoryDispatch` / `ToolApi::apply_to_indices` with a
 /// `TheoryEnvelopeBridge::Envelope` instead.
 class ApplyTransform {
 public:

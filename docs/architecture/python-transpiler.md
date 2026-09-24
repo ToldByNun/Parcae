@@ -294,7 +294,7 @@ JSON UX aligns with `parcae.tool_response.v0` where tools are agent-facing
 ([tools.md](../spec/tools.md), [agent-tools.md](../spec/agent-tools.md)).
 
 Runtime apply helpers: `TheoryDispatch` and
-`parcae::tool::apply_to_indices(..., TheoryEnvelopeBridge::Envelope, theories_root)`.
+`ToolApi::apply_to_indices(..., TheoryEnvelopeBridge::Envelope, theories_root)`.
 
 ---
 

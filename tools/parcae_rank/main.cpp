@@ -75,9 +75,8 @@ void print_help() {
     const std::vector<std::string>& args,
     std::string_view flag,
     bool required) {
-    using namespace parcae::cli;
     if (required) {
-        StatusOr<std::string> text = require_option(args, flag);
+        StatusOr<std::string> text = CliIo::require_option(args, flag);
         if (!text.ok()) {
             return text.status();
         }
@@ -88,7 +87,7 @@ void print_help() {
             return Status::error(std::string(flag) + " must be a non-negative integer");
         }
     }
-    const std::string text = optional_option(args, flag);
+    const std::string text = CliIo::optional_option(args, flag);
     if (text.empty()) {
         return static_cast<std::size_t>(0);
     }
@@ -223,50 +222,48 @@ void print_help() {
 }  // namespace
 
 int main(int argc, char** argv) {
-    using namespace parcae::cli;
-
-    const std::vector<std::string> args = argv_tail(argc, argv);
-    if (has_flag(args, "-h") || has_flag(args, "--help") || args.empty()) {
+    const std::vector<std::string> args = CliIo::argv_tail(argc, argv);
+    if (CliIo::has_flag(args, "-h") || CliIo::has_flag(args, "--help") || args.empty()) {
         print_help();
-        return args.empty() ? kExitUsage : kExitOk;
+        return args.empty() ? CliIo::kExitUsage : CliIo::kExitOk;
     }
 
-    const bool json_mode = has_flag(args, "--json");
-    const bool no_latin = has_flag(args, "--no-latin");
-    const std::string data_dir = optional_option(args, "--data-dir");
+    const bool json_mode = CliIo::has_flag(args, "--json");
+    const bool no_latin = CliIo::has_flag(args, "--no-latin");
+    const std::string data_dir = CliIo::optional_option(args, "--data-dir");
     std::optional<std::string> backend_label;
 
-    StatusOr<parcae::tool::Context> ctx = make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
+    StatusOr<Context> ctx = CliIo::make_context(data_dir, PARCAE_DEFAULT_DATA_DIR);
     if (!ctx.ok()) {
-        return fail(json_mode, std::nullopt, ToolErrorCode::Io, ctx.status().message(), kExitUsage);
+        return fail(json_mode, std::nullopt, ToolErrorCode::Io, ctx.status().message(), CliIo::kExitUsage);
     }
 
     const AgentPolicy policy = AgentPolicyCli::make(ctx.value(), args);
-    StatusOr<parcae::tool::Backend> backend = AgentPolicyCli::resolve_backend(policy, args);
+    StatusOr<Backend> backend = AgentPolicyCli::resolve_backend(policy, args);
     if (!backend.ok()) {
         const ToolErrorCode code = AgentPolicyCli::backend_error_code(backend.status());
         if (code == ToolErrorCode::Usage) {
             print_help();
         }
-        backend_label = optional_option(args, "--backend", "cpu");
-        return fail(json_mode, backend_label, code, backend.status().message(), kExitUsage);
+        backend_label = CliIo::optional_option(args, "--backend", "cpu");
+        return fail(json_mode, backend_label, code, backend.status().message(), CliIo::kExitUsage);
     }
-    backend_label = std::string(parcae::tool::BackendUtil::to_string(backend.value()));
+    backend_label = std::string(BackendUtil::to_string(backend.value()));
 
-    StatusOr<std::string> candidates_path = require_option(args, "--candidates");
+    StatusOr<std::string> candidates_path = CliIo::require_option(args, "--candidates");
     if (!candidates_path.ok()) {
         print_help();
         return fail(
             json_mode, backend_label, ToolErrorCode::Usage, candidates_path.status().message(),
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
-    StatusOr<std::string> score_id = require_option(args, "--score-id");
+    StatusOr<std::string> score_id = CliIo::require_option(args, "--score-id");
     if (!score_id.ok()) {
         print_help();
         return fail(
             json_mode, backend_label, ToolErrorCode::Usage, score_id.status().message(),
-            kExitUsage);
+            CliIo::kExitUsage);
     }
     if (!ScoreId::from_string(score_id.value()).ok()) {
         return fail(
@@ -274,21 +271,21 @@ int main(int argc, char** argv) {
             backend_label,
             ToolErrorCode::Usage,
             "Unknown score_id: " + score_id.value(),
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
     StatusOr<std::size_t> k = parse_size_option(args, "--k", /*required=*/true);
     if (!k.ok()) {
         print_help();
         return fail(
-            json_mode, backend_label, ToolErrorCode::Usage, k.status().message(), kExitUsage);
+            json_mode, backend_label, ToolErrorCode::Usage, k.status().message(), CliIo::kExitUsage);
     }
     if (k.value() == 0) {
-        return fail(json_mode, backend_label, ToolErrorCode::Usage, "--k must be >= 1", kExitUsage);
+        return fail(json_mode, backend_label, ToolErrorCode::Usage, "--k must be >= 1", CliIo::kExitUsage);
     }
 
     std::size_t latin_max = kDefaultLatinMax;
-    const std::string latin_max_text = optional_option(args, "--latin-max");
+    const std::string latin_max_text = CliIo::optional_option(args, "--latin-max");
     if (!latin_max_text.empty()) {
         try {
             const unsigned long long value = std::stoull(latin_max_text);
@@ -302,12 +299,12 @@ int main(int argc, char** argv) {
                 backend_label,
                 ToolErrorCode::Usage,
                 "--latin-max must be a non-negative integer",
-                kExitUsage);
+                CliIo::kExitUsage);
         }
     }
 
     nlohmann::json params = nlohmann::json::object();
-    const std::string params_json = optional_option(args, "--params-json");
+    const std::string params_json = CliIo::optional_option(args, "--params-json");
     if (!params_json.empty()) {
         try {
             params = nlohmann::json::parse(params_json);
@@ -317,7 +314,7 @@ int main(int argc, char** argv) {
                 backend_label,
                 ToolErrorCode::Schema,
                 std::string("Invalid --params-json: ") + ex.what(),
-                kExitUsage);
+                CliIo::kExitUsage);
         }
         if (!params.is_object()) {
             return fail(
@@ -325,21 +322,21 @@ int main(int argc, char** argv) {
                 backend_label,
                 ToolErrorCode::Schema,
                 "--params-json must be an object",
-                kExitUsage);
+                CliIo::kExitUsage);
         }
     }
 
-    StatusOr<std::string> source = read_all_utf8(candidates_path.value());
+    StatusOr<std::string> source = CliIo::read_all_utf8(candidates_path.value());
     if (!source.ok()) {
         return fail(
-            json_mode, backend_label, ToolErrorCode::Io, source.status().message(), kExitUsage);
+            json_mode, backend_label, ToolErrorCode::Io, source.status().message(), CliIo::kExitUsage);
     }
 
     StatusOr<std::vector<TransformCandidate>> candidates = load_candidates(source.value());
     if (!candidates.ok()) {
         return fail(
             json_mode, backend_label, ToolErrorCode::Schema, candidates.status().message(),
-            kExitUsage);
+            CliIo::kExitUsage);
     }
 
     StatusOr<BatchResult> ranked = RankCandidates::run(
@@ -355,10 +352,10 @@ int main(int argc, char** argv) {
     if (!ranked.ok()) {
         return fail(
             json_mode, backend_label, ToolErrorCode::Internal, ranked.status().message(),
-            kExitFail);
+            CliIo::kExitFail);
     }
 
-    const parcae::tool::Context* latin_ctx = no_latin ? nullptr : &ctx.value();
+    const Context* latin_ctx = no_latin ? nullptr : &ctx.value();
     StatusOr<nlohmann::json> payload = RankCandidates::result_to_json(
         ranked.value(),
         candidates.value(),
@@ -368,7 +365,7 @@ int main(int argc, char** argv) {
     if (!payload.ok()) {
         return fail(
             json_mode, backend_label, ToolErrorCode::Internal, payload.status().message(),
-            kExitFail);
+            CliIo::kExitFail);
     }
 
     if (!json_mode) {
@@ -382,7 +379,7 @@ int main(int argc, char** argv) {
             }
             std::cout << '\n';
         }
-        return kExitOk;
+        return CliIo::kExitOk;
     }
 
     return ToolCliJson::ok(kTool, backend_label, std::move(payload.value()));

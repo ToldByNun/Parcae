@@ -59,7 +59,7 @@ public:
     [[nodiscard]] static nlohmann::json status_result(std::string_view data_dir) {
         return nlohmann::json{
             {"toolkit_version", PARCAE_VERSION_STRING},
-            {"cuda_built", parcae::tool::BackendUtil::cuda_built()},
+            {"cuda_built", BackendUtil::cuda_built()},
             {"suites",
              nlohmann::json{
                  {"slo", true},

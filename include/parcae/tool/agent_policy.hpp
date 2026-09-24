@@ -105,8 +105,8 @@ public:
     }
 
     /// `cpu` always OK. `cuda` requires `allow_cuda` opt-in (else policy).
-    [[nodiscard]] Status allow_backend(parcae::tool::Backend backend) const {
-        if (backend == parcae::tool::Backend::Cpu) {
+    [[nodiscard]] Status allow_backend(Backend backend) const {
+        if (backend == Backend::Cpu) {
             return Status::success();
         }
         if (!allow_cuda_) {
@@ -117,10 +117,10 @@ public:
     }
 
     /// Resolve `backend` string then apply `allow_backend`.
-    [[nodiscard]] StatusOr<parcae::tool::Backend> check_backend_string(
+    [[nodiscard]] StatusOr<Backend> check_backend_string(
         std::string_view backend_text) const {
-        StatusOr<parcae::tool::Backend> backend =
-            parcae::tool::BackendUtil::from_string(backend_text);
+        StatusOr<Backend> backend =
+            BackendUtil::from_string(backend_text);
         if (!backend.ok()) {
             return backend.status();
         }

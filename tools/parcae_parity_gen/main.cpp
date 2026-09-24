@@ -123,7 +123,7 @@ void print_help() {
 }
 
 [[nodiscard]] StatusOr<std::vector<Index29>> a_warning_consumable(
-    const parcae::tool::Context& ctx) {
+    const Context& ctx) {
     StatusOr<std::filesystem::path> dir = ctx.resolve_fixture_dir("a-warning");
     if (!dir.ok()) {
         return dir.status();
@@ -151,8 +151,6 @@ void print_help() {
 } // namespace
 
 int main(int argc, char** argv) {
-    using namespace parcae::cli;
-
     std::string data_dir = PARCAE_DEFAULT_DATA_DIR;
     std::string out_dir;
 
@@ -160,7 +158,7 @@ int main(int argc, char** argv) {
         const std::string arg = argv[i];
         if (arg == "-h" || arg == "--help") {
             print_help();
-            return kExitOk;
+            return CliIo::kExitOk;
         }
         if (arg == "--data-dir" && i + 1 < argc) {
             data_dir = argv[++i];
@@ -172,12 +170,12 @@ int main(int argc, char** argv) {
         }
         std::cerr << "Unknown argument: " << arg << '\n';
         print_help();
-        return kExitUsage;
+        return CliIo::kExitUsage;
     }
 
     if (data_dir.empty()) {
         std::cerr << "--data-dir required (or build with PARCAE_DEFAULT_DATA_DIR)\n";
-        return kExitUsage;
+        return CliIo::kExitUsage;
     }
     if (out_dir.empty()) {
         out_dir = (std::filesystem::path(data_dir) / "parity").string();
@@ -187,19 +185,19 @@ int main(int argc, char** argv) {
     std::filesystem::create_directories(out_dir, ec);
     if (ec) {
         std::cerr << "Failed to create " << out_dir << ": " << ec.message() << '\n';
-        return kExitFail;
+        return CliIo::kExitFail;
     }
 
-    const parcae::tool::Context ctx{std::filesystem::path(data_dir)};
+    const Context ctx{std::filesystem::path(data_dir)};
     const std::filesystem::path out_path(out_dir);
 
     struct Job {
         std::string name;
-        Status (*run)(const std::filesystem::path&, const parcae::tool::Context&);
+        Status (*run)(const std::filesystem::path&, const Context&);
     };
 
     const auto caesar = [](const std::filesystem::path& out,
-                           const parcae::tool::Context&) -> Status {
+                           const Context&) -> Status {
         return write_golden(
             out,
             "caesar-s3-len64",
@@ -210,7 +208,7 @@ int main(int argc, char** argv) {
             InterruptPolicy::none());
     };
     const auto atbash = [](const std::filesystem::path& out,
-                           const parcae::tool::Context&) -> Status {
+                           const Context&) -> Status {
         return write_golden(
             out,
             "atbash-len64",
@@ -221,7 +219,7 @@ int main(int argc, char** argv) {
             InterruptPolicy::none());
     };
     const auto vigenere = [](const std::filesystem::path& out,
-                             const parcae::tool::Context&) -> Status {
+                             const Context&) -> Status {
         StatusOr<InterruptPolicy> interrupt =
             InterruptPolicy::from_skip_indices(std::vector<std::size_t>{7, 31});
         if (!interrupt.ok()) {
@@ -237,7 +235,7 @@ int main(int argc, char** argv) {
             interrupt.value());
     };
     const auto totient = [](const std::filesystem::path& out,
-                            const parcae::tool::Context&) -> Status {
+                            const Context&) -> Status {
         StatusOr<InterruptPolicy> interrupt =
             InterruptPolicy::from_skip_indices(std::vector<std::size_t>{5});
         if (!interrupt.ok()) {
@@ -253,7 +251,7 @@ int main(int argc, char** argv) {
             interrupt.value());
     };
     const auto affine = [](const std::filesystem::path& out,
-                           const parcae::tool::Context&) -> Status {
+                           const Context&) -> Status {
         return write_golden(
             out,
             "affine-a2-b5",
@@ -264,7 +262,7 @@ int main(int argc, char** argv) {
             InterruptPolicy::none());
     };
     const auto compose = [](const std::filesystem::path& out,
-                            const parcae::tool::Context&) -> Status {
+                            const Context&) -> Status {
         return write_golden(
             out,
             "compose-atbash-caesar3",
@@ -275,7 +273,7 @@ int main(int argc, char** argv) {
             InterruptPolicy::none());
     };
     const auto a_warning = [](const std::filesystem::path& out,
-                              const parcae::tool::Context& context) -> Status {
+                              const Context& context) -> Status {
         StatusOr<std::vector<Index29>> input = a_warning_consumable(context);
         if (!input.ok()) {
             return input.status();
@@ -305,7 +303,7 @@ int main(int argc, char** argv) {
         Status status = job.run(out_path, ctx);
         if (!status.ok()) {
             std::cerr << "FAIL " << job.name << ": " << status.message() << '\n';
-            return kExitFail;
+            return CliIo::kExitFail;
         }
         std::cout << "Wrote " << job.name << '\n';
         manifest.push_back(job.name);
@@ -315,7 +313,7 @@ int main(int argc, char** argv) {
         std::ofstream manifest_out(out_path / "manifest.json", std::ios::binary | std::ios::trunc);
         if (!manifest_out) {
             std::cerr << "Failed to write manifest.json\n";
-            return kExitFail;
+            return CliIo::kExitFail;
         }
         nlohmann::json root{
             {"schema", "parcae.parity_manifest.v0"},
@@ -324,5 +322,5 @@ int main(int argc, char** argv) {
         manifest_out << root.dump(2) << '\n';
     }
 
-    return kExitOk;
+    return CliIo::kExitOk;
 }

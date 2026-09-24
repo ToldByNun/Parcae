@@ -14,8 +14,6 @@
 #include <string_view>
 #include <utility>
 
-namespace parcae::tool {
-
 /// Resolves profile / fixture paths under a Parcae `data/` root.
 class Context {
 public:
@@ -73,7 +71,5 @@ public:
 private:
     std::filesystem::path data_root_;
 };
-
-}  // namespace parcae::tool
 
 #endif // TOOL_CONTEXT_HPP

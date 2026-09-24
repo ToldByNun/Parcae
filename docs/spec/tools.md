@@ -16,29 +16,29 @@
 4. Nonzero exit status on any hard error.
 5. UTF-8 in / UTF-8 out.
 
-## Library API (`parcae::tool`)
+## Library API (`ToolApi`)
 
 Headers: `parcae/tool/api.hpp`, `parcae/tool/context.hpp`,
 `parcae/tool/transform_envelope.hpp`.
 
-Callers construct a `parcae::tool::Context` with the Parcae `data/` root; every
-API below takes that context (or uses only envelope/indices when no profile I/O
-is required).
+Callers construct a `Context` with the Parcae `data/` root; every API below is a
+static method on `ToolApi` (or uses only envelope/indices when no profile I/O is
+required).
 
 ### `tokenize`
 
 ```text
-tokenize(ctx, source_utf8, grammar_id="rtkd-separator-grammar-v0", strict=true)
+ToolApi::tokenize(ctx, source_utf8, grammar_id="rtkd-separator-grammar-v0", strict=true)
   → TokenStream | Status
 ```
 
 ### `apply_transform`
 
 ```text
-apply_to_indices(span<Index29> | TokenStream, TransformEnvelope, backend=cpu)
+ToolApi::apply_to_indices(span<Index29> | TokenStream, TransformEnvelope, backend=cpu)
   → vector<Index29> | Status
 
-apply_and_rebuild_text(ctx, TokenStream, TransformEnvelope, backend=cpu)
+ToolApi::apply_and_rebuild_text(ctx, TokenStream, TransformEnvelope, backend=cpu)
   → string | Status   // preserves non-rune separators
 ```
 
@@ -51,7 +51,7 @@ rebuild-text paths are provided as above.
 ### `to_latin`
 
 ```text
-to_latin(ctx, span<Index29>, label_profile="gematria-primus-v0-preferred")
+ToolApi::to_latin(ctx, span<Index29>, label_profile="gematria-primus-v0-preferred")
   → string | Status
 ```
 
@@ -62,7 +62,7 @@ in tests.
 ### `score`
 
 ```text
-score(ctx, span<Index29>, score_id, score_version="v0", params_json?, request?, backend=cpu)
+ToolApi::score(ctx, span<Index29>, score_id, score_version="v0", params_json?, request?, backend=cpu)
   → float | Status
 ```
 
@@ -73,7 +73,7 @@ when `request.expected_frequencies` is null. `backend=cuda` dispatches to
 ### `validate_fixture`
 
 ```text
-validate_fixture(ctx, fixture_dir_or_id, require_locked=false)
+ToolApi::validate_fixture(ctx, fixture_dir_or_id, require_locked=false)
   → ValidationReport
 ```
 

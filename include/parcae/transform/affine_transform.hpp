@@ -25,7 +25,7 @@ public:
         Index29 a,
         Index29 b,
         TransformDirection direction) {
-        Status sizes = parcae::transform_buf::require_same_length(input, output);
+        Status sizes = TransformBuffer::require_same_length(input, output);
         if (!sizes.ok()) {
             return sizes;
         }
