@@ -30,7 +30,8 @@ private:
 | `bench_formatter.hpp` | `BenchFormatter` | Done — human tables (ConsoleDashboard vocab) |
 | `bench_slo_suite.hpp` | `BenchSloSuite` | Done — T1–T3 (+ optional F.*/C.*) via ThroughputTiers |
 | `bench_accuracy_suite.hpp` | `BenchAccuracySuite` | Done — fixture_eval / chi2 / oracle / CUDA planted |
-| CLI `parcae-bench` | — | `--status`, `--suite slo|accuracy` |
+| `bench_hardware_suite.hpp` | `BenchHardwareSuite` | Done — T1–T3 CPU vs CUDA; skip / require-cuda |
+| CLI `parcae-bench` | — | `--status`, `--suite slo|accuracy|hardware` |
 
 ## Sync rule
 

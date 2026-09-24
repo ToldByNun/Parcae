@@ -4,6 +4,7 @@
 
 #include "parcae/bench/bench_accuracy_suite.hpp"
 #include "parcae/bench/bench_formatter.hpp"
+#include "parcae/bench/bench_hardware_suite.hpp"
 #include "parcae/bench/bench_slo_suite.hpp"
 #include "parcae/core/version.hpp"
 #include "parcae/tool/tool_backend.hpp"
@@ -87,7 +88,9 @@ int main(int argc, char** argv) {
 
     if (want_status) {
         if (has_flag(args, "--suite") || has_flag(args, "--extended") ||
-            has_flag(args, "--allow-cuda")) {
+            has_flag(args, "--allow-cuda") || has_flag(args, "--require-cuda") ||
+            has_flag(args, "--allow-skip") || has_flag(args, "--cpu-full") ||
+            has_flag(args, "--backend")) {
             return fail(
                 json_mode,
                 std::nullopt,
@@ -106,6 +109,7 @@ int main(int argc, char** argv) {
                   << (result.at("cuda_built").get<bool>() ? "true" : "false") << '\n'
                   << "  suites.slo:      ready\n"
                   << "  suites.accuracy: ready\n"
+                  << "  suites.hardware: ready\n"
                   << "  data_dir:        " << result.at("data_dir").get<std::string>() << '\n'
                   << "  " << result.at("message").get<std::string>() << '\n';
         return kExitOk;
@@ -122,12 +126,14 @@ int main(int argc, char** argv) {
     }
 
     if (suite == "accuracy") {
-        if (has_flag(args, "--extended")) {
+        if (has_flag(args, "--extended") || has_flag(args, "--backend") ||
+            has_flag(args, "--require-cuda") || has_flag(args, "--allow-skip") ||
+            has_flag(args, "--cpu-full")) {
             return fail(
                 json_mode,
                 std::nullopt,
                 ToolErrorCode::Usage,
-                "--extended applies only to --suite slo",
+                "accuracy does not take --extended/--backend/--require-cuda/--allow-skip/--cpu-full",
                 kExitUsage);
         }
         BenchAccuracySuite::Options opts;
@@ -146,12 +152,63 @@ int main(int argc, char** argv) {
         return emit_doc(json_mode, omit_timing, backend, doc.value());
     }
 
+    if (suite == "hardware") {
+        if (has_flag(args, "--extended")) {
+            return fail(
+                json_mode,
+                std::nullopt,
+                ToolErrorCode::Usage,
+                "--extended applies only to --suite slo",
+                kExitUsage);
+        }
+        BenchHardwareSuite::Options opts;
+        const std::string backend_arg = optional_option(args, "--backend", "both");
+        StatusOr<BenchHardwareSuite::BackendSelect> backend =
+            BenchHardwareSuite::parse_backend(backend_arg);
+        if (!backend.ok()) {
+            return fail(
+                json_mode,
+                std::nullopt,
+                ToolErrorCode::Usage,
+                backend.status().message(),
+                kExitUsage);
+        }
+        opts.set_backend(backend.value());
+        opts.set_allow_cuda(has_flag(args, "--allow-cuda"));
+        opts.set_require_cuda(has_flag(args, "--require-cuda"));
+        opts.set_allow_skip(has_flag(args, "--allow-skip"));
+        opts.set_cpu_full(has_flag(args, "--cpu-full"));
+
+        StatusOr<BenchReport::Document> doc = BenchHardwareSuite::run(ctx.value(), opts);
+        if (!doc.ok()) {
+            const bool policy = doc.status().message().find("require-cuda") != std::string::npos ||
+                                doc.status().message().find("CUDA unavailable") != std::string::npos ||
+                                doc.status().message().find("requires --allow-cuda") !=
+                                    std::string::npos;
+            return fail(
+                json_mode,
+                std::nullopt,
+                policy ? ToolErrorCode::Policy : ToolErrorCode::Internal,
+                doc.status().message(),
+                policy ? kExitUsage : kExitFail);
+        }
+        std::optional<std::string> be;
+        if (opts.backend() == BenchHardwareSuite::BackendSelect::Cpu) {
+            be = "cpu";
+        } else if (opts.backend() == BenchHardwareSuite::BackendSelect::Cuda) {
+            be = "cuda";
+        } else {
+            be = "both";
+        }
+        return emit_doc(json_mode, omit_timing, be, doc.value());
+    }
+
     if (suite != "slo") {
         return fail(
             json_mode,
             std::nullopt,
             ToolErrorCode::Usage,
-            "suite '" + suite + "' is not implemented yet (supports slo|accuracy)",
+            "suite '" + suite + "' is not implemented yet (supports slo|accuracy|hardware)",
             kExitUsage);
     }
 

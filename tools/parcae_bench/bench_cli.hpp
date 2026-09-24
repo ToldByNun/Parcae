@@ -20,14 +20,23 @@ public:
             << "                    [--json] [--omit-timing] [--data-dir <path>]\n"
             << "       parcae-bench --suite accuracy [--allow-cuda]\n"
             << "                    [--json] [--omit-timing] [--data-dir <path>]\n"
+            << "       parcae-bench --suite hardware [--backend cpu|cuda|both]\n"
+            << "                    [--allow-cuda|--require-cuda] [--allow-skip]\n"
+            << "                    [--cpu-full] [--json] [--omit-timing]\n"
+            << "                    [--data-dir <path>]\n"
             << "\n"
             << "Benchmark & diagnostics umbrella (toolkit bench target).\n"
             << "\n"
             << "  --status         Toolkit / suite / CUDA readiness (no measurement)\n"
             << "  --suite slo      Fused CUDA SLO tiers T1–T3 (default when not --status)\n"
             << "  --suite accuracy Statistical validation (CPU; CUDA extras with --allow-cuda)\n"
+            << "  --suite hardware CPU vs CUDA T1–T3 compare (scaled CPU smoke by default)\n"
             << "  --extended       Also run F.* and C.* rows (with --suite slo)\n"
-            << "  --allow-cuda     Required for --suite slo; optional CUDA checks for accuracy\n"
+            << "  --backend MODE   hardware only: cpu|cuda|both (default both)\n"
+            << "  --allow-cuda     Required for slo; CUDA leg for accuracy/hardware\n"
+            << "  --require-cuda   hardware: fail if CUDA unavailable\n"
+            << "  --allow-skip     hardware: exit 0 when CUDA rows are skipped_not_built\n"
+            << "  --cpu-full       hardware: full T1–T3 CPU C/T/reps (not smoke)\n"
             << "  --json           Emit parcae.tool_response.v0 on stdout\n"
             << "  --omit-timing    Drop rate/wall fields (requires --json)\n"
             << "  --data-dir PATH  Parcae data root (profiles / fixtures)\n"
@@ -35,7 +44,7 @@ public:
             << "Compat: `parcae-throughput-tiers` runs the same suite as\n"
             << "  --suite slo --extended --allow-cuda (no allow-cuda flag on that binary).\n"
             << "\n"
-            << "Suites hardware|probe|all are reserved for follow-up work.\n";
+            << "Suites probe|all are reserved for follow-up work.\n";
     }
 
     [[nodiscard]] static nlohmann::json status_result(std::string_view data_dir) {
@@ -46,13 +55,14 @@ public:
              nlohmann::json{
                  {"slo", true},
                  {"accuracy", true},
-                 {"hardware", false},
+                 {"hardware", true},
                  {"probe", false},
                  {"all", false},
              }},
             {"data_dir", std::string(data_dir)},
             {"message",
-             "parcae-bench ready: --status | --suite slo --allow-cuda | --suite accuracy"},
+             "parcae-bench ready: --status | --suite slo --allow-cuda | "
+             "--suite accuracy | --suite hardware"},
         };
     }
 

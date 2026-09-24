@@ -86,6 +86,39 @@ if(PARCAE_BUILD_TESTS)
   )
 
   add_test(
+    NAME cli_bench_hardware_json
+    COMMAND $<TARGET_FILE:parcae-bench>
+      --suite hardware
+      --backend cpu
+      --json
+      --omit-timing
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+  )
+
+  add_test(
+    NAME cli_bench_hardware_cuda_requires_allow_cuda
+    COMMAND $<TARGET_FILE:parcae-bench>
+      --suite hardware
+      --backend cuda
+      --json
+      --data-dir "${CMAKE_SOURCE_DIR}/data"
+  )
+  set_tests_properties(cli_bench_hardware_cuda_requires_allow_cuda PROPERTIES WILL_FAIL TRUE)
+
+  if(NOT PARCAE_HAS_CUDA_BUILD)
+    add_test(
+      NAME cli_bench_hardware_require_cuda_fails
+      COMMAND $<TARGET_FILE:parcae-bench>
+        --suite hardware
+        --backend cuda
+        --require-cuda
+        --json
+        --data-dir "${CMAKE_SOURCE_DIR}/data"
+    )
+    set_tests_properties(cli_bench_hardware_require_cuda_fails PROPERTIES WILL_FAIL TRUE)
+  endif()
+
+  add_test(
     NAME cli_search_cycle_status_json
     COMMAND $<TARGET_FILE:parcae-search-cycle>
       --status

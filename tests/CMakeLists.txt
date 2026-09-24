@@ -38,6 +38,7 @@ add_executable(parcae_tests
   bench_report_test.cpp
   bench_slo_suite_test.cpp
   bench_accuracy_suite_test.cpp
+  bench_hardware_suite_test.cpp
   dsl_theory_artifact_test.cpp
   dsl_theory_registry_test.cpp
   dsl_theory_validate_test.cpp
