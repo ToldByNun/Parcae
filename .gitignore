@@ -98,3 +98,8 @@ agents/configs/lmstudio.local.yaml
 *.log
 scripts/research/periodic_key_switch_lp2.py
 scripts/research/falsify_nt_keystreams_lp2.py
+/build-rel-cpu
+/build-rel-cuda
+/stage-cpu
+/stage-cuda
+/stage-full
