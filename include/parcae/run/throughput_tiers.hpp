@@ -13,6 +13,7 @@
 #include "params.hpp"
 #include "atbash_kernel.hpp"
 
+#include "parcae/bench/bench_tier_spec.hpp"
 #include "parcae/core/index29.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
@@ -171,54 +172,16 @@ public:
         return out.str();
     }
 
-    /// Practical **ceilings** on RTX 5070 Ti (~896 GB/s DRAM).
-    /// Taken from median-of-3 cudaEvent maxes + ~3% pad so healthy runs land
-    /// ≤100% peak. If you see sustained >100%, bump the ceiling — never clamp %.
+    /// Practical **ceilings** on RTX 5070 Ti — delegated to `BenchTierSpec`
+    /// (docs/architecture/cuda-throughput.md). Recalibrate there, never clamp %.
     [[nodiscard]] static double estimated_peak(const std::string& tier) {
-        if (tier == "T1") {
-            return 392.0e9;
-        }
-        if (tier == "T2") {
-            return 402.0e9;
-        }
-        if (tier == "T3") {
-            return 55.0e9;
-        }
-        if (tier == "F.atbash") {
-            return 550.0e9;
-        }
-        if (tier == "F.affine") {
-            return 473.0e9;
-        }
-        if (tier == "F.vigenere") {
-            return 398.0e9;
-        }
-        if (tier == "F.beaufort") {
-            return 402.0e9;
-        }
-        if (tier == "F.totient") {
-            return 460.0e9;
-        }
-        if (tier == "C.koan1_fused") {
-            return 372.0e9;
-        }
-        if (tier == "C.koan1_stages") {
-            return 322.0e9;
-        }
-        return 0.0;
+        return BenchTierSpec::estimated_peak(tier);
     }
 
-    /// Pass: SLO floor and ≥90% of the practical ceiling (89.5% raw so rounded
-    /// display of 90% matches the gate). First idle-GPU run can miss; re-run warm.
+    /// Pass: SLO floor and ≥90% of the practical ceiling. Delegates to
+    /// `BenchTierSpec::pass_tier`. First idle-GPU run can miss; re-run warm.
     [[nodiscard]] static bool pass_tier(double rps, double slo_min, double peak) {
-        if (rps < slo_min) {
-            return false;
-        }
-        if (peak <= 0.0) {
-            return true;
-        }
-        const double pct = 100.0 * rps / peak;
-        return pct + 0.5 >= 90.0;  // same rounding as the printed %peak column
+        return BenchTierSpec::pass_tier(rps, slo_min, peak);
     }
 
 private:
@@ -381,19 +344,21 @@ private:
         return true;
     }
 
-    /// Tier 1: simple Caesar / affine / short Vigenère χ² — target 15–35B (pass if ≥15B).
+    /// Tier 1: simple Caesar fused χ² — config from `BenchTierSpec::t1`.
     [[nodiscard]] static StatusOr<TierResult> tier1_simple_sub(
         const ExpectedFrequencyTable& freqs) {
-        constexpr std::size_t T = 1u << 20;
-        constexpr std::size_t reps = 128;
+        constexpr std::size_t C = BenchTierSpec::t1.candidates;
+        constexpr std::size_t T = BenchTierSpec::t1.tokens;
+        constexpr std::size_t reps = BenchTierSpec::t1.repeats;
+        static_assert(C == Index29::modulus);
         const auto host_in = random_stream(T, 0x71EFu);
-        StatusOr<Scratch> scratch = make_scratch(host_in, freqs, Index29::modulus);
+        StatusOr<Scratch> scratch = make_scratch(host_in, freqs, C);
         if (!scratch.ok()) {
             return scratch.status();
         }
 
-        std::vector<std::uint8_t> shifts(Index29::modulus);
-        for (std::size_t c = 0; c < Index29::modulus; ++c) {
+        std::vector<std::uint8_t> shifts(C);
+        for (std::size_t c = 0; c < C; ++c) {
             shifts[c] = static_cast<std::uint8_t>(c);
         }
         StatusOr<DeviceBuffer<std::uint8_t>> d_shifts =
@@ -417,25 +382,25 @@ private:
         }
 
         TierResult out;
-        out.name = "T1";
-        out.workload = "Caesar fused chi2 (simple sub)";
+        out.name = BenchTierSpec::t1.id;
+        out.workload = BenchTierSpec::t1.workload;
         out.runes_per_sec = rps.value();
-        out.target_min = 15.0e9;
-        out.target_max = 35.0e9;
-        out.pass = pass_tier(out.runes_per_sec, out.target_min, estimated_peak("T1"));
+        out.target_min = BenchTierSpec::t1.slo_min;
+        out.target_max = BenchTierSpec::t1.slo_max;
+        out.pass = pass_tier(out.runes_per_sec, out.target_min, estimated_peak(out.name));
         out.candidates = scratch.value().C;
         out.tokens = scratch.value().T;
         out.repeats = reps;
         return out;
     }
 
-    /// Tier 2: multi-key Vigenère + autokey + dynamic-shift — target 3–10B (pass if ≥3B).
+    /// Tier 2: multi-key Vigenère + autokey + dynamic-shift — `BenchTierSpec::t2`.
     [[nodiscard]] static StatusOr<TierResult> tier2_filtered_multikey(
         const ExpectedFrequencyTable& freqs) {
-        constexpr std::size_t C = 4096;
+        constexpr std::size_t C = BenchTierSpec::t2.candidates;
         constexpr std::size_t key_len = 8;
-        constexpr std::size_t T = 1u << 18;  // 256k
-        constexpr std::size_t reps = 16;
+        constexpr std::size_t T = BenchTierSpec::t2.tokens;
+        constexpr std::size_t reps = BenchTierSpec::t2.repeats;
         const auto host_in = random_stream(T, 0xA11Au);
 
         // Split wall across three filtered families; report min (bottleneck).
@@ -589,23 +554,23 @@ private:
         }
 
         TierResult out;
-        out.name = "T2";
-        out.workload = "Filtered multi-key/autokey/dyn (" + label + " worst)";
+        out.name = BenchTierSpec::t2.id;
+        out.workload = std::string("Filtered multi-key/autokey/dyn (") + label + " worst)";
         out.runes_per_sec = worst;
-        out.target_min = 3.0e9;
-        out.target_max = 10.0e9;
-        out.pass = pass_tier(out.runes_per_sec, out.target_min, estimated_peak("T2"));
+        out.target_min = BenchTierSpec::t2.slo_min;
+        out.target_max = BenchTierSpec::t2.slo_max;
+        out.pass = pass_tier(out.runes_per_sec, out.target_min, estimated_peak(out.name));
         out.candidates = C;
         out.tokens = T;
         out.repeats = reps;
         return out;
     }
 
-    /// Tier 3: deep bigram + dictionary validation — target ≥1B.
+    /// Tier 3: deep bigram + dictionary validation — `BenchTierSpec::t3`.
     [[nodiscard]] static StatusOr<TierResult> tier3_ngram_dict() {
-        constexpr std::size_t C = 512;
-        constexpr std::size_t T = 1u << 18;
-        constexpr std::size_t reps = 16;
+        constexpr std::size_t C = BenchTierSpec::t3.candidates;
+        constexpr std::size_t T = BenchTierSpec::t3.tokens;
+        constexpr std::size_t reps = BenchTierSpec::t3.repeats;
         constexpr std::size_t dict_n = 64;
         const auto host_in = random_stream(T, 0xD1C7u);
 
@@ -682,12 +647,12 @@ private:
         }
 
         TierResult out;
-        out.name = "T3";
-        out.workload = "Caesar bigram+dict validation";
+        out.name = BenchTierSpec::t3.id;
+        out.workload = BenchTierSpec::t3.workload;
         out.runes_per_sec = rps.value();
-        out.target_min = 1.0e9;
-        out.target_max = 0.0;
-        out.pass = pass_tier(out.runes_per_sec, out.target_min, estimated_peak("T3"));
+        out.target_min = BenchTierSpec::t3.slo_min;
+        out.target_max = BenchTierSpec::t3.slo_max;
+        out.pass = pass_tier(out.runes_per_sec, out.target_min, estimated_peak(out.name));
         out.candidates = C;
         out.tokens = T;
         out.repeats = reps;
@@ -744,7 +709,13 @@ private:
                 return rps.status();
             }
             StatusOr<TierResult> row = make_family_result(
-                "F.atbash", "Atbash fused chi2", rps.value(), 15.0e9, C, T, reps);
+                "F.atbash",
+                "Atbash fused chi2",
+                rps.value(),
+                BenchTierSpec::slo_floor("F.atbash"),
+                C,
+                T,
+                reps);
             if (!row.ok()) {
                 return row.status();
             }
@@ -794,7 +765,13 @@ private:
                 return rps.status();
             }
             StatusOr<TierResult> row = make_family_result(
-                "F.affine", "Affine fused chi2 (812)", rps.value(), 15.0e9, C, T, reps);
+                "F.affine",
+                "Affine fused chi2 (812)",
+                rps.value(),
+                BenchTierSpec::slo_floor("F.affine"),
+                C,
+                T,
+                reps);
             if (!row.ok()) {
                 return row.status();
             }
@@ -858,7 +835,7 @@ private:
                     "F.vigenere",
                     "Vigenere fused chi2 (key=8)",
                     rps.value(),
-                    3.0e9,
+                    BenchTierSpec::slo_floor("F.vigenere"),
                     C,
                     T,
                     reps);
@@ -891,7 +868,7 @@ private:
                     "F.beaufort",
                     "Beaufort fused chi2 (key=8)",
                     rps.value(),
-                    3.0e9,
+                    BenchTierSpec::slo_floor("F.beaufort"),
                     C,
                     T,
                     reps);
@@ -945,7 +922,7 @@ private:
                 "F.totient",
                 "Totient stream fused chi2",
                 rps.value(),
-                3.0e9,
+                BenchTierSpec::slo_floor("F.totient"),
                 C,
                 T,
                 reps);
@@ -1008,7 +985,7 @@ private:
                 "C.koan1_fused",
                 "Atbash→Caesar+shift fused",
                 rps.value(),
-                15.0e9,
+                BenchTierSpec::slo_floor("C.koan1_fused"),
                 C,
                 T,
                 reps);
@@ -1052,7 +1029,7 @@ private:
                 "C.koan1_stages",
                 "Atbash kern + Caesar chi2",
                 rps.value(),
-                15.0e9,
+                BenchTierSpec::slo_floor("C.koan1_stages"),
                 C,
                 T,
                 reps);

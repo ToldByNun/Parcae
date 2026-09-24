@@ -30,7 +30,7 @@ private:
 `BenchTierSpec` is the **single source of truth** for:
 
 - Primary SLO configs (T1 / T2 / T3): `C`, `T`, `reps`, display bands, peaks
-- Extended peak / floor ids (`F.*`, `C.*`) shared with `DslPeakSanity`
+- Extended peak / floor ids (`F.*`, `C.*`)
 
-Call sites that still embed copies (`ThroughputTiers`, `DslPeakSanity`) must be
-wired to this header in follow-up work; Catch2 `[bench][spec]` locks the numbers.
+`ThroughputTiers` and `DslPeakSanity` **delegate** to this header. Catch2
+`[bench][spec]` and `[dsl][peak]` lock the numbers.

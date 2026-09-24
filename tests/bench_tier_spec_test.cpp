@@ -86,3 +86,13 @@ TEST_CASE("BenchTierSpec percent_peak", "[bench][spec]") {
     REQUIRE(std::isfinite(BenchTierSpec::percent_peak(BenchTierSpec::t3.slo_min,
                                                        BenchTierSpec::t3.estimated_peak)));
 }
+
+TEST_CASE("BenchTierSpec primary reps match wired ThroughputTiers contract", "[bench][spec]") {
+    // ThroughputTiers::tier1/2/3 read these constexpr fields (reps 64/8/8).
+    REQUIRE(BenchTierSpec::t1.repeats == 64u);
+    REQUIRE(BenchTierSpec::t2.repeats == 8u);
+    REQUIRE(BenchTierSpec::t3.repeats == 8u);
+    REQUIRE(BenchTierSpec::t1.candidates == 29u);
+    REQUIRE(BenchTierSpec::t2.candidates == 4096u);
+    REQUIRE(BenchTierSpec::t3.candidates == 512u);
+}

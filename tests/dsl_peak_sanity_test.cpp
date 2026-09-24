@@ -1,3 +1,4 @@
+#include <parcae/bench/bench_tier_spec.hpp>
 #include <parcae/dsl/dsl_peak_sanity.hpp>
 #include <parcae/dsl/param_ir.hpp>
 #include <parcae/dsl/theory_ir.hpp>
@@ -20,6 +21,32 @@ TEST_CASE("DslPeakSanity peaks match cuda-throughput reference plateaus", "[dsl]
     REQUIRE(DslPeakSanity::estimated_peak("C.koan1_fused") == 372.0e9);
     REQUIRE(DslPeakSanity::estimated_peak("C.koan1_stages") == 322.0e9);
     REQUIRE(DslPeakSanity::estimated_peak("nope") == 0.0);
+}
+
+TEST_CASE("DslPeakSanity delegates peak and pass rules to BenchTierSpec", "[dsl][peak]") {
+    REQUIRE(DslPeakSanity::peak_band_pct == BenchTierSpec::peak_band_pct);
+    REQUIRE(DslPeakSanity::peak_band_raw == BenchTierSpec::peak_band_raw);
+    for (const char* tier :
+         {"T1",
+          "T2",
+          "T3",
+          "F.atbash",
+          "F.affine",
+          "F.vigenere",
+          "F.beaufort",
+          "F.totient",
+          "C.koan1_fused",
+          "C.koan1_stages"}) {
+        REQUIRE(DslPeakSanity::estimated_peak(tier) == BenchTierSpec::estimated_peak(tier));
+        REQUIRE(DslPeakSanity::slo_floor(tier) == BenchTierSpec::slo_floor(tier));
+        REQUIRE(DslPeakSanity::known_tier(tier) == BenchTierSpec::known_tier(tier));
+        const double peak = BenchTierSpec::estimated_peak(tier);
+        const double slo = BenchTierSpec::slo_floor(tier);
+        REQUIRE(DslPeakSanity::pass_tier(0.91 * peak, slo, peak) ==
+                BenchTierSpec::pass_tier(0.91 * peak, slo, peak));
+        REQUIRE(DslPeakSanity::percent_peak(0.5 * peak, peak) ==
+                BenchTierSpec::percent_peak(0.5 * peak, peak));
+    }
 }
 
 TEST_CASE("DslPeakSanity slo floors match cuda-throughput.md", "[dsl][peak]") {
@@ -114,7 +141,7 @@ TEST_CASE("DslPeakSanity verdict_str", "[dsl][peak]") {
 }
 
 #if defined(PARCAE_HAS_CUDA)
-TEST_CASE("DslPeakSanity estimated_peak matches ThroughputTiers", "[dsl][peak][cuda]") {
+TEST_CASE("DslPeakSanity and ThroughputTiers both follow BenchTierSpec", "[dsl][peak][cuda]") {
     for (const char* tier :
          {"T1",
           "T2",
@@ -126,6 +153,8 @@ TEST_CASE("DslPeakSanity estimated_peak matches ThroughputTiers", "[dsl][peak][c
           "F.totient",
           "C.koan1_fused",
           "C.koan1_stages"}) {
+        REQUIRE(DslPeakSanity::estimated_peak(tier) == BenchTierSpec::estimated_peak(tier));
+        REQUIRE(ThroughputTiers::estimated_peak(tier) == BenchTierSpec::estimated_peak(tier));
         REQUIRE(DslPeakSanity::estimated_peak(tier) == ThroughputTiers::estimated_peak(tier));
         REQUIRE(DslPeakSanity::pass_tier(0.95 * DslPeakSanity::estimated_peak(tier), 1.0, DslPeakSanity::estimated_peak(tier)) ==
                 ThroughputTiers::pass_tier(
@@ -133,5 +162,13 @@ TEST_CASE("DslPeakSanity estimated_peak matches ThroughputTiers", "[dsl][peak][c
                     1.0,
                     ThroughputTiers::estimated_peak(tier)));
     }
+
+    // Primary SLO configs used by ThroughputTiers::tier1/2/3 (wired to Spec).
+    REQUIRE(BenchTierSpec::t1.repeats == 64u);
+    REQUIRE(BenchTierSpec::t2.repeats == 8u);
+    REQUIRE(BenchTierSpec::t3.repeats == 8u);
+    REQUIRE(BenchTierSpec::t1.tokens == 1048576u);
+    REQUIRE(BenchTierSpec::t2.tokens == 262144u);
+    REQUIRE(BenchTierSpec::t3.tokens == 262144u);
 }
 #endif

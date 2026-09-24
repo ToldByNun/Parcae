@@ -9,8 +9,8 @@
 /// Canonical SLO tier constants for Parcae bench / throughput diagnostics.
 ///
 /// **Single source of truth** for T1–T3 config (C, T, reps) and for practical
-/// peak / SLO floor tables shared with `DslPeakSanity` and `ThroughputTiers`
-/// (those call sites must stay in sync — enforced by Catch2 `[bench][spec]`).
+/// peak / SLO floor tables. `DslPeakSanity` and `ThroughputTiers` delegate here
+/// (Catch2 `[bench][spec]` / `[dsl][peak]`).
 ///
 /// Metric: `repeats × C × T / elapsed` (setup excluded). Peak ceilings are
 /// calibrated on RTX 5070 Ti; see `docs/architecture/cuda-throughput.md`.

@@ -2,15 +2,15 @@
 
 **Status:** local reference plateaus (not a CI gate)  
 **Canonical constants:** [`BenchTierSpec`](../../include/parcae/bench/bench_tier_spec.hpp)  
-**Tool (today):** `parcae-throughput-tiers` (will become a thin wrapper of `parcae-bench --suite slo`)  
+**Tool (today):** `parcae-throughput-tiers` (reads `BenchTierSpec`; later a thin wrapper of `parcae-bench --suite slo`)  
 **Hardware used for the table below:** NVIDIA GeForce RTX 5070 Ti (~896 GB/s DRAM)  
 **Metric:** `repeats × C × T / median-of-3 cudaEvent` (setup excluded)
 
 These numbers are **practical ceilings** for the fused decrypt+χ² (and deep-score)
 paths after HistFast / vec4 / tiles_for work. They are not marketing FLOPS and not
 portable across GPUs — re-run the tool on your card and recalibrate
-`BenchTierSpec` peaks (and any still-duplicated `estimated_peak` call sites) if
-`%peak` goes above 100.
+`BenchTierSpec` peaks if `%peak` goes above 100. `ThroughputTiers` and
+`DslPeakSanity` delegate to that header (Catch2 `[bench][spec]` / `[dsl][peak]`).
 
 ## How to measure
 
@@ -33,10 +33,6 @@ Pass rule: SLO floor **and** ≥ 90% of the practical ceiling for that row
 
 Display bands (`slo_max`) are expectations only — faster than the upper bound still
 **passes**. Failures are below the floor or below the 90% peak band.
-
-> **Note:** Until `ThroughputTiers` is wired to `BenchTierSpec`, the CUDA CLI may
-> still use older `reps` (128 / 16 / 16). Catch2 `[bench][spec]` locks the
-> **canonical** values above; follow-up work switches the runner.
 
 ## Reference plateaus (RTX 5070 Ti)
 
@@ -72,8 +68,8 @@ Ceilings match `BenchTierSpec::estimated_peak`. Typical healthy runs sit around
 
 1. Run `parcae-throughput-tiers` several times on a quiet GPU.
 2. For each row, take the **max** of the reported medians.
-3. Set `BenchTierSpec` peaks slightly above that max (round up); keep
-   `DslPeakSanity` / `ThroughputTiers` in sync until they read the header.
+3. Bump `BenchTierSpec` peaks slightly above that max (round up) — runners and
+   `DslPeakSanity` pick it up automatically.
 4. Confirm subsequent runs print `%peak` in roughly **90–99**, not above 100 —
    if they do, the stored ceiling is stale (too low), not “super-linear hardware”.
 5. If mins fall under 90% while maxes stay under 100%, widen the timed window

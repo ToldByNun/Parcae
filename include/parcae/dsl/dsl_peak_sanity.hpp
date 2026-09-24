@@ -1,6 +1,7 @@
 #ifndef DSL_PEAK_SANITY_HPP
 #define DSL_PEAK_SANITY_HPP
 
+#include "parcae/bench/bench_tier_spec.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
@@ -14,18 +15,18 @@
 #include <string_view>
 #include <utility>
 
-/// Peak / SLO sanity gates aligned with `ThroughputTiers` (cuda-throughput.md).
+/// Peak / SLO sanity gates aligned with `BenchTierSpec` (cuda-throughput.md).
 /// Host-only: mirrors `estimated_peak` + `pass_tier` without requiring CUDA.
 /// Use for artifact claims and measured CUDA rps — not for CPU `DslFuse::bench_cpu`
 /// rates (those are a different metric).
 ///
-/// **Sync rule:** `estimated_peak` / `slo_floor` MUST match
-/// `ThroughputTiers::estimated_peak` and the floors in docs/architecture/cuda-throughput.md.
+/// **Sync rule:** `estimated_peak` / `slo_floor` / `pass_tier` MUST delegate to
+/// `BenchTierSpec` (same source as `ThroughputTiers` and docs/architecture/cuda-throughput.md).
 class DslPeakSanity {
 public:
-    /// Same ≥90% band as `ThroughputTiers::pass_tier` (89.5% raw → printed 90%).
-    static constexpr double peak_band_pct = 90.0;
-    static constexpr double peak_band_raw = 89.5;
+    /// Same ≥90% band as `BenchTierSpec::pass_tier` (89.5% raw → printed 90%).
+    static constexpr double peak_band_pct = BenchTierSpec::peak_band_pct;
+    static constexpr double peak_band_raw = BenchTierSpec::peak_band_raw;
 
     enum class Verdict : std::uint8_t {
         Pass = 0,
@@ -95,83 +96,27 @@ public:
         std::string detail_;
     };
 
-    /// Practical ceilings (runes/s) — MUST match `ThroughputTiers::estimated_peak`.
+    /// Practical ceilings (runes/s) — delegated to `BenchTierSpec`.
     [[nodiscard]] static double estimated_peak(std::string_view tier) noexcept {
-        if (tier == "T1") {
-            return 392.0e9;
-        }
-        if (tier == "T2") {
-            return 402.0e9;
-        }
-        if (tier == "T3") {
-            return 55.0e9;
-        }
-        if (tier == "F.atbash") {
-            return 550.0e9;
-        }
-        if (tier == "F.affine") {
-            return 473.0e9;
-        }
-        if (tier == "F.vigenere") {
-            return 398.0e9;
-        }
-        if (tier == "F.beaufort") {
-            return 402.0e9;
-        }
-        if (tier == "F.totient") {
-            return 460.0e9;
-        }
-        if (tier == "C.koan1_fused") {
-            return 372.0e9;
-        }
-        if (tier == "C.koan1_stages") {
-            return 322.0e9;
-        }
-        return 0.0;
+        return BenchTierSpec::estimated_peak(tier);
     }
 
-    /// SLO floors from cuda-throughput.md / ThroughputTiers suite.
+    /// SLO floors — delegated to `BenchTierSpec`.
     [[nodiscard]] static double slo_floor(std::string_view tier) noexcept {
-        if (tier == "T1") {
-            return 15.0e9;
-        }
-        if (tier == "T2") {
-            return 3.0e9;
-        }
-        if (tier == "T3") {
-            return 1.0e9;
-        }
-        if (tier == "F.atbash" || tier == "F.affine" || tier == "C.koan1_fused" ||
-            tier == "C.koan1_stages") {
-            return 15.0e9;
-        }
-        if (tier == "F.vigenere" || tier == "F.beaufort" || tier == "F.totient") {
-            return 3.0e9;
-        }
-        return 0.0;
+        return BenchTierSpec::slo_floor(tier);
     }
 
     [[nodiscard]] static bool known_tier(std::string_view tier) noexcept {
-        return estimated_peak(tier) > 0.0;
+        return BenchTierSpec::known_tier(tier);
     }
 
-    /// Identical rule to `ThroughputTiers::pass_tier`.
+    /// Identical rule to `BenchTierSpec::pass_tier` / `ThroughputTiers::pass_tier`.
     [[nodiscard]] static bool pass_tier(double rps, double slo_min, double peak) noexcept {
-        if (rps < slo_min) {
-            return false;
-        }
-        if (peak <= 0.0) {
-            return true;
-        }
-        const double pct = 100.0 * rps / peak;
-        return pct + 0.5 >= peak_band_pct;
+        return BenchTierSpec::pass_tier(rps, slo_min, peak);
     }
 
     [[nodiscard]] static double percent_peak(double rps, double peak) noexcept {
-        if (peak <= 0.0) {
-            return 0.0;
-        }
-        return 100.0 * rps / peak;
+        return BenchTierSpec::percent_peak(rps, peak);
     }
 
     /// Full gate: unknown tier / above peak / SLO / 90% band.
@@ -244,7 +189,7 @@ public:
         if (rps > peak * (1.0 + kEps)) {
             return DslDiag::make(
                        DslRuleId::E050_verify_failed,
-                       "peak sanity: rps exceeds ThroughputTiers ceiling for '" +
+                       "peak sanity: rps exceeds BenchTierSpec ceiling for '" +
                            std::string(tier) + "'")
                 .to_status();
         }
