@@ -1,6 +1,6 @@
 # Toolkit exit: smart DSL + console progress
 
-**Status:** Toolkit **0.8.0** (SemVer + smoke green; annotated tag still user-owned)  
+**Status:** Complete — toolkit **0.8.0** cut at `v0.8.0-dsl-console`  
 **Exit tag (locked):** `v0.8.0-dsl-console`  
 **Toolkit SemVer (locked):** `0.8.0`
 
@@ -88,7 +88,7 @@ out of the cut on purpose.
 - [x] Smoke: `Version` + `parcae-search-cycle --status` /
       `parcae-compile --status` → toolkit **0.8.0** (quiet vs plain-progress
       covered by `[tool][search_cycle][progress]`)
-- [ ] Annotated tag `v0.8.0-dsl-console` (**user**); Release workflow publishes
+- [x] Annotated tag `v0.8.0-dsl-console`; Release workflow publishes
       `Parcae-v0.8.0-…` artifacts
 
 **Nice-to-have on the same tag** (language/tooling pack; do not block):
