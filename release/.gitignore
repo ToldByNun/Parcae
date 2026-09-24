@@ -1,5 +1,0 @@
-# Local staging (version folders, binaries) — root .gitignore owns /release/*
-*
-!.gitignore
-!README.md
-!RELEASE_NOTES.md

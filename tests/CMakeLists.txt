@@ -32,6 +32,7 @@ add_executable(parcae_tests
   dsl_optimize_test.cpp
   dsl_launch_plan_test.cpp
   dsl_peak_sanity_test.cpp
+  bench_tier_spec_test.cpp
   dsl_theory_artifact_test.cpp
   dsl_theory_registry_test.cpp
   dsl_theory_validate_test.cpp
