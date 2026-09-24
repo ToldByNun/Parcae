@@ -1,7 +1,8 @@
 #include "cli_io.hpp"
 #include "throughput_tiers_cli.hpp"
 
-#include "parcae/run/throughput_tiers.hpp"
+#include "parcae/bench/bench_formatter.hpp"
+#include "parcae/bench/bench_slo_suite.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
 #include "parcae/tool/tool_backend.hpp"
 
@@ -13,6 +14,9 @@
 #define PARCAE_DEFAULT_DATA_DIR ""
 #endif
 
+/// Compatibility entry point: same suite as
+/// `parcae-bench --suite slo --extended --allow-cuda` (no --allow-cuda flag
+/// here so existing scripts keep working).
 int main(int argc, char** argv) {
     const std::vector<std::string> args = parcae::cli::argv_tail(argc, argv);
     if (parcae::cli::has_flag(args, "-h") || parcae::cli::has_flag(args, "--help")) {
@@ -22,6 +26,7 @@ int main(int argc, char** argv) {
 
 #if !defined(PARCAE_HAS_CUDA)
     std::cerr << "parcae-throughput-tiers requires a CUDA build\n";
+    std::cerr << "Use: parcae-bench --status --json   (CPU) or a CUDA-linked build\n";
     return parcae::cli::kExitUsage;
 #else
     Status backend_ok =
@@ -44,12 +49,14 @@ int main(int argc, char** argv) {
         return parcae::cli::kExitFail;
     }
 
-    StatusOr<ThroughputTiers::Report> report = ThroughputTiers::run(freqs.value());
-    if (!report.ok()) {
-        std::cerr << report.status().message() << '\n';
+    // Historical full suite = primary T1–T3 + extended F.* / C.* rows.
+    BenchSloSuite::Options opts(/*extended=*/true);
+    StatusOr<BenchReport::Document> doc = BenchSloSuite::run(freqs.value(), opts);
+    if (!doc.ok()) {
+        std::cerr << doc.status().message() << '\n';
         return parcae::cli::kExitFail;
     }
-    std::cout << ThroughputTiers::format(report.value());
-    return report.value().all_pass ? parcae::cli::kExitOk : parcae::cli::kExitFail;
+    std::cout << BenchFormatter::format(doc.value());
+    return doc.value().all_pass() ? parcae::cli::kExitOk : parcae::cli::kExitFail;
 #endif
 }

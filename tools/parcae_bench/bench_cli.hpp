@@ -29,6 +29,9 @@ public:
             << "  --omit-timing    Drop rate/wall fields (requires --json)\n"
             << "  --data-dir PATH  Parcae data root (profiles / fixtures)\n"
             << "\n"
+            << "Compat: `parcae-throughput-tiers` runs the same suite as\n"
+            << "  --suite slo --extended --allow-cuda (no allow-cuda flag on that binary).\n"
+            << "\n"
             << "Suites accuracy|hardware|probe|all are reserved for follow-up work.\n";
     }
 

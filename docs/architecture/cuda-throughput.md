@@ -2,7 +2,8 @@
 
 **Status:** local reference plateaus (not a CI gate)  
 **Canonical constants:** [`BenchTierSpec`](../../include/parcae/bench/bench_tier_spec.hpp)  
-**Tool (today):** `parcae-throughput-tiers` (reads `BenchTierSpec`; later a thin wrapper of `parcae-bench --suite slo`)  
+**Canonical tool:** `parcae-bench --suite slo [--extended] --allow-cuda`  
+**Compat tool:** `parcae-throughput-tiers` (thin wrapper → same `BenchSloSuite` with extended on)  
 **Hardware used for the table below:** NVIDIA GeForce RTX 5070 Ti (~896 GB/s DRAM)  
 **Metric:** `repeats × C × T / median-of-3 cudaEvent` (setup excluded)
 
@@ -16,8 +17,13 @@ portable across GPUs — re-run the tool on your card and recalibrate
 
 ```bash
 cmake -S . -B build-cuda -DPARCAE_BUILD_CUDA=ON -DPARCAE_BUILD_TOOLS=ON
-cmake --build build-cuda --config Release --target parcae-throughput-tiers
-./build-cuda/tools/Release/parcae-throughput-tiers   # adjust path on Windows
+cmake --build build-cuda --config Release --target parcae-bench parcae-throughput-tiers
+
+# Preferred
+./build-cuda/tools/Release/parcae-bench --suite slo --extended --allow-cuda
+
+# Compat (same suite; no --allow-cuda flag)
+./build-cuda/tools/Release/parcae-throughput-tiers
 ```
 
 Pass rule: SLO floor **and** ≥ 90% of the practical ceiling for that row
@@ -66,7 +72,8 @@ Ceilings match `BenchTierSpec::estimated_peak`. Typical healthy runs sit around
 
 ## Recalibration rule
 
-1. Run `parcae-throughput-tiers` several times on a quiet GPU.
+1. Run `parcae-bench --suite slo --extended --allow-cuda` (or compat
+   `parcae-throughput-tiers`) several times on a quiet GPU.
 2. For each row, take the **max** of the reported medians.
 3. Bump `BenchTierSpec` peaks slightly above that max (round up) — runners and
    `DslPeakSanity` pick it up automatically.
