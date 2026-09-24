@@ -9,6 +9,7 @@
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <nlohmann/json.hpp>
 #include <span>

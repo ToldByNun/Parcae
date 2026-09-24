@@ -26,7 +26,8 @@ class BenchSloSuite {
 public:
     class Options {
     public:
-        Options() = default;
+        // No NSDMI: GCC rejects Options{} while BenchSloSuite is incomplete.
+        Options() noexcept : extended_(false) {}
 
         explicit Options(bool extended) noexcept : extended_(extended) {}
 
@@ -36,7 +37,7 @@ public:
 
     private:
         /// When true, include F.* transform-family and C.* compose rows.
-        bool extended_ = false;
+        bool extended_;
     };
 
     /// Build a measured SLO row (derives keys/s and wall from runes/s).
@@ -72,8 +73,12 @@ public:
 #endif
 
     /// Run T1–T3 (and optionally F.*/C.*). Returns `BenchReport::Document`.
+    [[nodiscard]] static StatusOr<BenchReport::Document> run(const ExpectedFrequencyTable& freqs) {
+        return run(freqs, Options{});
+    }
+
     [[nodiscard]] static StatusOr<BenchReport::Document> run(const ExpectedFrequencyTable& freqs,
-                                                             const Options& options = Options{}) {
+                                                             const Options& options) {
 #if !defined(PARCAE_HAS_CUDA)
         (void)freqs;
         (void)options;

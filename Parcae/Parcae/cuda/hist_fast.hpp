@@ -1,6 +1,7 @@
 #ifndef HIST_FAST_HPP
 #define HIST_FAST_HPP
 
+#include <cstddef>
 #include <cstdint>
 
 #if defined(__CUDACC__)

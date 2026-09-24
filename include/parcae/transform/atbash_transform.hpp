@@ -6,6 +6,8 @@
 #include "parcae/transform/transform.hpp"
 #include "parcae/transform/transform_buffer.hpp"
 
+#include <cstddef>
+
 /// `out[i] = 28 - in[i]`. Direction ignored (involution); interrupt unused.
 class AtbashTransform : public Transform {
 public:

@@ -49,7 +49,14 @@ public:
 
     class Options {
     public:
-        Options() = default;
+        // No NSDMI: GCC rejects Options{} while BenchHardwareSuite is incomplete.
+        Options() noexcept
+            : allow_cuda_(false),
+              require_cuda_(false),
+              allow_skip_(false),
+              cpu_full_(false),
+              backend_(BackendSelect::Both),
+              seed_(0x48415244u) {}
 
         [[nodiscard]] bool allow_cuda() const noexcept { return allow_cuda_; }
 
@@ -81,12 +88,12 @@ public:
         void set_seed(std::uint32_t seed) noexcept { seed_ = seed; }
 
     private:
-        bool allow_cuda_ = false;
-        bool require_cuda_ = false;
-        bool allow_skip_ = false;
-        bool cpu_full_ = false;
-        BackendSelect backend_ = BackendSelect::Both;
-        std::uint32_t seed_ = 0x48415244u; // 'HARD'
+        bool allow_cuda_;
+        bool require_cuda_;
+        bool allow_skip_;
+        bool cpu_full_;
+        BackendSelect backend_;
+        std::uint32_t seed_;
     };
 
     [[nodiscard]] static StatusOr<BackendSelect> parse_backend(std::string_view text) {
@@ -103,8 +110,12 @@ public:
                              std::string(text) + "')");
     }
 
+    [[nodiscard]] static StatusOr<BenchReport::Document> run(const Context& ctx) {
+        return run(ctx, Options{});
+    }
+
     [[nodiscard]] static StatusOr<BenchReport::Document> run(const Context& ctx,
-                                                             const Options& options = Options{}) {
+                                                             const Options& options) {
         StatusOr<ExpectedFrequencyTable> freqs = ctx.load_english_gp_expected();
         if (!freqs.ok()) {
             return freqs.status();

@@ -5,6 +5,7 @@
 #include "parcae/core/status_or.hpp"
 #include "parcae/tool/context.hpp"
 
+#include <cstddef>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>

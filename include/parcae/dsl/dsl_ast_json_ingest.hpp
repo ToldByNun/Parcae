@@ -10,6 +10,7 @@
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <nlohmann/json.hpp>

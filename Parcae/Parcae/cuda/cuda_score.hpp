@@ -19,6 +19,7 @@
 #include "self_repeat_rate_score.hpp"
 #endif
 
+#include <cstddef>
 #include <cstdint>
 #include <nlohmann/json.hpp>
 #include <span>

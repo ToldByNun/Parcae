@@ -6,6 +6,7 @@
 #include "parcae/transform/transform.hpp"
 #include "parcae/transform/transform_buffer.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 

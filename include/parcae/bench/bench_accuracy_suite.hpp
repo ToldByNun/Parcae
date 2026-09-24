@@ -56,7 +56,8 @@ class BenchAccuracySuite {
 public:
     class Options {
     public:
-        Options() = default;
+        // No NSDMI: GCC rejects Options{} while BenchAccuracySuite is incomplete.
+        Options() noexcept : allow_cuda_(false), seed_(2109016688u) {}
 
         [[nodiscard]] bool allow_cuda() const noexcept { return allow_cuda_; }
 
@@ -67,8 +68,8 @@ public:
         void set_seed(std::uint32_t seed) noexcept { seed_ = seed; }
 
     private:
-        bool allow_cuda_ = false;
-        std::uint32_t seed_ = 2109016688u;
+        bool allow_cuda_;
+        std::uint32_t seed_;
     };
 
     [[nodiscard]] static BenchReport::Row make_check_row(std::string name, std::string workload,
@@ -80,8 +81,12 @@ public:
                                       0.0, 0.0, 0.0, 0, 0, 0, std::move(detail));
     }
 
+    [[nodiscard]] static StatusOr<BenchReport::Document> run(const Context& ctx) {
+        return run(ctx, Options{});
+    }
+
     [[nodiscard]] static StatusOr<BenchReport::Document> run(const Context& ctx,
-                                                             const Options& options = Options{}) {
+                                                             const Options& options) {
         StatusOr<ExpectedFrequencyTable> freqs = ctx.load_english_gp_expected();
         if (!freqs.ok()) {
             return freqs.status();

@@ -4,6 +4,7 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>

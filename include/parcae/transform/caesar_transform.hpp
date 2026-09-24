@@ -6,6 +6,7 @@
 #include "parcae/transform/transform.hpp"
 #include "parcae/transform/transform_buffer.hpp"
 
+#include <cstddef>
 #include <cstdint>
 
 /// Caesar over Z29: encrypt adds `shift`, decrypt subtracts `shift`.

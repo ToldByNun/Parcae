@@ -11,6 +11,7 @@
 #include "parcae/dsl/dsl_scope_analyzer.hpp"
 #include "parcae/dsl/host_glue_ir.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
