@@ -43,9 +43,13 @@ public:
     /// Optional live-progress hook for human dashboards.
     class Progress {
     public:
-        ConsoleProgressSink* sink = nullptr;
+        // Explicit ctor so Progress{} is usable as a default arg of BatchRunner
+        // methods on GCC/Clang (nested default-member-initializers are not).
+        Progress() noexcept : sink(nullptr), rune_count(0) {}
+
+        ConsoleProgressSink* sink;
         /// Cipher length in consumable runes (for runes/s ≈ done * rune_count / t).
-        std::size_t rune_count = 0;
+        std::size_t rune_count;
     };
 
     /// Score every candidate with `score_id`, keep the best `k` (best-first).

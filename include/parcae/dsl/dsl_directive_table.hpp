@@ -41,7 +41,9 @@ public:
 
     class Options {
     public:
-        Options() = default;
+        // Explicit ctor so Options{} is usable as a default arg of
+        // DslDirectiveTable::build on GCC/Clang (nested DMIs are not).
+        Options() noexcept : allow_dsl_ignores_(false) {}
 
         [[nodiscard]] Options& set_allow_dsl_ignores(bool allow) {
             allow_dsl_ignores_ = allow;
@@ -53,7 +55,7 @@ public:
         }
 
     private:
-        bool allow_dsl_ignores_ = false;
+        bool allow_dsl_ignores_;
     };
 
     [[nodiscard]] static bool is_known_flag(std::string_view flag) noexcept {
