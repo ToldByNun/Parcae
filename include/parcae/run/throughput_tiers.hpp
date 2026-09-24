@@ -52,7 +52,11 @@ public:
         bool all_pass = false;
     };
 
-    [[nodiscard]] static StatusOr<Report> run(const ExpectedFrequencyTable& freqs) {
+    /// Run SLO tiers. When `extended` is true (default), also includes F.* and
+    /// C.* rows (historical `parcae-throughput-tiers` behavior). When false,
+    /// only primary T1–T3 (`BenchSloSuite` default).
+    [[nodiscard]] static StatusOr<Report> run(
+        const ExpectedFrequencyTable& freqs, bool extended = true) {
         Report report;
         StatusOr<TierResult> t1 = tier1_simple_sub(freqs);
         if (!t1.ok()) {
@@ -72,20 +76,22 @@ public:
         }
         report.tiers.push_back(std::move(t3.value()));
 
-        StatusOr<std::vector<TierResult>> families = family_suite(freqs);
-        if (!families.ok()) {
-            return families.status();
-        }
-        for (TierResult& f : families.value()) {
-            report.tiers.push_back(std::move(f));
-        }
+        if (extended) {
+            StatusOr<std::vector<TierResult>> families = family_suite(freqs);
+            if (!families.ok()) {
+                return families.status();
+            }
+            for (TierResult& f : families.value()) {
+                report.tiers.push_back(std::move(f));
+            }
 
-        StatusOr<std::vector<TierResult>> compose = compose_suite(freqs);
-        if (!compose.ok()) {
-            return compose.status();
-        }
-        for (TierResult& c : compose.value()) {
-            report.tiers.push_back(std::move(c));
+            StatusOr<std::vector<TierResult>> compose = compose_suite(freqs);
+            if (!compose.ok()) {
+                return compose.status();
+            }
+            for (TierResult& c : compose.value()) {
+                report.tiers.push_back(std::move(c));
+            }
         }
 
         report.all_pass = true;
