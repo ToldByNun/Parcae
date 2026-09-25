@@ -146,22 +146,36 @@ public:
     }
 
     /// Writes MUST NOT land under `data_root/fixtures/`.
+    /// Both sides are weakly_canonical (with lexically_normal fallback) so Windows
+    /// short-path / junction forms still compare as under `fixtures/`.
     [[nodiscard]] static Status deny_fixtures_write(const std::filesystem::path& data_root,
                                                     const std::filesystem::path& write_path) {
         std::error_code ec;
         const std::filesystem::path fixtures =
             std::filesystem::weakly_canonical(data_root / "fixtures", ec);
         if (ec) {
-            // No fixtures dir — nothing to deny.
+            // Fixtures tree unresolved — nothing to deny.
             return Status::success();
         }
-        const std::filesystem::path target = write_path.lexically_normal();
+
+        std::filesystem::path target = std::filesystem::weakly_canonical(write_path, ec);
+        if (ec) {
+            // Parent may not exist yet for writes — fall back like resolve_under.
+            target = write_path.lexically_normal();
+            if (!target.is_absolute()) {
+                const std::filesystem::path root_canon =
+                    std::filesystem::weakly_canonical(data_root, ec);
+                if (!ec) {
+                    target = (root_canon / write_path).lexically_normal();
+                }
+            }
+        }
+
         const std::filesystem::path rel = target.lexically_relative(fixtures);
-        if (!rel.empty() && *rel.begin() != "..") {
+        if (rel.empty() || rel == ".") {
             return Status::error("writes under data/fixtures/ are denied");
         }
-        // Also catch when target is fixtures itself.
-        if (target == fixtures) {
+        if (*rel.begin() != "..") {
             return Status::error("writes under data/fixtures/ are denied");
         }
         return Status::success();

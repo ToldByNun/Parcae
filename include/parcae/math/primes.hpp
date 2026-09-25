@@ -55,7 +55,7 @@ public:
 
         const std::vector<std::uint64_t>& cached = cache();
         return std::vector<std::uint64_t>(cached.begin(),
-                                         cached.begin() + static_cast<std::ptrdiff_t>(count));
+                                          cached.begin() + static_cast<std::ptrdiff_t>(count));
     }
 
     /// 0-based nth prime (`nth(0) == 2`).
