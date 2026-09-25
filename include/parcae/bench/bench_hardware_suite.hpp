@@ -51,12 +51,8 @@ public:
     public:
         // No NSDMI: GCC rejects Options{} while BenchHardwareSuite is incomplete.
         Options() noexcept
-            : allow_cuda_(false),
-              require_cuda_(false),
-              allow_skip_(false),
-              cpu_full_(false),
-              backend_(BackendSelect::Both),
-              seed_(0x48415244u) {}
+            : allow_cuda_(false), require_cuda_(false), allow_skip_(false), cpu_full_(false),
+              backend_(BackendSelect::Both), seed_(0x48415244u) {}
 
         [[nodiscard]] bool allow_cuda() const noexcept { return allow_cuda_; }
 
