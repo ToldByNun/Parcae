@@ -120,6 +120,32 @@ Rules:
 - Interrupt policy is ignored (block cipher; same stance as `affine`).
 - Params MUST contain only `matrix`.
 
+### `hill_3`
+
+```json
+{
+  "transform_id": "hill_3",
+  "direction": "decrypt",
+  "params": { "matrix": [1, 2, 3, 0, 1, 4, 5, 6, 0] }
+}
+```
+
+\(3 \times 3\) Hill cipher over \(\mathbb{Z}_{29}\). `matrix` is row-major nine
+entries for \(\begin{pmatrix}a&b&c\\d&e&f\\g&h&i\end{pmatrix}\).
+
+| Direction | Formula (blocks of 3) |
+|-----------|------------------------|
+| `encrypt` | \(\mathbf{c} = A\cdot\mathbf{p}\) |
+| `decrypt` | \(\mathbf{p} = A^{-1}\cdot\mathbf{c}\) |
+
+Rules:
+
+- Each entry MUST be in `0..28`.
+- \(\det(A) \not\equiv 0 \pmod{29}\) (singular keys MUST hard-error).
+- Input length MUST be a multiple of 3; other lengths MUST hard-error (no implicit pad in v0).
+- Interrupt policy is ignored (block cipher; same stance as `hill_2` / `affine`).
+- Params MUST contain only `matrix`.
+
 ### `compose`
 
 ```json

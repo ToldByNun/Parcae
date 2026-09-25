@@ -10,6 +10,7 @@
 #include "parcae/transform/caesar_transform.hpp"
 #include "parcae/transform/compose_transform.hpp"
 #include "parcae/transform/hill2_transform.hpp"
+#include "parcae/transform/hill3_transform.hpp"
 #include "parcae/transform/identity_transform.hpp"
 #include "parcae/transform/totient_prime_stream_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
@@ -44,6 +45,9 @@ public:
         }
         if (id == TransformId::hill_2()) {
             return Hill2Transform{}.apply_into(input, output, params, direction, interrupt);
+        }
+        if (id == TransformId::hill_3()) {
+            return Hill3Transform{}.apply_into(input, output, params, direction, interrupt);
         }
         if (id == TransformId::vigenere_key()) {
             return VigenereKeyTransform{}.apply_into(input, output, params, direction, interrupt);

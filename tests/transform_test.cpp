@@ -8,6 +8,7 @@
 #include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/compose_transform.hpp>
 #include <parcae/transform/hill2_transform.hpp>
+#include <parcae/transform/hill3_transform.hpp>
 #include <parcae/transform/identity_transform.hpp>
 #include <parcae/transform/totient_prime_stream_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
@@ -21,6 +22,7 @@ TEST_CASE("TransformId serializes known catalog ids", "[transform]") {
     REQUIRE(TransformId::vigenere_key().str() == "vigenere_key");
     REQUIRE(TransformId::totient_prime_stream().str() == "totient_prime_stream");
     REQUIRE(TransformId::hill_2().str() == "hill_2");
+    REQUIRE(TransformId::hill_3().str() == "hill_3");
 
     StatusOr<TransformId> parsed = TransformId::from_string("compose");
     REQUIRE(parsed.ok());
@@ -29,6 +31,10 @@ TEST_CASE("TransformId serializes known catalog ids", "[transform]") {
     StatusOr<TransformId> hill = TransformId::from_string("hill_2");
     REQUIRE(hill.ok());
     REQUIRE(hill.value() == TransformId::hill_2());
+
+    StatusOr<TransformId> hill3 = TransformId::from_string("hill_3");
+    REQUIRE(hill3.ok());
+    REQUIRE(hill3.value() == TransformId::hill_3());
 
     StatusOr<TransformId> unknown = TransformId::from_string("not-a-transform");
     REQUIRE_FALSE(unknown.ok());
@@ -259,6 +265,79 @@ TEST_CASE("ComposeTransform can stage hill_2", "[transform][hill2]") {
         transform.apply(plain, params, TransformDirection::Encrypt);
     REQUIRE(cipher.ok());
     REQUIRE(cipher.value() == std::vector<Index29>{Index29{26}, Index29{4}});
+
+    StatusOr<std::vector<Index29>> recovered =
+        transform.apply(cipher.value(), params, TransformDirection::Decrypt);
+    REQUIRE(recovered.ok());
+    REQUIRE(recovered.value() == plain);
+}
+
+TEST_CASE("Hill3Transform encrypt/decrypt with invertible matrix", "[transform][hill3]") {
+    const Hill3Transform transform;
+    REQUIRE(transform.id() == TransformId::hill_3());
+
+    // [[1,2,3],[0,1,4],[5,6,0]] det ≡ 1; mul_vec([2,3,4]) = [20,19,28]
+    const std::vector<Index29> plain{Index29{2}, Index29{3}, Index29{4}, Index29{1}, Index29{0},
+                                     Index29{0}};
+    const nlohmann::json params{{"matrix", {1, 2, 3, 0, 1, 4, 5, 6, 0}}};
+
+    StatusOr<std::vector<Index29>> cipher =
+        transform.apply(plain, params, TransformDirection::Encrypt);
+    REQUIRE(cipher.ok());
+    REQUIRE(cipher.value() == std::vector<Index29>{Index29{20}, Index29{19}, Index29{28},
+                                                   Index29{1}, Index29{0}, Index29{5}});
+
+    StatusOr<std::vector<Index29>> recovered =
+        transform.apply(cipher.value(), params, TransformDirection::Decrypt);
+    REQUIRE(recovered.ok());
+    REQUIRE(recovered.value() == plain);
+
+    StatusOr<std::vector<Index29>> via_dispatch =
+        ApplyTransform::apply(TransformId::hill_3(), plain, params, TransformDirection::Encrypt);
+    REQUIRE(via_dispatch.ok());
+    REQUIRE(via_dispatch.value() == cipher.value());
+}
+
+TEST_CASE("Hill3Transform rejects singular matrix bad length and bad params",
+          "[transform][hill3]") {
+    const Hill3Transform transform;
+    const std::vector<Index29> triple{Index29{1}, Index29{2}, Index29{3}};
+    const std::vector<Index29> bad_len{Index29{1}, Index29{2}};
+
+    REQUIRE_FALSE(transform
+                      .apply(triple, nlohmann::json{{"matrix", {1, 2, 3, 2, 4, 6, 0, 1, 0}}},
+                             TransformDirection::Encrypt)
+                      .ok());
+    REQUIRE_FALSE(transform
+                      .apply(bad_len, nlohmann::json{{"matrix", {1, 2, 3, 0, 1, 4, 5, 6, 0}}},
+                             TransformDirection::Encrypt)
+                      .ok());
+    REQUIRE_FALSE(transform
+                      .apply(triple, nlohmann::json{{"matrix", {1, 2, 3, 0, 1, 4, 5, 6}}},
+                             TransformDirection::Encrypt)
+                      .ok());
+    REQUIRE_FALSE(
+        transform
+            .apply(triple,
+                   nlohmann::json{{"matrix", {1, 2, 3, 0, 1, 4, 5, 6, 0}}, {"extra", true}},
+                   TransformDirection::Encrypt)
+            .ok());
+}
+
+TEST_CASE("ComposeTransform can stage hill_3", "[transform][hill3]") {
+    const ComposeTransform transform;
+    const std::vector<Index29> plain{Index29{2}, Index29{3}, Index29{4}};
+    const nlohmann::json params{
+        {"stages",
+         nlohmann::json::array({nlohmann::json{
+             {"transform_id", "hill_3"},
+             {"params", {{"matrix", {1, 2, 3, 0, 1, 4, 5, 6, 0}}}}}})},
+    };
+
+    StatusOr<std::vector<Index29>> cipher =
+        transform.apply(plain, params, TransformDirection::Encrypt);
+    REQUIRE(cipher.ok());
+    REQUIRE(cipher.value() == std::vector<Index29>{Index29{20}, Index29{19}, Index29{28}});
 
     StatusOr<std::vector<Index29>> recovered =
         transform.apply(cipher.value(), params, TransformDirection::Decrypt);

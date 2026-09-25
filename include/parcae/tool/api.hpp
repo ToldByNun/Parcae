@@ -260,9 +260,9 @@ public:
         return {
             TransformId::identity().str(),     TransformId::atbash().str(),
             TransformId::caesar().str(),       TransformId::affine().str(),
-            TransformId::hill_2().str(),       TransformId::compose().str(),
-            TransformId::vigenere_key().str(), TransformId::beaufort_key().str(),
-            TransformId::totient_prime_stream().str(),
+            TransformId::hill_2().str(),       TransformId::hill_3().str(),
+            TransformId::compose().str(),      TransformId::vigenere_key().str(),
+            TransformId::beaufort_key().str(), TransformId::totient_prime_stream().str(),
         };
     }
 

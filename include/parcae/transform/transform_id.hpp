@@ -21,6 +21,8 @@ public:
 
     [[nodiscard]] static TransformId hill_2() { return TransformId{"hill_2"}; }
 
+    [[nodiscard]] static TransformId hill_3() { return TransformId{"hill_3"}; }
+
     [[nodiscard]] static TransformId compose() { return TransformId{"compose"}; }
 
     [[nodiscard]] static TransformId vigenere_key() { return TransformId{"vigenere_key"}; }
@@ -52,6 +54,9 @@ public:
         }
         if (text == "hill_2") {
             return hill_2();
+        }
+        if (text == "hill_3") {
+            return hill_3();
         }
         if (text == "compose") {
             return compose();
