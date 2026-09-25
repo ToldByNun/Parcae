@@ -9,6 +9,7 @@ add_executable(parcae_tests
   smoke.cpp
   z29_test.cpp
   z29_matrix2_test.cpp
+  z29_matrix3_test.cpp
   dsl_spec_version_test.cpp
   dsl_diag_test.cpp
   dsl_ast_ingest_test.cpp
