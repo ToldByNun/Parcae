@@ -6,6 +6,8 @@
 #include "parcae/corpus/separator_grammar.hpp"
 #include "parcae/gematria/gematria_profile.hpp"
 #include "parcae/gematria/gematria_profile_loader.hpp"
+#include "parcae/score/bigram_model_loader.hpp"
+#include "parcae/score/bigram_model_table.hpp"
 #include "parcae/score/expected_frequency_loader.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
 
@@ -33,6 +35,10 @@ public:
 
     [[nodiscard]] std::filesystem::path english_gp_expected_path() const {
         return data_root_ / "profiles" / "scores" / "english-gp-expected-v0.json";
+    }
+
+    [[nodiscard]] std::filesystem::path english_gp_bigram_path() const {
+        return data_root_ / "profiles" / "scores" / "english-gp-bigram-v0.json";
     }
 
     /// Absolute/existing directory wins; otherwise `fixtures/solved/<id>`.
@@ -64,6 +70,10 @@ public:
 
     [[nodiscard]] StatusOr<ExpectedFrequencyTable> load_english_gp_expected() const {
         return ExpectedFrequencyLoader::load_from_file(english_gp_expected_path().string());
+    }
+
+    [[nodiscard]] StatusOr<BigramModelTable> load_english_gp_bigram() const {
+        return BigramModelLoader::load_from_file(english_gp_bigram_path().string());
     }
 
 private:

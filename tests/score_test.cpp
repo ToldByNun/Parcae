@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <parcae/core/index29.hpp>
@@ -23,6 +24,7 @@
 #include <parcae/score/score_order.hpp>
 #include <parcae/score/score_registry.hpp>
 #include <parcae/score/self_repeat_rate.hpp>
+#include <parcae/tool/context.hpp>
 #include <parcae/validate/plaintext_normalizer.hpp>
 #include <string>
 #include <vector>
@@ -739,6 +741,46 @@ TEST_CASE("LogBigramGp rejects empty and single-symbol input", "[score][bigram][
     StatusOr<double> pair = LogBigramGp::score(std::vector<Index29>{I(0), I(1)}, table.value());
     REQUIRE(pair.ok());
     REQUIRE(pair.value() == Catch::Approx(table.value().log_prob(I(0), I(1))));
+}
+
+TEST_CASE("english-gp-bigram-v0 loads and separates welcome from noise",
+          "[score][bigram][data]") {
+    StatusOr<BigramModelTable> table = BigramModelLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-bigram-v0.json");
+    REQUIRE(table.ok());
+    REQUIRE(table.value().id() == "english-gp-bigram-v0");
+    REQUIRE(table.value().smoothing() == "add_one");
+    REQUIRE(table.value().log_base() == "ln");
+    REQUIRE(table.value().log_probs().size() == 841);
+    REQUIRE(table.value().raw_counts().size() == 841);
+    REQUIRE(table.value().source_fixture_ids().size() == 9);
+
+    const std::vector<Index29> welcome = plaintext_indices_of("welcome");
+    REQUIRE(welcome.size() >= 2);
+
+    std::vector<Index29> noise;
+    noise.reserve(welcome.size());
+    std::uint32_t state = 0xC1CADAu;
+    for (std::size_t i = 0; i < welcome.size(); ++i) {
+        state = state * 1664525u + 1013904223u;
+        noise.push_back(I(static_cast<std::uint8_t>(state % 29u)));
+    }
+
+    StatusOr<double> s_welcome = LogBigramGp::score(welcome, table.value());
+    StatusOr<double> s_noise = LogBigramGp::score(noise, table.value());
+    REQUIRE(s_welcome.ok());
+    REQUIRE(s_noise.ok());
+    REQUIRE(s_welcome.value() > s_noise.value());
+}
+
+TEST_CASE("Context loads english_gp_bigram profile", "[score][bigram][context]") {
+    Context ctx(std::filesystem::path(PARCAE_TEST_DATA_DIR));
+    REQUIRE(ctx.english_gp_bigram_path().filename() == "english-gp-bigram-v0.json");
+
+    StatusOr<BigramModelTable> table = ctx.load_english_gp_bigram();
+    REQUIRE(table.ok());
+    REQUIRE(table.value().id() == "english-gp-bigram-v0");
+    REQUIRE(table.value().log_base() == "ln");
 }
 
 TEST_CASE("ScoreRegistry log_bigram_gp_v0 separates welcome from LCG noise",
