@@ -110,7 +110,7 @@ In-memory record and JSON object used by `SearchScheduler` / CLI.
 | `schema` | MUST be `parcae.search_job.v0` |
 | `workspace_id` | MUST match an existing workspace `id` |
 | `family` | See family table |
-| `score_id` | Registered score id ([`scores.md`](scores.md)) |
+| `score_id` | Registered score id ([`scores.md`](scores.md)). Default examples use `chi2_english_gp_v0`. Non-χ² ids (e.g. `log_bigram_gp_v0`) are valid on the CPU export path; see Candidate export / Score id vs backend. |
 | `k` | Integer ≥ 1 — top-k retained after ranking |
 | `seed` | `uint32` — MUST be fixed for replay; `0` MAY mean implementation-defined random only for interactive human runs and **MUST NOT** be used in CI/agent replay fixtures |
 | `backend` | `cpu` \| `cuda` |
@@ -291,27 +291,54 @@ MAY include aggregate stats. When `--omit-timing` / agent mode:
 
 1. Expand family via `GenerateCandidates` / registry defaults (+ prior seeds,
    − exclusions).
-2. Rank with `RankCandidates` / `BatchRunner` (`BatchOrdering`).
+2. Rank with `RankCandidates` / `BatchRunner` (`BatchOrdering`) via
+   `ScoreRegistry` for the job’s `score_id` (any registered id, including
+   Tier-B `log_bigram_gp_v0` once implemented).
 3. Keep top-`k` (≤ `max_candidates` expansion).
+
+This is the **normal** candidate-scoring path for Liber Primus search when the
+score is not the fused χ² export below.
 
 ### CUDA path
 
-1. Prefer fused χ² (`FamilyChi2Batch` / family twin) scores-only → host top-k
-   lanes.
+1. Prefer fused χ² (`FamilyChi2Batch` / family twin / `GpuCandidateExport`)
+   scores-only → host top-k lanes.
 2. Materialize `TransformCandidate` envelopes for top-k only.
 3. Preview `output_indices`: apply **only** for retained top-k — MUST NOT D2H
    full C×T plaintext for large grids.
 4. If fused path missing for a family: staged SoA + `CudaBatchScore`.
 
+### Score id vs backend (locked)
+
+| Condition | Required behavior |
+|-----------|-------------------|
+| `backend=cpu` | Always `CpuCandidateExport` / `RankCandidates` + `ScoreRegistry` |
+| `backend=cuda` and `score_id == chi2_english_gp_v0` and family has fused export | Prefer fused `GpuCandidateExport` (χ² only) |
+| `backend=cuda` and `score_id != chi2_english_gp_v0` (e.g. `log_bigram_gp_v0`) | MUST fall back to the **CPU path** (same pattern as theory-URI families). MUST NOT hard-error solely because `backend=cuda` was requested with a non-χ² score. MUST NOT invent a fused bigram `GpuCandidateExport` unless a later spec revision adds one. |
+| Theory-URI / `family=theory` | CPU-only regardless of `backend` |
+
+Batch artifact / wire `score_id` MUST remain the job’s requested id. When the
+scheduler falls back from fused CUDA to CPU for a non-χ² score, the export
+backend reported on the artifact MUST reflect the path that actually ran
+(`cpu`), not a silent claim of fused CUDA scoring.
+
+**Out of search scope:** `DeepScoreBatch` Caesar bigram LL (throughput / planted
+benches with synthetic tables) is **not** the search export path and MUST NOT be
+treated as implementing `log_bigram_gp_v0`. Sign convention differs from the
+registry contract — see [`scores.md`](scores.md) Tier B.
+
 ### Parity
 
-For the same job + seed + ciphertext on a locked Tier-A fixture:
+For the same job + seed + ciphertext on a locked Tier-A fixture **when both
+backends use the same scoring implementation** (today: fused χ² vs CPU χ²):
 
 - Ranked `candidate_id` sequences MUST match between CPU and CUDA.
 - Score values MUST compare under
   [`cuda-score-reduction.md`](../architecture/cuda-score-reduction.md) /
   [`parity.md`](parity.md). Tie-breaks MUST follow `batch_ordering_v0`.
 
+When `backend=cuda` falls back to CPU for a non-χ² `score_id`, parity with a
+hypothetical fused path is **not** required until that fused path exists.
 Hosted CI without CUDA MUST still run the CPU path.
 
 ---

@@ -79,8 +79,57 @@ global Liber Primus value.
 
 ### `log_bigram_gp_v0`
 
-Log-probability under a bigram model. Model file optional; if missing, tool
-returns `Status` not-implemented (MUST NOT crash).
+Log-probability under a conditional bigram model over Index29 (alphabet size 29).
+
+| Field | Value |
+|-------|-------|
+| Inputs | candidate indices \(x_0,\ldots,x_{N-1}\), bigram model table \(L\) |
+| Output | \(S = \sum_{i=0}^{N-2} L[x_i,\ x_{i+1}]\) (IEEE `double`) |
+| Order | `desc` (higher \(S\) is better) |
+| \(N < 2\) or empty | hard `Status` error (same policy as `ic_mod29` / χ²) |
+
+\[
+S = \sum_{i=0}^{N-2} L[x_i,\ x_{i+1}]
+\]
+
+**Table layout:** \(L\) is a \(29 \times 29\) matrix in **row-major** order: entry
+\((a,b)\) is at index `a * 29 + b` (841 entries). This matches the CUDA bigram
+index convention `bigram_s[y0 * 29 + y1]`.
+
+**Model construction (normative for `english-gp-bigram-v0`):**
+
+1. Count raw bigrams \(c[a][b]\) over consecutive consumable Index29 symbols from
+   the **same locked fixture plaintexts** used by `english-gp-expected-v0`
+   (`source_fixture_ids` MUST match that Unigram profile).
+2. Add-one smoothing: \(\tilde{c}[a][b] = c[a][b] + 1\), row sum
+   \(\tilde{Z}_a = \sum_{b=0}^{28} \tilde{c}[a][b]\).
+3. Conditional log-probability with **natural log**:
+   \(L[a,b] = \ln(\tilde{c}[a][b] / \tilde{Z}_a)\). Persist `log_base: "ln"` in
+   the model JSON.
+
+**Table file:** `data/profiles/scores/english-gp-bigram-v0.json` (schema
+`parcae.bigram_model.v0`) with `raw_counts` (841 ints), `log_probs` (841
+doubles), provenance, and a sibling `.sha256`. Until the file exists in-tree,
+the score id MAY be registered but MUST fail with a clear `Status` whose message
+includes `not implemented` or `model missing` when the model cannot be loaded
+(MUST NOT abort; MUST NOT silently fall back to χ² or another score).
+
+**Registry vs DeepScoreBatch sign (locked):**
+
+- `ScoreRegistry` / `log_bigram_gp_v0` returns **\(S\)** (sum of log-probs) and
+  declares **`order: desc`**.
+- The fused CUDA throughput path `DeepScoreBatch` (Caesar bigram LL) may store
+  **\(-S\)** in its score buffer for Asc-compatible top-k with synthetic tables.
+  That kernel convention is **not** the registry contract. Implementations MUST
+  NOT “fix” DeepScoreBatch `-S` by changing registry order or by negating
+  registry output to match the bench kernel.
+
+**Search path (see [`search-loop.md`](search-loop.md)):** normal Liber Primus
+candidate export scores this id through the **CPU** `ScoreRegistry` /
+`RankCandidates` path. Fused `GpuCandidateExport` remains **χ²-only**. When a
+`SearchJob` requests `backend=cuda` with `log_bigram_gp_v0` (or any non-χ²
+score), the scheduler MUST fall back to CPU export rather than hard-erroring or
+silently scoring χ² instead.
 
 ### `dictionary_hit_ratio_v0`
 
@@ -128,6 +177,7 @@ Each `score_id` MUST declare `order: "asc" | "desc"`.
 | `ic_mod29` | desc (typical plaintext preference — document; tests lock behavior) |
 | `chi2_english_gp_v0` | asc |
 | `self_repeat_rate` | neither assumed globally — report raw; no default reject |
+| `log_bigram_gp_v0` | desc (higher log-prob sum is better; see Tier B) |
 
 ### Batch parallelism (CPU)
 
