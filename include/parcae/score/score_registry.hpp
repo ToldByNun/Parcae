@@ -8,6 +8,7 @@
 #include "parcae/score/exact_match.hpp"
 #include "parcae/score/hamming_agreement.hpp"
 #include "parcae/score/ic_mod29.hpp"
+#include "parcae/score/log_bigram_gp.hpp"
 #include "parcae/score/score_catalog_entry.hpp"
 #include "parcae/score/score_id.hpp"
 #include "parcae/score/score_order.hpp"
@@ -26,6 +27,7 @@
 /// `score(score_id, candidate, score_version="v0", params_json?, request?)`
 /// Pairwise scores take `request.reference` (or `params.reference` as int[]).
 /// `chi2_english_gp_v0` requires `request.expected_frequencies`.
+/// `log_bigram_gp_v0` requires `request.bigram_model`.
 class ScoreRegistry {
 public:
     [[nodiscard]] static std::vector<ScoreCatalogEntry> catalog() {
@@ -39,6 +41,8 @@ public:
              ScoreCatalogEntry::Arity::UnaryWithTable},
             {ScoreId::self_repeat_rate().str(), "v0", ScoreOrder::Asc,
              ScoreCatalogEntry::Arity::Unary},
+            {ScoreId::log_bigram_gp_v0().str(), "v0", ScoreOrder::Desc,
+             ScoreCatalogEntry::Arity::UnaryWithTable},
         };
     }
 
@@ -90,6 +94,12 @@ public:
                     "chi2_english_gp_v0 requires ScoreRequest.expected_frequencies");
             }
             return Chi2EnglishGp::score(candidate_vec, *request.expected_frequencies);
+        }
+        if (id.value() == ScoreId::log_bigram_gp_v0()) {
+            if (request.bigram_model == nullptr) {
+                return Status::error("log_bigram_gp_v0 requires ScoreRequest.bigram_model");
+            }
+            return LogBigramGp::score(candidate_vec, *request.bigram_model);
         }
         if (id.value() == ScoreId::exact_match()) {
             StatusOr<std::vector<Index29>> reference =

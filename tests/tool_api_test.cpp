@@ -200,7 +200,7 @@ TEST_CASE("tool::list registries", "[tool]") {
     REQUIRE(std::find(transforms.begin(), transforms.end(), "caesar") != transforms.end());
 
     const auto scores = ToolApi::list_score_ids();
-    REQUIRE(scores.size() == 5);
+    REQUIRE(scores.size() == 6);
     REQUIRE(std::find(scores.begin(), scores.end(), "ic_mod29") != scores.end());
 }
 

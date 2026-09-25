@@ -101,9 +101,9 @@ TEST_CASE("ScoreId parses Tier A ids and log_bigram_gp_v0", "[score]") {
     REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::log_bigram_gp_v0()) == ScoreOrder::Desc);
 }
 
-TEST_CASE("ScoreRegistry catalogs Tier A ids for tool API", "[score][registry]") {
+TEST_CASE("ScoreRegistry catalogs Tier A ids and log_bigram_gp_v0", "[score][registry]") {
     const std::vector<ScoreCatalogEntry> entries = ScoreRegistry::catalog();
-    REQUIRE(entries.size() == 5);
+    REQUIRE(entries.size() == 6);
 
     const std::vector<std::string> ids = ScoreRegistry::known_ids();
     REQUIRE(ids == std::vector<std::string>{
@@ -112,11 +112,11 @@ TEST_CASE("ScoreRegistry catalogs Tier A ids for tool API", "[score][registry]")
                        "ic_mod29",
                        "chi2_english_gp_v0",
                        "self_repeat_rate",
+                       "log_bigram_gp_v0",
                    });
 
     REQUIRE(ScoreRegistry::is_known("ic_mod29"));
     REQUIRE_FALSE(ScoreRegistry::is_known("nope"));
-    // ScoreId parses log_bigram before catalog registration (dispatch comes later).
     REQUIRE(ScoreRegistry::is_known("log_bigram_gp_v0"));
     REQUIRE(ScoreRegistry::order_of("log_bigram_gp_v0").value() == ScoreOrder::Desc);
 
@@ -128,6 +128,9 @@ TEST_CASE("ScoreRegistry catalogs Tier A ids for tool API", "[score][registry]")
     REQUIRE(entries[2].arity() == ScoreCatalogEntry::Arity::Unary);
     REQUIRE(entries[3].arity() == ScoreCatalogEntry::Arity::UnaryWithTable);
     REQUIRE(ScoreCatalogEntry::arity_string(entries[3].arity()) == "unary_with_table");
+    REQUIRE(entries[5].id() == "log_bigram_gp_v0");
+    REQUIRE(entries[5].arity() == ScoreCatalogEntry::Arity::UnaryWithTable);
+    REQUIRE(entries[5].order() == ScoreOrder::Desc);
 }
 
 TEST_CASE("ScoreRegistry dispatches by string id", "[score][registry]") {
@@ -192,14 +195,36 @@ TEST_CASE("ScoreRegistry dispatches by string id", "[score][registry]") {
         REQUIRE(direct.ok());
         REQUIRE(via_registry.value() == Catch::Approx(direct.value()).margin(0.0));
     }
+
+    SECTION("log_bigram_gp_v0 needs BigramModelTable") {
+        REQUIRE_FALSE(ScoreRegistry::score("log_bigram_gp_v0", xs).ok());
+
+        std::array<std::uint64_t, BigramModelTable::cell_count> raw{};
+        raw[BigramModelTable::flat_index(I(0), I(0))] = 2;
+        raw[BigramModelTable::flat_index(I(0), I(1))] = 5;
+        raw[BigramModelTable::flat_index(I(1), I(1))] = 3;
+        StatusOr<BigramModelTable> table =
+            BigramModelTable::from_raw_counts("registry-bigram", raw, {"synthetic"});
+        REQUIRE(table.ok());
+
+        ScoreRequest req;
+        req.bigram_model = &table.value();
+        StatusOr<double> via_registry =
+            ScoreRegistry::score("log_bigram_gp_v0", xs, "v0", {}, req);
+        StatusOr<double> direct = LogBigramGp::score(xs, table.value());
+        REQUIRE(via_registry.ok());
+        REQUIRE(direct.ok());
+        REQUIRE(via_registry.value() == Catch::Approx(direct.value()).margin(0.0));
+    }
 }
 
 TEST_CASE("ScoreRegistry catalog entries expose order and arity JSON", "[score][catalog]") {
     const std::vector<ScoreCatalogEntry> entries = ScoreRegistry::catalog();
-    REQUIRE(entries.size() == 5);
+    REQUIRE(entries.size() == 6);
 
     bool saw_chi2 = false;
     bool saw_exact = false;
+    bool saw_bigram = false;
     for (const ScoreCatalogEntry& entry : entries) {
         const nlohmann::json row = entry.to_json();
         REQUIRE(row.contains("score_id"));
@@ -217,9 +242,15 @@ TEST_CASE("ScoreRegistry catalog entries expose order and arity JSON", "[score][
             REQUIRE(row.at("order").get<std::string>() == "desc");
             REQUIRE(row.at("arity").get<std::string>() == "pairwise");
         }
+        if (entry.id() == "log_bigram_gp_v0") {
+            saw_bigram = true;
+            REQUIRE(row.at("order").get<std::string>() == "desc");
+            REQUIRE(row.at("arity").get<std::string>() == "unary_with_table");
+        }
     }
     REQUIRE(saw_chi2);
     REQUIRE(saw_exact);
+    REQUIRE(saw_bigram);
 }
 
 TEST_CASE("ExactMatch hand vectors", "[score][exact]") {
@@ -708,6 +739,93 @@ TEST_CASE("LogBigramGp rejects empty and single-symbol input", "[score][bigram][
     StatusOr<double> pair = LogBigramGp::score(std::vector<Index29>{I(0), I(1)}, table.value());
     REQUIRE(pair.ok());
     REQUIRE(pair.value() == Catch::Approx(table.value().log_prob(I(0), I(1))));
+}
+
+TEST_CASE("ScoreRegistry log_bigram_gp_v0 separates welcome from LCG noise",
+          "[score][bigram][registry]") {
+    const char* ids[] = {
+        "a-warning", "some-wisdom", "loss-of-divinity", "an-instruction",  "koan-1",
+        "welcome",   "koan-2",      "an-end",           "lp2-57-identity",
+    };
+
+    std::array<std::uint64_t, BigramModelTable::cell_count> raw{};
+    for (const char* id : ids) {
+        const std::vector<Index29> indices = plaintext_indices_of(id);
+        for (std::size_t i = 0; i + 1 < indices.size(); ++i) {
+            ++raw[BigramModelTable::flat_index(indices[i], indices[i + 1])];
+        }
+    }
+
+    StatusOr<BigramModelTable> table =
+        BigramModelTable::from_raw_counts("sep-bigram", raw, {"locked-fixtures"});
+    REQUIRE(table.ok());
+
+    const std::vector<Index29> welcome = plaintext_indices_of("welcome");
+    REQUIRE(welcome.size() >= 2);
+
+    std::vector<Index29> noise;
+    noise.reserve(welcome.size());
+    std::uint32_t state = 0xC1CADAu;
+    for (std::size_t i = 0; i < welcome.size(); ++i) {
+        state = state * 1664525u + 1013904223u;
+        noise.push_back(I(static_cast<std::uint8_t>(state % 29u)));
+    }
+
+    ScoreRequest req;
+    req.bigram_model = &table.value();
+    StatusOr<double> s_welcome =
+        ScoreRegistry::score("log_bigram_gp_v0", welcome, "v0", {}, req);
+    StatusOr<double> s_noise = ScoreRegistry::score("log_bigram_gp_v0", noise, "v0", {}, req);
+    REQUIRE(s_welcome.ok());
+    REQUIRE(s_noise.ok());
+    REQUIRE(s_welcome.value() > s_noise.value());
+}
+
+TEST_CASE("Dump empirical English-GP bigram counts from locked fixtures", "[.][bigramdump]") {
+    const char* ids[] = {
+        "a-warning", "some-wisdom", "loss-of-divinity", "an-instruction",  "koan-1",
+        "welcome",   "koan-2",      "an-end",           "lp2-57-identity",
+    };
+
+    std::array<std::uint64_t, BigramModelTable::cell_count> raw{};
+    std::uint64_t transitions = 0;
+    for (const char* id : ids) {
+        const std::vector<Index29> indices = plaintext_indices_of(id);
+        std::uint64_t local = 0;
+        for (std::size_t i = 0; i + 1 < indices.size(); ++i) {
+            ++raw[BigramModelTable::flat_index(indices[i], indices[i + 1])];
+            ++local;
+        }
+        transitions += local;
+        std::cout << id << " n=" << indices.size() << " bigrams=" << local << '\n';
+    }
+
+    StatusOr<BigramModelTable> table =
+        BigramModelTable::from_raw_counts("english-gp-bigram-v0", raw,
+                                         {"a-warning", "some-wisdom", "loss-of-divinity",
+                                          "an-instruction", "koan-1", "welcome", "koan-2", "an-end",
+                                          "lp2-57-identity"});
+    REQUIRE(table.ok());
+
+    std::cout << "raw_transitions=" << transitions << '\n';
+    std::cout << "raw_counts=[";
+    for (std::size_t i = 0; i < BigramModelTable::cell_count; ++i) {
+        if (i != 0) {
+            std::cout << ',';
+        }
+        std::cout << raw[i];
+    }
+    std::cout << "]\n";
+
+    std::cout << "log_probs=[";
+    for (std::size_t i = 0; i < BigramModelTable::cell_count; ++i) {
+        if (i != 0) {
+            std::cout << ',';
+        }
+        std::cout.precision(17);
+        std::cout << table.value().log_probs()[i];
+    }
+    std::cout << "]\n";
 }
 
 

@@ -64,14 +64,15 @@ private:
     CudaScoreNoiseSuite() = delete;
 };
 
-TEST_CASE("CUDA score suite: CudaScore catalogs all Tier A ids", "[cuda][score][suite]") {
+TEST_CASE("CUDA score suite: CudaScore catalogs registry score ids", "[cuda][score][suite]") {
     const auto ids = CudaScore::known_ids();
-    REQUIRE(ids.size() == 5);
+    REQUIRE(ids.size() == 6);
     REQUIRE(CudaScore::is_known("exact_match"));
     REQUIRE(CudaScore::is_known("hamming_agreement"));
     REQUIRE(CudaScore::is_known("ic_mod29"));
     REQUIRE(CudaScore::is_known("self_repeat_rate"));
     REQUIRE(CudaScore::is_known("chi2_english_gp_v0"));
+    REQUIRE(CudaScore::is_known("log_bigram_gp_v0"));
     REQUIRE(CudaScore::catalog().size() == ScoreRegistry::catalog().size());
 }
 
