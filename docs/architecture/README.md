@@ -22,6 +22,8 @@ theory DSL compiles into that stack.
 | [search-engine.md](search-engine.md) | **Frozen** search engine plan — GPU ↔ candidates ↔ hypotheses loop; exit checklist |
 | [search-roadmap.md](search-roadmap.md) | **Frozen** search-engine commit list (1–52) |
 | [search-handbook.md](search-handbook.md) | Operator guide for `parcae-search-cycle` / `search_cycle` (incl. LP2 `inputs/` recipe) |
+| [bench-diagnostics.md](bench-diagnostics.md) | Operator handbook for `parcae-bench` (SLO / accuracy / hardware / probe) |
+| [bench-exit.md](bench-exit.md) | **0.9.0 exit freeze** — `parcae-bench` / `v0.9.0-bench` |
 | [release.md](release.md) | Cutting a release — tag-only packaging, installer matrix, `SHA256SUMS` |
 
 **CUDA implementation directory:** [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (Visual Studio).
@@ -66,5 +68,9 @@ Related CLIs: `parcae-compile`, `parcae-validate --theory`, `parcae-sweep`,
 
 Exit freeze (smart compiler + console progress):
 [`dsl-console-exit.md`](dsl-console-exit.md).
+
+**Bench / diagnostics:** operator handbook
+[`bench-diagnostics.md`](bench-diagnostics.md); exit freeze
+[`bench-exit.md`](bench-exit.md) (`v0.9.0-bench`).
 
 CUDA DSL emit smoke: Catch2 tag `[cuda][dsl][smoke]` — see [`cuda-build.md`](cuda-build.md).

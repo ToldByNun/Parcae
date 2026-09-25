@@ -1,7 +1,7 @@
+#include "cli_spawn.hpp"
 #include "parcae_cli_paths.h"
 
 #include <catch2/catch_test_macros.hpp>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <nlohmann/json.hpp>
@@ -9,7 +9,6 @@
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #ifndef PARCAE_GOLDENS_TOOL_JSON_DIR
@@ -45,60 +44,21 @@ namespace {
     return parsed.value();
 }
 
-[[nodiscard]] std::string quote_arg(const std::string& arg) {
-    return std::string("\"") + arg + '"';
-}
-
-/// Run CLI; capture stdout via a temp script (avoids Windows `_popen`/cmd quoting issues).
-[[nodiscard]] std::pair<int, std::string> run_cli(const std::filesystem::path& exe,
-                                                  const std::vector<std::string>& args) {
-    const auto tmp = std::filesystem::temp_directory_path();
-    const std::filesystem::path out_path = tmp / "parcae_tool_json_golden_out.json";
-    const std::filesystem::path err_path = tmp / "parcae_tool_json_golden_err.txt";
-    const std::filesystem::path script_path = tmp / "parcae_tool_json_golden_run.cmd";
-
-    {
-        std::ofstream script(script_path, std::ios::binary);
-        REQUIRE(script);
-        script << "@echo off\r\n";
-        script << quote_arg(exe.string());
-        for (const std::string& arg : args) {
-            script << ' ' << quote_arg(arg);
-        }
-        script << " >" << quote_arg(out_path.string()) << " 2>" << quote_arg(err_path.string())
-               << "\r\n";
-        script << "exit /B %ERRORLEVEL%\r\n";
-    }
-
-    const std::string launch = std::string("cmd /C ") + quote_arg(script_path.string());
-    INFO(launch);
-    const int exit_code = std::system(launch.c_str());
-
-    std::string stdout_text;
-    if (std::filesystem::exists(out_path)) {
-        stdout_text = read_file(out_path);
-    }
-    std::string stderr_text;
-    if (std::filesystem::exists(err_path)) {
-        stderr_text = read_file(err_path);
-    }
-    INFO(stderr_text);
-    INFO(stdout_text);
-
-    std::error_code ec;
-    std::filesystem::remove(out_path, ec);
-    std::filesystem::remove(err_path, ec);
-    std::filesystem::remove(script_path, ec);
-    return {exit_code, stdout_text};
+[[nodiscard]] CliSpawnResult run_cli(const std::filesystem::path& exe,
+                                     const std::vector<std::string>& args) {
+    const CliSpawnResult run = run_cli_capture(exe, args, "tool_json_golden");
+    INFO(run.stderr_text);
+    INFO(run.stdout_text);
+    return run;
 }
 
 void expect_cli_matches_golden(const std::filesystem::path& exe,
                                const std::vector<std::string>& args, std::string_view golden_name,
                                int expected_exit) {
-    const auto [exit_code, stdout_text] = run_cli(exe, args);
-    REQUIRE(exit_code == expected_exit);
+    const CliSpawnResult run = run_cli(exe, args);
+    REQUIRE(run.exit_code == expected_exit);
 
-    StatusOr<nlohmann::json> actual = ToolResponse::parse(stdout_text);
+    StatusOr<nlohmann::json> actual = ToolResponse::parse(run.stdout_text);
     REQUIRE(actual.ok());
     const nlohmann::json expected = load_golden(golden_name);
     REQUIRE(actual.value() == expected);
@@ -106,10 +66,10 @@ void expect_cli_matches_golden(const std::filesystem::path& exe,
 
 /// Status JSON embeds absolute `data_dir` and build-dependent `cuda_built`.
 void expect_search_cycle_status_matches_golden(const std::vector<std::string>& args) {
-    const auto [exit_code, stdout_text] = run_cli(PARCAE_CLI_SEARCH_CYCLE, args);
-    REQUIRE(exit_code == 0);
+    const CliSpawnResult run = run_cli(PARCAE_CLI_SEARCH_CYCLE, args);
+    REQUIRE(run.exit_code == 0);
 
-    StatusOr<nlohmann::json> actual = ToolResponse::parse(stdout_text);
+    StatusOr<nlohmann::json> actual = ToolResponse::parse(run.stdout_text);
     REQUIRE(actual.ok());
     nlohmann::json expected = load_golden("search_cycle_status.json");
 
@@ -203,11 +163,11 @@ TEST_CASE("CLI generate+rank a-warning atbash via chi2 (no plaintext)",
     const std::filesystem::path cipher = std::filesystem::path(PARCAE_TEST_DATA_DIR) / "fixtures" /
                                          "solved" / "a-warning" / "ciphertext.txt";
 
-    const auto [gen_exit, gen_out] =
+    const CliSpawnResult generated_run =
         run_cli(PARCAE_CLI_GENERATE, with_data_dir({"--generator-id", "gen_atbash", "--runes",
                                                     "--input", cipher.string(), "--json"}));
-    REQUIRE(gen_exit == 0);
-    StatusOr<nlohmann::json> generated = ToolResponse::parse(gen_out);
+    REQUIRE(generated_run.exit_code == 0);
+    StatusOr<nlohmann::json> generated = ToolResponse::parse(generated_run.stdout_text);
     REQUIRE(generated.ok());
     REQUIRE(generated.value().at("ok").get<bool>());
     REQUIRE(generated.value().at("tool").get<std::string>() == "generate");
@@ -224,17 +184,17 @@ TEST_CASE("CLI generate+rank a-warning atbash via chi2 (no plaintext)",
     {
         std::ofstream out(candidates_path, std::ios::binary);
         REQUIRE(out);
-        out << gen_out;
+        out << generated_run.stdout_text;
     }
 
-    const auto [rank_exit, rank_out] = run_cli(
+    const CliSpawnResult ranked_run = run_cli(
         PARCAE_CLI_RANK, with_data_dir({"--candidates", candidates_path.string(), "--score-id",
                                         "chi2_english_gp_v0", "--k", "1", "--json"}));
     std::error_code ec;
     std::filesystem::remove(candidates_path, ec);
 
-    REQUIRE(rank_exit == 0);
-    StatusOr<nlohmann::json> ranked = ToolResponse::parse(rank_out);
+    REQUIRE(ranked_run.exit_code == 0);
+    StatusOr<nlohmann::json> ranked = ToolResponse::parse(ranked_run.stdout_text);
     REQUIRE(ranked.ok());
     REQUIRE(ranked.value().at("ok").get<bool>());
     REQUIRE(ranked.value().at("tool").get<std::string>() == "rank");

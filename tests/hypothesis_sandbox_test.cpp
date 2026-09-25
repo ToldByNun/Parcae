@@ -16,12 +16,11 @@
 #endif
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
+#include "cli_spawn.hpp"
 #include "parcae_cli_paths.h"
 #if !defined(PARCAE_CLI_HYPOTHESIS)
 #error "PARCAE_CLI_HYPOTHESIS required for sandbox CLI tests"
 #endif
-#include <cstdlib>
-#include <sstream>
 #endif
 
 namespace {
@@ -49,45 +48,8 @@ namespace {
 }
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
-[[nodiscard]] std::string quote_arg(const std::string& arg) {
-    return std::string("\"") + arg + '"';
-}
-
-[[nodiscard]] std::pair<int, std::string> run_hypothesis_cli(const std::vector<std::string>& args) {
-    const auto tmp = std::filesystem::temp_directory_path();
-    const std::filesystem::path out_path = tmp / "parcae_hyp_sandbox_out.json";
-    const std::filesystem::path err_path = tmp / "parcae_hyp_sandbox_err.txt";
-    const std::filesystem::path script_path = tmp / "parcae_hyp_sandbox_run.cmd";
-
-    {
-        std::ofstream script(script_path, std::ios::binary);
-        REQUIRE(script);
-        script << "@echo off\r\n";
-        script << quote_arg(std::string(PARCAE_CLI_HYPOTHESIS));
-        for (const std::string& arg : args) {
-            script << ' ' << quote_arg(arg);
-        }
-        script << " >" << quote_arg(out_path.string()) << " 2>" << quote_arg(err_path.string())
-               << "\r\n";
-        script << "exit /B %ERRORLEVEL%\r\n";
-    }
-
-    const int exit_code =
-        std::system((std::string("cmd /C ") + quote_arg(script_path.string())).c_str());
-
-    std::string stdout_text;
-    if (std::filesystem::exists(out_path)) {
-        std::ifstream in(out_path, std::ios::binary);
-        std::ostringstream buf;
-        buf << in.rdbuf();
-        stdout_text = buf.str();
-    }
-
-    std::error_code ec;
-    std::filesystem::remove(out_path, ec);
-    std::filesystem::remove(err_path, ec);
-    std::filesystem::remove(script_path, ec);
-    return {exit_code, stdout_text};
+[[nodiscard]] CliSpawnResult run_hypothesis_cli(const std::vector<std::string>& args) {
+    return run_cli_capture(PARCAE_CLI_HYPOTHESIS, args, "hyp_sandbox");
 }
 #endif
 
@@ -231,32 +193,32 @@ TEST_CASE("sandbox: store+reload preserves digests and rejects mismatched worksp
 #if defined(PARCAE_HAS_CLI_GOLDENS)
 TEST_CASE("sandbox CLI: rejects traversal workspace/id", "[hypothesis][sandbox][cli]") {
     {
-        const auto [exit_code, stdout_text] =
+        const CliSpawnResult run =
             run_hypothesis_cli({"--data-dir", std::string(PARCAE_TEST_DATA_DIR), "init",
                                 "--workspace", "../evil", "--id", "h-x", "--json"});
-        REQUIRE(exit_code != 0);
-        StatusOr<nlohmann::json> envelope = ToolResponse::parse(stdout_text);
+        REQUIRE(run.exit_code != 0);
+        StatusOr<nlohmann::json> envelope = ToolResponse::parse(run.stdout_text);
         REQUIRE(envelope.ok());
         REQUIRE_FALSE(envelope.value().at("ok").get<bool>());
         REQUIRE(envelope.value().at("tool").get<std::string>() == "hypothesis_init");
     }
     {
-        const auto [exit_code, stdout_text] =
+        const CliSpawnResult run =
             run_hypothesis_cli({"--data-dir", std::string(PARCAE_TEST_DATA_DIR), "init",
                                 "--workspace", "_example", "--id", "h/../x", "--json"});
-        REQUIRE(exit_code != 0);
-        StatusOr<nlohmann::json> envelope = ToolResponse::parse(stdout_text);
+        REQUIRE(run.exit_code != 0);
+        StatusOr<nlohmann::json> envelope = ToolResponse::parse(run.stdout_text);
         REQUIRE(envelope.ok());
         REQUIRE_FALSE(envelope.value().at("ok").get<bool>());
     }
 }
 
 TEST_CASE("sandbox CLI: show _example and list stay read-only", "[hypothesis][sandbox][cli]") {
-    const auto [list_exit, list_out] =
+    const CliSpawnResult listed_run =
         run_hypothesis_cli({"--data-dir", std::string(PARCAE_TEST_DATA_DIR), "list", "--workspace",
                             "_example", "--json"});
-    REQUIRE(list_exit == 0);
-    StatusOr<nlohmann::json> listed = ToolResponse::parse(list_out);
+    REQUIRE(listed_run.exit_code == 0);
+    StatusOr<nlohmann::json> listed = ToolResponse::parse(listed_run.stdout_text);
     REQUIRE(listed.ok());
     REQUIRE(listed.value().at("ok").get<bool>());
     REQUIRE(listed.value().at("result").at("count").get<std::size_t>() >= 1);

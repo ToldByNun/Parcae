@@ -1,13 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
-#include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <parcae/tool/agent_policy.hpp>
 #include <parcae/tool/tool_response.hpp>
-#include <sstream>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #ifndef PARCAE_TEST_DATA_DIR
@@ -15,6 +11,7 @@
 #endif
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
+#include "cli_spawn.hpp"
 #include "parcae_cli_paths.h"
 #if !defined(PARCAE_CLI_HYPOTHESIS) || !defined(PARCAE_CLI_SCORE) || !defined(PARCAE_CLI_RANK) ||  \
     !defined(PARCAE_CLI_SEARCH_CYCLE)
@@ -30,55 +27,14 @@ namespace {
 }
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
-[[nodiscard]] std::string quote_arg(const std::string& arg) {
-    return std::string("\"") + arg + '"';
-}
-
-[[nodiscard]] std::pair<int, std::string> run_cli(const std::filesystem::path& exe,
-                                                  const std::vector<std::string>& args) {
-    const auto tmp = std::filesystem::temp_directory_path();
-    const std::filesystem::path out_path = tmp / "parcae_policy_e22_out.json";
-    const std::filesystem::path err_path = tmp / "parcae_policy_e22_err.txt";
-    const std::filesystem::path script_path = tmp / "parcae_policy_e22_run.cmd";
-
-    {
-        std::ofstream script(script_path, std::ios::binary);
-        REQUIRE(script);
-        script << "@echo off\r\n";
-        script << quote_arg(exe.string());
-        for (const std::string& arg : args) {
-            script << ' ' << quote_arg(arg);
-        }
-        script << " >" << quote_arg(out_path.string()) << " 2>" << quote_arg(err_path.string())
-               << "\r\n";
-        script << "exit /B %ERRORLEVEL%\r\n";
-    }
-
-    const int exit_code =
-        std::system((std::string("cmd /C ") + quote_arg(script_path.string())).c_str());
-
-    std::string stdout_text;
-    if (std::filesystem::exists(out_path)) {
-        std::ifstream in(out_path, std::ios::binary);
-        std::ostringstream buf;
-        buf << in.rdbuf();
-        stdout_text = buf.str();
-    }
-
-    std::error_code ec;
-    std::filesystem::remove(out_path, ec);
-    std::filesystem::remove(err_path, ec);
-    std::filesystem::remove(script_path, ec);
-    return {exit_code, stdout_text};
-}
-
 void expect_policy_denial(const std::filesystem::path& exe, const std::vector<std::string>& args,
                           std::string_view expected_tool) {
-    const auto [exit_code, stdout_text] = run_cli(exe, args);
-    INFO(stdout_text);
-    REQUIRE(exit_code == 2);
+    const CliSpawnResult run = run_cli_capture(exe, args, "policy_e22");
+    INFO(run.stdout_text);
+    INFO(run.stderr_text);
+    REQUIRE(run.exit_code == 2);
 
-    StatusOr<nlohmann::json> envelope = ToolResponse::parse(stdout_text);
+    StatusOr<nlohmann::json> envelope = ToolResponse::parse(run.stdout_text);
     REQUIRE(envelope.ok());
     REQUIRE_FALSE(envelope.value().at("ok").get<bool>());
     REQUIRE(envelope.value().at("tool").get<std::string>() == expected_tool);

@@ -28,12 +28,11 @@
 #endif
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
+#include "cli_spawn.hpp"
 #include "parcae_cli_paths.h"
 #if !defined(PARCAE_CLI_HYPOTHESIS)
 #error "PARCAE_CLI_HYPOTHESIS required"
 #endif
-#include <cstdlib>
-#include <sstream>
 #endif
 
 namespace {
@@ -153,44 +152,8 @@ namespace {
 }
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
-[[nodiscard]] std::string quote_arg(const std::string& arg) {
-    return std::string("\"") + arg + '"';
-}
-
-[[nodiscard]] std::pair<int, std::string> run_hypothesis_cli(const std::vector<std::string>& args) {
-    const auto tmp = std::filesystem::temp_directory_path();
-    const std::filesystem::path out_path = tmp / "parcae_f22_hyp_out.json";
-    const std::filesystem::path err_path = tmp / "parcae_f22_hyp_err.txt";
-    const std::filesystem::path script_path = tmp / "parcae_f22_hyp_run.cmd";
-
-    {
-        std::ofstream script(script_path, std::ios::binary);
-        REQUIRE(script);
-        script << "@echo off\r\n";
-        script << quote_arg(std::string(PARCAE_CLI_HYPOTHESIS));
-        for (const std::string& arg : args) {
-            script << ' ' << quote_arg(arg);
-        }
-        script << " >" << quote_arg(out_path.string()) << " 2>" << quote_arg(err_path.string())
-               << "\r\n";
-        script << "exit /B %ERRORLEVEL%\r\n";
-    }
-
-    const int exit_code =
-        std::system((std::string("cmd /C ") + quote_arg(script_path.string())).c_str());
-
-    std::string stdout_text;
-    if (std::filesystem::exists(out_path)) {
-        std::ifstream in(out_path, std::ios::binary);
-        std::ostringstream buf;
-        buf << in.rdbuf();
-        stdout_text = buf.str();
-    }
-    std::error_code ec;
-    std::filesystem::remove(out_path, ec);
-    std::filesystem::remove(err_path, ec);
-    std::filesystem::remove(script_path, ec);
-    return {exit_code, stdout_text};
+[[nodiscard]] CliSpawnResult run_hypothesis_cli(const std::vector<std::string>& args) {
+    return run_cli_capture(PARCAE_CLI_HYPOTHESIS, args, "f22_hyp");
 }
 #endif
 
@@ -335,23 +298,23 @@ TEST_CASE("CLI hypothesis_score + set-status after bridge ingest", "[search][bri
     const std::string hid =
         HypothesisBridge::hypothesis_id_for("f22-cli-ws", "b-f22-cli", "caesar:shift=5");
 
-    const auto [score_exit, score_out] =
+    const CliSpawnResult score_run =
         run_hypothesis_cli({"--data-dir", root.string(), "score", "--workspace", "f22-cli-ws",
                             "--id", hid, "--indices", "--input", cipher_path.string(), "--score-id",
                             "chi2_english_gp_v0", "--json"});
-    INFO(score_out);
-    REQUIRE(score_exit == 0);
+    INFO(score_run.stdout_text);
+    REQUIRE(score_run.exit_code == 0);
 
     StatusOr<HypothesisRecord> scored = HypothesisRecord::load(root, "f22-cli-ws", hid);
     REQUIRE(scored.ok());
     REQUIRE(scored.value().status() == HypothesisStatus::Scored);
     REQUIRE(scored.value().scores().size() == 1);
 
-    const auto [status_exit, status_out] =
+    const CliSpawnResult status_run =
         run_hypothesis_cli({"--data-dir", root.string(), "set-status", "--workspace", "f22-cli-ws",
                             "--id", hid, "--status", "rejected", "--json"});
-    INFO(status_out);
-    REQUIRE(status_exit == 0);
+    INFO(status_run.stdout_text);
+    REQUIRE(status_run.exit_code == 0);
 
     StatusOr<HypothesisRecord> rejected = HypothesisRecord::load(root, "f22-cli-ws", hid);
     REQUIRE(rejected.ok());

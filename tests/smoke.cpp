@@ -5,17 +5,11 @@
 #include <string>
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
+#include "cli_spawn.hpp"
 #include "parcae_cli_paths.h"
 #if !defined(PARCAE_CLI_SEARCH_CYCLE) || !defined(PARCAE_CLI_COMPILE)
 #error "PARCAE_CLI_SEARCH_CYCLE and PARCAE_CLI_COMPILE required"
 #endif
-
-#include <cstdlib>
-#include <filesystem>
-#include <fstream>
-#include <sstream>
-#include <utility>
-#include <vector>
 #endif
 
 TEST_CASE("parcae_core version macros are wired", "[smoke][version]") {
@@ -38,53 +32,6 @@ TEST_CASE("nlohmann_json is available through parcae::core", "[smoke]") {
 
 #if defined(PARCAE_HAS_CLI_GOLDENS)
 
-namespace {
-
-[[nodiscard]] std::string quote_arg(const std::string& arg) {
-    return std::string("\"") + arg + '"';
-}
-
-[[nodiscard]] std::pair<int, std::string> run_cli(const std::filesystem::path& exe,
-                                                  const std::vector<std::string>& args,
-                                                  const std::string& tmp_tag) {
-    const auto tmp = std::filesystem::temp_directory_path();
-    const std::filesystem::path out_path = tmp / ("parcae_smoke_" + tmp_tag + "_out.json");
-    const std::filesystem::path err_path = tmp / ("parcae_smoke_" + tmp_tag + "_err.txt");
-    const std::filesystem::path script_path = tmp / ("parcae_smoke_" + tmp_tag + "_run.cmd");
-
-    {
-        std::ofstream script(script_path, std::ios::binary);
-        REQUIRE(script);
-        script << "@echo off\r\n";
-        script << quote_arg(exe.string());
-        for (const std::string& arg : args) {
-            script << ' ' << quote_arg(arg);
-        }
-        script << " >" << quote_arg(out_path.string()) << " 2>" << quote_arg(err_path.string())
-               << "\r\n";
-        script << "exit /B %ERRORLEVEL%\r\n";
-    }
-
-    const int exit_code =
-        std::system((std::string("cmd /C ") + quote_arg(script_path.string())).c_str());
-
-    std::string stdout_text;
-    if (std::filesystem::exists(out_path)) {
-        std::ifstream in(out_path, std::ios::binary);
-        std::ostringstream buf;
-        buf << in.rdbuf();
-        stdout_text = buf.str();
-    }
-
-    std::error_code ec;
-    std::filesystem::remove(out_path, ec);
-    std::filesystem::remove(err_path, ec);
-    std::filesystem::remove(script_path, ec);
-    return {exit_code, stdout_text};
-}
-
-} // namespace
-
 TEST_CASE("parcae-search-cycle --status reports toolkit_version 0.8.0",
           "[smoke][version][search][tool][search_cycle][status]") {
 #ifndef PARCAE_TEST_DATA_DIR
@@ -92,12 +39,12 @@ TEST_CASE("parcae-search-cycle --status reports toolkit_version 0.8.0",
 #endif
     REQUIRE(std::string(PARCAE_VERSION_STRING) == "0.8.0");
 
-    const auto [code, out] =
-        run_cli(PARCAE_CLI_SEARCH_CYCLE,
-                {"--status", "--json", "--data-dir", std::string(PARCAE_TEST_DATA_DIR)},
-                "search_cycle_status");
-    REQUIRE(code == 0);
-    const nlohmann::json envelope = nlohmann::json::parse(out);
+    const CliSpawnResult run =
+        run_cli_capture(PARCAE_CLI_SEARCH_CYCLE,
+                        {"--status", "--json", "--data-dir", std::string(PARCAE_TEST_DATA_DIR)},
+                        "search_cycle_status");
+    REQUIRE(run.exit_code == 0);
+    const nlohmann::json envelope = nlohmann::json::parse(run.stdout_text);
     REQUIRE(envelope.at("ok").get<bool>());
     REQUIRE(envelope.at("tool").get<std::string>() == "search_cycle");
     REQUIRE(envelope.at("result").at("toolkit_version").get<std::string>() == "0.8.0");
@@ -114,11 +61,11 @@ TEST_CASE("parcae-compile --status reports toolkit_version 0.8.0",
 #endif
     REQUIRE(std::string(PARCAE_VERSION_STRING) == "0.8.0");
 
-    const auto [code, out] = run_cli(
+    const CliSpawnResult run = run_cli_capture(
         PARCAE_CLI_COMPILE, {"--status", "--json", "--data-dir", std::string(PARCAE_TEST_DATA_DIR)},
         "compile_status");
-    REQUIRE(code == 0);
-    const nlohmann::json envelope = nlohmann::json::parse(out);
+    REQUIRE(run.exit_code == 0);
+    const nlohmann::json envelope = nlohmann::json::parse(run.stdout_text);
     REQUIRE(envelope.at("ok").get<bool>());
     REQUIRE(envelope.at("tool").get<std::string>() == "compile");
     REQUIRE(envelope.at("result").at("toolkit_version").get<std::string>() == "0.8.0");

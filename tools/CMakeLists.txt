@@ -157,6 +157,8 @@ if(PARCAE_BUILD_TESTS)
       --json
   )
 
+  # Scratch data root for compile smoke (artifact writes); must exist before the CLI runs.
+  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/dsl_compile_testdata")
   add_test(
     NAME cli_compile_quadratic_polynomial_stream
     COMMAND $<TARGET_FILE:parcae-compile>
