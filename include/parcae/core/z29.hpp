@@ -58,8 +58,12 @@ public:
         return Index29::unchecked(result);
     }
 
-    /// Integer floor-division of representatives (`//`); caller must ensure `y != 0`.
-    [[nodiscard]] static constexpr Index29 floor_div(Index29 x, Index29 y) noexcept {
+    /// Integer floor-division of representatives (`//`). `floor_div(x, 0)` aborts
+    /// at runtime / is not constexpr (same policy as `inv(0)`).
+    [[nodiscard]] static constexpr Index29 floor_div(Index29 x, Index29 y) {
+        if (y.value() == 0) {
+            fatal_invalid();
+        }
         return Index29::unchecked(static_cast<std::uint8_t>(x.value() / y.value()));
     }
 

@@ -60,3 +60,13 @@ TEST_CASE("Z29 select mux", "[z29][select]") {
     REQUIRE(Z29::select(Index29{1}, Index29{5}, Index29{9}).value() == 5);
     REQUIRE(Z29::select(Index29{7}, Index29{3}, Index29{4}).value() == 3);
 }
+
+TEST_CASE("Z29 floor_div of representatives", "[z29][floor_div]") {
+    REQUIRE(Z29::floor_div(Index29{28}, Index29{3}).value() == 9);
+    REQUIRE(Z29::floor_div(Index29{5}, Index29{2}).value() == 2);
+    REQUIRE(Z29::floor_div(Index29{0}, Index29{7}).value() == 0);
+    REQUIRE(Z29::floor_div(Index29{28}, Index29{1}).value() == 28);
+
+    constexpr auto q = Z29::floor_div(Index29{28}, Index29{3});
+    STATIC_REQUIRE(q.value() == 9);
+}

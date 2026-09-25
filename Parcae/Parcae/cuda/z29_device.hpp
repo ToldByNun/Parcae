@@ -58,6 +58,8 @@ public:
         return result;
     }
 
+    /// Integer floor-division of representatives. Do not call with `y == 0`
+    /// (matches host `Z29::floor_div` domain; host aborts, device must not be passed 0).
     [[nodiscard]] PARCAE_HD static std::uint8_t floor_div(std::uint8_t x, std::uint8_t y) noexcept {
         return static_cast<std::uint8_t>(x / y);
     }
