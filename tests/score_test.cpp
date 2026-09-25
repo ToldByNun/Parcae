@@ -4,10 +4,12 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <parcae/core/index29.hpp>
 #include <parcae/corpus/fixture_loader.hpp>
 #include <parcae/gematria/gematria_profile_loader.hpp>
 #include <parcae/gematria/latin_codec.hpp>
+#include <parcae/score/bigram_model_loader.hpp>
 #include <parcae/score/bigram_model_table.hpp>
 #include <parcae/score/chi2_english_gp.hpp>
 #include <parcae/score/exact_match.hpp>
@@ -580,4 +582,77 @@ TEST_CASE("BigramModelTable from_raw_counts add-one ln and accessors",
     REQUIRE(table.log_prob(I(0), I(0)) == Catch::Approx(expected_uniform));
     REQUIRE(table.log_prob(I(0), I(28)) == Catch::Approx(expected_uniform));
 }
+
+TEST_CASE("BigramModelLoader rejects bad schema and alphabet_size", "[score][bigram][loader]") {
+    REQUIRE_FALSE(BigramModelLoader::load_from_string(R"({"schema":"nope","id":"x"})").ok());
+
+    nlohmann::json bad_alpha = {
+        {"schema", "parcae.bigram_model.v0"},
+        {"id", "x"},
+        {"alphabet_size", 26},
+        {"log_base", "ln"},
+        {"raw_counts", nlohmann::json::array()},
+        {"log_probs", nlohmann::json::array()},
+    };
+    REQUIRE_FALSE(BigramModelLoader::load_from_string(bad_alpha.dump()).ok());
+}
+
+TEST_CASE("BigramModelLoader rejects wrong array lengths and log_base", "[score][bigram][loader]") {
+    nlohmann::json root = {
+        {"schema", "parcae.bigram_model.v0"},
+        {"id", "x"},
+        {"alphabet_size", 29},
+        {"log_base", "log10"},
+        {"smoothing", "add_one"},
+        {"raw_counts", std::vector<int>(841, 0)},
+        {"log_probs", std::vector<double>(841, -3.367295829986474)},
+    };
+    StatusOr<BigramModelTable> bad_base = BigramModelLoader::load_from_string(root.dump());
+    REQUIRE_FALSE(bad_base.ok());
+
+    root["log_base"] = "ln";
+    root["log_probs"] = std::vector<double>(840, -1.0);
+    StatusOr<BigramModelTable> bad_len = BigramModelLoader::load_from_string(root.dump());
+    REQUIRE_FALSE(bad_len.ok());
+}
+
+TEST_CASE("BigramModelLoader round-trips synthetic JSON", "[score][bigram][loader]") {
+    std::array<std::uint64_t, BigramModelTable::cell_count> raw{};
+    raw[BigramModelTable::flat_index(I(2), I(7))] = 4;
+    StatusOr<BigramModelTable> built =
+        BigramModelTable::from_raw_counts("roundtrip-bigram", raw, {"synthetic"});
+    REQUIRE(built.ok());
+
+    nlohmann::json root = {
+        {"schema", "parcae.bigram_model.v0"},
+        {"id", built.value().id()},
+        {"score_id", "log_bigram_gp_v0"},
+        {"score_version", "v0"},
+        {"alphabet_size", 29},
+        {"smoothing", built.value().smoothing()},
+        {"log_base", built.value().log_base()},
+        {"source_fixture_ids", built.value().source_fixture_ids()},
+        {"raw_counts", built.value().raw_counts()},
+        {"log_probs", built.value().log_probs()},
+    };
+
+    StatusOr<BigramModelTable> loaded = BigramModelLoader::load_from_string(root.dump());
+    REQUIRE(loaded.ok());
+    REQUIRE(loaded.value().id() == "roundtrip-bigram");
+    REQUIRE(loaded.value().log_base() == "ln");
+    REQUIRE(loaded.value().smoothing() == "add_one");
+    REQUIRE(loaded.value().raw_count(I(2), I(7)) == 4);
+    REQUIRE(loaded.value().log_prob(I(2), I(7)) ==
+            Catch::Approx(built.value().log_prob(I(2), I(7))));
+    REQUIRE(loaded.value().log_prob(I(0), I(0)) ==
+            Catch::Approx(built.value().log_prob(I(0), I(0))));
+}
+
+TEST_CASE("BigramModelLoader missing file returns Status", "[score][bigram][loader]") {
+    StatusOr<BigramModelTable> missing =
+        BigramModelLoader::load_from_file("definitely-missing-bigram-model-v0.json");
+    REQUIRE_FALSE(missing.ok());
+    REQUIRE(missing.status().message().find("Failed to open") != std::string::npos);
+}
+
 
