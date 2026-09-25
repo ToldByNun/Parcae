@@ -85,8 +85,9 @@ namespace {
 
 TEST_CASE("parcae-search-cycle --status --json reports run_ready and toolkit_version",
           "[tool][search_cycle][status][smoke][version]") {
-    const CliSpawnResult run = run_cli(PARCAE_CLI_SEARCH_CYCLE, {"--status", "--json", "--data-dir",
-                                                                 std::string(PARCAE_TEST_DATA_DIR)});
+    const CliSpawnResult run =
+        run_cli(PARCAE_CLI_SEARCH_CYCLE,
+                {"--status", "--json", "--data-dir", std::string(PARCAE_TEST_DATA_DIR)});
     REQUIRE(run.exit_code == 0);
     const nlohmann::json envelope = nlohmann::json::parse(run.stdout_text);
     REQUIRE(envelope.at("ok").get<bool>());
@@ -141,9 +142,9 @@ TEST_CASE("parcae-search-cycle --backend cuda without --allow-cuda is denied",
     REQUIRE(ws.ok());
     REQUIRE(ws.value().store(root).ok());
 
-    const CliSpawnResult run = run_cli(PARCAE_CLI_SEARCH_CYCLE,
-                                     {"--workspace", "h28-pol-ws", "--family", "caesar", "--k", "1",
-                                      "--backend", "cuda", "--json", "--data-dir", root.string()});
+    const CliSpawnResult run = run_cli(
+        PARCAE_CLI_SEARCH_CYCLE, {"--workspace", "h28-pol-ws", "--family", "caesar", "--k", "1",
+                                  "--backend", "cuda", "--json", "--data-dir", root.string()});
     REQUIRE(run.exit_code != 0);
     const nlohmann::json envelope = nlohmann::json::parse(run.stdout_text);
     REQUIRE_FALSE(envelope.at("ok").get<bool>());
@@ -248,9 +249,9 @@ TEST_CASE("parcae-search-cycle --plain-progress emits stderr progress lines",
     REQUIRE(ws.value().store(root).ok());
 
     const CliSpawnResult run = run_cli(PARCAE_CLI_SEARCH_CYCLE,
-                                     {"--workspace", "h-progress-plain", "--family", "caesar",
-                                      "--k", "3", "--iterations", "1", "--backend", "cpu",
-                                      "--plain-progress", "--json", "--data-dir", root.string()});
+                                       {"--workspace", "h-progress-plain", "--family", "caesar",
+                                        "--k", "3", "--iterations", "1", "--backend", "cpu",
+                                        "--plain-progress", "--json", "--data-dir", root.string()});
     REQUIRE(run.exit_code == 0);
     const nlohmann::json envelope = nlohmann::json::parse(run.stdout_text);
     REQUIRE(envelope.at("ok").get<bool>());
