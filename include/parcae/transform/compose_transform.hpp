@@ -6,6 +6,7 @@
 #include "parcae/transform/atbash_transform.hpp"
 #include "parcae/transform/beaufort_key_transform.hpp"
 #include "parcae/transform/caesar_transform.hpp"
+#include "parcae/transform/hill2_transform.hpp"
 #include "parcae/transform/identity_transform.hpp"
 #include "parcae/transform/totient_prime_stream_transform.hpp"
 #include "parcae/transform/transform.hpp"
@@ -223,6 +224,10 @@ private:
         if (id.value() == TransformId::affine()) {
             return AffineTransform{}.apply_into(input, output, stage_params, direction,
                                                 stage_interrupt);
+        }
+        if (id.value() == TransformId::hill_2()) {
+            return Hill2Transform{}.apply_into(input, output, stage_params, direction,
+                                               stage_interrupt);
         }
         if (id.value() == TransformId::vigenere_key()) {
             return VigenereKeyTransform{}.apply_into(input, output, stage_params, direction,

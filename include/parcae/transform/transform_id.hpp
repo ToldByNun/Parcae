@@ -19,6 +19,8 @@ public:
 
     [[nodiscard]] static TransformId affine() { return TransformId{"affine"}; }
 
+    [[nodiscard]] static TransformId hill_2() { return TransformId{"hill_2"}; }
+
     [[nodiscard]] static TransformId compose() { return TransformId{"compose"}; }
 
     [[nodiscard]] static TransformId vigenere_key() { return TransformId{"vigenere_key"}; }
@@ -47,6 +49,9 @@ public:
         }
         if (text == "affine") {
             return affine();
+        }
+        if (text == "hill_2") {
+            return hill_2();
         }
         if (text == "compose") {
             return compose();

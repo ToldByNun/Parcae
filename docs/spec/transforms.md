@@ -94,6 +94,32 @@ Non-rune tokens are handled by the corpus layer, not inside Index29 kernels.
 
 `a` MUST be in `1..28`; `b` in `0..28`.
 
+### `hill_2`
+
+```json
+{
+  "transform_id": "hill_2",
+  "direction": "decrypt",
+  "params": { "matrix": [2, 3, 5, 7] }
+}
+```
+
+\(2 \times 2\) Hill cipher over \(\mathbb{Z}_{29}\). `matrix` is row-major
+`[a, b, c, d]` for \(\begin{pmatrix}a&b\\c&d\end{pmatrix}\).
+
+| Direction | Formula (blocks of 2) |
+|-----------|------------------------|
+| `encrypt` | \(\mathbf{c} = A\cdot\mathbf{p}\) |
+| `decrypt` | \(\mathbf{p} = A^{-1}\cdot\mathbf{c}\) |
+
+Rules:
+
+- Each entry MUST be in `0..28`.
+- \(\det(A) \not\equiv 0 \pmod{29}\) (singular keys MUST hard-error).
+- Input length MUST be even; odd length MUST hard-error (no implicit pad in v0).
+- Interrupt policy is ignored (block cipher; same stance as `affine`).
+- Params MUST contain only `matrix`.
+
 ### `compose`
 
 ```json
