@@ -1,12 +1,14 @@
 #include <array>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <cstdint>
 #include <iostream>
 #include <parcae/core/index29.hpp>
 #include <parcae/corpus/fixture_loader.hpp>
 #include <parcae/gematria/gematria_profile_loader.hpp>
 #include <parcae/gematria/latin_codec.hpp>
+#include <parcae/score/bigram_model_table.hpp>
 #include <parcae/score/chi2_english_gp.hpp>
 #include <parcae/score/exact_match.hpp>
 #include <parcae/score/expected_frequency_loader.hpp>
@@ -530,3 +532,52 @@ TEST_CASE("Dump empirical English-GP counts from locked fixtures", "[.][freqdump
     }
     std::cout << "]\n";
 }
+
+TEST_CASE("BigramModelTable alphabet and cell_count", "[score][bigram][table]") {
+    STATIC_REQUIRE(BigramModelTable::alphabet_size == 29);
+    STATIC_REQUIRE(BigramModelTable::cell_count == 841);
+    REQUIRE(BigramModelTable::cell_count ==
+            BigramModelTable::alphabet_size * BigramModelTable::alphabet_size);
+}
+
+TEST_CASE("BigramModelTable flat_index is row-major a*29+b", "[score][bigram][table]") {
+    REQUIRE(BigramModelTable::flat_index(I(0), I(0)) == 0);
+    REQUIRE(BigramModelTable::flat_index(I(0), I(28)) == 28);
+    REQUIRE(BigramModelTable::flat_index(I(1), I(0)) == 29);
+    REQUIRE(BigramModelTable::flat_index(I(28), I(28)) == 840);
+}
+
+TEST_CASE("BigramModelTable from_raw_counts add-one ln and accessors",
+          "[score][bigram][table]") {
+    std::array<std::uint64_t, BigramModelTable::cell_count> raw{};
+    raw[BigramModelTable::flat_index(I(3), I(5))] = 9;
+
+    StatusOr<BigramModelTable> built =
+        BigramModelTable::from_raw_counts("synth-bigram", raw, {"synthetic"});
+    REQUIRE(built.ok());
+    const BigramModelTable& table = built.value();
+
+    REQUIRE(table.id() == "synth-bigram");
+    REQUIRE(table.smoothing() == "add_one");
+    REQUIRE(table.log_base() == "ln");
+    REQUIRE(table.source_fixture_ids().size() == 1);
+    REQUIRE(table.source_fixture_ids()[0] == "synthetic");
+    REQUIRE(table.log_probs().size() == 841);
+    REQUIRE(table.raw_counts().size() == 841);
+    REQUIRE(table.raw_count(I(3), I(5)) == 9);
+    REQUIRE(table.raw_count(I(0), I(0)) == 0);
+
+    // Row 3: one cell with count 9, twenty-eight zeros → smoothed (10 + 28*1) = 38.
+    const double expected_hit = std::log(10.0 / 38.0);
+    const double expected_miss = std::log(1.0 / 38.0);
+    REQUIRE(table.log_prob(I(3), I(5)) == Catch::Approx(expected_hit));
+    REQUIRE(table.log_prob(I(3), I(0)) == Catch::Approx(expected_miss));
+    REQUIRE(table.log_probs()[BigramModelTable::flat_index(I(3), I(5))] ==
+            Catch::Approx(expected_hit));
+
+    // Unobserved row stays uniform over 29 after add-one.
+    const double expected_uniform = std::log(1.0 / 29.0);
+    REQUIRE(table.log_prob(I(0), I(0)) == Catch::Approx(expected_uniform));
+    REQUIRE(table.log_prob(I(0), I(28)) == Catch::Approx(expected_uniform));
+}
+
