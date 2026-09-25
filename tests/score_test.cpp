@@ -82,12 +82,14 @@ namespace {
 
 } // namespace
 
-TEST_CASE("ScoreId parses Tier A ids", "[score]") {
+TEST_CASE("ScoreId parses Tier A ids and log_bigram_gp_v0", "[score]") {
     REQUIRE(ScoreId::from_string("exact_match").value() == ScoreId::exact_match());
     REQUIRE(ScoreId::from_string("hamming_agreement").value() == ScoreId::hamming_agreement());
     REQUIRE(ScoreId::from_string("ic_mod29").value() == ScoreId::ic_mod29());
     REQUIRE(ScoreId::from_string("chi2_english_gp_v0").value() == ScoreId::chi2_english_gp_v0());
     REQUIRE(ScoreId::from_string("self_repeat_rate").value() == ScoreId::self_repeat_rate());
+    REQUIRE(ScoreId::from_string("log_bigram_gp_v0").value() == ScoreId::log_bigram_gp_v0());
+    REQUIRE(ScoreId::log_bigram_gp_v0().str() == "log_bigram_gp_v0");
     REQUIRE_FALSE(ScoreId::from_string("nope").ok());
     REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::exact_match()) == ScoreOrder::Desc);
     REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::hamming_agreement()) == ScoreOrder::Desc);
@@ -95,6 +97,7 @@ TEST_CASE("ScoreId parses Tier A ids", "[score]") {
     REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::chi2_english_gp_v0()) == ScoreOrder::Asc);
     // Spec: neither assumed globally — raw report only (Asc used as neutral default).
     REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::self_repeat_rate()) == ScoreOrder::Asc);
+    REQUIRE(ScoreOrderUtil::for_score_id(ScoreId::log_bigram_gp_v0()) == ScoreOrder::Desc);
 }
 
 TEST_CASE("ScoreRegistry catalogs Tier A ids for tool API", "[score][registry]") {
@@ -112,6 +115,9 @@ TEST_CASE("ScoreRegistry catalogs Tier A ids for tool API", "[score][registry]")
 
     REQUIRE(ScoreRegistry::is_known("ic_mod29"));
     REQUIRE_FALSE(ScoreRegistry::is_known("nope"));
+    // ScoreId parses log_bigram before catalog registration (dispatch comes later).
+    REQUIRE(ScoreRegistry::is_known("log_bigram_gp_v0"));
+    REQUIRE(ScoreRegistry::order_of("log_bigram_gp_v0").value() == ScoreOrder::Desc);
 
     REQUIRE(ScoreRegistry::order_of("ic_mod29").value() == ScoreOrder::Desc);
     REQUIRE(ScoreRegistry::order_of("chi2_english_gp_v0").value() == ScoreOrder::Asc);

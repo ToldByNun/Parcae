@@ -23,10 +23,11 @@ public:
         return "asc";
     }
 
-    /// Spec table: exact_match/hamming/ic desc; chi2 asc. Unknown → Asc.
+    /// Spec table: exact_match/hamming/ic/log_bigram desc; chi2 asc. Unknown → Asc.
     [[nodiscard]] static ScoreOrder for_score_id(const ScoreId& id) noexcept {
         const std::string& s = id.str();
-        if (s == "exact_match" || s == "hamming_agreement" || s == "ic_mod29") {
+        if (s == "exact_match" || s == "hamming_agreement" || s == "ic_mod29" ||
+            s == "log_bigram_gp_v0") {
             return ScoreOrder::Desc;
         }
         if (s == "chi2_english_gp_v0") {

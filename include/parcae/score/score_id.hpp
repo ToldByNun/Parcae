@@ -21,6 +21,8 @@ public:
 
     [[nodiscard]] static ScoreId self_repeat_rate() { return ScoreId{"self_repeat_rate"}; }
 
+    [[nodiscard]] static ScoreId log_bigram_gp_v0() { return ScoreId{"log_bigram_gp_v0"}; }
+
     [[nodiscard]] static StatusOr<ScoreId> from_string(std::string_view text) {
         if (text == "exact_match") {
             return exact_match();
@@ -36,6 +38,9 @@ public:
         }
         if (text == "self_repeat_rate") {
             return self_repeat_rate();
+        }
+        if (text == "log_bigram_gp_v0") {
+            return log_bigram_gp_v0();
         }
         return Status::error("Unknown score_id");
     }
