@@ -137,7 +137,7 @@ TEST_CASE("HypothesisBridge overwrite_existing=false skips existing ids", "[sear
     std::filesystem::remove_all(tmp, ec);
 }
 
-TEST_CASE("HypothesisBridge does not auto-promote; preserves scored status on refresh",
+TEST_CASE("HypothesisBridge does not auto-promote / preserves scored status on refresh",
           "[search][bridge]") {
     const auto tmp = std::filesystem::temp_directory_path() / "parcae_hypothesis_bridge_f19_scored";
     std::error_code ec;

@@ -202,7 +202,7 @@ TEST_CASE("DslBuildIr lowers elif chain to nested Select", "[dsl][build][select]
     REQUIRE(body->eval(env).value().value() == 3);
 }
 
-TEST_CASE("ThreadVarying HotLoop If → Select prefer_branch for emit",
+TEST_CASE("ThreadVarying HotLoop If -> Select prefer_branch for emit",
           "[dsl][build][select][emit]") {
     // Gate would E033 without ignore; BuildIr still lowers when called directly
     // (compile path honors ignore first). prefer_branch marks divergent emit.

@@ -422,7 +422,7 @@ public:
     std::optional<std::size_t> stage_total;
 };
 
-TEST_CASE("RankCandidates forwards progress sink; top-k unchanged", "[tool][rank][progress]") {
+TEST_CASE("RankCandidates forwards progress sink / top-k unchanged", "[tool][rank][progress]") {
     const auto ctx = test_ctx();
 
     const std::vector<Index29> plain = {I(0), I(1), I(2), I(3)};

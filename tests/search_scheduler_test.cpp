@@ -774,7 +774,7 @@ public:
 
 } // namespace
 
-TEST_CASE("SearchScheduler::run_loop emits iteration stages; digests match silent run",
+TEST_CASE("SearchScheduler::run_loop emits iteration stages / digests match silent run",
           "[search][scheduler][loop][progress]") {
     const auto root_silent = make_sandbox("parcae_search_scheduler_g28_silent");
     const auto root_live = make_sandbox("parcae_search_scheduler_g28_live");

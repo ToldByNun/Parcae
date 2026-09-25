@@ -88,7 +88,7 @@ TEST_CASE("sandbox: resolve_under rejects escape and absolute paths",
     REQUIRE(WorkspacePaths::require_under(ws.value(), ok.value()).ok());
 }
 
-TEST_CASE("sandbox: fixture writes denied; workspace writes allowed",
+TEST_CASE("sandbox: fixture writes denied / workspace writes allowed",
           "[hypothesis][sandbox][paths]") {
     const auto root = make_sandbox_root("parcae_hypothesis_sandbox_paths");
     const auto fixtures_file = root / "fixtures" / "solved" / "a-warning" / "manifest.json";

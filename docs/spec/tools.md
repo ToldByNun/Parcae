@@ -357,8 +357,10 @@ parcae-blind-crack [--data-dir <path>] [-h|--help]
 Research **foothold bench** on locked Tier-A fixtures: enumerate an additive
 family battery (identity / atbash / caesar / atbash_caesar / affine), rank by
 `chi2_english_gp_v0` on **ciphertext only**, then oracle-check against known
-plaintext. No unsolved LP2 transcripts ship in-repo — this exercises
-Liber-Primus-length streams that *do* have locked plaintext for the check.
+plaintext. Unsolved LP2 pages `0`–`55` ship as the research workspace
+`data/workspaces/_lp2_unsolved_corpus/` (not under `data/fixtures/`). This CLI
+still exercises Liber-Primus-length **locked** streams that have plaintext for
+the oracle check.
 
 | vs | Role |
 |----|------|

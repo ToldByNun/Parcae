@@ -283,7 +283,7 @@ TEST_CASE("C10 fixture manifest rejects unsafe relative ciphertext path",
     std::filesystem::remove_all(tmp, ec);
 }
 
-TEST_CASE("C10 from_manifest routes kinds; unknown kind fails", "[search][cipher][resolve]") {
+TEST_CASE("C10 from_manifest routes kinds / unknown kind fails", "[search][cipher][resolve]") {
     StatusOr<WorkspaceManifest> example = WorkspaceManifest::load(data_root(), "_example");
     REQUIRE(example.ok());
     StatusOr<WorkspaceCipher> via_manifest =

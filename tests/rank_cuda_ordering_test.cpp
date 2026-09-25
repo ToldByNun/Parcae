@@ -76,7 +76,7 @@ void require_same_ranking(const BatchResult& cpu, const BatchResult& cuda) {
 
 } // namespace
 
-TEST_CASE("RankCandidates CPU ordering contract: Asc χ² and Desc exact_match ties",
+TEST_CASE("RankCandidates CPU ordering contract: Asc chi2 and Desc exact_match ties",
           "[tool][rank][order]") {
     const auto ctx = test_ctx();
 

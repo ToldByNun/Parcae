@@ -14,7 +14,7 @@ TEST_CASE("DslEmitCuda emit_expr uses Z29Device", "[dsl][emit][cuda]") {
     REQUIRE(cpp.value() == "Z29Device::add(in[i], shift)");
 }
 
-TEST_CASE("DslEmitCuda emit_theory_header Kernel façade", "[dsl][emit][cuda]") {
+TEST_CASE("DslEmitCuda emit_theory_header Kernel facade", "[dsl][emit][cuda]") {
     const StatusOr<ParamIr> shift = ParamIr::make("shift", 0, 28);
     REQUIRE(shift.ok());
     const Z29Expr::Ptr x = Z29Expr::var("x");

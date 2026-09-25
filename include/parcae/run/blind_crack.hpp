@@ -45,8 +45,9 @@
 
 /// Blind crack attempt: ciphertext-only, additive family battery, χ² ranking.
 ///
-/// There are no unsolved LP2 transcripts in-repo. Locked Tier-A fixtures are
-/// used as stand-ins: plaintext is **not** used for scoring (oracle check only).
+/// Unsolved LP2 `0`–`55` lives under `data/workspaces/_lp2_unsolved_corpus/` as a
+/// research workspace (not oracle fixtures). This tool still uses locked Tier-A
+/// fixtures as stand-ins: plaintext is **not** used for scoring (oracle check only).
 class BlindCrack {
 public:
     struct Hit {
@@ -138,7 +139,8 @@ public:
         const ConsoleProgressSnapshot snap = to_snapshot(report);
         std::ostringstream out;
         out << ConsoleDashboard::format_panel(snap, 28) << '\n';
-        out << "(locked fixtures as stand-in; no unsolved LP2 transcripts in-repo)\n";
+        out << "(locked fixtures as stand-in; LP2 0-55 research workspace:\n"
+               " data/workspaces/_lp2_unsolved_corpus/)\n";
         out << "Battery: identity + atbash + caesar + atbash_caesar + affine (~871)\n";
         out << "Score:   chi2_english_gp_v0 - plaintext NOT used for ranking\n";
         out << "Throughput: C x T / wall (expand+score)\n\n";

@@ -170,7 +170,7 @@ TEST_CASE("SearchJob + SearchPrior + BatchArtifact end-to-end round-trip", "[sea
     std::filesystem::remove_all(tmp, ec);
 }
 
-TEST_CASE("SearchJob inline prior rejects soft weights; digests stay key-order stable",
+TEST_CASE("SearchJob inline prior rejects soft weights / digests stay key-order stable",
           "[search][roundtrip]") {
     StatusOr<SearchPrior> prior =
         SearchPrior::make("_example",

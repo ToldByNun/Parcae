@@ -362,7 +362,7 @@ public:
 
 } // namespace
 
-TEST_CASE("GpuCandidateExport host-score path emits materialize; rows match without sink",
+TEST_CASE("GpuCandidateExport host-score path emits materialize / rows match without sink",
           "[search][export][progress]") {
     StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
         std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
@@ -402,7 +402,7 @@ TEST_CASE("GpuCandidateExport host-score path emits materialize; rows match with
 
 #include "parcae_cuda.hpp"
 
-TEST_CASE("GpuCandidateExport fused caesar emits fuse/d2h/materialize; rows match host",
+TEST_CASE("GpuCandidateExport fused caesar emits fuse/d2h/materialize / rows match host",
           "[search][export][progress][cuda]") {
     if (!ParcaeCuda::available()) {
         SKIP("No CUDA device");

@@ -25,7 +25,7 @@ TEST_CASE("BenchHardwareSuite Options defaults", "[bench][hardware]") {
     REQUIRE_FALSE(BenchHardwareSuite::parse_backend("gpu").ok());
 }
 
-TEST_CASE("BenchHardwareSuite CPU smoke rows for T1–T3", "[bench][hardware]") {
+TEST_CASE("BenchHardwareSuite CPU smoke rows for T1-T3", "[bench][hardware]") {
     const Context ctx{std::string(PARCAE_TEST_DATA_DIR)};
     BenchHardwareSuite::Options opts;
     opts.set_backend(BenchHardwareSuite::BackendSelect::Cpu);

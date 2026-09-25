@@ -11,6 +11,7 @@ function(parcae_set_project_warnings target_name)
 
   if(MSVC)
     target_compile_options("${target_name}" PRIVATE
+      /utf-8
       /W4
       /permissive-
       /w14242 # conversion: possible loss of data

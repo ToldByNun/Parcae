@@ -159,7 +159,7 @@ namespace {
 
 } // namespace
 
-TEST_CASE("ingest → hypothesis_score path → set-status rejected/promoted",
+TEST_CASE("ingest -> hypothesis_score path -> set-status rejected/promoted",
           "[search][bridge][score]") {
     const auto root = make_sandbox("parcae_hypothesis_bridge_f22_score");
     const Context ctx{root};

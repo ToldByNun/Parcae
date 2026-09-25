@@ -181,7 +181,7 @@ TEST_CASE("DslFuse koan1 staged recipe includes caesar encrypt direction",
     REQUIRE(via_recipe.value() == fused_out);
 }
 
-TEST_CASE("DslFuse koan1 staged cuda façade sets CudaDir::Encrypt on caesar", "[dsl][fuse][koan]") {
+TEST_CASE("DslFuse koan1 staged cuda facade sets CudaDir::Encrypt on caesar", "[dsl][fuse][koan]") {
     const TheoryIr atbash = make_atbash();
     const TheoryIr caesar = make_caesar();
     const ComposeIr compose = make_koan1_compose();

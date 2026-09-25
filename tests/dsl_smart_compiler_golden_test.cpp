@@ -60,7 +60,7 @@ namespace {
 
 // --- Acceptance matrix goldens (plan § Verification) ---
 
-TEST_CASE("golden: OuterControl For ok; HotLoop For → E034", "[dsl][golden][scope][gate]") {
+TEST_CASE("golden: OuterControl For ok / HotLoop For -> E034", "[dsl][golden][scope][gate]") {
     const DslAstDocument outer = ingest(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"For","lineno":2,"col_offset":0,
@@ -103,7 +103,7 @@ TEST_CASE("golden: OuterControl For ok; HotLoop For → E034", "[dsl][golden][sc
     REQUIRE(st.message().find("E034") != std::string::npos);
 }
 
-TEST_CASE("golden: HotLoop if cipher → E033; Param → W011", "[dsl][golden][divergence]") {
+TEST_CASE("golden: HotLoop if cipher -> E033 / Param -> W011", "[dsl][golden][divergence]") {
     const auto make_if = [](const char* left_id) {
         return std::string(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
@@ -145,7 +145,7 @@ TEST_CASE("golden: HotLoop if cipher → E033; Param → W011", "[dsl][golden][d
     REQUIRE(ok.value().warnings().front().rule_id() == "W011");
 }
 
-TEST_CASE("golden: ignore divergent_branch → W010 + prefer_branch emit",
+TEST_CASE("golden: ignore divergent_branch -> W010 + prefer_branch emit",
           "[dsl][golden][directive][directives][divergence][emit]") {
     const std::string module = R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{

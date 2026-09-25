@@ -49,7 +49,7 @@ void require_e031_forbidden(const Status& st, const std::string& kind_substr) {
 
 } // namespace
 
-TEST_CASE("forbidden statement kinds → stable E031", "[dsl][gate][forbidden]") {
+TEST_CASE("forbidden statement kinds -> stable E031", "[dsl][gate][forbidden]") {
     const auto row = GENERATE(table<std::string, std::string>(
         {// kind substring expected in message, statement JSON
          {"AsyncFunctionDef",
@@ -92,7 +92,7 @@ TEST_CASE("forbidden statement kinds → stable E031", "[dsl][gate][forbidden]")
     require_e031_forbidden(DslSemanticGate::check(doc), kind);
 }
 
-TEST_CASE("forbidden expression kinds → stable E031", "[dsl][gate][forbidden]") {
+TEST_CASE("forbidden expression kinds -> stable E031", "[dsl][gate][forbidden]") {
     const auto row = GENERATE(
         table<std::string, std::string>({{"Await",
                                           R"({"kind":"Await","lineno":7,"col_offset":0,
@@ -132,7 +132,7 @@ TEST_CASE("forbidden expression kinds → stable E031", "[dsl][gate][forbidden]"
     require_e031_forbidden(DslSemanticGate::check(doc), kind);
 }
 
-TEST_CASE("forbidden ExceptHandler alone → E031", "[dsl][gate][forbidden]") {
+TEST_CASE("forbidden ExceptHandler alone -> E031", "[dsl][gate][forbidden]") {
     // Orphan ExceptHandler (not only nested under Try) must still be rejected.
     const DslAstDocument doc = ingest_or_fail(module_with_stmt(R"({
       "kind":"ExceptHandler","lineno":7,"col_offset":0,
@@ -142,7 +142,7 @@ TEST_CASE("forbidden ExceptHandler alone → E031", "[dsl][gate][forbidden]") {
     require_e031_forbidden(DslSemanticGate::check(doc), "ExceptHandler");
 }
 
-TEST_CASE("forbidden arguments.vararg → E031", "[dsl][gate][forbidden]") {
+TEST_CASE("forbidden arguments.vararg -> E031", "[dsl][gate][forbidden]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"FunctionDef","name":"f","lineno":7,"col_offset":0,
@@ -162,7 +162,7 @@ TEST_CASE("forbidden arguments.vararg → E031", "[dsl][gate][forbidden]") {
     REQUIRE(st.message().find("theories/x.py:7:") != std::string::npos);
 }
 
-TEST_CASE("forbidden arguments.kwarg → E031", "[dsl][gate][forbidden]") {
+TEST_CASE("forbidden arguments.kwarg -> E031", "[dsl][gate][forbidden]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"FunctionDef","name":"f","lineno":7,"col_offset":0,
@@ -181,7 +181,7 @@ TEST_CASE("forbidden arguments.kwarg → E031", "[dsl][gate][forbidden]") {
     REQUIRE(st.message().find("kwarg") != std::string::npos);
 }
 
-TEST_CASE("forbidden nested ClassDef → E031 with location", "[dsl][gate][forbidden]") {
+TEST_CASE("forbidden nested ClassDef -> E031 with location", "[dsl][gate][forbidden]") {
     const DslAstDocument doc = ingest_or_fail(R"({
       "kind":"Module","lineno":1,"col_offset":0,"body":[{
         "kind":"FunctionDef","name":"outer","lineno":1,"col_offset":0,
@@ -224,7 +224,7 @@ TEST_CASE("forbidden Import and bad import module keep stable rule ids", "[dsl][
     }
 }
 
-TEST_CASE("forbidden illegal ops/ctx → E031", "[dsl][gate][forbidden]") {
+TEST_CASE("forbidden illegal ops/ctx -> E031", "[dsl][gate][forbidden]") {
     SECTION("MatMult") {
         const DslAstDocument doc = ingest_or_fail(module_with_expr_value(R"({
           "kind":"BinOp","lineno":7,"col_offset":0,

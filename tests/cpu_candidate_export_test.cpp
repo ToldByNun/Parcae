@@ -330,7 +330,7 @@ public:
     std::vector<std::string> stages;
 };
 
-TEST_CASE("CpuCandidateExport emits expand then score; rows match without sink",
+TEST_CASE("CpuCandidateExport emits expand then score / rows match without sink",
           "[search][export][cpu][progress]") {
     const Context ctx = test_context();
     const std::vector<Index29> cipher = synthetic_cipher();
