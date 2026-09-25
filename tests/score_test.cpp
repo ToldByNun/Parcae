@@ -17,6 +17,7 @@
 #include <parcae/score/expected_frequency_table.hpp>
 #include <parcae/score/hamming_agreement.hpp>
 #include <parcae/score/ic_mod29.hpp>
+#include <parcae/score/log_bigram_gp.hpp>
 #include <parcae/score/score_catalog_entry.hpp>
 #include <parcae/score/score_id.hpp>
 #include <parcae/score/score_order.hpp>
@@ -659,6 +660,54 @@ TEST_CASE("BigramModelLoader missing file returns Status", "[score][bigram][load
         BigramModelLoader::load_from_file("definitely-missing-bigram-model-v0.json");
     REQUIRE_FALSE(missing.ok());
     REQUIRE(missing.status().message().find("Failed to open") != std::string::npos);
+}
+
+TEST_CASE("ScoreRequest holds optional bigram_model pointer", "[score][bigram][request]") {
+    ScoreRequest empty;
+    REQUIRE(empty.bigram_model == nullptr);
+    REQUIRE(empty.expected_frequencies == nullptr);
+
+    std::array<std::uint64_t, BigramModelTable::cell_count> raw{};
+    StatusOr<BigramModelTable> table =
+        BigramModelTable::from_raw_counts("req-bigram", raw, {"synthetic"});
+    REQUIRE(table.ok());
+
+    ScoreRequest req;
+    req.bigram_model = &table.value();
+    REQUIRE(req.bigram_model != nullptr);
+    REQUIRE(req.bigram_model->id() == "req-bigram");
+}
+
+TEST_CASE("LogBigramGp scores hand vector as sum of log probs", "[score][bigram][log]") {
+    std::array<std::uint64_t, BigramModelTable::cell_count> raw{};
+    raw[BigramModelTable::flat_index(I(1), I(2))] = 3;
+    raw[BigramModelTable::flat_index(I(2), I(4))] = 7;
+    StatusOr<BigramModelTable> table =
+        BigramModelTable::from_raw_counts("hand-bigram", raw, {"synthetic"});
+    REQUIRE(table.ok());
+
+    const std::vector<Index29> seq = {I(1), I(2), I(4)};
+    StatusOr<double> scored = LogBigramGp::score(seq, table.value());
+    REQUIRE(scored.ok());
+
+    const double expected = table.value().log_prob(I(1), I(2)) + table.value().log_prob(I(2), I(4));
+    REQUIRE(scored.value() == Catch::Approx(expected));
+    REQUIRE(LogBigramGp::score_id == "log_bigram_gp_v0");
+    REQUIRE(LogBigramGp::score_version == "v0");
+}
+
+TEST_CASE("LogBigramGp rejects empty and single-symbol input", "[score][bigram][log]") {
+    std::array<std::uint64_t, BigramModelTable::cell_count> raw{};
+    StatusOr<BigramModelTable> table =
+        BigramModelTable::from_raw_counts("err-bigram", raw, {"synthetic"});
+    REQUIRE(table.ok());
+
+    REQUIRE_FALSE(LogBigramGp::score(std::vector<Index29>{}, table.value()).ok());
+    REQUIRE_FALSE(LogBigramGp::score(std::vector<Index29>{I(0)}, table.value()).ok());
+
+    StatusOr<double> pair = LogBigramGp::score(std::vector<Index29>{I(0), I(1)}, table.value());
+    REQUIRE(pair.ok());
+    REQUIRE(pair.value() == Catch::Approx(table.value().log_prob(I(0), I(1))));
 }
 
 
