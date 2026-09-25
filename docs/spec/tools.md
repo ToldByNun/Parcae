@@ -67,8 +67,11 @@ ToolApi::score(ctx, span<Index29>, score_id, score_version="v0", params_json?, r
 ```
 
 `chi2_english_gp_v0` auto-loads `profiles/scores/english-gp-expected-v0.json`
-when `request.expected_frequencies` is null. `backend=cuda` dispatches to
-`CudaScore` when CUDA is linked.
+when `request.expected_frequencies` is null. `log_bigram_gp_v0` auto-loads
+`profiles/scores/english-gp-bigram-v0.json` when `request.bigram_model` is null;
+if that file is missing, the Status message MUST include `model missing` (MUST
+NOT abort; MUST NOT fall back to χ²). `backend=cuda` dispatches to `CudaScore`
+when CUDA is linked.
 
 ### `validate_fixture`
 
@@ -161,7 +164,9 @@ parcae-score --list [--json] [--data-dir <path>]
 ```
 
 Default input mode is `--latin` (letters only → delatinize). `--runes` tokenizes
-UTF-8 Liber Primus text; `--indices` parses `0..28` integers. JSON shape:
+UTF-8 Liber Primus text; `--indices` parses `0..28` integers. χ² and
+`log_bigram_gp_v0` auto-load their tables from `--data-dir` (see ToolApi::score).
+JSON shape:
 
 ```json
 { "score_id": "ic_mod29", "score_version": "v0", "backend": "cpu", "value": 1.0 }
@@ -265,6 +270,7 @@ score → `candidate_id` → `source_index`). `--candidates` accepts a generate
 `rank`, `candidate_id`, `score`, `source_index`, `envelope`, optional `latin`
 preview, plus `backend`). Pairwise scores may pass `reference` via
 `--params-json`. χ² loads expected frequencies from `--data-dir` automatically.
+`log_bigram_gp_v0` loads the bigram model from `--data-dir` the same way.
 `--backend cuda` requires a CUDA-linked build **and** `--allow-cuda`
 (AgentPolicy); otherwise exit status **2** (`not_built` or `policy`).
 `RankCandidates::run(..., backend=cuda)` scores via `CudaScore` when linked;
@@ -290,7 +296,7 @@ tool names `hypothesis_init` / `hypothesis_propose` / `hypothesis_show` /
 | `init` | `--workspace` `--id` `[--title]` `[--method-json]` |
 | `propose` | `--workspace` `--id` `--method-json\|--method-file` `[--title]` `[--rationale]` |
 | `show` / `list` | `--workspace` (`show` also `--id`) |
-| `score` | `--workspace` `--id` `--input` `[--runes\|--latin\|--indices]` `[--score-id]` |
+| `score` | `--workspace` `--id` `--input` `[--runes\|--latin\|--indices]` `[--score-id]` (χ²/bigram tables auto-load via ToolApi) |
 | `set-status` | `--workspace` `--id` `--status` |
 
 `--json` wraps each result in `parcae.tool_response.v0`. `init`/`propose` create
@@ -451,7 +457,10 @@ schema ids, CUDA build flag, and readiness (`scheduler_ready` / `run_ready`).
 `--json` uses `parcae.tool_response.v0` with `tool: "search_cycle"`.
 
 Cycle runs require `--workspace` plus either `--job` (`parcae.search_job.v0`) or
-`--family` (builds a job using workspace `default_score_id`). `--backend cuda`
+`--family` (builds a job using workspace `default_score_id`). `--score-id` may be
+any registered id (including `log_bigram_gp_v0`); fused CUDA export remains
+χ²-only and non-χ² jobs with `--backend cuda` MUST fall back to CPU export (see
+[search-loop.md](search-loop.md)). `--backend cuda`
 requires `--allow-cuda` (AgentPolicy). `--allow-extended-families` opts in
 `beaufort` / `totient` (also settable on the job JSON). `--allow-theory-uri` opts
 in family `theory` (job JSON MUST supply `param_grid.theory_uri` +

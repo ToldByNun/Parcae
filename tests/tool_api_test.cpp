@@ -4,6 +4,8 @@
 #include <parcae/batch/batch_runner.hpp>
 #include <parcae/cli/console_progress_sink.hpp>
 #include <parcae/gematria/rune_codec.hpp>
+#include <parcae/score/bigram_model_table.hpp>
+#include <parcae/score/log_bigram_gp.hpp>
 #include <parcae/tool/api.hpp>
 #include <parcae/tool/context.hpp>
 #include <parcae/tool/generate_candidates.hpp>
@@ -180,6 +182,25 @@ TEST_CASE("tool::score ic and chi2", "[tool][score]") {
     REQUIRE(chi2.value() >= 0.0);
 }
 
+TEST_CASE("tool::score log_bigram_gp_v0 autoloads model", "[tool][score][bigram]") {
+    const auto ctx = test_ctx();
+    const std::vector<Index29> xs = {I(0), I(1), I(2), I(3)};
+    StatusOr<double> scored = ToolApi::score(ctx, xs, "log_bigram_gp_v0");
+    REQUIRE(scored.ok());
+
+    StatusOr<BigramModelTable> table = ctx.load_english_gp_bigram();
+    REQUIRE(table.ok());
+    StatusOr<double> direct = LogBigramGp::score(
+        std::vector<Index29>(xs.begin(), xs.end()), table.value());
+    REQUIRE(direct.ok());
+    REQUIRE(scored.value() == Catch::Approx(direct.value()).margin(0.0));
+}
+
+TEST_CASE("tool::list_score_ids includes log_bigram_gp_v0", "[tool][score][bigram]") {
+    const auto scores = ToolApi::list_score_ids();
+    REQUIRE(std::find(scores.begin(), scores.end(), "log_bigram_gp_v0") != scores.end());
+}
+
 TEST_CASE("tool::validate_fixture by id and path", "[tool][validate]") {
     const auto ctx = test_ctx();
 
@@ -297,6 +318,13 @@ TEST_CASE("RankCandidates top-k stable ties and JSON", "[tool][rank]") {
         RankCandidates::run(candidates.value(), "chi2_english_gp_v0", 2, &ctx);
     REQUIRE(chi2.ok());
     REQUIRE(chi2.value().top().size() == 2);
+
+    REQUIRE_FALSE(RankCandidates::run(candidates.value(), "log_bigram_gp_v0", 1, nullptr).ok());
+    StatusOr<BatchResult> bigram =
+        RankCandidates::run(candidates.value(), "log_bigram_gp_v0", 2, &ctx);
+    REQUIRE(bigram.ok());
+    REQUIRE(bigram.value().top().size() == 2);
+    REQUIRE(bigram.value().score_id() == "log_bigram_gp_v0");
 }
 
 TEST_CASE("RankCandidates CUDA backend path", "[tool][rank][cuda]") {

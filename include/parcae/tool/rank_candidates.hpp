@@ -13,6 +13,7 @@
 #include "parcae/core/status_or.hpp"
 #include "parcae/generate/transform_candidate.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
+#include "parcae/score/bigram_model_table.hpp"
 #include "parcae/score/score_id.hpp"
 #include "parcae/score/score_order.hpp"
 #include "parcae/score/score_registry.hpp"
@@ -51,6 +52,8 @@ public:
     /// Rank already-generated candidates. When `ctx` is non-null and `score_id`
     /// is `chi2_english_gp_v0` without `request.expected_frequencies`, loads the
     /// expected-frequency table from the data root (same as `tool::score`).
+    /// When `score_id` is `log_bigram_gp_v0` without `request.bigram_model`, loads
+    /// `english-gp-bigram-v0.json` the same way.
     /// `execution` applies only to `backend=cpu`. CUDA scores lanes serially via
     /// `CudaScore` then sorts once on the host.
     [[nodiscard]] static StatusOr<BatchResult>
@@ -88,6 +91,21 @@ public:
             }
             owned_table = std::move(table.value());
             request.expected_frequencies = &owned_table.value();
+        }
+
+        std::optional<BigramModelTable> owned_bigram;
+        if (score_id == ScoreId::log_bigram_gp_v0().str() && request.bigram_model == nullptr) {
+            if (ctx == nullptr) {
+                return Status::error("rank_candidates: log_bigram_gp_v0 requires Context or "
+                                     "ScoreRequest.bigram_model");
+            }
+            StatusOr<BigramModelTable> table = ctx->load_english_gp_bigram();
+            if (!table.ok()) {
+                return Status::error(std::string("log_bigram_gp_v0 model missing: ") +
+                                     table.status().message());
+            }
+            owned_bigram = std::move(table.value());
+            request.bigram_model = &owned_bigram.value();
         }
 
         if (backend == Backend::Cpu) {

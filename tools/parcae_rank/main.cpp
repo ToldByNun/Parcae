@@ -44,7 +44,8 @@ void print_help() {
               << "                   • generate --json envelope (result.candidates)\n"
               << "                   • {\"candidates\":[...]} object\n"
               << "                   • bare candidate array\n"
-              << "  --score-id       Registry id (e.g. ic_mod29, chi2_english_gp_v0)\n"
+              << "  --score-id       Registry id (e.g. ic_mod29, chi2_english_gp_v0,\n"
+              << "                   log_bigram_gp_v0)\n"
               << "  --k              Top-k hits to keep (required, >= 1)\n"
               << "  --params-json    Score params (e.g. {\"reference\":[…]} for pairwise)\n"
               << "  --latin-max      Truncate latin preview (default 64; 0 = full)\n"
@@ -52,7 +53,7 @@ void print_help() {
               << "  --backend        cpu|cuda (default cpu; exit 2 if cuda not built)\n"
               << "  --allow-cuda     Required with --backend cuda (AgentPolicy opt-in)\n"
               << "  --json           JSON envelope on stdout (parcae.tool_response.v0)\n"
-              << "  --data-dir       Parcae data/ root (needed for chi2 table / latin)\n"
+              << "  --data-dir       Parcae data/ root (needed for chi2/bigram tables / latin)\n"
               << "  -h, --help       Show this help\n";
 }
 

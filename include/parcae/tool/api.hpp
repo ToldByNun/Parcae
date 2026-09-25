@@ -199,6 +199,17 @@ public:
             request.expected_frequencies = &owned_table.value();
         }
 
+        std::optional<BigramModelTable> owned_bigram;
+        if (score_id == ScoreId::log_bigram_gp_v0().str() && request.bigram_model == nullptr) {
+            StatusOr<BigramModelTable> table = ctx.load_english_gp_bigram();
+            if (!table.ok()) {
+                return Status::error(std::string("log_bigram_gp_v0 model missing: ") +
+                                     table.status().message());
+            }
+            owned_bigram = std::move(table.value());
+            request.bigram_model = &owned_bigram.value();
+        }
+
         if (backend == Backend::Cpu) {
             return ScoreRegistry::score(score_id, indices, score_version, params, request);
         }

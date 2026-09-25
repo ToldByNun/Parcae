@@ -59,6 +59,8 @@ void print_help() {
               << "  parcae-hypothesis list --workspace <id> [--json]\n"
               << "  parcae-hypothesis score --workspace <id> --id <hid> --input <file|->\n"
               << "      [--latin|--runes|--indices] [--score-id <id>] [--utc <RFC3339>] [--json]\n"
+              << "      (--score-id e.g. chi2_english_gp_v0 or log_bigram_gp_v0; tables\n"
+              << "       auto-load from --data-dir via ToolApi::score)\n"
               << "  parcae-hypothesis set-status --workspace <id> --id <hid> --status <s>\n"
               << "      [--utc <RFC3339>] [--json]\n"
               << "\n"
