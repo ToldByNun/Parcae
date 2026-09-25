@@ -45,6 +45,10 @@ namespace {
                                root / "profiles" / "scores" / "english-gp-expected-v0.json",
                                std::filesystem::copy_options::overwrite_existing, ec);
     REQUIRE(!ec);
+    std::filesystem::copy_file(repo_data() / "profiles" / "scores" / "english-gp-bigram-v0.json",
+                               root / "profiles" / "scores" / "english-gp-bigram-v0.json",
+                               std::filesystem::copy_options::overwrite_existing, ec);
+    REQUIRE(!ec);
     std::filesystem::copy_file(repo_data() / "profiles" / "gematria" / "gematria-primus-v0.json",
                                root / "profiles" / "gematria" / "gematria-primus-v0.json",
                                std::filesystem::copy_options::overwrite_existing, ec);
@@ -840,3 +844,81 @@ TEST_CASE("SearchScheduler::run_loop emits iteration stages / digests match sile
     std::filesystem::remove_all(root_silent, ec);
     std::filesystem::remove_all(root_live, ec);
 }
+
+#if defined(PARCAE_HAS_CUDA)
+
+TEST_CASE("SearchScheduler backend=cuda with log_bigram falls back to CPU export",
+          "[search][scheduler][bigram]") {
+    const auto root = make_sandbox("parcae_search_scheduler_bigram_cuda_fb");
+    const Context ctx{root};
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("bigram-cuda-ws", "2026-09-25T12:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    StatusOr<SearchJob> job =
+        SearchJob::make("bigram-cuda-ws", "caesar", "log_bigram_gp_v0", /*k=*/2, /*seed=*/1,
+                        Backend::Cuda, /*max_candidates=*/64);
+    REQUIRE(job.ok());
+
+    SearchScheduler::Options opts;
+    opts.created_utc = "2026-09-25T12:00:01Z";
+    opts.batch_id = "b-bigram-cuda-0001";
+    opts.omit_timing = true;
+
+    StatusOr<SearchScheduler::CycleResult> cycle =
+        SearchScheduler::run_once(root, ctx, job.value(), opts);
+    if (!cycle.ok()) {
+        FAIL(cycle.status().message());
+    }
+    REQUIRE(cycle.value().batches().size() == 1);
+
+    StatusOr<BatchArtifact> loaded =
+        BatchArtifact::load(root, "bigram-cuda-ws", "b-bigram-cuda-0001");
+    REQUIRE(loaded.ok());
+    REQUIRE(loaded.value().score_id() == "log_bigram_gp_v0");
+    REQUIRE(loaded.value().backend() == Backend::Cpu);
+    REQUIRE(loaded.value().candidate_count() >= 1);
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+#else
+
+TEST_CASE("SearchScheduler log_bigram CPU path scores without fused CUDA",
+          "[search][scheduler][bigram]") {
+    const auto root = make_sandbox("parcae_search_scheduler_bigram_cpu");
+    const Context ctx{root};
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("bigram-cpu-ws", "2026-09-25T12:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    StatusOr<SearchJob> job =
+        SearchJob::make("bigram-cpu-ws", "caesar", "log_bigram_gp_v0", /*k=*/2, /*seed=*/1,
+                        Backend::Cpu, /*max_candidates=*/64);
+    REQUIRE(job.ok());
+
+    SearchScheduler::Options opts;
+    opts.created_utc = "2026-09-25T12:00:01Z";
+    opts.batch_id = "b-bigram-cpu-0001";
+    opts.omit_timing = true;
+
+    StatusOr<SearchScheduler::CycleResult> cycle =
+        SearchScheduler::run_once(root, ctx, job.value(), opts);
+    if (!cycle.ok()) {
+        FAIL(cycle.status().message());
+    }
+
+    StatusOr<BatchArtifact> loaded =
+        BatchArtifact::load(root, "bigram-cpu-ws", "b-bigram-cpu-0001");
+    REQUIRE(loaded.ok());
+    REQUIRE(loaded.value().score_id() == "log_bigram_gp_v0");
+    REQUIRE(loaded.value().backend() == Backend::Cpu);
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+#endif

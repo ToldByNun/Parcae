@@ -140,7 +140,8 @@ TEST_CASE("CUDA DSL smoke kernel empty and null guards", "[cuda][dsl][smoke]") {
     REQUIRE(DslSmokeCaesarKernel::launch_device(nullptr, nullptr, 0, 0, CudaDir::Encrypt).ok());
     REQUIRE_FALSE(
         DslSmokeCaesarKernel::launch_device(nullptr, nullptr, 1, 0, CudaDir::Encrypt).ok());
-    REQUIRE_FALSE(DslSmokeCaesarKernel::apply_host({}, {1}, 0, CudaDir::Encrypt).ok());
+    std::uint8_t out_one = 1;
+    REQUIRE_FALSE(DslSmokeCaesarKernel::apply_host({}, {&out_one, 1}, 0, CudaDir::Encrypt).ok());
 }
 
 #else

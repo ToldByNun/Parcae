@@ -5,6 +5,7 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/hypothesis/workspace_paths.hpp"
+#include "parcae/score/score_id.hpp"
 #include "parcae/search/search_prior.hpp"
 #include "parcae/tool/tool_backend.hpp"
 #include "parcae/transform/transform_direction.hpp"
@@ -103,6 +104,10 @@ public:
     [[nodiscard]] static StatusOr<std::string> validate_score_id(std::string_view score_id) {
         if (score_id.empty() || score_id.size() > 128) {
             return Status::error("SearchJob.score_id length must be 1..128");
+        }
+        StatusOr<ScoreId> id = ScoreId::from_string(score_id);
+        if (!id.ok()) {
+            return Status::error("SearchJob.score_id unknown: " + std::string(score_id));
         }
         return std::string(score_id);
     }

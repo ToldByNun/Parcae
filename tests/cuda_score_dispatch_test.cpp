@@ -44,6 +44,9 @@ TEST_CASE("CudaScore rejects bad version and unknown id", "[cuda][score][dispatc
 
 #if defined(PARCAE_HAS_CUDA)
 
+#include "parcae/score/bigram_model_loader.hpp"
+#include "parcae/score/bigram_model_table.hpp"
+
 TEST_CASE("CudaScore dispatch matches ScoreRegistry for all Tier A ids",
           "[cuda][score][dispatch]") {
     if (!CudaScore::available()) {
@@ -88,6 +91,13 @@ TEST_CASE("CudaScore dispatch matches ScoreRegistry for all Tier A ids",
     check("chi2_english_gp_v0", chi2_req);
     check("exact_match", pairwise);
     check("hamming_agreement", pairwise);
+
+    StatusOr<BigramModelTable> bigram = BigramModelLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-bigram-v0.json");
+    REQUIRE(bigram.ok());
+    ScoreRequest bigram_req;
+    bigram_req.bigram_model = &bigram.value();
+    check("log_bigram_gp_v0", bigram_req);
 }
 
 TEST_CASE("CudaScore pairwise via params.reference JSON", "[cuda][score][dispatch]") {

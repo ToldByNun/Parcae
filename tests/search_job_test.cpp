@@ -184,3 +184,22 @@ TEST_CASE("SearchJob require_workspace_dir fails for missing id", "[search][job]
     REQUIRE(job.ok());
     REQUIRE_FALSE(job.value().require_workspace_dir(data_root()).ok());
 }
+
+TEST_CASE("SearchJob validate_score_id against registry", "[search][job]") {
+    StatusOr<SearchJob> ok =
+        SearchJob::make("_example", "caesar", "log_bigram_gp_v0", 2, 1, Backend::Cpu, 8);
+    REQUIRE(ok.ok());
+    REQUIRE(ok.value().score_id() == "log_bigram_gp_v0");
+
+    StatusOr<SearchJob> chi2 =
+        SearchJob::make("_example", "caesar", "chi2_english_gp_v0", 2, 1, Backend::Cpu, 8);
+    REQUIRE(chi2.ok());
+
+    StatusOr<SearchJob> unknown =
+        SearchJob::make("_example", "caesar", "not_a_real_score", 2, 1, Backend::Cpu, 8);
+    REQUIRE_FALSE(unknown.ok());
+    REQUIRE(unknown.status().message().find("unknown") != std::string::npos);
+
+    StatusOr<std::string> empty = SearchJob::validate_score_id("");
+    REQUIRE_FALSE(empty.ok());
+}

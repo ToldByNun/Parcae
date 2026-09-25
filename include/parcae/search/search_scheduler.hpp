@@ -543,10 +543,10 @@ private:
             return CpuCandidateExport::from_job(cipher, job, ctx, &prior, progress);
         }
 
-        // CUDA fused export is χ²-only (GpuCandidateExport).
+        // Fused CUDA export is χ²-only (GpuCandidateExport). Any other score_id
+        // (e.g. log_bigram_gp_v0) falls back to CPU RankCandidates — search-loop.md.
         if (job.score_id() != GpuCandidateExport::score_id) {
-            return Status::error(
-                "SearchScheduler: backend=cuda requires score_id chi2_english_gp_v0");
+            return CpuCandidateExport::from_job(cipher, job, ctx, &prior, progress);
         }
         if (job.direction() != TransformDirection::Decrypt) {
             return Status::error(

@@ -15,6 +15,7 @@
 #include "exact_match_score.hpp"
 #include "hamming_agreement_score.hpp"
 #include "ic_mod29_score.hpp"
+#include "log_bigram_gp_score.hpp"
 #include "parcae_cuda.hpp"
 #include "self_repeat_rate_score.hpp"
 #endif
@@ -31,7 +32,8 @@
 ///
 /// Unary / pairwise / table scores dispatch to `ExactMatchScore`,
 /// `HammingAgreementScore`, `IcMod29Score`, `SelfRepeatRateScore`,
-/// `Chi2EnglishGpScore`. Catalog metadata matches CPU `ScoreRegistry`.
+/// `Chi2EnglishGpScore`, `LogBigramGpScore`. Catalog metadata matches CPU
+/// `ScoreRegistry`.
 class CudaScore {
 public:
     [[nodiscard]] static bool available() noexcept {
@@ -60,7 +62,7 @@ public:
     score(std::string_view score_id, [[maybe_unused]] std::span<const Index29> candidate,
           std::string_view score_version = "v0",
           [[maybe_unused]] const nlohmann::json& params = nlohmann::json::object(),
-          const ScoreRequest& request = ScoreRequest()) {
+          [[maybe_unused]] const ScoreRequest& request = ScoreRequest()) {
         if (score_version != "v0") {
             return Status::error("Unsupported score_version (only v0 is registered)");
         }
@@ -92,6 +94,12 @@ public:
             }
             return Chi2EnglishGpScore::score_host(cand_bytes,
                                                   request.expected_frequencies->probabilities());
+        }
+        if (id.value() == ScoreId::log_bigram_gp_v0()) {
+            if (request.bigram_model == nullptr) {
+                return Status::error("log_bigram_gp_v0 requires ScoreRequest.bigram_model");
+            }
+            return LogBigramGpScore::score_host(cand_bytes, request.bigram_model->log_probs());
         }
         if (id.value() == ScoreId::exact_match()) {
             StatusOr<std::vector<Index29>> reference =

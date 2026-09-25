@@ -107,3 +107,4 @@ scripts/research/falsify_nt_keystreams_lp2.py
 /stage-rel-cpu
 /stage-rel-cuda
 /stage-rel-full
+/logs
