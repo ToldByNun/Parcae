@@ -78,7 +78,7 @@ File: `data/theories/<name>/<version>/manifest.json`
   "name": "quadratic_polynomial_stream",
   "version": 1,
   "dsl_spec_version": "1.0.0",
-  "compiler_version": "0.8.0",
+  "compiler_version": "0.9.0",
   "source_path": "theories/examples/new_math_example.py",
   "source_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "tier": "B",

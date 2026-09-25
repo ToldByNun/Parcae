@@ -7,7 +7,7 @@ twins, a theory DSL, and an LLM agent that only calls allow-listed CLIs.
 | | |
 |---|---|
 | **License** | [MIT](LICENSE) |
-| **Toolkit version** | **0.8.0** (`v0.8.0-dsl-console`) |
+| **Toolkit version** | **0.9.0** (`v0.9.0-bench`) |
 | **Language (core)** | C++20 (header-first library + CLIs) |
 | **GPU** | Optional CUDA twins (CI stays CPU-only) |
 | **Python** | IDE stubs + AST dump + optional CMD agent — **not** the crypto core |
@@ -37,7 +37,7 @@ Parcae’s job is not to ship vibes. It is to:
 | **29** | Alphabet size. Every rune maps to an index `0…28` (`Index29`). All crypto math is mod 29. |
 | **0…28** | Valid `Index29` values. Latin “letters” are a *view* of those indices, not a second alphabet. |
 | **LP2 `0`–`55`** | Still-unsolved Liber Primus image range the toolkit aims to push forward. |
-| **0.8.0** | Current toolkit version (smart DSL + console progress). |
+| **0.9.0** | Current toolkit version (`parcae-bench` / diagnostics). |
 | **CMake ≥ 3.25** | Build requirement. |
 | **Python ≥ 3.11** | Only for DSL stubs / `ast_dump` / optional `parcae-agent`. |
 
@@ -309,6 +309,7 @@ Theory DSL compiler   →  theories/ + include/parcae/dsl/    done — v0.5.0-th
 CMD agent tooling     →  agents/ + agent-facing CLIs        in progress — v0.6.0-agent-tools
 Search engine loop    →  GPU ↔ candidates ↔ hypotheses      done — v0.7.0-search-engine
 Smart DSL + console   →  scopes/Select/#ignore + dashboard  done — v0.8.0-dsl-console
+Bench & diagnostics   →  parcae-bench SLO/accuracy/hw/probe done — v0.9.0-bench
 Open-source polish    →  packaging, contribution docs       later
 ```
 
@@ -322,7 +323,10 @@ spec [`docs/spec/search-loop.md`](docs/spec/search-loop.md).
 Smart DSL + console exit: [`docs/architecture/dsl-console-exit.md`](docs/architecture/dsl-console-exit.md)
 (`v0.8.0-dsl-console`) · compiler guide
 [`docs/architecture/python-transpiler.md`](docs/architecture/python-transpiler.md) ·
-console progress in [`docs/architecture/search-handbook.md`](docs/architecture/search-handbook.md).
+console progress in [`docs/architecture/search-handbook.md`](docs/architecture/search-handbook.md).  
+Bench exit: [`docs/architecture/bench-exit.md`](docs/architecture/bench-exit.md)
+(`v0.9.0-bench`) · operator guide
+[`docs/architecture/bench-diagnostics.md`](docs/architecture/bench-diagnostics.md).
 
 ### Goals
 

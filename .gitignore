@@ -7,11 +7,16 @@ cmake-build-*/
 out/
 .cache/
 
-# Local release outputs (CI publishes; keep notes + README)
+# Local release outputs (CI publishes; keep notes + README per SemVer folder)
 /release/*
 !/release/README.md
 !/release/.gitignore
 !/release/RELEASE_NOTES.md
+!/release/*/
+!/release/*/.gitignore
+!/release/*/README.md
+!/release/*/RELEASE_NOTES.md
+!/release/*/SHA256SUMS
 
 # Compiled Object files
 *.slo
@@ -103,3 +108,5 @@ scripts/research/falsify_nt_keystreams_lp2.py
 /stage-cpu
 /stage-cuda
 /stage-full
+/release
+/release

@@ -72,9 +72,9 @@ Declare toolkit **0.9.0** complete when all **required** boxes below are green
 
 ### Release cut
 
-- [ ] Root README roadmap marks **bench** done with exit tag
-- [ ] [`RELEASE_NOTES.md`](../../release/RELEASE_NOTES.md) for 0.9.0
-- [ ] Toolkit version **0.9.0** (CMake + `version.hpp` + smoke asserts)
+- [x] Root README roadmap marks **bench** done with exit tag
+- [x] [`RELEASE_NOTES.md`](../../release/0.9.0/RELEASE_NOTES.md) for 0.9.0
+- [x] Toolkit version **0.9.0** (CMake + `version.hpp` + smoke asserts)
 - [ ] Smoke: `Version` + `parcae-bench --status` → toolkit **0.9.0**
 - [ ] Annotated tag `v0.9.0-bench`; Release workflow publishes artifacts
 

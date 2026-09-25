@@ -106,10 +106,12 @@ Authoring examples (also CI via `scripts/check-dsl-examples.sh`):
 
 ## Status
 
-Toolkit **0.8.0** (`v0.8.0-dsl-console`; prior search-engine exit
-`v0.7.0-search-engine`; DSL exit `v0.5.0-theory-dsl`). Freeze checklist:
+Toolkit **0.9.0** (`v0.9.0-bench`; prior dsl-console exit `v0.8.0-dsl-console`;
+search-engine exit `v0.7.0-search-engine`; DSL exit `v0.5.0-theory-dsl`).
+Freeze checklist for this cut:
+[`bench-exit.md`](../../../docs/architecture/bench-exit.md); smart-DSL freeze:
 [`dsl-console-exit.md`](../../../docs/architecture/dsl-console-exit.md).
-CI gates: `[dsl-smart]`, `[cli-progress]`, `[dsl][examples]`,
+CI gates: `[dsl-smart]`, `[cli-progress]`, `[bench]`, `[dsl][examples]`,
 `[dsl][registry][stale]`, plus `dsl-examples-cli` / `dsl-stubs-pytest` jobs in
 `.github/workflows/ci.yml`.
 

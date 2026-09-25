@@ -9,7 +9,7 @@
 #endif
 
 #ifndef PARCAE_VERSION_MINOR
-#define PARCAE_VERSION_MINOR 8
+#define PARCAE_VERSION_MINOR 9
 #endif
 
 #ifndef PARCAE_VERSION_PATCH
@@ -17,7 +17,7 @@
 #endif
 
 #ifndef PARCAE_VERSION_STRING
-#define PARCAE_VERSION_STRING "0.8.0"
+#define PARCAE_VERSION_STRING "0.9.0"
 #endif
 
 class Version {

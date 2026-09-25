@@ -4,8 +4,8 @@
 /// Umbrella include for the theory-DSL compiler headers.
 /// Normative: docs/spec/dsl.md, docs/spec/dsl-ast-json.md, docs/spec/theory-artifact.md
 /// Architecture: docs/architecture/python-transpiler.md
-/// Toolkit ships as `Version` / `PARCAE_VERSION_STRING` (currently **0.8.0**,
-/// dsl-console exit). Theory DSL workstream exit was `v0.5.0-theory-dsl`.
+/// Toolkit ships as `Version` / `PARCAE_VERSION_STRING` (currently **0.9.0**,
+/// bench exit). Theory DSL workstream exit was `v0.5.0-theory-dsl`.
 ///
 /// Modules:
 ///   - DslSpecVersion / DslAstJsonVersion

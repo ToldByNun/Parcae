@@ -94,7 +94,7 @@ TEST_CASE("parcae-search-cycle --status --json reports run_ready and toolkit_ver
     REQUIRE(envelope.at("tool").get<std::string>() == "search_cycle");
     REQUIRE(envelope.at("result").at("toolkit_version").get<std::string>() ==
             PARCAE_VERSION_STRING);
-    REQUIRE(envelope.at("result").at("toolkit_version").get<std::string>() == "0.8.0");
+    REQUIRE(envelope.at("result").at("toolkit_version").get<std::string>() == "0.9.0");
     REQUIRE(envelope.at("result").at("run_ready").get<bool>());
     REQUIRE(envelope.at("result").at("scheduler_ready").get<bool>());
     REQUIRE(envelope.at("result").at("search_cycle_result_schema").get<std::string>() ==

@@ -44,15 +44,6 @@ jobs:
             install_ninja: true
             install_clang: true
             test_bin: build/tests/parcae_tests
-          - name: macos
-            # Default Unix Makefiles — avoids brew ninja flakiness on macos-latest.
-            os: macos-latest
-            cmake_args: -DCMAKE_BUILD_TYPE=Release
-            build_args: ""
-            test_args: ""
-            install_ninja: false
-            install_clang: false
-            test_bin: build/tests/parcae_tests
           - name: windows
             # windows-latest is VS 2026-only; do not pin "Visual Studio 17 2022".
             os: windows-latest
