@@ -11,6 +11,9 @@
 
 /// Deterministic prime utilities (sieve + 0-based nth-prime).
 /// Indexing: `nth(0) == 2`, `nth(1) == 3`, … — matches totient stream `p0, p1, …`.
+///
+/// `first` / `nth` share a process-lifetime sieve cache (grows monotonically).
+/// Not safe for concurrent `first`/`nth` from multiple threads without external sync.
 class Primes {
 public:
     /// All primes `<= limit` via Eratosthenes. `limit < 2` yields an empty list.
@@ -45,25 +48,48 @@ public:
             return std::vector<std::uint64_t>{};
         }
 
-        const std::uint64_t limit = upper_bound_for_nth(count - 1);
-        std::vector<std::uint64_t> primes = sieve_upto(limit);
-        if (primes.size() < count) {
-            return Status::error("prime sieve upper bound insufficient");
+        Status ensured = ensure_at_least(count);
+        if (!ensured.ok()) {
+            return ensured;
         }
-        primes.resize(count);
-        return primes;
+
+        const std::vector<std::uint64_t>& cached = cache();
+        return std::vector<std::uint64_t>(cached.begin(),
+                                         cached.begin() + static_cast<std::ptrdiff_t>(count));
     }
 
     /// 0-based nth prime (`nth(0) == 2`).
     [[nodiscard]] static StatusOr<std::uint64_t> nth(std::size_t index) {
-        StatusOr<std::vector<std::uint64_t>> primes = first(index + 1);
-        if (!primes.ok()) {
-            return primes.status();
+        Status ensured = ensure_at_least(index + 1);
+        if (!ensured.ok()) {
+            return ensured;
         }
-        return primes.value().back();
+        return cache()[index];
     }
 
 private:
+    /// Process-lifetime prime table shared by `first` / `nth` (never shrinks).
+    [[nodiscard]] static std::vector<std::uint64_t>& cache() {
+        static std::vector<std::uint64_t> primes;
+        return primes;
+    }
+
+    /// Grow the cache until it holds at least `count` primes.
+    [[nodiscard]] static Status ensure_at_least(std::size_t count) {
+        std::vector<std::uint64_t>& primes = cache();
+        if (primes.size() >= count) {
+            return Status::success();
+        }
+
+        const std::uint64_t limit = upper_bound_for_nth(count - 1);
+        std::vector<std::uint64_t> sieved = sieve_upto(limit);
+        if (sieved.size() < count) {
+            return Status::error("prime sieve upper bound insufficient");
+        }
+        primes = std::move(sieved);
+        return Status::success();
+    }
+
     /// Safe upper bound for the 0-based `index`-th prime.
     [[nodiscard]] static std::uint64_t upper_bound_for_nth(std::size_t index) {
         // Small indices: hard-coded ceilings (p_0..p_5 known).

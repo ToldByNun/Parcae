@@ -48,6 +48,27 @@ TEST_CASE("Primes::nth is deterministic for larger indices", "[primes]") {
     REQUIRE(Primes::nth(168).value() == 1009);
 }
 
+TEST_CASE("Primes cache survives growth and repeated nth", "[primes][cache]") {
+    // Grow past small tables, then read earlier indices (cache must not corrupt).
+    REQUIRE(Primes::nth(168).value() == 1009);
+    REQUIRE(Primes::nth(0).value() == 2);
+    REQUIRE(Primes::nth(25).value() == 101);
+
+    StatusOr<std::vector<std::uint64_t>> first_29 = Primes::first(29);
+    REQUIRE(first_29.ok());
+    REQUIRE(first_29.value().front() == 2);
+    REQUIRE(first_29.value().back() == 109);
+
+    // Idempotent reads after cache fill.
+    REQUIRE(Primes::nth(99).value() == 541);
+    REQUIRE(Primes::nth(99).value() == 541);
+
+    StatusOr<std::vector<std::uint64_t>> empty = Primes::first(0);
+    REQUIRE(empty.ok());
+    REQUIRE(empty.value().empty());
+    REQUIRE(Primes::nth(0).value() == 2);
+}
+
 TEST_CASE("TotientKeystream first shifts are 1,2,4,6,10,... and wrap", "[primes][totient]") {
     // p: 2,3,5,7,11 → (p-1)%29 = 1,2,4,6,10
     StatusOr<std::vector<Index29>> prefix = TotientKeystream::shifts(5);
