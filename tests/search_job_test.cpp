@@ -95,6 +95,35 @@ TEST_CASE("SearchJob rejects bad schema and bounds", "[search][job]") {
     }
     {
         nlohmann::json j = valid_job_json();
+        j["family"] = "hill_2";
+        REQUIRE_FALSE(SearchJob::from_json(j).ok());
+    }
+    {
+        nlohmann::json j = valid_job_json();
+        j["family"] = "ciphertext_autokey";
+        REQUIRE_FALSE(SearchJob::from_json(j).ok());
+    }
+    {
+        nlohmann::json j = valid_job_json();
+        j["family"] = "hill_2";
+        j["allow_extended_families"] = true;
+        StatusOr<SearchJob> job = SearchJob::from_json(j);
+        REQUIRE(job.ok());
+        REQUIRE(job.value().family() == "hill_2");
+        REQUIRE(SearchJob::is_cpu_export_only_family(job.value().family()));
+    }
+    {
+        nlohmann::json j = valid_job_json();
+        j["family"] = "plaintext_autokey";
+        j["allow_extended_families"] = true;
+        StatusOr<SearchJob> job = SearchJob::from_json(j);
+        REQUIRE(job.ok());
+        REQUIRE(job.value().family() == "plaintext_autokey");
+        REQUIRE(SearchJob::is_extended_family("hill_3"));
+        REQUIRE(SearchJob::is_extended_family("ciphertext_autokey"));
+    }
+    {
+        nlohmann::json j = valid_job_json();
         j["family"] = "theory";
         REQUIRE_FALSE(SearchJob::from_json(j).ok());
     }

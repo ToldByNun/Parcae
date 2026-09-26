@@ -462,7 +462,8 @@ any registered id (including `log_bigram_gp_v0`); fused CUDA export remains
 χ²-only and non-χ² jobs with `--backend cuda` MUST fall back to CPU export (see
 [search-loop.md](search-loop.md)). `--backend cuda`
 requires `--allow-cuda` (AgentPolicy). `--allow-extended-families` opts in
-`beaufort` / `totient` (also settable on the job JSON). `--allow-theory-uri` opts
+`beaufort` / `totient` / `hill_2` / `hill_3` / `ciphertext_autokey` /
+`plaintext_autokey` (also settable on the job JSON). `--allow-theory-uri` opts
 in family `theory` (job JSON MUST supply `param_grid.theory_uri` +
 `params_list`; CPU-only). `--iterations` defaults to `1`.
 `--omit-timing` requires `--json` and forces agent-safe output (no timing fields;

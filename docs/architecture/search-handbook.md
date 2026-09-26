@@ -306,7 +306,7 @@ parcae-search-cycle \
 
 Without `--allow-cuda`, expect `error.code: "policy"` (exit 2).
 
-### Extended families (beaufort / totient)
+### Extended families (beaufort / totient / hill / autokey)
 
 Require an explicit opt-in — either job JSON `allow_extended_families: true` or
 CLI `--allow-extended-families`:
@@ -323,8 +323,12 @@ parcae-search-cycle \
 ```
 
 Default totient grid: `prime_start_index` in `0..31`. Override via job
-`param_grid.prime_start_count` or `param_grid.prime_start_indices`. Beaufort uses
-the same bounded key grid as Vigenère (`max_key_length`, default 20).
+`param_grid.prime_start_count` or `param_grid.prime_start_indices`. Beaufort and
+CTAK / PTAK (`ciphertext_autokey` / `plaintext_autokey`) use the same bounded key
+grid as Vigenère (`max_key_length`, default 20), or explicit `key_indices_list` /
+`keys`. Hill (`hill_2` / `hill_3`): empty grid → seed-bounded invertible sample;
+override via `param_grid.matrices` or `max_candidates` / `seed`. Hill and
+autokey families always expand/rank on CPU (no fused CUDA χ² path yet).
 
 ### Theory URI family (explicit params_list)
 

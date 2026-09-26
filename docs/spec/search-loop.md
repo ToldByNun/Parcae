@@ -137,14 +137,20 @@ In-memory record and JSON object used by `SearchScheduler` / CLI.
 | `compose` | Empty grid → Atbash∘Caesar 29; or explicit `recipes` / `stages` / `template` | Reuses `AtbashCaesar` fused export when grid matches; else ComposeDriver / ComposeTransform |
 | `beaufort` | Explicit keys / bounded grid (same as vigenère) | **Opt-in:** `allow_extended_families: true` |
 | `totient` | Bounded `prime_start_index` list / count | **Opt-in:** `allow_extended_families: true` |
+| `hill_2` | Explicit `matrices` **or** seed-bounded invertible sample (default max 256) | **Opt-in:** `allow_extended_families: true`; CPU export only |
+| `hill_3` | Explicit `matrices` **or** seed-bounded invertible sample (default max 128) | **Opt-in:** `allow_extended_families: true`; CPU export only |
+| `ciphertext_autokey` | Explicit primers / bounded grid (same key shape as vigenère) | **Opt-in:** `allow_extended_families: true`; CPU export only |
+| `plaintext_autokey` | Explicit primers / bounded grid (same key shape as vigenère) | **Opt-in:** `allow_extended_families: true`; CPU export only |
 | `theory` | Explicit `param_grid.theory_uri` + `param_grid.params_list` only | **Opt-in:** `allow_theory_uri: true`; no TheorySweep expansion; CPU-only |
 
 Loaders MUST reject unknown `family` values. Extended families (`beaufort`,
-`totient`) MUST be rejected unless `allow_extended_families` is true (job JSON
-and/or CLI `--allow-extended-families`). Family `theory` MUST be rejected unless
+`totient`, `hill_2`, `hill_3`, `ciphertext_autokey`, `plaintext_autokey`) MUST be
+rejected unless `allow_extended_families` is true (job JSON and/or CLI
+`--allow-extended-families`). Family `theory` MUST be rejected unless
 `allow_theory_uri` is true (job JSON and/or CLI `--allow-theory-uri`). Theory
 jobs MUST supply a non-empty `params_list` of param objects (top candidates only;
-MUST NOT expand TheorySweep grids).
+MUST NOT expand TheorySweep grids). Hill / autokey families MUST use CPU export
+(no fused CUDA χ² path in v0).
 
 ### Ciphertext resolution
 

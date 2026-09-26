@@ -212,6 +212,70 @@ TEST_CASE("CpuCandidateExport opt-in beaufort / totient families",
     REQUIRE(beaufort.value().rows()[0].candidate().transform_id() == TransformId::beaufort_key());
 }
 
+TEST_CASE("CpuCandidateExport opt-in hill / autokey families",
+          "[search][export][cpu][extended][hill][autokey]") {
+    const Context ctx = test_context();
+    // hill_2 needs even length; hill_3 needs multiple of 3 — use 6.
+    const std::vector<Index29> cipher = {
+        Index29{0}, Index29{5}, Index29{10}, Index29{15}, Index29{20}, Index29{25},
+    };
+
+    REQUIRE_FALSE(
+        SearchJob::make("_example", "hill_2", "chi2_english_gp_v0", 2, 1, Backend::Cpu, 64).ok());
+    REQUIRE_FALSE(SearchJob::make("_example", "ciphertext_autokey", "chi2_english_gp_v0", 2, 1,
+                                   Backend::Cpu, 64)
+                      .ok());
+
+    StatusOr<SearchJob> hill2_job = SearchJob::make(
+        "_example", "hill_2", "chi2_english_gp_v0", 2, 1, Backend::Cpu, 64,
+        TransformDirection::Decrypt, nlohmann::json{{"max_candidates", 8}, {"seed", 1}},
+        std::nullopt, "v0", true);
+    REQUIRE(hill2_job.ok());
+    StatusOr<CpuCandidateExport::Result> hill2 =
+        CpuCandidateExport::from_job(cipher, hill2_job.value(), ctx);
+    REQUIRE(hill2.ok());
+    REQUIRE(hill2.value().size() == 2);
+    REQUIRE(hill2.value().rows()[0].candidate().transform_id() == TransformId::hill_2());
+    REQUIRE(CpuCandidateExport::generator_id_for_family("hill_2").value() == "gen_hill_2");
+
+    StatusOr<SearchJob> hill3_job = SearchJob::make(
+        "_example", "hill_3", "chi2_english_gp_v0", 2, 1, Backend::Cpu, 64,
+        TransformDirection::Decrypt, nlohmann::json{{"max_candidates", 6}, {"seed", 2}},
+        std::nullopt, "v0", true);
+    REQUIRE(hill3_job.ok());
+    StatusOr<CpuCandidateExport::Result> hill3 =
+        CpuCandidateExport::from_job(cipher, hill3_job.value(), ctx);
+    REQUIRE(hill3.ok());
+    REQUIRE(hill3.value().size() == 2);
+    REQUIRE(hill3.value().rows()[0].candidate().transform_id() == TransformId::hill_3());
+
+    StatusOr<SearchJob> ctak_job = SearchJob::make(
+        "_example", "ciphertext_autokey", "chi2_english_gp_v0", 2, 1, Backend::Cpu, 64,
+        TransformDirection::Decrypt, nlohmann::json{{"max_key_length", 4}}, std::nullopt, "v0",
+        true);
+    REQUIRE(ctak_job.ok());
+    StatusOr<CpuCandidateExport::Result> ctak =
+        CpuCandidateExport::from_job(cipher, ctak_job.value(), ctx);
+    REQUIRE(ctak.ok());
+    REQUIRE(ctak.value().size() == 2);
+    REQUIRE(ctak.value().rows()[0].candidate().transform_id() ==
+            TransformId::ciphertext_autokey());
+
+    StatusOr<SearchJob> ptak_job = SearchJob::make(
+        "_example", "plaintext_autokey", "chi2_english_gp_v0", 2, 1, Backend::Cpu, 64,
+        TransformDirection::Decrypt,
+        nlohmann::json{{"key_indices_list", {{1, 2}, {3, 4, 5}}}}, std::nullopt, "v0", true);
+    REQUIRE(ptak_job.ok());
+    StatusOr<CpuCandidateExport::Result> ptak =
+        CpuCandidateExport::from_job(cipher, ptak_job.value(), ctx);
+    REQUIRE(ptak.ok());
+    REQUIRE(ptak.value().size() == 2);
+    REQUIRE(ptak.value().rows()[0].candidate().transform_id() ==
+            TransformId::plaintext_autokey());
+    REQUIRE(CpuCandidateExport::generator_id_for_family("plaintext_autokey").value() ==
+            "gen_plaintext_autokey_explicit_primers");
+}
+
 TEST_CASE("CpuCandidateExport compose recipes reuse AtbashCaesar grid",
           "[search][export][cpu][compose]") {
     const Context ctx = test_context();

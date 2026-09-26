@@ -122,11 +122,13 @@ Normative detail: [`docs/spec/search-loop.md`](../spec/search-loop.md)
 ### `SearchJob`
 
 - Fields: `workspace_id`, `family` (`caesar` \| `atbash` \| `atbash_caesar` \|
-  `affine` \| `vigenere` \| `compose`; opt-in `beaufort` / `totient` via `allow_extended_families`;
+  `affine` \| `vigenere` \| `compose`; opt-in `beaufort` / `totient` / `hill_2` /
+  `hill_3` / `ciphertext_autokey` / `plaintext_autokey` via `allow_extended_families`;
   opt-in `theory` via `allow_theory_uri` + explicit `params_list`), `score_id`, `k`,
   `seed`, `backend` (`cpu` \| `cuda`), `max_candidates`, optional `param_grid` /
   prior reference.
 - MUST resolve ciphertext via workspace manifest only.
+- Hill / autokey extended families are CPU-export only (no fused CUDA χ² path).
 
 ### `parcae.batch_artifact.v0`
 

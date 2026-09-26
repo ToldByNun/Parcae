@@ -55,7 +55,7 @@ public:
     /// Inline `parcae.search_prior.v0` when present; otherwise nullopt (load from workspace).
     [[nodiscard]] const std::optional<nlohmann::json>& prior() const noexcept { return prior_; }
 
-    /// When true, `beaufort` / `totient` families are accepted (opt-in).
+    /// When true, extended families (`beaufort` / `totient` / `hill_*` / autokey) are accepted.
     [[nodiscard]] bool allow_extended_families() const noexcept { return allow_extended_families_; }
 
     /// When true, family `theory` (explicit theory-URI params_list) is accepted.
@@ -67,7 +67,15 @@ public:
     }
 
     [[nodiscard]] static bool is_extended_family(std::string_view family) noexcept {
-        return family == "beaufort" || family == "totient";
+        return family == "beaufort" || family == "totient" || family == "hill_2" ||
+               family == "hill_3" || family == "ciphertext_autokey" ||
+               family == "plaintext_autokey";
+    }
+
+    /// Extended families without a fused CUDA χ² path (CPU RankCandidates only).
+    [[nodiscard]] static bool is_cpu_export_only_family(std::string_view family) noexcept {
+        return family == "hill_2" || family == "hill_3" || family == "ciphertext_autokey" ||
+               family == "plaintext_autokey" || is_theory_family(family);
     }
 
     [[nodiscard]] static bool is_theory_family(std::string_view family) noexcept {
@@ -97,7 +105,8 @@ public:
         }
         return Status::error(
             "SearchJob.family unknown (expected caesar|atbash|atbash_caesar|affine|vigenere|"
-            "compose or opt-in beaufort|totient|theory): " +
+            "compose or opt-in beaufort|totient|hill_2|hill_3|ciphertext_autokey|"
+            "plaintext_autokey|theory): " +
             std::string(family));
     }
 

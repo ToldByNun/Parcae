@@ -18,7 +18,11 @@
 #include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
+#include "parcae/generate/ciphertext_autokey_explicit_primer_candidate_generator.hpp"
 #include "parcae/generate/compose_recipe_candidate_generator.hpp"
+#include "parcae/generate/hill2_candidate_generator.hpp"
+#include "parcae/generate/hill3_candidate_generator.hpp"
+#include "parcae/generate/plaintext_autokey_explicit_primer_candidate_generator.hpp"
 #include "parcae/generate/theory_explicit_params_candidate_generator.hpp"
 #include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/transform_candidate.hpp"
@@ -160,6 +164,18 @@ public:
         if (family == "beaufort") {
             return BeaufortExplicitKeyCandidateGenerator::generator_id;
         }
+        if (family == "hill_2") {
+            return Hill2CandidateGenerator::generator_id;
+        }
+        if (family == "hill_3") {
+            return Hill3CandidateGenerator::generator_id;
+        }
+        if (family == "ciphertext_autokey") {
+            return CiphertextAutokeyExplicitPrimerCandidateGenerator::generator_id;
+        }
+        if (family == "plaintext_autokey") {
+            return PlaintextAutokeyExplicitPrimerCandidateGenerator::generator_id;
+        }
         if (family == "totient") {
             return TotientOffsetCandidateGenerator::generator_id;
         }
@@ -172,15 +188,20 @@ public:
         return Status::error("CpuCandidateExport: unsupported family");
     }
 
-    /// Vigenère / Beaufort: explicit keys or bounded synthetic grid.
+    /// Vigenère / Beaufort / CTAK / PTAK: explicit keys/primers or bounded synthetic grid.
+    /// Hill: `matrices` or sample (`max_candidates` / `seed`); empty → generator defaults.
     /// Totient: `prime_start_indices` or contiguous `0..prime_start_count-1`.
     /// Compose: empty → Atbash∘Caesar 29; or recipes / stages / template (passed through).
     /// Theory: `theory_uri` + `params_list` (passed through).
     /// Other families ignore `param_grid` (family default enumeration).
     [[nodiscard]] static StatusOr<nlohmann::json>
     generator_params_for_family(std::string_view family, const nlohmann::json& param_grid) {
-        if (family == "vigenere" || family == "beaufort") {
+        if (family == "vigenere" || family == "beaufort" || family == "ciphertext_autokey" ||
+            family == "plaintext_autokey") {
             return keyed_family_params(param_grid);
+        }
+        if (family == "hill_2" || family == "hill_3") {
+            return hill_family_params(param_grid);
         }
         if (family == "totient") {
             return totient_family_params(param_grid);
@@ -267,6 +288,18 @@ private:
         }
         return nlohmann::json{{"theory_uri", param_grid.at("theory_uri")},
                               {"params_list", param_grid.at("params_list")}};
+    }
+
+    [[nodiscard]] static StatusOr<nlohmann::json>
+    hill_family_params(const nlohmann::json& param_grid) {
+        if (param_grid.is_null() || (param_grid.is_object() && param_grid.empty())) {
+            return nlohmann::json::object();
+        }
+        if (!param_grid.is_object()) {
+            return Status::error("CpuCandidateExport: hill param_grid must be an object");
+        }
+        // Pass through: explicit `matrices` and/or sample `max_candidates` / `seed`.
+        return param_grid;
     }
 
     [[nodiscard]] static StatusOr<nlohmann::json>

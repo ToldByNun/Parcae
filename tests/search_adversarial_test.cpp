@@ -200,6 +200,16 @@ TEST_CASE("L44 adversarial SearchJob JSON: types, missing fields, bounds",
     }
     {
         nlohmann::json j = valid_job_json();
+        j["family"] = "hill_3";
+        REQUIRE_FALSE(SearchJob::from_json(j).ok());
+    }
+    {
+        nlohmann::json j = valid_job_json();
+        j["family"] = "plaintext_autokey";
+        REQUIRE_FALSE(SearchJob::from_json(j).ok());
+    }
+    {
+        nlohmann::json j = valid_job_json();
         j["k"] = 100;
         j["max_candidates"] = 50;
         REQUIRE_FALSE(SearchJob::from_json(j).ok());

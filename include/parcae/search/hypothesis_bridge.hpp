@@ -10,7 +10,11 @@
 #include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
+#include "parcae/generate/ciphertext_autokey_explicit_primer_candidate_generator.hpp"
 #include "parcae/generate/compose_recipe_candidate_generator.hpp"
+#include "parcae/generate/hill2_candidate_generator.hpp"
+#include "parcae/generate/hill3_candidate_generator.hpp"
+#include "parcae/generate/plaintext_autokey_explicit_primer_candidate_generator.hpp"
 #include "parcae/generate/theory_explicit_params_candidate_generator.hpp"
 #include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
@@ -175,6 +179,18 @@ public:
         }
         if (family == "beaufort") {
             return BeaufortExplicitKeyCandidateGenerator::generator_id;
+        }
+        if (family == "hill_2") {
+            return Hill2CandidateGenerator::generator_id;
+        }
+        if (family == "hill_3") {
+            return Hill3CandidateGenerator::generator_id;
+        }
+        if (family == "ciphertext_autokey") {
+            return CiphertextAutokeyExplicitPrimerCandidateGenerator::generator_id;
+        }
+        if (family == "plaintext_autokey") {
+            return PlaintextAutokeyExplicitPrimerCandidateGenerator::generator_id;
         }
         if (family == "totient") {
             return TotientOffsetCandidateGenerator::generator_id;
