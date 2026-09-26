@@ -34,7 +34,8 @@ private:
 | `dsl_ast_limits.hpp` | `DslAstLimits` | Done (v0 ceilings) |
 | `dsl_ast.hpp` | `DslAstNode` / `DslAstDocument` / `DslAstDirective` | Done |
 | `dsl_ast_json_ingest.hpp` | `DslAstJsonIngest` | Done (strict + limits + `directives[]`) |
-| `dsl_semantic_gate.hpp` | `DslSemanticGate` | Done (whitelist + scope-aware CF / E034) |
+| `dsl_semantic_gate.hpp` | `DslSemanticGate` | Done (whitelist + `z29_*` Call allowlist / E032 + scope-aware CF / E034) |
+| `dsl_z29_builtins.hpp` | `DslZ29Builtins` | Done (`z29_*` intrinsic names incl. matmul/det/autokey_shift) |
 | `dsl_divergence_gate.hpp` | `DslDivergenceGate` / `DslPredicateClass` | Done (HotLoop If → E033 / W011) |
 | `dsl_directive_table.hpp` | `DslDirectiveTable` | Done (bind `#ignore` → W010; `--allow-dsl-ignores`) |
 | `host_glue_ir.hpp` | `HostGlueIr` | Done (OuterControl host IR nodes) |

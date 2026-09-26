@@ -220,6 +220,25 @@ def z29_atbash(_x: Any) -> Z29Expr:
     raise_stub()
 
 
+def z29_select(_cond: Any, _a: Any, _b: Any) -> Z29Expr:
+    raise_stub()
+
+
+def z29_matmul(_matrix: Any, _rune_vec: Any) -> Z29Expr:
+    """Hill-style matrix × vector over Z29 (intrinsic; emit/fuse follow-on)."""
+    raise_stub()
+
+
+def z29_det(_matrix: Any) -> Z29Expr:
+    """Determinant mod 29 (intrinsic; emit/fuse follow-on)."""
+    raise_stub()
+
+
+def z29_autokey_shift(_stream: Any, _lag: Any) -> Z29Expr:
+    """Autokey lag/ringbuffer read (intrinsic; emit/fuse follow-on)."""
+    raise_stub()
+
+
 __all__ = [
     "Z29Expr",
     "z29_add",
@@ -247,4 +266,8 @@ __all__ = [
     "z29_bool_not",
     "z29_neg",
     "z29_atbash",
+    "z29_select",
+    "z29_matmul",
+    "z29_det",
+    "z29_autokey_shift",
 ]

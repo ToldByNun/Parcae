@@ -2,6 +2,7 @@
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_rule_id.hpp>
 #include <parcae/dsl/dsl_semantic_gate.hpp>
+#include <parcae/dsl/dsl_z29_builtins.hpp>
 #include <string>
 
 namespace {
@@ -400,3 +401,103 @@ TEST_CASE("DslSemanticGate rejects **kwargs keyword", "[dsl][gate]") {
     REQUIRE(st.message().find("E031") != std::string::npos);
     REQUIRE(st.message().find("kwargs") != std::string::npos);
 }
+
+TEST_CASE("DslSemanticGate accepts z29_matmul / z29_det / z29_autokey_shift",
+          "[dsl][gate][z29][intrinsics]") {
+    REQUIRE(DslZ29Builtins::is_builtin("z29_matmul"));
+    REQUIRE(DslZ29Builtins::is_builtin("z29_det"));
+    REQUIRE(DslZ29Builtins::is_builtin("z29_autokey_shift"));
+    REQUIRE(DslZ29Builtins::arity("z29_matmul") == 2);
+    REQUIRE(DslZ29Builtins::arity("z29_det") == 1);
+    REQUIRE(DslZ29Builtins::arity("z29_autokey_shift") == 2);
+
+    const DslAstDocument matmul = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"Expr","lineno":1,"col_offset":0,
+        "value":{
+          "kind":"Call","lineno":1,"col_offset":0,
+          "func":{"kind":"Name","id":"z29_matmul","ctx":"Load","lineno":1,"col_offset":0},
+          "args":[
+            {"kind":"Name","id":"M","ctx":"Load","lineno":1,"col_offset":11},
+            {"kind":"Name","id":"v","ctx":"Load","lineno":1,"col_offset":14}
+          ],
+          "keywords":[]
+        }
+      }],
+      "type_ignores":[]
+    })");
+    REQUIRE(DslSemanticGate::check(matmul).ok());
+
+    const DslAstDocument det = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"Expr","lineno":1,"col_offset":0,
+        "value":{
+          "kind":"Call","lineno":1,"col_offset":0,
+          "func":{"kind":"Name","id":"z29_det","ctx":"Load","lineno":1,"col_offset":0},
+          "args":[{"kind":"Name","id":"M","ctx":"Load","lineno":1,"col_offset":8}],
+          "keywords":[]
+        }
+      }],
+      "type_ignores":[]
+    })");
+    REQUIRE(DslSemanticGate::check(det).ok());
+
+    const DslAstDocument autokey = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"Expr","lineno":1,"col_offset":0,
+        "value":{
+          "kind":"Call","lineno":1,"col_offset":0,
+          "func":{"kind":"Name","id":"z29_autokey_shift","ctx":"Load","lineno":1,"col_offset":0},
+          "args":[
+            {"kind":"Name","id":"stream","ctx":"Load","lineno":1,"col_offset":18},
+            {"kind":"Name","id":"lag","ctx":"Load","lineno":1,"col_offset":26}
+          ],
+          "keywords":[]
+        }
+      }],
+      "type_ignores":[]
+    })");
+    REQUIRE(DslSemanticGate::check(autokey).ok());
+}
+
+TEST_CASE("DslSemanticGate rejects unknown z29_* and wrong arity", "[dsl][gate][z29]") {
+    REQUIRE_FALSE(DslZ29Builtins::is_allowed_call_name("z29_not_a_real_op"));
+
+    const DslAstDocument unknown = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"Expr","lineno":1,"col_offset":0,
+        "value":{
+          "kind":"Call","lineno":1,"col_offset":0,
+          "func":{"kind":"Name","id":"z29_not_a_real_op","ctx":"Load","lineno":1,"col_offset":0},
+          "args":[],
+          "keywords":[]
+        }
+      }],
+      "type_ignores":[]
+    })");
+    const Status unk = DslSemanticGate::check(unknown);
+    REQUIRE_FALSE(unk.ok());
+    REQUIRE(unk.message().find("E032") != std::string::npos);
+    REQUIRE(unk.message().find("z29_not_a_real_op") != std::string::npos);
+
+    const DslAstDocument bad_arity = ingest_or_fail(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"Expr","lineno":1,"col_offset":0,
+        "value":{
+          "kind":"Call","lineno":1,"col_offset":0,
+          "func":{"kind":"Name","id":"z29_det","ctx":"Load","lineno":1,"col_offset":0},
+          "args":[
+            {"kind":"Name","id":"M","ctx":"Load","lineno":1,"col_offset":8},
+            {"kind":"Name","id":"extra","ctx":"Load","lineno":1,"col_offset":11}
+          ],
+          "keywords":[]
+        }
+      }],
+      "type_ignores":[]
+    })");
+    const Status arity = DslSemanticGate::check(bad_arity);
+    REQUIRE_FALSE(arity.ok());
+    REQUIRE(arity.message().find("E032") != std::string::npos);
+    REQUIRE(arity.message().find("expects 1") != std::string::npos);
+}
+

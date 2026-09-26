@@ -9,7 +9,9 @@
 #include "parcae/dsl/dsl_exec_scope.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/dsl_scope_analyzer.hpp"
+#include "parcae/dsl/dsl_z29_builtins.hpp"
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -17,7 +19,9 @@
 /// Post-ingest DSL whitelist gate (docs/spec/dsl.md, docs/spec/dsl-ast-json.md).
 ///
 /// Rejects forbidden node kinds, non-whitelist imports, nested ClassDef in
-/// functions, starred args / **kwargs, and illegal op/ctx strings.
+/// functions, starred args / **kwargs, illegal op/ctx strings, and unknown
+/// `z29_*` Call names (see `DslZ29Builtins`; includes `z29_matmul` /
+/// `z29_det` / `z29_autokey_shift`).
 /// Scope-aware control flow (`If` / `For` / `While` / `Break` / `Continue`):
 /// OuterControl allowed; HotLoop loops/`break`/`continue` → **E034**
 /// (suppressible via `DslDirectiveTable` + `hotloop_restriction`).
@@ -267,6 +271,46 @@ private:
         return Status::success();
     }
 
+    /// `z29_*` Call names must be on `DslZ29Builtins` (arity checked when known).
+    /// Non-`z29_` names (custom primitives / methods) pass through.
+    [[nodiscard]] static Status check_call(const DslAstNode& node, const GateState& state,
+                                           Loc loc) {
+        const DslAstValue* func = node.find_field("func");
+        if (func == nullptr || func->type() != DslAstValue::Type::Node || func->as_node() == nullptr) {
+            return Status::success(); // malformed Call → BuildIr E032
+        }
+        const DslAstNode& f = *func->as_node();
+        if (f.kind() != "Name") {
+            return Status::success(); // Attribute / other → later stages
+        }
+        const DslAstValue* idv = f.find_field("id");
+        if (idv == nullptr || idv->type() != DslAstValue::Type::String) {
+            return Status::success();
+        }
+        const std::string& id = idv->as_string();
+        if (!DslZ29Builtins::is_allowed_call_name(id)) {
+            return fail(DslRuleId::E032_primitive_body,
+                        "unknown z29_* intrinsic '" + id + "' (not on DslZ29Builtins allowlist)",
+                        state.source_path, loc);
+        }
+        const std::optional<std::size_t> expected = DslZ29Builtins::arity(id);
+        if (!expected.has_value()) {
+            return Status::success();
+        }
+        const DslAstValue* args_v = node.find_field("args");
+        if (args_v == nullptr || args_v->type() != DslAstValue::Type::Array) {
+            return Status::success();
+        }
+        const std::size_t got = args_v->as_array().size();
+        if (got != expected.value()) {
+            return fail(DslRuleId::E032_primitive_body,
+                        "call '" + id + "' expects " + std::to_string(expected.value()) +
+                            " arguments, got " + std::to_string(got),
+                        state.source_path, loc);
+        }
+        return Status::success();
+    }
+
     [[nodiscard]] static Status check_arguments(const DslAstNode& node, const GateState& state) {
         const Loc loc = location_of(node, state);
         for (const char* field : {"vararg", "kwarg"}) {
@@ -380,6 +424,13 @@ private:
 
         if (kind == "ImportFrom") {
             Status st = check_import_from(node, child_state);
+            if (!st.ok()) {
+                return st;
+            }
+        }
+
+        if (kind == "Call") {
+            Status st = check_call(node, child_state, loc);
             if (!st.ok()) {
                 return st;
             }

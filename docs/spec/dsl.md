@@ -237,6 +237,13 @@ representatives. `**` is modular exponentiation (`0**0` → `1`). `~x` is
 | `z29_bool_not` / `not` | zero → `1` else `0` |
 | `z29_atbash` | `28 - x` |
 | `select` / `z29_select` | Branch-free mux: nonzero cond → true arm, else false arm |
+| `z29_matmul` | Matrix × vector over Z29 (Hill-style intrinsic; see `DslZ29Builtins`) |
+| `z29_det` | Determinant mod 29 (matrix intrinsic) |
+| `z29_autokey_shift` | Autokey lag / ringbuffer read (`stream`, `lag`) |
+
+`z29_*` Call names **MUST** appear on the `DslZ29Builtins` allowlist
+(`DslSemanticGate` rejects unknown `z29_*` with **E032**). Custom
+`@define_primitive` names **MUST NOT** use the `z29_` prefix.
 
 `Z29Expr` operator overloads **MUST** build IR in the compiler path, not execute
 arithmetic in the stub package (stubs fail-loud). `MatMult` (`@`) and

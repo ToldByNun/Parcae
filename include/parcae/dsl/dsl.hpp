@@ -59,6 +59,7 @@
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/dsl_scope_analyzer.hpp"
 #include "parcae/dsl/dsl_semantic_gate.hpp"
+#include "parcae/dsl/dsl_z29_builtins.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
 #include "parcae/dsl/dsl_verifier.hpp"
 #include "parcae/dsl/host_glue_ir.hpp"
