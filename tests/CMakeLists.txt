@@ -11,6 +11,7 @@ add_executable(parcae_tests
   z29_matrix2_test.cpp
   z29_matrix3_test.cpp
   fibonacci_stream_test.cpp
+  matrix729_map_test.cpp
   cuda_z29_matrix_parity_test.cpp
   dsl_spec_version_test.cpp
   dsl_diag_test.cpp
