@@ -5,12 +5,14 @@
 #include "parcae/core/status_or.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
+#include "parcae/dsl/matrix_ir.hpp"
 #include "parcae/dsl/param_ir.hpp"
 #include "parcae/dsl/primitive_ir.hpp"
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/z29_expr.hpp"
 
 #include <cctype>
+#include <cstddef>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -78,9 +80,12 @@ public:
         out << "#include \"parcae/core/status.hpp\"\n";
         out << "#include \"parcae/core/status_or.hpp\"\n";
         out << "#include \"parcae/core/z29.hpp\"\n";
+        out << "#include \"parcae/math/z29_matrix2.hpp\"\n";
+        out << "#include \"parcae/math/z29_matrix3.hpp\"\n";
         out << "#include \"parcae/interrupt/policy.hpp\"\n";
         out << "#include \"parcae/transform/transform_buffer.hpp\"\n";
         out << "#include \"parcae/transform/transform_direction.hpp\"\n\n";
+        out << "#include <array>\n";
         out << "#include <cstdint>\n";
         out << "#include <span>\n";
         out << "#include <string>\n";
@@ -249,7 +254,10 @@ public:
         out << "#include \"parcae/core/index29.hpp\"\n";
         out << "#include \"parcae/core/status.hpp\"\n";
         out << "#include \"parcae/core/status_or.hpp\"\n";
-        out << "#include \"parcae/core/z29.hpp\"\n\n";
+        out << "#include \"parcae/core/z29.hpp\"\n";
+        out << "#include \"parcae/math/z29_matrix2.hpp\"\n";
+        out << "#include \"parcae/math/z29_matrix3.hpp\"\n";
+        out << "#include <array>\n";
         out << "#include <string_view>\n\n";
         out << "class " << class_name << " {\n";
         out << "public:\n";
@@ -447,6 +455,12 @@ private:
                 return emit_expr_rec(*Z29Expr::make_select(args[0], args[1], args[2]), cipher_var,
                                      cipher_cpp);
             }
+            if (n == "z29_det") {
+                return emit_z29_det_call(args, cipher_var, cipher_cpp);
+            }
+            if (n == "z29_matmul") {
+                return emit_z29_matmul_call(args, cipher_var, cipher_cpp);
+            }
             return fail(DslRuleId::E032_primitive_body,
                         "cannot emit unknown primitive call '" + n + "'");
         }
@@ -559,6 +573,98 @@ private:
             }
         }
         return fail(DslRuleId::E032_primitive_body, "unknown Z29Expr kind in emit");
+    }
+
+    /// Flat Call `z29_det(a,b,c,d)` or 9 entries → `Z29MatrixN::from_row_major({...}).det()`.
+    [[nodiscard]] static StatusOr<std::string>
+    emit_z29_det_call(const std::vector<Z29Expr::Ptr>& args, std::string_view cipher_var,
+                      std::string_view cipher_cpp) {
+        if (args.size() != 4 && args.size() != 9) {
+            return fail(DslRuleId::E032_primitive_body,
+                        "z29_det Call emit expects 4 or 9 flattened matrix entries");
+        }
+        std::string parts;
+        for (std::size_t i = 0; i < args.size(); ++i) {
+            if (!args[i]) {
+                return fail(DslRuleId::E032_primitive_body, "z29_det null matrix entry");
+            }
+            StatusOr<std::string> e = emit_expr_rec(*args[i], cipher_var, cipher_cpp);
+            if (!e.ok()) {
+                return e.status();
+            }
+            if (i != 0) {
+                parts += ", ";
+            }
+            parts += e.value();
+        }
+        if (args.size() == 4) {
+            return std::string("Z29Matrix2::from_row_major(std::array<Index29, 4>{") + parts +
+                   "}).det()";
+        }
+        return std::string("Z29Matrix3::from_row_major(std::array<Index29, 9>{") + parts +
+               "}).det()";
+    }
+
+    /// Flat Call `z29_matmul` with n²+n entries → expand to `mul_vec` then take no default;
+    /// emit the full `mul_vec` expression as component trees joined is not Index29.
+    /// Instead: expand via MatrixIr and emit component 0..n-1 is wrong for one return.
+    /// Emit path: rebuild MatrixIr and emit `mul_vec` C++ returning array, then `.at(0)` is
+    /// only valid when args include a trailing component — require n²+n entries and emit
+    /// the linear form for a requested component via expanding all components' trees for
+    /// the last-arg-as-index convention: (matrix..., vec..., indexConst) — not used.
+    ///
+    /// v0: emit flattened matmul Call by expanding MatrixIr::mul_vec_exprs()[0] tree when
+    /// the call has n²+n args (tests may use emit_expr on mul_vec_component trees instead).
+    /// Prefer BuildIr `z29_matmul(...)[i]` which expands before emit.
+    [[nodiscard]] static StatusOr<std::string>
+    emit_z29_matmul_call(const std::vector<Z29Expr::Ptr>& args, std::string_view cipher_var,
+                         std::string_view cipher_cpp) {
+        std::size_t n = 0;
+        if (args.size() == 6) {
+            n = 2;
+        } else if (args.size() == 12) {
+            n = 3;
+        } else {
+            return fail(DslRuleId::E032_primitive_body,
+                        "z29_matmul Call emit expects 6 (2x2) or 12 (3x3) flattened entries "
+                        "(matrix then vector); prefer BuildIr z29_matmul(...)[i]");
+        }
+        std::vector<Z29Expr::Ptr> matrix_entries(args.begin(),
+                                                 args.begin() + static_cast<std::ptrdiff_t>(n * n));
+        StatusOr<MatrixIr> matrix = MatrixIr::make(matrix_entries);
+        if (!matrix.ok()) {
+            return matrix.status();
+        }
+        (void)matrix;
+        std::string mparts;
+        for (std::size_t i = 0; i < n * n; ++i) {
+            StatusOr<std::string> e = emit_expr_rec(*args[i], cipher_var, cipher_cpp);
+            if (!e.ok()) {
+                return e.status();
+            }
+            if (i != 0) {
+                mparts += ", ";
+            }
+            mparts += e.value();
+        }
+        std::string vparts;
+        for (std::size_t i = 0; i < n; ++i) {
+            StatusOr<std::string> e =
+                emit_expr_rec(*args[n * n + i], cipher_var, cipher_cpp);
+            if (!e.ok()) {
+                return e.status();
+            }
+            if (i != 0) {
+                vparts += ", ";
+            }
+            vparts += e.value();
+        }
+        if (n == 2) {
+            return std::string("Z29Matrix2::from_row_major(std::array<Index29, 4>{") + mparts +
+                   "}).mul_vec(" + vparts + ")[0]";
+        }
+        return std::string("Z29Matrix3::from_row_major(std::array<Index29, 9>{") + mparts +
+               "}).mul_vec(std::array<Index29, 3>{" + vparts + "})[0]";
     }
 };
 

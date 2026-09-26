@@ -42,7 +42,7 @@ private:
 | `dsl_host_glue.hpp` | `DslHostGlue` | Done (for/while → HostGlueIr / E035) |
 | `dsl_exec_scope.hpp` | `DslExecScope` | Done (OuterControl / HotLoop + loop depth) |
 | `dsl_scope_analyzer.hpp` | `DslScopeAnalyzer` / `DslScopeMap` | Done (AST → scope map) |
-| `z29_expr.hpp` | `Z29Expr` | Done (IR + `Select` mux + eval via Z29) |
+| `matrix_ir.hpp` | `MatrixIr` | Done (2×2 / 3×3 Z29Expr; det / mul_vec expand) |
 | `param_ir.hpp` | `ParamIr` | Done |
 | `primitive_ir.hpp` | `PrimitiveIr` | Done |
 | `theory_ir.hpp` | `TheoryIr` | Done |

@@ -63,6 +63,7 @@
 #include "parcae/dsl/dsl_spec_version.hpp"
 #include "parcae/dsl/dsl_verifier.hpp"
 #include "parcae/dsl/host_glue_ir.hpp"
+#include "parcae/dsl/matrix_ir.hpp"
 #include "parcae/dsl/param_ir.hpp"
 #include "parcae/dsl/primitive_ir.hpp"
 #include "parcae/dsl/theory_apply_ir.hpp"

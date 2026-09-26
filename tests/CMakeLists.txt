@@ -30,6 +30,7 @@ add_executable(parcae_tests
   dsl_ast_ingest_fuzz_test.cpp
   dsl_ir_applicator_test.cpp
   dsl_emit_cpu_test.cpp
+  dsl_matrix_ir_test.cpp
   dsl_emit_cuda_test.cpp
   dsl_poly2_oracle_test.cpp
   dsl_verify_test.cpp
@@ -143,7 +144,7 @@ target_compile_definitions(parcae_tests PRIVATE
   PARCAE_GOLDENS_TOOL_JSON_DIR="${CMAKE_SOURCE_DIR}/tests/goldens/tool-json"
 )
 
-# Host-side CUDA façade headers (params POD / JSON) live under Parcae/Parcae/cuda/.
+# Host-side CUDA faÃ§ade headers (params POD / JSON) live under Parcae/Parcae/cuda/.
 target_include_directories(parcae_tests PRIVATE
   "${CMAKE_SOURCE_DIR}/Parcae/Parcae/cuda"
 )

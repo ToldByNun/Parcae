@@ -8,6 +8,7 @@
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_divergence_gate.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
+#include "parcae/dsl/matrix_ir.hpp"
 #include "parcae/dsl/param_ir.hpp"
 #include "parcae/dsl/primitive_ir.hpp"
 #include "parcae/dsl/theory_ir.hpp"
@@ -881,6 +882,9 @@ private:
             if (node.kind() == "Call") {
                 return lower_call(node, locals, theory);
             }
+            if (node.kind() == "Subscript") {
+                return lower_subscript(node, locals, theory);
+            }
             return fail(DslRuleId::E032_primitive_body,
                         "unsupported expression kind '" + node.kind() + "'", source_path,
                         node.lineno(), node.col_offset());
@@ -1028,6 +1032,25 @@ private:
                 args_v->type() != DslAstValue::Type::Array) {
                 return fail(DslRuleId::E032_primitive_body, "malformed Call", source_path);
             }
+
+            const DslAstNode& f = *func->as_node();
+            if (f.kind() == "Name") {
+                const DslAstValue* idv = f.find_field("id");
+                if (!idv || idv->type() != DslAstValue::Type::String) {
+                    return fail(DslRuleId::E032_primitive_body, "Call Name.id missing",
+                                source_path);
+                }
+                const std::string& id = idv->as_string();
+
+                // Matrix intrinsics: args are Tuple/List of Z29Expr (not scalar-lowered first).
+                if (id == "z29_det") {
+                    return lower_z29_det(node, args_v->as_array(), locals, theory);
+                }
+                if (id == "z29_matmul") {
+                    return lower_z29_matmul_call(node, args_v->as_array(), locals, theory);
+                }
+            }
+
             std::vector<Z29Expr::Ptr> args;
             for (const DslAstValue& a : args_v->as_array()) {
                 if (a.type() != DslAstValue::Type::Node || !a.as_node()) {
@@ -1041,7 +1064,6 @@ private:
                 args.push_back(std::move(e.value()));
             }
 
-            const DslAstNode& f = *func->as_node();
             if (f.kind() == "Name") {
                 const DslAstValue* idv = f.find_field("id");
                 if (!idv || idv->type() != DslAstValue::Type::String) {
@@ -1178,6 +1200,183 @@ private:
             }
             return fail(DslRuleId::E032_primitive_body, "unsupported Call target", source_path,
                         node.lineno(), node.col_offset());
+        }
+
+        [[nodiscard]] StatusOr<Z29Expr::Ptr>
+        lower_subscript(const DslAstNode& node,
+                        std::unordered_map<std::string, Z29Expr::Ptr>& locals,
+                        const TheoryDraft* theory) {
+            const DslAstValue* value = node.find_field("value");
+            const DslAstValue* slice = node.find_field("slice");
+            if (!value || value->type() != DslAstValue::Type::Node || !value->as_node() || !slice ||
+                slice->type() != DslAstValue::Type::Node || !slice->as_node()) {
+                return fail(DslRuleId::E032_primitive_body, "malformed Subscript", source_path,
+                            node.lineno(), node.col_offset());
+            }
+            const DslAstNode& slice_n = *slice->as_node();
+            std::int64_t index = -1;
+            if (slice_n.kind() == "Constant") {
+                const DslAstValue* val = slice_n.find_field("value");
+                if (!val || val->type() != DslAstValue::Type::Int) {
+                    return fail(DslRuleId::E032_primitive_body,
+                                "Subscript index must be an integer constant", source_path,
+                                node.lineno(), node.col_offset());
+                }
+                index = val->as_int();
+            } else {
+                return fail(DslRuleId::E032_primitive_body,
+                            "Subscript index must be a Constant int (got " + slice_n.kind() + ")",
+                            source_path, node.lineno(), node.col_offset());
+            }
+            if (index < 0) {
+                return fail(DslRuleId::E032_primitive_body, "Subscript index must be non-negative",
+                            source_path, node.lineno(), node.col_offset());
+            }
+
+            const DslAstNode& val_n = *value->as_node();
+            if (val_n.kind() != "Call") {
+                return fail(DslRuleId::E032_primitive_body,
+                            "only z29_matmul(...)[i] subscript is supported in v0", source_path,
+                            node.lineno(), node.col_offset());
+            }
+            const DslAstValue* func = val_n.find_field("func");
+            const DslAstValue* args_v = val_n.find_field("args");
+            if (!func || func->type() != DslAstValue::Type::Node || !func->as_node() ||
+                func->as_node()->kind() != "Name" || !args_v ||
+                args_v->type() != DslAstValue::Type::Array) {
+                return fail(DslRuleId::E032_primitive_body, "malformed z29_matmul subscript Call",
+                            source_path, node.lineno(), node.col_offset());
+            }
+            const DslAstValue* idv = func->as_node()->find_field("id");
+            if (!idv || idv->type() != DslAstValue::Type::String ||
+                idv->as_string() != "z29_matmul") {
+                return fail(DslRuleId::E032_primitive_body,
+                            "only z29_matmul(...)[i] subscript is supported in v0", source_path,
+                            node.lineno(), node.col_offset());
+            }
+            return lower_z29_matmul_component(val_n, args_v->as_array(),
+                                              static_cast<std::size_t>(index), locals, theory);
+        }
+
+        [[nodiscard]] StatusOr<Z29Expr::Ptr>
+        lower_z29_det(const DslAstNode& call_node, const std::vector<DslAstValue>& args,
+                      std::unordered_map<std::string, Z29Expr::Ptr>& locals,
+                      const TheoryDraft* theory) {
+            if (args.size() != 1 || args[0].type() != DslAstValue::Type::Node ||
+                !args[0].as_node()) {
+                return fail(DslRuleId::E032_primitive_body,
+                            "z29_det expects one Tuple/List matrix argument", source_path,
+                            call_node.lineno(), call_node.col_offset());
+            }
+            StatusOr<MatrixIr> matrix =
+                lower_matrix_arg(*args[0].as_node(), locals, theory, call_node);
+            if (!matrix.ok()) {
+                return matrix.status();
+            }
+            Z29Expr::Ptr out = matrix.value().det_expr();
+            out->set_location(source_path, call_node.lineno(), call_node.col_offset());
+            return out;
+        }
+
+        /// Bare `z29_matmul(M, v)` is a vector — require `z29_matmul(M, v)[i]`.
+        [[nodiscard]] StatusOr<Z29Expr::Ptr>
+        lower_z29_matmul_call(const DslAstNode& call_node, const std::vector<DslAstValue>&,
+                              std::unordered_map<std::string, Z29Expr::Ptr>&,
+                              const TheoryDraft*) {
+            return fail(DslRuleId::E032_primitive_body,
+                        "z29_matmul returns a vector; index with z29_matmul(M, v)[i]",
+                        source_path, call_node.lineno(), call_node.col_offset());
+        }
+
+        [[nodiscard]] StatusOr<Z29Expr::Ptr>
+        lower_z29_matmul_component(const DslAstNode& call_node,
+                                   const std::vector<DslAstValue>& args, std::size_t index,
+                                   std::unordered_map<std::string, Z29Expr::Ptr>& locals,
+                                   const TheoryDraft* theory) {
+            StatusOr<std::pair<MatrixIr, std::vector<Z29Expr::Ptr>>> parsed =
+                parse_matmul_args(call_node, args, locals, theory);
+            if (!parsed.ok()) {
+                return parsed.status();
+            }
+            StatusOr<Z29Expr::Ptr> comp =
+                parsed.value().first.mul_vec_component(parsed.value().second, index);
+            if (!comp.ok()) {
+                return fail(DslRuleId::E032_primitive_body, comp.status().message(), source_path,
+                            call_node.lineno(), call_node.col_offset());
+            }
+            comp.value()->set_location(source_path, call_node.lineno(), call_node.col_offset());
+            return comp;
+        }
+
+        [[nodiscard]] StatusOr<std::pair<MatrixIr, std::vector<Z29Expr::Ptr>>>
+        parse_matmul_args(const DslAstNode& call_node, const std::vector<DslAstValue>& args,
+                          std::unordered_map<std::string, Z29Expr::Ptr>& locals,
+                          const TheoryDraft* theory) {
+            if (args.size() != 2 || args[0].type() != DslAstValue::Type::Node || !args[0].as_node() ||
+                args[1].type() != DslAstValue::Type::Node || !args[1].as_node()) {
+                return fail(DslRuleId::E032_primitive_body,
+                            "z29_matmul expects (matrix_tuple, vec_tuple)", source_path,
+                            call_node.lineno(), call_node.col_offset());
+            }
+            StatusOr<MatrixIr> matrix =
+                lower_matrix_arg(*args[0].as_node(), locals, theory, call_node);
+            if (!matrix.ok()) {
+                return matrix.status();
+            }
+            StatusOr<std::vector<Z29Expr::Ptr>> vec =
+                lower_tuple_exprs(*args[1].as_node(), locals, theory, call_node);
+            if (!vec.ok()) {
+                return vec.status();
+            }
+            if (vec.value().size() != matrix.value().n()) {
+                return fail(DslRuleId::E032_primitive_body,
+                            "z29_matmul vector length must equal matrix n", source_path,
+                            call_node.lineno(), call_node.col_offset());
+            }
+            return std::make_pair(std::move(matrix.value()), std::move(vec.value()));
+        }
+
+        [[nodiscard]] StatusOr<MatrixIr>
+        lower_matrix_arg(const DslAstNode& node,
+                         std::unordered_map<std::string, Z29Expr::Ptr>& locals,
+                         const TheoryDraft* theory, const DslAstNode& at) {
+            StatusOr<std::vector<Z29Expr::Ptr>> entries =
+                lower_tuple_exprs(node, locals, theory, at);
+            if (!entries.ok()) {
+                return entries.status();
+            }
+            return MatrixIr::make(std::move(entries.value()), source_path, at.lineno(),
+                                  at.col_offset());
+        }
+
+        [[nodiscard]] StatusOr<std::vector<Z29Expr::Ptr>>
+        lower_tuple_exprs(const DslAstNode& node,
+                          std::unordered_map<std::string, Z29Expr::Ptr>& locals,
+                          const TheoryDraft* theory, const DslAstNode& at) {
+            if (node.kind() != "Tuple" && node.kind() != "List") {
+                return fail(DslRuleId::E032_primitive_body,
+                            "matrix/vector args must be Tuple or List (got " + node.kind() + ")",
+                            source_path, at.lineno(), at.col_offset());
+            }
+            const DslAstValue* elts = node.find_field("elts");
+            if (!elts || elts->type() != DslAstValue::Type::Array) {
+                return fail(DslRuleId::E032_primitive_body, "Tuple/List.elts missing", source_path,
+                            at.lineno(), at.col_offset());
+            }
+            std::vector<Z29Expr::Ptr> out;
+            out.reserve(elts->as_array().size());
+            for (const DslAstValue& e : elts->as_array()) {
+                if (e.type() != DslAstValue::Type::Node || !e.as_node()) {
+                    return fail(DslRuleId::E032_primitive_body, "Tuple/List elt must be expression",
+                                source_path, at.lineno(), at.col_offset());
+                }
+                StatusOr<Z29Expr::Ptr> expr = lower_expr(*e.as_node(), locals, theory);
+                if (!expr.ok()) {
+                    return expr.status();
+                }
+                out.push_back(std::move(expr.value()));
+            }
+            return out;
         }
 
         [[nodiscard]] static StatusOr<Z29Expr::Ptr>
