@@ -75,11 +75,12 @@ private:
                                  "] must be an integer");
         }
         const auto raw = item.get<std::int64_t>();
-        if (raw < 0 || raw > 28) {
+        StatusOr<Index29> entry = Index29::try_make(raw);
+        if (!entry.ok()) {
             return Status::error("hill_3 params.matrix[" + std::to_string(index) +
                                  "] must be in 0..28");
         }
-        return Index29{static_cast<std::uint8_t>(raw)};
+        return entry;
     }
 
     [[nodiscard]] static StatusOr<Z29Matrix3> parse_matrix(const nlohmann::json& params) {

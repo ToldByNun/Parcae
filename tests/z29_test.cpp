@@ -16,10 +16,22 @@ TEST_CASE("Index29 try_make accepts 0..28 and rejects 29+", "[index29][try_make]
         REQUIRE(got.ok());
         REQUIRE(got.value().value() == v);
     }
-    const StatusOr<Index29> bad = Index29::try_make(29);
+    const StatusOr<Index29> bad = Index29::try_make(static_cast<std::uint8_t>(29));
     REQUIRE_FALSE(bad.ok());
     REQUIRE(bad.status().message().find("out of range") != std::string::npos);
-    REQUIRE_FALSE(Index29::try_make(255).ok());
+    REQUIRE_FALSE(Index29::try_make(static_cast<std::uint8_t>(255)).ok());
+}
+
+TEST_CASE("Index29 try_make(int64) rejects negatives and values >= 29",
+          "[index29][try_make]") {
+    for (std::int64_t v = 0; v < Index29::modulus; ++v) {
+        const StatusOr<Index29> got = Index29::try_make(v);
+        REQUIRE(got.ok());
+        REQUIRE(got.value().value() == static_cast<std::uint8_t>(v));
+    }
+    REQUIRE_FALSE(Index29::try_make(static_cast<std::int64_t>(-1)).ok());
+    REQUIRE_FALSE(Index29::try_make(static_cast<std::int64_t>(29)).ok());
+    REQUIRE_FALSE(Index29::try_make(static_cast<std::int64_t>(256)).ok());
 }
 
 TEST_CASE("Z29 add/sub wraparound", "[z29]") {

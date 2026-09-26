@@ -399,10 +399,11 @@ private:
                 return Status::error("HypothesisBridge: output_indices entries must be integers");
             }
             const std::int64_t value = item.get<std::int64_t>();
-            if (value < 0 || value >= static_cast<std::int64_t>(Index29::modulus)) {
+            StatusOr<Index29> idx = Index29::try_make(value);
+            if (!idx.ok()) {
                 return Status::error("HypothesisBridge: output_indices out of range [0,28]");
             }
-            out.push_back(Index29{static_cast<std::uint8_t>(value)});
+            out.push_back(idx.value());
         }
         return out;
     }

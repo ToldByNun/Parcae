@@ -129,10 +129,11 @@ private:
                     "generate_candidates: invalid indices input (expected digits)");
             }
             const unsigned long value = std::stoul(std::string(text.substr(i, j - i)));
-            if (value >= Index29::modulus) {
+            StatusOr<Index29> idx = Index29::try_make(static_cast<std::int64_t>(value));
+            if (!idx.ok()) {
                 return Status::error("generate_candidates: Index29 out of range [0,28]");
             }
-            out.push_back(Index29{static_cast<std::uint8_t>(value)});
+            out.push_back(idx.value());
             i = j;
         }
         if (out.empty()) {

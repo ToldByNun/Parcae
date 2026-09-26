@@ -116,11 +116,12 @@ private:
                     "columnar_transposition key_indices entries must be integers");
             }
             const auto raw = item.get<std::int64_t>();
-            if (raw < 0 || raw > 28) {
+            StatusOr<Index29> idx = Index29::try_make(raw);
+            if (!idx.ok()) {
                 return Status::error(
                     "columnar_transposition key_indices entries must be in 0..28");
             }
-            out.key.push_back(static_cast<std::uint8_t>(raw));
+            out.key.push_back(idx.value().value());
         }
         if (out.key.empty()) {
             return Status::error("columnar_transposition key_indices must be non-empty");

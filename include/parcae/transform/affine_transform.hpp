@@ -63,11 +63,12 @@ private:
             return Status::error(std::string("affine params.") + key + " must be an integer");
         }
         const auto raw = params.at(key).get<std::int64_t>();
-        if (raw < static_cast<std::int64_t>(min_inclusive) ||
-            raw > static_cast<std::int64_t>(max_inclusive)) {
+        StatusOr<Index29> idx = Index29::try_make(raw);
+        if (!idx.ok() || idx.value().value() < min_inclusive ||
+            idx.value().value() > max_inclusive) {
             return Status::error(std::string("affine params.") + key + " out of valid range");
         }
-        return Index29{static_cast<std::uint8_t>(raw)};
+        return idx;
     }
 
     [[nodiscard]] static StatusOr<Params> parse_params(const nlohmann::json& params) {

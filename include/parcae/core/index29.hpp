@@ -29,6 +29,15 @@ public:
         return unchecked(value);
     }
 
+    /// Soft construction from a signed integer (JSON / CLI parse). Rejects
+    /// negatives and values ≥ 29 without truncating through `uint8_t`.
+    [[nodiscard]] static StatusOr<Index29> try_make(std::int64_t value) {
+        if (value < 0 || value >= static_cast<std::int64_t>(modulus)) {
+            return Status::error("Index29::try_make: value out of range 0..28");
+        }
+        return unchecked(static_cast<std::uint8_t>(value));
+    }
+
     [[nodiscard]] constexpr std::uint8_t value() const noexcept { return value_; }
 
     [[nodiscard]] constexpr explicit operator std::uint8_t() const noexcept { return value_; }

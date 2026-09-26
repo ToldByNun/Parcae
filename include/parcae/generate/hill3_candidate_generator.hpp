@@ -182,10 +182,11 @@ private:
                     return Status::error("gen_hill_3 matrix entries must be integers");
                 }
                 const auto raw = item[i].get<std::int64_t>();
-                if (raw < 0 || raw > 28) {
+                StatusOr<Index29> entry = Index29::try_make(raw);
+                if (!entry.ok()) {
                     return Status::error("gen_hill_3 matrix entries must be in 0..28");
                 }
-                entries[i] = Index29{static_cast<std::uint8_t>(raw)};
+                entries[i] = entry.value();
             }
             const Z29Matrix3 m = Z29Matrix3::from_row_major(entries);
             if (m.det().value() == 0) {

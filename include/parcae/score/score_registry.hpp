@@ -148,11 +148,12 @@ private:
                                      " params.reference entries must be integers");
             }
             const int value = item.get<int>();
-            if (value < 0 || value >= static_cast<int>(Index29::modulus)) {
+            StatusOr<Index29> idx = Index29::try_make(static_cast<std::int64_t>(value));
+            if (!idx.ok()) {
                 return Status::error(std::string(score_name) +
                                      " params.reference entry out of range [0,28]");
             }
-            out.push_back(Index29{static_cast<std::uint8_t>(value)});
+            out.push_back(idx.value());
         }
         return out;
     }

@@ -56,14 +56,14 @@ private:
             return Status::error("caesar params.shift must be an integer");
         }
         const auto raw = params.at("shift").get<std::int64_t>();
-        if (raw < 0 || raw > 28) {
-            return Status::error("caesar params.shift must be in 0..28");
-        }
         if (params.size() != 1) {
             return Status::error("caesar params may only contain shift");
         }
-        return Index29{static_cast<std::uint8_t>(raw)};
+        StatusOr<Index29> shift = Index29::try_make(raw);
+        if (!shift.ok()) {
+            return Status::error("caesar params.shift must be in 0..28");
+        }
+        return shift;
     }
 };
-
 #endif // CAESAR_TRANSFORM_HPP

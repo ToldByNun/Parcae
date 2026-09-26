@@ -149,10 +149,11 @@ void print_help() {
             return Status::error("output_indices entries must be integers");
         }
         const auto value = item.get<std::int64_t>();
-        if (value < 0 || value >= static_cast<std::int64_t>(Index29::modulus)) {
+        StatusOr<Index29> idx = Index29::try_make(value);
+        if (!idx.ok()) {
             return Status::error("output_indices entry out of range [0,28]");
         }
-        indices.push_back(Index29{static_cast<std::uint8_t>(value)});
+        indices.push_back(idx.value());
     }
 
     return TransformCandidate{

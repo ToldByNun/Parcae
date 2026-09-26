@@ -107,14 +107,15 @@ public:
     [[nodiscard]] static bool is_select(Kind k) noexcept { return k == Kind::Select; }
 
     [[nodiscard]] static StatusOr<Ptr> constant(std::int64_t value) {
-        if (value < 0 || value >= Index29::modulus) {
+        StatusOr<Index29> idx = Index29::try_make(value);
+        if (!idx.ok()) {
             return DslDiag::make(DslRuleId::E040_param_domain,
                                  "constant " + std::to_string(value) +
                                      " is outside Index29 domain 0..28")
                 .to_status();
         }
         auto node = std::shared_ptr<Z29Expr>(new Z29Expr(Kind::Const));
-        node->const_value_ = static_cast<std::uint8_t>(value);
+        node->const_value_ = idx.value().value();
         return node;
     }
 
