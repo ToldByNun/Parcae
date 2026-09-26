@@ -8,7 +8,8 @@
 #include <string>
 #include <string_view>
 
-/// Path-safe helpers for `data/workspaces/<id>/` (HypothesisRecord I/O).
+/// Path-safe helpers for `data/workspaces/<id>/` (HypothesisRecord I/O and
+/// research layout: `pages/`, `research/`, `README.md`, `SOURCE.txt`).
 class WorkspacePaths {
 public:
     /// `[a-z_][a-z0-9_-]{0,63}` — shared by workspace_id and hypothesis_id.
@@ -92,6 +93,66 @@ public:
             return dir.status();
         }
         return dir.value() / bid.value();
+    }
+
+    /// Research layout: `pages/` (page ciphertexts `00.txt` …).
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    pages_dir(const std::filesystem::path& data_root, std::string_view workspace_id) {
+        StatusOr<std::filesystem::path> root = workspace_root(data_root, workspace_id);
+        if (!root.ok()) {
+            return root.status();
+        }
+        return root.value() / "pages";
+    }
+
+    /// Research layout: `research/` (REPRODUCE.md, run.log, digests, …).
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    research_dir(const std::filesystem::path& data_root, std::string_view workspace_id) {
+        StatusOr<std::filesystem::path> root = workspace_root(data_root, workspace_id);
+        if (!root.ok()) {
+            return root.status();
+        }
+        return root.value() / "research";
+    }
+
+    /// Research layout: workspace-root `README.md`.
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    readme_path(const std::filesystem::path& data_root, std::string_view workspace_id) {
+        StatusOr<std::filesystem::path> root = workspace_root(data_root, workspace_id);
+        if (!root.ok()) {
+            return root.status();
+        }
+        return root.value() / "README.md";
+    }
+
+    /// Research layout: workspace-root `SOURCE.txt`.
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    source_path(const std::filesystem::path& data_root, std::string_view workspace_id) {
+        StatusOr<std::filesystem::path> root = workspace_root(data_root, workspace_id);
+        if (!root.ok()) {
+            return root.status();
+        }
+        return root.value() / "SOURCE.txt";
+    }
+
+    /// Optional slim/agent layout: `inputs/` (ciphertext copies / INDEX.md).
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    inputs_dir(const std::filesystem::path& data_root, std::string_view workspace_id) {
+        StatusOr<std::filesystem::path> root = workspace_root(data_root, workspace_id);
+        if (!root.ok()) {
+            return root.status();
+        }
+        return root.value() / "inputs";
+    }
+
+    /// Optional agent layout: `transcripts/`.
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    transcripts_dir(const std::filesystem::path& data_root, std::string_view workspace_id) {
+        StatusOr<std::filesystem::path> root = workspace_root(data_root, workspace_id);
+        if (!root.ok()) {
+            return root.status();
+        }
+        return root.value() / "transcripts";
     }
 
     /// Reject absolute paths and any `..` segment; require result under `root`.

@@ -60,6 +60,39 @@ TEST_CASE("WorkspacePaths validate id and reject traversal", "[hypothesis][paths
     REQUIRE_FALSE(WorkspacePaths::deny_fixtures_write(data_root(), fixtures_target).ok());
 }
 
+TEST_CASE("WorkspacePaths research layout helpers", "[hypothesis][paths][research]") {
+    StatusOr<std::filesystem::path> pages = WorkspacePaths::pages_dir(data_root(), "_example");
+    REQUIRE(pages.ok());
+    REQUIRE(pages.value() == data_root() / "workspaces" / "_example" / "pages");
+
+    StatusOr<std::filesystem::path> research =
+        WorkspacePaths::research_dir(data_root(), "_example");
+    REQUIRE(research.ok());
+    REQUIRE(research.value() == data_root() / "workspaces" / "_example" / "research");
+
+    StatusOr<std::filesystem::path> readme = WorkspacePaths::readme_path(data_root(), "_example");
+    REQUIRE(readme.ok());
+    REQUIRE(readme.value() == data_root() / "workspaces" / "_example" / "README.md");
+
+    StatusOr<std::filesystem::path> source = WorkspacePaths::source_path(data_root(), "_example");
+    REQUIRE(source.ok());
+    REQUIRE(source.value() == data_root() / "workspaces" / "_example" / "SOURCE.txt");
+
+    StatusOr<std::filesystem::path> inputs = WorkspacePaths::inputs_dir(data_root(), "_example");
+    REQUIRE(inputs.ok());
+    REQUIRE(inputs.value() == data_root() / "workspaces" / "_example" / "inputs");
+
+    StatusOr<std::filesystem::path> transcripts =
+        WorkspacePaths::transcripts_dir(data_root(), "_example");
+    REQUIRE(transcripts.ok());
+    REQUIRE(transcripts.value() == data_root() / "workspaces" / "_example" / "transcripts");
+
+    REQUIRE_FALSE(WorkspacePaths::pages_dir(data_root(), "BadId").ok());
+    REQUIRE_FALSE(WorkspacePaths::research_dir(data_root(), "").ok());
+    REQUIRE_FALSE(WorkspacePaths::readme_path(data_root(), "../evil").ok());
+    REQUIRE_FALSE(WorkspacePaths::source_path(data_root(), "1leading").ok());
+}
+
 TEST_CASE("HypothesisRecord loads committed _example", "[hypothesis][load]") {
     StatusOr<HypothesisRecord> record =
         HypothesisRecord::load(data_root(), "_example", "h-atbash-example");
