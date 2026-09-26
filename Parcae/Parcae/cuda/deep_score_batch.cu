@@ -1,3 +1,4 @@
+#include "autokey_ctak_device.hpp"
 #include "chi2_batch_score.hpp"
 #include "cuda_error.hpp"
 #include "deep_score_batch.hpp"
@@ -22,6 +23,8 @@ Status DeepScoreBatch::zero_scores(double* device_scores, std::size_t candidate_
         "DeepScoreBatch::zero scores");
 }
 
+/// Dense CTAK decrypt→hist. Key formula = `AutokeyCtakDevice` /
+/// CPU `CiphertextAutokeyTransform` (empty skips).
 __global__ void autokey_chi2_hist_kernel(const std::uint8_t* in, const std::uint8_t* key_bytes,
                                          const std::uint32_t* key_begin,
                                          const std::uint32_t* key_len, std::uint32_t* counts,
@@ -42,19 +45,18 @@ __global__ void autokey_chi2_hist_kernel(const std::uint8_t* in, const std::uint
     }
     __syncthreads();
 
+    const std::uint8_t* primer = key_bytes + static_cast<std::size_t>(begin);
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     for (std::size_t t =
              tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
          t < token_count; t += stride) {
-        std::uint8_t key_symbol;
-        if (static_cast<std::uint32_t>(t) < len) {
-            key_symbol = (static_cast<std::uint32_t>(t) < cached)
-                             ? key_cache[static_cast<std::uint32_t>(t)]
-                             : key_bytes[begin + static_cast<std::uint32_t>(t)];
-        } else {
-            key_symbol = in[t - static_cast<std::size_t>(len)];
-        }
-        HistFast::add_private(priv, HistFast::dec_sub(in[t], key_symbol));
+        // `cached == min(len, 64)` ⇒ `t < cached` implies `t < len`, so key_cache is a valid
+        // primer prefix for AutokeyCtakDevice; otherwise use the full global primer.
+        const std::uint8_t* primer_view =
+            (static_cast<std::uint32_t>(t) < cached) ? key_cache : primer;
+        const std::uint8_t key_symbol =
+            AutokeyCtakDevice::decrypt_key(in, primer_view, len, t);
+        HistFast::add_private(priv, AutokeyCtakDevice::decrypt_symbol(in[t], key_symbol));
     }
     HistFast::flush_private(priv,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));

@@ -34,6 +34,9 @@ Files:
 | `affine_kernel.hpp` / `affine_kernel.cu` | `AffineKernel` — `a·x+b` / `inv(a)·(x-b)` twin |
 | `affine_batch_kernel.hpp` / `.cu` | `AffineBatchKernel` — shared tokens + 812 `(a,b)` lanes |
 | `vigenere_key_kernel.hpp` / `.cu` | `VigenereKeyKernel` — key ring + interrupt skips twin |
+| `autokey_ctak_device.hpp` | `AutokeyCtakDevice` — dense CTAK decrypt key/symbol (shared) |
+| `ciphertext_autokey_kernel.hpp` / `.cu` | `CiphertextAutokeyKernel` — CTAK twin; dense decrypt parallel |
+| `deep_score_batch.hpp` / `.cu` | `DeepScoreBatch` — fused multi-key / CTAK autokey / n-gram χ² |
 | `vigenere_batch_kernel.hpp` / `.cu` | `VigenereBatchKernel` — explicit key-list SoA batch |
 | `beaufort_key_kernel.hpp` / `.cu` | `BeaufortKeyKernel` — `key-in` involution + skips twin |
 | `totient_prime_stream_kernel.hpp` / `.cu` | `TotientPrimeStreamKernel` — host shifts + skips twin |

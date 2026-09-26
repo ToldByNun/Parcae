@@ -7,6 +7,10 @@
 #include <cstdint>
 
 /// Heavier fused decrypt+score paths for multi-key / autokey / n-gram tiers.
+///
+/// Autokey hist (`launch_autokey_chi2_async`) is dense CTAK decrypt: primer while
+/// `t < L`, else key = ciphertext `in[t-L]`, via `AutokeyCtakDevice` — same formula as
+/// CPU `CiphertextAutokeyTransform` with empty interrupts.
 class DeepScoreBatch {
 public:
     static constexpr std::size_t alphabet_size = 29;

@@ -171,8 +171,9 @@ Ciphertext autokey (CTAK) over \(\mathbb{Z}_{29}\) with primer length \(L\).
 | `encrypt` | \(j < L\) → `key[j]`; else prior **ciphertext** at lag \(L\) | `out = add(in, key)` |
 | `decrypt` | \(j < L\) → `key[j]`; else prior **ciphertext** at lag \(L\) | `out = sub(in, key)` |
 
-Dense (empty skips) matches the CUDA `DeepScoreBatch` autokey hist kernel:
-primer while absolute index \(i < L\), then key = `ciphertext[i-L]`.
+Dense (empty skips) matches the CUDA `DeepScoreBatch` autokey hist kernel and
+`CiphertextAutokeyKernel` dense decrypt (`AutokeyCtakDevice`): primer while absolute
+index \(i < L\), then key = `ciphertext[i-L]`.
 
 Rules:
 
