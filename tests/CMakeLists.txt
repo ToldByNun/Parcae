@@ -75,6 +75,7 @@ add_executable(parcae_tests
   agent_policy_cli_test.cpp
   hypothesis_record_test.cpp
   hypothesis_sandbox_test.cpp
+  workspace_scaffold_test.cpp
   search_job_test.cpp
   search_adversarial_test.cpp
   search_prior_test.cpp
