@@ -3,6 +3,9 @@
 
 #include "parcae/core/index29.hpp"
 
+#include "parcae/core/status.hpp"
+#include "parcae/core/status_or.hpp"
+
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -38,6 +41,14 @@ public:
         return Index29::unchecked(inv_table[a.value()]);
     }
 
+    /// Soft inverse: `a == 0` → `Status` error (no abort).
+    [[nodiscard]] static StatusOr<Index29> try_inv(Index29 a) {
+        if (a.value() == 0) {
+            return Status::error("Z29::try_inv: inverse of 0 is undefined");
+        }
+        return Index29::unchecked(inv_table[a.value()]);
+    }
+
     /// Atbash on Gematria indices: `28 - x`.
     [[nodiscard]] static constexpr Index29 atbash(Index29 x) noexcept {
         return Index29::unchecked(static_cast<std::uint8_t>(28 - x.value()));
@@ -63,6 +74,14 @@ public:
     [[nodiscard]] static constexpr Index29 floor_div(Index29 x, Index29 y) {
         if (y.value() == 0) {
             fatal_invalid();
+        }
+        return Index29::unchecked(static_cast<std::uint8_t>(x.value() / y.value()));
+    }
+
+    /// Soft floor-division: `y == 0` → `Status` error (no abort).
+    [[nodiscard]] static StatusOr<Index29> try_floor_div(Index29 x, Index29 y) {
+        if (y.value() == 0) {
+            return Status::error("Z29::try_floor_div: divisor is 0");
         }
         return Index29::unchecked(static_cast<std::uint8_t>(x.value() / y.value()));
     }

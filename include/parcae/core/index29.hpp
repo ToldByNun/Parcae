@@ -1,6 +1,9 @@
 #ifndef INDEX29_HPP
 #define INDEX29_HPP
 
+#include "parcae/core/status.hpp"
+#include "parcae/core/status_or.hpp"
+
 #include <compare>
 #include <cstdint>
 #include <cstdlib>
@@ -16,6 +19,14 @@ public:
         if (value >= modulus) {
             fatal_invalid();
         }
+    }
+
+    /// Soft construction: out-of-range → `Status` error (no abort).
+    [[nodiscard]] static StatusOr<Index29> try_make(std::uint8_t value) {
+        if (value >= modulus) {
+            return Status::error("Index29::try_make: value out of range 0..28");
+        }
+        return unchecked(value);
     }
 
     [[nodiscard]] constexpr std::uint8_t value() const noexcept { return value_; }
