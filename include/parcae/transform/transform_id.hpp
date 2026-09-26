@@ -31,6 +31,10 @@ public:
         return TransformId{"plaintext_autokey"};
     }
 
+    [[nodiscard]] static TransformId variable_delay_autokey() {
+        return TransformId{"variable_delay_autokey"};
+    }
+
     [[nodiscard]] static TransformId compose() { return TransformId{"compose"}; }
 
     [[nodiscard]] static TransformId vigenere_key() { return TransformId{"vigenere_key"}; }
@@ -71,6 +75,9 @@ public:
         }
         if (text == "plaintext_autokey") {
             return plaintext_autokey();
+        }
+        if (text == "variable_delay_autokey") {
+            return variable_delay_autokey();
         }
         if (text == "compose") {
             return compose();

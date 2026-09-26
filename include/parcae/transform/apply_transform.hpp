@@ -17,6 +17,7 @@
 #include "parcae/transform/totient_prime_stream_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
+#include "parcae/transform/variable_delay_autokey_transform.hpp"
 #include "parcae/transform/vigenere_key_transform.hpp"
 
 #include <nlohmann/json.hpp>
@@ -61,6 +62,10 @@ public:
         if (id == TransformId::plaintext_autokey()) {
             return PlaintextAutokeyTransform{}.apply_into(input, output, params, direction,
                                                          interrupt);
+        }
+        if (id == TransformId::variable_delay_autokey()) {
+            return VariableDelayAutokeyTransform{}.apply_into(input, output, params, direction,
+                                                             interrupt);
         }
         if (id == TransformId::beaufort_key()) {
             return BeaufortKeyTransform{}.apply_into(input, output, params, direction, interrupt);

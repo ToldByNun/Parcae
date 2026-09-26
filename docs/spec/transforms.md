@@ -213,6 +213,55 @@ written `output[i-L]`.
 Rules: same as `ciphertext_autokey` for `key_indices` / `key_latin` / interrupts /
 empty primer.
 
+### `variable_delay_autokey`
+
+```json
+{
+  "transform_id": "variable_delay_autokey",
+  "direction": "decrypt",
+  "params": {
+    "key_indices": [3, 5],
+    "key_latin": optional,
+    "lag": 3,
+    "lag_prime_index": optional,
+    "mode": "ciphertext"
+  },
+  "interrupt": {
+    "policy_id": "explicit_skip_indices_v0",
+    "rune_index_base": 0,
+    "skip_indices": []
+  }
+}
+```
+
+Variable-delay autokey over \(\mathbb{Z}_{29}\) with prime lag \(p \ge 2\).
+
+Exactly one of `lag` or `lag_prime_index` MUST be set. `lag` MUST be prime.
+`lag_prime_index` is 0-based (`0` → \(p=2\), `1` → \(p=3\), …) via `Primes::nth`.
+`mode` defaults to `"ciphertext"`; allowed values: `"ciphertext"` | `"plaintext"`.
+
+| Direction | Key at consumed position \(j\) | Mix |
+|-----------|--------------------------------|-----|
+| `encrypt` | \(j < p\) → `key[j \bmod L]`; else prior stream at lag \(p\) | `out = add(in, key)` |
+| `decrypt` | same key rule | `out = sub(in, key)` |
+
+Feedback stream by `mode`:
+
+| `mode` | Encrypt feedback | Decrypt feedback |
+|--------|------------------|------------------|
+| `ciphertext` | prior **ciphertext** | input **ciphertext** |
+| `plaintext` | prior **plaintext** | recovered **plaintext** |
+
+When \(L = p\), mode `ciphertext` matches `ciphertext_autokey`; mode `plaintext`
+matches `plaintext_autokey`.
+
+Rules:
+
+- `key_indices` MUST be a non-empty array of integers in `0..28`.
+- Optional `key_latin` is metadata only when `key_indices` is present.
+- Interrupt skips pass through and do **not** consume primer/feedback.
+- Composite / non-prime `lag`, missing lag selector, or empty primer MUST hard-error.
+
 ### `compose`
 
 ```json
