@@ -35,6 +35,12 @@ public:
         return TransformId{"variable_delay_autokey"};
     }
 
+    [[nodiscard]] static TransformId spiral_read() { return TransformId{"spiral_read"}; }
+
+    [[nodiscard]] static TransformId boustrophedon_read() {
+        return TransformId{"boustrophedon_read"};
+    }
+
     [[nodiscard]] static TransformId compose() { return TransformId{"compose"}; }
 
     [[nodiscard]] static TransformId vigenere_key() { return TransformId{"vigenere_key"}; }
@@ -78,6 +84,12 @@ public:
         }
         if (text == "variable_delay_autokey") {
             return variable_delay_autokey();
+        }
+        if (text == "spiral_read") {
+            return spiral_read();
+        }
+        if (text == "boustrophedon_read") {
+            return boustrophedon_read();
         }
         if (text == "compose") {
             return compose();

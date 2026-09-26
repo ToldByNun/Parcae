@@ -7,6 +7,7 @@
 #include "parcae/transform/affine_transform.hpp"
 #include "parcae/transform/atbash_transform.hpp"
 #include "parcae/transform/beaufort_key_transform.hpp"
+#include "parcae/transform/boustrophedon_read_transform.hpp"
 #include "parcae/transform/caesar_transform.hpp"
 #include "parcae/transform/ciphertext_autokey_transform.hpp"
 #include "parcae/transform/compose_transform.hpp"
@@ -14,6 +15,7 @@
 #include "parcae/transform/hill3_transform.hpp"
 #include "parcae/transform/identity_transform.hpp"
 #include "parcae/transform/plaintext_autokey_transform.hpp"
+#include "parcae/transform/spiral_read_transform.hpp"
 #include "parcae/transform/totient_prime_stream_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
 #include "parcae/transform/transform_id.hpp"
@@ -66,6 +68,13 @@ public:
         if (id == TransformId::variable_delay_autokey()) {
             return VariableDelayAutokeyTransform{}.apply_into(input, output, params, direction,
                                                              interrupt);
+        }
+        if (id == TransformId::spiral_read()) {
+            return SpiralReadTransform{}.apply_into(input, output, params, direction, interrupt);
+        }
+        if (id == TransformId::boustrophedon_read()) {
+            return BoustrophedonReadTransform{}.apply_into(input, output, params, direction,
+                                                           interrupt);
         }
         if (id == TransformId::beaufort_key()) {
             return BeaufortKeyTransform{}.apply_into(input, output, params, direction, interrupt);

@@ -263,6 +263,63 @@ Rules:
 - Interrupt skips pass through and do **not** consume primer/feedback.
 - Composite / non-prime `lag`, missing lag selector, or empty primer MUST hard-error.
 
+### `spiral_read`
+
+```json
+{
+  "transform_id": "spiral_read",
+  "direction": "decrypt",
+  "params": {
+    "rows": 3,
+    "cols": 4,
+    "spiral": "inward"
+  }
+}
+```
+
+Pure index permutation on a `rows × cols` row-major grid (`N = rows·cols`).
+
+| Direction | Semantics |
+|-----------|-----------|
+| `decrypt` | Read spiral order from row-major input (`out[i] = in[order[i]]`) |
+| `encrypt` | Inverse (scatter spiral stream back to row-major) |
+
+Spiral is clockwise starting at top-left. `spiral` defaults to `"inward"`; `"outward"`
+is the reverse visit order. Interrupt policy is ignored.
+
+Rules:
+
+- `rows` / `cols` MUST be integers `≥ 1`.
+- Input length MUST equal `rows * cols`.
+- Params MUST contain only `rows`, `cols`, and optional `spiral`.
+
+### `boustrophedon_read`
+
+```json
+{
+  "transform_id": "boustrophedon_read",
+  "direction": "decrypt",
+  "params": {
+    "rows": 3,
+    "cols": 4,
+    "first_row": "ltr"
+  }
+}
+```
+
+Pure index permutation: alternating row directions on a `rows × cols` row-major grid.
+
+| Direction | Semantics |
+|-----------|-----------|
+| `decrypt` | Read boustrophedon order (`out[i] = in[order[i]]`) |
+| `encrypt` | Inverse scatter |
+
+`first_row` defaults to `"ltr"` (row 0 left→right, row 1 right→left, …). `"rtl"` flips
+the parity. Interrupt policy is ignored.
+
+Rules: same length / dimension constraints as `spiral_read`. Params MUST contain only
+`rows`, `cols`, and optional `first_row`.
+
 ### `compose`
 
 ```json

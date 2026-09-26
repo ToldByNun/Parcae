@@ -5,6 +5,7 @@
 #include <parcae/transform/apply_transform.hpp>
 #include <parcae/transform/atbash_transform.hpp>
 #include <parcae/transform/beaufort_key_transform.hpp>
+#include <parcae/transform/boustrophedon_read_transform.hpp>
 #include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/ciphertext_autokey_transform.hpp>
 #include <parcae/transform/compose_transform.hpp>
@@ -12,6 +13,7 @@
 #include <parcae/transform/hill3_transform.hpp>
 #include <parcae/transform/identity_transform.hpp>
 #include <parcae/transform/plaintext_autokey_transform.hpp>
+#include <parcae/transform/spiral_read_transform.hpp>
 #include <parcae/transform/totient_prime_stream_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
@@ -29,6 +31,8 @@ TEST_CASE("TransformId serializes known catalog ids", "[transform]") {
     REQUIRE(TransformId::ciphertext_autokey().str() == "ciphertext_autokey");
     REQUIRE(TransformId::plaintext_autokey().str() == "plaintext_autokey");
     REQUIRE(TransformId::variable_delay_autokey().str() == "variable_delay_autokey");
+    REQUIRE(TransformId::spiral_read().str() == "spiral_read");
+    REQUIRE(TransformId::boustrophedon_read().str() == "boustrophedon_read");
 
     StatusOr<TransformId> parsed = TransformId::from_string("compose");
     REQUIRE(parsed.ok());
@@ -53,6 +57,14 @@ TEST_CASE("TransformId serializes known catalog ids", "[transform]") {
     StatusOr<TransformId> vda = TransformId::from_string("variable_delay_autokey");
     REQUIRE(vda.ok());
     REQUIRE(vda.value() == TransformId::variable_delay_autokey());
+
+    StatusOr<TransformId> spiral = TransformId::from_string("spiral_read");
+    REQUIRE(spiral.ok());
+    REQUIRE(spiral.value() == TransformId::spiral_read());
+
+    StatusOr<TransformId> boustro = TransformId::from_string("boustrophedon_read");
+    REQUIRE(boustro.ok());
+    REQUIRE(boustro.value() == TransformId::boustrophedon_read());
 
     StatusOr<TransformId> unknown = TransformId::from_string("not-a-transform");
     REQUIRE_FALSE(unknown.ok());
@@ -753,6 +765,130 @@ TEST_CASE("ComposeTransform can stage variable_delay_autokey", "[transform][auto
              {nlohmann::json{{"transform_id", "variable_delay_autokey"},
                              {"params",
                               {{"key_indices", {3, 5}}, {"lag", 2}, {"mode", "plaintext"}}}}})},
+    };
+
+    StatusOr<std::vector<Index29>> cipher =
+        transform.apply(plain, params, TransformDirection::Encrypt);
+    REQUIRE(cipher.ok());
+    StatusOr<std::vector<Index29>> recovered =
+        transform.apply(cipher.value(), params, TransformDirection::Decrypt);
+    REQUIRE(recovered.ok());
+    REQUIRE(recovered.value() == plain);
+}
+
+TEST_CASE("SpiralReadTransform 3x3 inward decrypt matches clockwise order",
+          "[transform][transposition][spiral]") {
+    const SpiralReadTransform transform;
+    REQUIRE(transform.id() == TransformId::spiral_read());
+
+    // Row-major: 0 1 2 / 3 4 5 / 6 7 8 → spiral: 0,1,2,5,8,7,6,3,4
+    const std::vector<Index29> grid{Index29{0}, Index29{1}, Index29{2}, Index29{3}, Index29{4},
+                                    Index29{5}, Index29{6}, Index29{7}, Index29{8}};
+    const nlohmann::json params{{"rows", 3}, {"cols", 3}, {"spiral", "inward"}};
+
+    StatusOr<std::vector<Index29>> read =
+        transform.apply(grid, params, TransformDirection::Decrypt);
+    REQUIRE(read.ok());
+    REQUIRE(read.value() == std::vector<Index29>{Index29{0}, Index29{1}, Index29{2}, Index29{5},
+                                                 Index29{8}, Index29{7}, Index29{6}, Index29{3},
+                                                 Index29{4}});
+
+    StatusOr<std::vector<Index29>> recovered =
+        transform.apply(read.value(), params, TransformDirection::Encrypt);
+    REQUIRE(recovered.ok());
+    REQUIRE(recovered.value() == grid);
+
+    StatusOr<std::vector<Index29>> via_dispatch =
+        ApplyTransform::apply(TransformId::spiral_read(), grid, params, TransformDirection::Decrypt);
+    REQUIRE(via_dispatch.ok());
+    REQUIRE(via_dispatch.value() == read.value());
+}
+
+TEST_CASE("SpiralReadTransform outward is reverse of inward",
+          "[transform][transposition][spiral]") {
+    const SpiralReadTransform transform;
+    const std::vector<Index29> grid{Index29{0}, Index29{1}, Index29{2}, Index29{3}};
+    const nlohmann::json inward{{"rows", 2}, {"cols", 2}, {"spiral", "inward"}};
+    const nlohmann::json outward{{"rows", 2}, {"cols", 2}, {"spiral", "outward"}};
+
+    StatusOr<std::vector<Index29>> in_order =
+        transform.apply(grid, inward, TransformDirection::Decrypt);
+    StatusOr<std::vector<Index29>> out_order =
+        transform.apply(grid, outward, TransformDirection::Decrypt);
+    REQUIRE(in_order.ok());
+    REQUIRE(out_order.ok());
+    // 2x2 inward: 0,1,3,2 → outward: 2,3,1,0
+    REQUIRE(in_order.value() ==
+            std::vector<Index29>{Index29{0}, Index29{1}, Index29{3}, Index29{2}});
+    REQUIRE(out_order.value() ==
+            std::vector<Index29>{Index29{2}, Index29{3}, Index29{1}, Index29{0}});
+}
+
+TEST_CASE("SpiralReadTransform rejects bad dims and length", "[transform][transposition][spiral]") {
+    const SpiralReadTransform transform;
+    const std::vector<Index29> grid{Index29{0}, Index29{1}, Index29{2}};
+    REQUIRE_FALSE(
+        transform.apply(grid, nlohmann::json{{"rows", 2}, {"cols", 2}}, TransformDirection::Decrypt)
+            .ok());
+    REQUIRE_FALSE(
+        transform.apply(grid, nlohmann::json{{"rows", 0}, {"cols", 3}}, TransformDirection::Decrypt)
+            .ok());
+}
+
+TEST_CASE("BoustrophedonReadTransform 3x4 ltr matches alternating rows",
+          "[transform][transposition][boustrophedon]") {
+    const BoustrophedonReadTransform transform;
+    REQUIRE(transform.id() == TransformId::boustrophedon_read());
+
+    // 0 1 2 3 / 4 5 6 7 / 8 9 10 11 → 0,1,2,3, 7,6,5,4, 8,9,10,11
+    std::vector<Index29> grid;
+    for (std::uint8_t i = 0; i < 12; ++i) {
+        grid.push_back(Index29{i});
+    }
+    const nlohmann::json params{{"rows", 3}, {"cols", 4}, {"first_row", "ltr"}};
+
+    StatusOr<std::vector<Index29>> read =
+        transform.apply(grid, params, TransformDirection::Decrypt);
+    REQUIRE(read.ok());
+    REQUIRE(read.value() ==
+            std::vector<Index29>{Index29{0}, Index29{1}, Index29{2}, Index29{3}, Index29{7},
+                                 Index29{6}, Index29{5}, Index29{4}, Index29{8}, Index29{9},
+                                 Index29{10}, Index29{11}});
+
+    StatusOr<std::vector<Index29>> recovered =
+        transform.apply(read.value(), params, TransformDirection::Encrypt);
+    REQUIRE(recovered.ok());
+    REQUIRE(recovered.value() == grid);
+}
+
+TEST_CASE("BoustrophedonReadTransform first_row rtl flips parity",
+          "[transform][transposition][boustrophedon]") {
+    const BoustrophedonReadTransform transform;
+    const std::vector<Index29> grid{Index29{0}, Index29{1}, Index29{2}, Index29{3}, Index29{4},
+                                    Index29{5}};
+    const nlohmann::json params{{"rows", 3}, {"cols", 2}, {"first_row", "rtl"}};
+
+    StatusOr<std::vector<Index29>> read =
+        transform.apply(grid, params, TransformDirection::Decrypt);
+    REQUIRE(read.ok());
+    // row0 rtl: 1,0; row1 ltr: 2,3; row2 rtl: 5,4
+    REQUIRE(read.value() ==
+            std::vector<Index29>{Index29{1}, Index29{0}, Index29{2}, Index29{3}, Index29{5},
+                                 Index29{4}});
+}
+
+TEST_CASE("ComposeTransform can stage spiral_read and boustrophedon_read",
+          "[transform][transposition]") {
+    const ComposeTransform transform;
+    const std::vector<Index29> plain{Index29{0}, Index29{1}, Index29{2}, Index29{3}, Index29{4},
+                                     Index29{5}, Index29{6}, Index29{7}, Index29{8}};
+    const nlohmann::json params{
+        {"stages",
+         nlohmann::json::array(
+             {nlohmann::json{{"transform_id", "spiral_read"},
+                             {"params", {{"rows", 3}, {"cols", 3}}}},
+              nlohmann::json{{"transform_id", "boustrophedon_read"},
+                             {"params", {{"rows", 3}, {"cols", 3}, {"first_row", "ltr"}}}}})},
     };
 
     StatusOr<std::vector<Index29>> cipher =

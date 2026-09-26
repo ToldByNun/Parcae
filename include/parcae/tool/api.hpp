@@ -263,7 +263,8 @@ public:
             TransformId::hill_2().str(),       TransformId::hill_3().str(),
             TransformId::compose().str(),      TransformId::vigenere_key().str(),
             TransformId::ciphertext_autokey().str(), TransformId::plaintext_autokey().str(),
-            TransformId::variable_delay_autokey().str(), TransformId::beaufort_key().str(),
+            TransformId::variable_delay_autokey().str(), TransformId::spiral_read().str(),
+            TransformId::boustrophedon_read().str(), TransformId::beaufort_key().str(),
             TransformId::totient_prime_stream().str(),
         };
     }
