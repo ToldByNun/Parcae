@@ -80,6 +80,7 @@ public:
         out << "#include \"parcae/core/status.hpp\"\n";
         out << "#include \"parcae/core/status_or.hpp\"\n";
         out << "#include \"parcae/core/z29.hpp\"\n";
+        out << "#include \"parcae/math/autokey_ring.hpp\"\n";
         out << "#include \"parcae/math/z29_matrix2.hpp\"\n";
         out << "#include \"parcae/math/z29_matrix3.hpp\"\n";
         out << "#include \"parcae/interrupt/policy.hpp\"\n";
@@ -296,6 +297,19 @@ public:
         return out;
     }
 
+    /// `input[i]` / `in[i]` → `input` / `in` (for `z29_autokey_shift` stream base).
+    [[nodiscard]] static StatusOr<std::string>
+    stream_base_from_cipher_cpp(std::string_view cipher_cpp) {
+        constexpr std::string_view suffix = "[i]";
+        if (cipher_cpp.size() <= suffix.size() ||
+            cipher_cpp.substr(cipher_cpp.size() - suffix.size()) != suffix) {
+            return fail(DslRuleId::E032_primitive_body,
+                        "z29_autokey_shift requires cipher_cpp ending in [i] (got '" +
+                            std::string(cipher_cpp) + "')");
+        }
+        return std::string(cipher_cpp.substr(0, cipher_cpp.size() - suffix.size()));
+    }
+
 private:
     DslEmitCpu() = delete;
 
@@ -460,6 +474,9 @@ private:
             }
             if (n == "z29_matmul") {
                 return emit_z29_matmul_call(args, cipher_var, cipher_cpp);
+            }
+            if (n == "z29_autokey_shift") {
+                return emit_z29_autokey_shift_call(args, cipher_var, cipher_cpp);
             }
             return fail(DslRuleId::E032_primitive_body,
                         "cannot emit unknown primitive call '" + n + "'");
@@ -665,6 +682,31 @@ private:
         }
         return std::string("Z29Matrix3::from_row_major(std::array<Index29, 9>{") + mparts +
                "}).mul_vec(std::array<Index29, 3>{" + vparts + "})[0]";
+    }
+
+    /// `z29_autokey_shift(stream, lag)` → `AutokeyRing::shift(input, i, lag)`.
+    /// `stream` MUST be the HotLoop cipher var; `cipher_cpp` MUST end with `[i]`.
+    [[nodiscard]] static StatusOr<std::string>
+    emit_z29_autokey_shift_call(const std::vector<Z29Expr::Ptr>& args, std::string_view cipher_var,
+                                std::string_view cipher_cpp) {
+        if (args.size() != 2 || !args[0] || !args[1]) {
+            return fail(DslRuleId::E032_primitive_body,
+                        "z29_autokey_shift expects (stream, lag)");
+        }
+        if (args[0]->kind() != Z29Expr::Kind::Var || args[0]->name() != cipher_var) {
+            return fail(DslRuleId::E032_primitive_body,
+                        "z29_autokey_shift stream must be the HotLoop cipher var '" +
+                            std::string(cipher_var) + "'");
+        }
+        StatusOr<std::string> base = stream_base_from_cipher_cpp(cipher_cpp);
+        if (!base.ok()) {
+            return base.status();
+        }
+        StatusOr<std::string> lag = emit_expr_rec(*args[1], cipher_var, cipher_cpp);
+        if (!lag.ok()) {
+            return lag.status();
+        }
+        return std::string("AutokeyRing::shift(") + base.value() + ", i, " + lag.value() + ")";
     }
 };
 

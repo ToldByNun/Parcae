@@ -7,16 +7,19 @@
 #include "parcae/dsl/dsl_emit_cpu.hpp"
 #include "parcae/dsl/dsl_launch_plan.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
+#include "parcae/dsl/matrix_ir.hpp"
 #include "parcae/dsl/param_ir.hpp"
 #include "parcae/dsl/primitive_ir.hpp"
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/z29_expr.hpp"
 
 #include <cctype>
+#include <cstddef>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 /// Emit CUDA twin source text from DSL IR (`Z29Device` + Kernel façade).
 /// Intended for `Parcae/Parcae/cuda/emitted/` (relative includes `../z29_device.hpp`, …).
@@ -114,6 +117,10 @@ public:
             return dec.status();
         }
 
+        const bool need_autokey =
+            expr_uses_autokey_shift(theory.encrypt_step()) ||
+            expr_uses_autokey_shift(theory.decrypt_step());
+
         const std::string class_name = DslEmitCpu::to_pascal(theory.name()) + "Kernel";
         const std::string kern_fn = theory.name() + "_kernel";
 
@@ -122,7 +129,11 @@ public:
         out << "#include \"" << class_name << ".hpp\"\n\n";
         out << "#include \"../cuda_error.hpp\"\n";
         out << "#include \"../device_buffer.hpp\"\n";
-        out << "#include \"../z29_device.hpp\"\n\n";
+        out << "#include \"../z29_device.hpp\"\n";
+        if (need_autokey) {
+            out << "#include \"../autokey_ring_device.hpp\"\n";
+        }
+        out << "\n";
         out << "#include <cuda_runtime_api.h>\n\n";
         out << "namespace {\n\n";
         out << "constexpr int kThreadsPerBlock = " << DslLaunchPlan::threads_per_block << ";\n\n";
@@ -498,6 +509,15 @@ private:
                 return emit_expr_rec(*Z29Expr::make_select(args[0], args[1], args[2]), cipher_var,
                                      cipher_cpp);
             }
+            if (n == "z29_det") {
+                return emit_z29_det_call(args, cipher_var, cipher_cpp);
+            }
+            if (n == "z29_matmul") {
+                return emit_z29_matmul_call(args, cipher_var, cipher_cpp);
+            }
+            if (n == "z29_autokey_shift") {
+                return emit_z29_autokey_shift_call(args, cipher_var, cipher_cpp);
+            }
             return fail(DslRuleId::E032_primitive_body,
                         "cannot CUDA-emit unknown primitive call '" + n + "'");
         }
@@ -611,6 +631,104 @@ private:
             }
         }
         return fail(DslRuleId::E032_primitive_body, "unknown Z29Expr kind in CUDA emit");
+    }
+
+    /// Flattened `z29_det` Call → expand `MatrixIr::det_expr()` then emit via Z29Device.
+    [[nodiscard]] static StatusOr<std::string>
+    emit_z29_det_call(const std::vector<Z29Expr::Ptr>& args, std::string_view cipher_var,
+                      std::string_view cipher_cpp) {
+        if (args.size() != 4 && args.size() != 9) {
+            return fail(DslRuleId::E032_primitive_body,
+                        "z29_det Call CUDA emit expects 4 or 9 flattened matrix entries");
+        }
+        StatusOr<MatrixIr> matrix = MatrixIr::make(args);
+        if (!matrix.ok()) {
+            return matrix.status();
+        }
+        return emit_expr_rec(*matrix.value().det_expr(), cipher_var, cipher_cpp);
+    }
+
+    /// Flattened `z29_matmul` (n²+n) → emit component 0 of `mul_vec` via MatrixIr expand.
+    [[nodiscard]] static StatusOr<std::string>
+    emit_z29_matmul_call(const std::vector<Z29Expr::Ptr>& args, std::string_view cipher_var,
+                         std::string_view cipher_cpp) {
+        std::size_t n = 0;
+        if (args.size() == 6) {
+            n = 2;
+        } else if (args.size() == 12) {
+            n = 3;
+        } else {
+            return fail(DslRuleId::E032_primitive_body,
+                        "z29_matmul Call CUDA emit expects 6 (2x2) or 12 (3x3) flattened entries "
+                        "(matrix then vector); prefer BuildIr z29_matmul(...)[i]");
+        }
+        std::vector<Z29Expr::Ptr> matrix_entries(args.begin(),
+                                                 args.begin() + static_cast<std::ptrdiff_t>(n * n));
+        StatusOr<MatrixIr> matrix = MatrixIr::make(matrix_entries);
+        if (!matrix.ok()) {
+            return matrix.status();
+        }
+        std::vector<Z29Expr::Ptr> vec(args.begin() + static_cast<std::ptrdiff_t>(n * n), args.end());
+        StatusOr<Z29Expr::Ptr> comp = matrix.value().mul_vec_component(vec, 0);
+        if (!comp.ok()) {
+            return comp.status();
+        }
+        return emit_expr_rec(*comp.value(), cipher_var, cipher_cpp);
+    }
+
+    /// `z29_autokey_shift(stream, lag)` → `AutokeyRingDevice::shift(in, i, lag)`.
+    [[nodiscard]] static StatusOr<std::string>
+    emit_z29_autokey_shift_call(const std::vector<Z29Expr::Ptr>& args, std::string_view cipher_var,
+                                std::string_view cipher_cpp) {
+        if (args.size() != 2 || !args[0] || !args[1]) {
+            return fail(DslRuleId::E032_primitive_body,
+                        "z29_autokey_shift expects (stream, lag)");
+        }
+        if (args[0]->kind() != Z29Expr::Kind::Var || args[0]->name() != cipher_var) {
+            return fail(DslRuleId::E032_primitive_body,
+                        "z29_autokey_shift stream must be the HotLoop cipher var '" +
+                            std::string(cipher_var) + "'");
+        }
+        StatusOr<std::string> base = DslEmitCpu::stream_base_from_cipher_cpp(cipher_cpp);
+        if (!base.ok()) {
+            return base.status();
+        }
+        StatusOr<std::string> lag = emit_expr_rec(*args[1], cipher_var, cipher_cpp);
+        if (!lag.ok()) {
+            return lag.status();
+        }
+        return std::string("AutokeyRingDevice::shift(") + base.value() + ", i, " + lag.value() +
+               ")";
+    }
+
+    [[nodiscard]] static bool expr_uses_autokey_shift(const Z29Expr::Ptr& expr) {
+        if (!expr) {
+            return false;
+        }
+        using Kind = Z29Expr::Kind;
+        if (expr->kind() == Kind::Call) {
+            if (expr->name() == "z29_autokey_shift") {
+                return true;
+            }
+            for (const Z29Expr::Ptr& a : expr->args()) {
+                if (expr_uses_autokey_shift(a)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (expr->kind() == Kind::Select) {
+            return expr_uses_autokey_shift(expr->cond()) ||
+                   expr_uses_autokey_shift(expr->if_true()) ||
+                   expr_uses_autokey_shift(expr->if_false());
+        }
+        if (Z29Expr::is_binary(expr->kind())) {
+            return expr_uses_autokey_shift(expr->left()) || expr_uses_autokey_shift(expr->right());
+        }
+        if (Z29Expr::is_unary(expr->kind())) {
+            return expr_uses_autokey_shift(expr->arg());
+        }
+        return false;
     }
 };
 

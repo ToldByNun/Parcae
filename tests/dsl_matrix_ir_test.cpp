@@ -3,6 +3,7 @@
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_build_ir.hpp>
 #include <parcae/dsl/dsl_emit_cpu.hpp>
+#include <parcae/dsl/dsl_emit_cuda.hpp>
 #include <parcae/dsl/dsl_semantic_gate.hpp>
 #include <parcae/dsl/matrix_ir.hpp>
 #include <parcae/dsl/z29_expr.hpp>
@@ -263,4 +264,55 @@ TEST_CASE("DslBuildIr rejects bare z29_matmul without subscript", "[dsl][build][
     StatusOr<DslBuildIr::Unit> unit = DslBuildIr::build(doc);
     REQUIRE_FALSE(unit.ok());
     REQUIRE(unit.status().message().find("vector") != std::string::npos);
+}
+
+TEST_CASE("DslBuildIr keeps z29_autokey_shift as Call", "[dsl][build][autokey]") {
+    const std::string module = R"JSON({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"FunctionDef","name":"lag_key","lineno":3,"col_offset":0,
+        "args":{"kind":"arguments","posonlyargs":[],"args":[
+          {"kind":"arg","arg":"x","lineno":3,"col_offset":12},
+          {"kind":"arg","arg":"lag","lineno":3,"col_offset":15}
+        ],"kwonlyargs":[],"kw_defaults":[],"defaults":[]},
+        "body":[{
+          "kind":"Return","lineno":4,"col_offset":4,
+          "value":{
+            "kind":"Call","lineno":4,"col_offset":11,
+            "func":{"kind":"Name","id":"z29_autokey_shift","ctx":"Load","lineno":4,"col_offset":11},
+            "args":[
+              {"kind":"Name","id":"x","ctx":"Load","lineno":4,"col_offset":29},
+              {"kind":"Name","id":"lag","ctx":"Load","lineno":4,"col_offset":32}
+            ],
+            "keywords":[]
+          }
+        }],
+        "decorator_list":[{
+          "kind":"Call","lineno":2,"col_offset":1,
+          "func":{"kind":"Name","id":"define_primitive","ctx":"Load","lineno":2,"col_offset":1},
+          "args":[],
+          "keywords":[
+            {"kind":"keyword","arg":"name","value":{"kind":"Constant","value":"lag_key","lineno":2,"col_offset":20}},
+            {"kind":"keyword","arg":"signature","value":{"kind":"Constant","value":"(x: Z29, lag: Z29) -> Z29","lineno":2,"col_offset":40}}
+          ]
+        }],
+        "returns":null
+      }],
+      "type_ignores":[]
+    })JSON";
+
+    const DslAstDocument doc = ingest_or_fail(module);
+    REQUIRE(DslSemanticGate::check(doc).ok());
+    StatusOr<DslBuildIr::Unit> unit = DslBuildIr::build(doc);
+    REQUIRE(unit.ok());
+    const Z29Expr::Ptr body = unit.value().primitives()[0].body();
+    REQUIRE(body);
+    REQUIRE(body->kind() == Z29Expr::Kind::Call);
+    REQUIRE(body->name() == "z29_autokey_shift");
+
+    const StatusOr<std::string> cpu = DslEmitCpu::emit_expr(body, "x", "input[i]");
+    REQUIRE(cpu.ok());
+    REQUIRE(cpu.value() == "AutokeyRing::shift(input, i, lag)");
+    const StatusOr<std::string> cuda = DslEmitCuda::emit_expr(body, "x", "in[i]");
+    REQUIRE(cuda.ok());
+    REQUIRE(cuda.value() == "AutokeyRingDevice::shift(in, i, lag)");
 }

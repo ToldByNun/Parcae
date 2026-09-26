@@ -48,8 +48,8 @@ private:
 | `theory_ir.hpp` | `TheoryIr` | Done |
 | `compose_ir.hpp` | `ComposeIr` | Done |
 | `dsl_ir_applicator.hpp` | `DslIrApplicator` | Done (CPU apply_into) |
-| `dsl_emit_cpu.hpp` | `DslEmitCpu` | Done (Transform-shaped; `Select` → `Z29::select` / branch) |
-| `dsl_emit_cuda.hpp` | `DslEmitCuda` | Done (Z29Device; `Select` → `Z29Device::select` / branch) |
+| `dsl_emit_cpu.hpp` | `DslEmitCpu` | Done (Transform-shaped; `Select` → `Z29::select` / branch; matmul/det/autokey) |
+| `dsl_emit_cuda.hpp` | `DslEmitCuda` | Done (Z29Device; matmul/det expand; autokey → AutokeyRingDevice) |
 | `dsl_verifier.hpp` | `DslVerifier` | Done (exhaustive ≤4 + fuzz + CPU↔CUDA mirror) |
 | `dsl_fuse.hpp` | `DslFuse` | Done (inline + emit + CPU bench gate) |
 | `dsl_optimize.hpp` | `DslOptimize` | Done (const-fold + Select dead-arm + `inv` hoist) |

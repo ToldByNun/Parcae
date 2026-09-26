@@ -1146,6 +1146,10 @@ private:
                 if (id == "z29_atbash" && args.size() == 1) {
                     return Z29Expr::atbash(std::move(args[0]));
                 }
+                if (id == "z29_autokey_shift" && args.size() == 2) {
+                    // Keep as Call — emit lowers to AutokeyRing / AutokeyRingDevice.
+                    return Z29Expr::call("z29_autokey_shift", std::move(args));
+                }
                 auto pit = primitives_by_name.find(id);
                 if (pit != primitives_by_name.end()) {
                     // Inline primitive body with param binding.

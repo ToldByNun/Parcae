@@ -237,9 +237,9 @@ representatives. `**` is modular exponentiation (`0**0` → `1`). `~x` is
 | `z29_bool_not` / `not` | zero → `1` else `0` |
 | `z29_atbash` | `28 - x` |
 | `select` / `z29_select` | Branch-free mux: nonzero cond → true arm, else false arm |
-| `z29_matmul` | Matrix × vector over Z29 (Hill-style). BuildIr: `z29_matmul(M, v)[i]` expands to a scalar tree; bare call is E032 |
-| `z29_det` | Determinant mod 29. BuildIr expands `z29_det((…))` via `MatrixIr::det_expr()` |
-| `z29_autokey_shift` | Autokey lag / ringbuffer read (`stream`, `lag`) — allowlisted; BuildIr/emit follow-on |
+| `z29_matmul` | Matrix × vector over Z29 (Hill-style). BuildIr: `z29_matmul(M, v)[i]` expands to a scalar tree; bare call is E032. CUDA emit expands flattened Call via `MatrixIr` → `Z29Device` |
+| `z29_det` | Determinant mod 29. BuildIr expands `z29_det((…))` via `MatrixIr::det_expr()`; CUDA emit expands Call the same way |
+| `z29_autokey_shift` | Autokey lag / ringbuffer read (`stream`, `lag`). BuildIr keeps Call; CPU → `AutokeyRing::shift`; CUDA → `AutokeyRingDevice::shift`. `stream` MUST be the HotLoop cipher var; primer-less v0 returns 0 when `i < lag` |
 
 `z29_*` Call names **MUST** appear on the `DslZ29Builtins` allowlist
 (`DslSemanticGate` rejects unknown `z29_*` with **E032**). Custom

@@ -110,6 +110,52 @@ TEST_CASE("DslEmitCuda prefer_branch Select emits divergent conditional",
     REQUIRE(cpp.value().find("Z29Device::select(") == std::string::npos);
 }
 
+TEST_CASE("DslEmitCuda emit_expr expands z29_det Call via Z29Device", "[dsl][emit][cuda][matrix]") {
+    const Z29Expr::Ptr expr = Z29Expr::call(
+        "z29_det", {Z29Expr::var("a"), Z29Expr::var("b"), Z29Expr::var("c"), Z29Expr::var("d")});
+    const StatusOr<std::string> cpp = DslEmitCuda::emit_expr(expr, "x", "in[i]");
+    REQUIRE(cpp.ok());
+    REQUIRE(cpp.value().find("Z29Device::sub") != std::string::npos);
+    REQUIRE(cpp.value().find("Z29Device::mul") != std::string::npos);
+}
+
+TEST_CASE("DslEmitCuda emit_expr expands flattened z29_matmul Call", "[dsl][emit][cuda][matrix]") {
+    const Z29Expr::Ptr expr = Z29Expr::call(
+        "z29_matmul", {Z29Expr::var("a"), Z29Expr::var("b"), Z29Expr::var("c"), Z29Expr::var("d"),
+                       Z29Expr::var("x0"), Z29Expr::var("x1")});
+    const StatusOr<std::string> cpp = DslEmitCuda::emit_expr(expr, "x", "in[i]");
+    REQUIRE(cpp.ok());
+    REQUIRE(cpp.value().find("Z29Device::add") != std::string::npos);
+    REQUIRE(cpp.value().find("Z29Device::mul") != std::string::npos);
+}
+
+TEST_CASE("DslEmitCuda emit_expr lowers z29_autokey_shift to AutokeyRingDevice",
+          "[dsl][emit][cuda][autokey]") {
+    const Z29Expr::Ptr expr =
+        Z29Expr::call("z29_autokey_shift", {Z29Expr::var("x"), Z29Expr::var("lag")});
+    const StatusOr<std::string> cpp = DslEmitCuda::emit_expr(expr, "x", "in[i]");
+    REQUIRE(cpp.ok());
+    REQUIRE(cpp.value() == "AutokeyRingDevice::shift(in, i, lag)");
+}
+
+TEST_CASE("DslEmitCuda emit_theory_cu includes autokey_ring_device when used",
+          "[dsl][emit][cuda][autokey]") {
+    const StatusOr<ParamIr> lag = ParamIr::make("lag", 1, 28);
+    REQUIRE(lag.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr L = Z29Expr::var("lag");
+    const Z29Expr::Ptr key = Z29Expr::call("z29_autokey_shift", {x, L});
+    const StatusOr<TheoryIr> theory =
+        TheoryIr::make("dsl_ctak_lag", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+                       TheoryIr::InterruptMode::ElementwiseDefault, {lag.value()},
+                       Z29Expr::add(x, key), Z29Expr::sub(x, key));
+    REQUIRE(theory.ok());
+    const StatusOr<std::string> cu = DslEmitCuda::emit_theory_cu(theory.value());
+    REQUIRE(cu.ok());
+    REQUIRE(cu.value().find("#include \"../autokey_ring_device.hpp\"") != std::string::npos);
+    REQUIRE(cu.value().find("AutokeyRingDevice::shift(in, i, lag)") != std::string::npos);
+}
+
 TEST_CASE("DslEmitCuda rejects theory without steps", "[dsl][emit][cuda]") {
     const StatusOr<TheoryIr> theory =
         TheoryIr::make("no_steps", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,

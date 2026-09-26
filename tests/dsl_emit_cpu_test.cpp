@@ -125,3 +125,29 @@ TEST_CASE("DslEmitCpu emit_expr prefer_branch Select uses C++ conditional", "[ds
     REQUIRE(cpp.value().find("?") != std::string::npos);
     REQUIRE(cpp.value().find("Z29::select(") == std::string::npos);
 }
+
+TEST_CASE("DslEmitCpu emit_expr lowers z29_autokey_shift to AutokeyRing",
+          "[dsl][emit][autokey]") {
+    const Z29Expr::Ptr expr =
+        Z29Expr::call("z29_autokey_shift", {Z29Expr::var("x"), Z29Expr::var("lag")});
+    const StatusOr<std::string> cpp = DslEmitCpu::emit_expr(expr, "x", "input[i]");
+    REQUIRE(cpp.ok());
+    REQUIRE(cpp.value() == "AutokeyRing::shift(input, i, lag)");
+}
+
+TEST_CASE("DslEmitCpu emit_theory_header includes AutokeyRing", "[dsl][emit][autokey]") {
+    const StatusOr<ParamIr> lag = ParamIr::make("lag", 1, 28);
+    REQUIRE(lag.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr L = Z29Expr::var("lag");
+    const Z29Expr::Ptr key = Z29Expr::call("z29_autokey_shift", {x, L});
+    const StatusOr<TheoryIr> theory =
+        TheoryIr::make("dsl_ctak_lag", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+                       TheoryIr::InterruptMode::ElementwiseDefault, {lag.value()},
+                       Z29Expr::add(x, key), Z29Expr::sub(x, key));
+    REQUIRE(theory.ok());
+    const StatusOr<std::string> header = DslEmitCpu::emit_theory_header(theory.value());
+    REQUIRE(header.ok());
+    REQUIRE(header.value().find("#include \"parcae/math/autokey_ring.hpp\"") != std::string::npos);
+    REQUIRE(header.value().find("AutokeyRing::shift(input, i, lag)") != std::string::npos);
+}

@@ -235,7 +235,7 @@ def z29_det(_matrix: Any) -> Z29Expr:
 
 
 def z29_autokey_shift(_stream: Any, _lag: Any) -> Z29Expr:
-    """Autokey lag/ringbuffer read (intrinsic; emit/fuse follow-on)."""
+    """Autokey lag/ringbuffer read (intrinsic; CPU AutokeyRing / CUDA AutokeyRingDevice)."""
     raise_stub()
 
 
