@@ -4,6 +4,7 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/dsl/compose_ir.hpp"
+#include "parcae/dsl/dsl_catalog_builtins.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_emit_cpu.hpp"
 #include "parcae/dsl/dsl_emit_cuda.hpp"
@@ -341,15 +342,35 @@ public:
             return cuda_cu.status();
         }
 
+        StatusOr<Flattened> flat = flatten_only(compose, theories, composes);
+        if (!flat.ok()) {
+            return flat.status();
+        }
+
+        FusionStatus effective = status;
+        if (!all_steps_staged_catalog(flat.value()) &&
+            effective == FusionStatus::FallbackStaged) {
+            // DSL-only leaves (matrix_mix / autokey_lag / module theories) have no
+            // ComposeTransform twin — keep fused emit.
+            effective = FusionStatus::Fused;
+        }
+
+        if (!all_steps_staged_catalog(flat.value())) {
+            return EmitBundle{effective,
+                              fused.value(),
+                              std::move(cpu.value()),
+                              std::move(cuda_h.value()),
+                              std::move(cuda_cu.value()),
+                              /*staged_recipe_json=*/{},
+                              /*staged_cpu_header=*/{},
+                              /*staged_cuda_header=*/{},
+                              std::move(bench)};
+        }
+
         StatusOr<std::string> recipe =
             emit_staged_recipe_json(compose, theories, composes, staged_param_values);
         if (!recipe.ok()) {
             return recipe.status();
-        }
-
-        StatusOr<Flattened> flat = flatten_only(compose, theories, composes);
-        if (!flat.ok()) {
-            return flat.status();
         }
 
         StatusOr<std::string> staged_cpu =
@@ -363,7 +384,7 @@ public:
             return staged_cuda.status();
         }
 
-        return EmitBundle{status,
+        return EmitBundle{effective,
                           fused.value(),
                           std::move(cpu.value()),
                           std::move(cuda_h.value()),
@@ -437,7 +458,10 @@ public:
         const double work = static_cast<double>(stream_len) * static_cast<double>(reps);
         const double fused_eps = fused_sec > 0.0 ? (work / fused_sec) : 0.0;
         const double staged_eps = staged_sec > 0.0 ? (work / staged_sec) : 0.0;
-        const FusionStatus status = choose_status(fused_eps, staged_eps);
+        FusionStatus status = choose_status(fused_eps, staged_eps);
+        if (!all_steps_staged_catalog(flat.value()) && status == FusionStatus::FallbackStaged) {
+            status = FusionStatus::Fused;
+        }
 
         std::ostringstream detail;
         detail << "cpu_bench fused_eps=" << fused_eps << " staged_eps=" << staged_eps
@@ -580,11 +604,19 @@ private:
     }
 
     [[nodiscard]] static StatusOr<std::string> catalog_transform_id(std::string_view step) {
-        if (step == "identity" || step == "atbash" || step == "caesar" || step == "affine" ||
-            step == "vigenere_key" || step == "beaufort_key" || step == "totient_prime_stream") {
+        if (DslCatalogBuiltins::is_staged_catalog_id(step)) {
             return std::string(step);
         }
         return Status::error("not a catalog transform_id");
+    }
+
+    [[nodiscard]] static bool all_steps_staged_catalog(const Flattened& flat) noexcept {
+        for (const std::string& step_id : flat.steps) {
+            if (!DslCatalogBuiltins::is_staged_catalog_id(step_id)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     [[nodiscard]] static StatusOr<std::string> cuda_family_enum(std::string_view step) {

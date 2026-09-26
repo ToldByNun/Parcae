@@ -31,7 +31,7 @@ public:
         if (name == "z29_select") {
             return 3;
         }
-        // Matrix / stream intrinsics (Hill + autokey; emit/fuse follow-on)
+        // Matrix / stream intrinsics (Hill + autokey; BuildIr / emit / fuse wired)
         if (name == "z29_matmul") {
             return 2; // (matrix, rune_vec)
         }

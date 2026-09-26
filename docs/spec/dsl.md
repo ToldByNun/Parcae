@@ -241,6 +241,10 @@ representatives. `**` is modular exponentiation (`0**0` → `1`). `~x` is
 | `z29_det` | Determinant mod 29. BuildIr expands `z29_det((…))` via `MatrixIr::det_expr()`; CUDA emit expands Call the same way |
 | `z29_autokey_shift` | Autokey lag / ringbuffer read (`stream`, `lag`). BuildIr keeps Call; CPU → `AutokeyRing::shift`; CUDA → `AutokeyRingDevice::shift`. `stream` MUST be the HotLoop cipher var; primer-less v0 returns 0 when `i < lag` |
 
+Catalog compose leaves (`DslCatalogBuiltins`): `identity` / `atbash` / `caesar` /
+`affine` are ComposeTransform staged-fallback ids; DSL-only `matrix_mix` /
+`autokey_lag` fuse-inline and emit fused kernels only (no staged twin).
+
 `z29_*` Call names **MUST** appear on the `DslZ29Builtins` allowlist
 (`DslSemanticGate` rejects unknown `z29_*` with **E032**). Custom
 `@define_primitive` names **MUST NOT** use the `z29_` prefix. Matrix tuples are

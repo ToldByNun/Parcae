@@ -316,3 +316,52 @@ TEST_CASE("golden: compile ignore divergent requires --allow-dsl-ignores",
 
     std::filesystem::remove_all(root, ec);
 }
+
+TEST_CASE("golden: z29_det / z29_matmul / z29_autokey_shift Calls pass gate",
+          "[dsl][golden][gate][matrix]") {
+    const DslAstDocument ok = ingest(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"Expr","lineno":1,"col_offset":0,"value":{
+          "kind":"Call","lineno":1,"col_offset":0,
+          "func":{"kind":"Name","id":"z29_det","ctx":"Load","lineno":1,"col_offset":0},
+          "args":[{"kind":"Name","id":"m","ctx":"Load","lineno":1,"col_offset":8}],
+          "keywords":[]
+        }
+      },{
+        "kind":"Expr","lineno":2,"col_offset":0,"value":{
+          "kind":"Call","lineno":2,"col_offset":0,
+          "func":{"kind":"Name","id":"z29_matmul","ctx":"Load","lineno":2,"col_offset":0},
+          "args":[
+            {"kind":"Name","id":"m","ctx":"Load","lineno":2,"col_offset":11},
+            {"kind":"Name","id":"v","ctx":"Load","lineno":2,"col_offset":14}
+          ],
+          "keywords":[]
+        }
+      },{
+        "kind":"Expr","lineno":3,"col_offset":0,"value":{
+          "kind":"Call","lineno":3,"col_offset":0,
+          "func":{"kind":"Name","id":"z29_autokey_shift","ctx":"Load","lineno":3,"col_offset":0},
+          "args":[
+            {"kind":"Name","id":"x","ctx":"Load","lineno":3,"col_offset":18},
+            {"kind":"Name","id":"lag","ctx":"Load","lineno":3,"col_offset":21}
+          ],
+          "keywords":[]
+        }
+      }],"type_ignores":[]
+    })");
+    REQUIRE(DslSemanticGate::check(ok).ok());
+
+    const DslAstDocument bad = ingest(R"({
+      "kind":"Module","lineno":1,"col_offset":0,"body":[{
+        "kind":"Expr","lineno":1,"col_offset":0,"value":{
+          "kind":"Call","lineno":1,"col_offset":0,
+          "func":{"kind":"Name","id":"z29_not_a_real_op","ctx":"Load","lineno":1,"col_offset":0},
+          "args":[{"kind":"Name","id":"x","ctx":"Load","lineno":1,"col_offset":20}],
+          "keywords":[]
+        }
+      }],"type_ignores":[]
+    })");
+    const Status gate = DslSemanticGate::check(bad);
+    REQUIRE_FALSE(gate.ok());
+    REQUIRE(gate.message().find("E032") != std::string::npos);
+}

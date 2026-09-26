@@ -41,6 +41,8 @@ echo "== compile new_math_example.py =="
 "${COMPILE}" "${EXAMPLES}/new_math_example.py" --data-dir "${WORKDIR}"
 echo "== compile full_lifecycle_example.py =="
 "${COMPILE}" "${EXAMPLES}/full_lifecycle_example.py" --data-dir "${WORKDIR}"
+echo "== compile matrix_builtins_example.py =="
+"${COMPILE}" "${EXAMPLES}/matrix_builtins_example.py" --data-dir "${WORKDIR}"
 echo "== compile param_select_example.py =="
 "${COMPILE}" "${EXAMPLES}/param_select_example.py" --data-dir "${WORKDIR}"
 

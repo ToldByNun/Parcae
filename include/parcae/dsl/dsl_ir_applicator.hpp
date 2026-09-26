@@ -11,6 +11,7 @@
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/z29_expr.hpp"
 #include "parcae/interrupt/policy.hpp"
+#include "parcae/math/autokey_ring.hpp"
 #include "parcae/transform/transform_buffer.hpp"
 #include "parcae/transform/transform_direction.hpp"
 
@@ -66,7 +67,7 @@ public:
                 continue;
             }
             env[std::string(cipher_var)] = input[i];
-            StatusOr<Index29> out = step->eval(env);
+            StatusOr<Index29> out = eval_at(step, env, input, i);
             if (!out.ok()) {
                 return out.status();
             }
@@ -165,7 +166,7 @@ public:
             if (!i_is_param) {
                 run["i"] = Index29{static_cast<std::uint8_t>(idx % Index29::modulus)};
             }
-            StatusOr<Index29> out = step->eval(run);
+            StatusOr<Index29> out = eval_at(step, run, input, idx);
             if (!out.ok()) {
                 return out.status();
             }
@@ -254,6 +255,90 @@ private:
             env.emplace(p.name(), idx);
         }
         return env;
+    }
+
+    /// Eval with stream context so `z29_autokey_shift` can read prior runes.
+    [[nodiscard]] static StatusOr<Index29> eval_at(const Z29Expr::Ptr& step, const Z29Expr::Env& env,
+                                                   std::span<const Index29> stream, std::size_t i) {
+        StatusOr<Z29Expr::Ptr> lowered = lower_autokey_calls(step, env, stream, i);
+        if (!lowered.ok()) {
+            return lowered.status();
+        }
+        return lowered.value()->eval(env);
+    }
+
+    [[nodiscard]] static StatusOr<Z29Expr::Ptr>
+    lower_autokey_calls(const Z29Expr::Ptr& expr, const Z29Expr::Env& env,
+                        std::span<const Index29> stream, std::size_t i) {
+        if (!expr) {
+            return DslDiag::make(DslRuleId::E032_primitive_body, "null Z29Expr in applicator")
+                .to_status();
+        }
+        using Kind = Z29Expr::Kind;
+        if (expr->kind() == Kind::Call && expr->name() == "z29_autokey_shift") {
+            if (expr->args().size() != 2 || !expr->args()[1]) {
+                return DslDiag::make(DslRuleId::E032_primitive_body,
+                                     "z29_autokey_shift expects (stream, lag)")
+                    .to_status();
+            }
+            StatusOr<Z29Expr::Ptr> lag_e =
+                lower_autokey_calls(expr->args()[1], env, stream, i);
+            if (!lag_e.ok()) {
+                return lag_e.status();
+            }
+            StatusOr<Index29> lag = lag_e.value()->eval(env);
+            if (!lag.ok()) {
+                return lag.status();
+            }
+            return Z29Expr::constant(AutokeyRing::shift(stream, i, lag.value()).value());
+        }
+        if (expr->kind() == Kind::Call) {
+            std::vector<Z29Expr::Ptr> args;
+            args.reserve(expr->args().size());
+            for (const Z29Expr::Ptr& a : expr->args()) {
+                StatusOr<Z29Expr::Ptr> la = lower_autokey_calls(a, env, stream, i);
+                if (!la.ok()) {
+                    return la.status();
+                }
+                args.push_back(std::move(la.value()));
+            }
+            return Z29Expr::call(expr->name(), std::move(args));
+        }
+        if (expr->kind() == Kind::Select) {
+            StatusOr<Z29Expr::Ptr> c = lower_autokey_calls(expr->cond(), env, stream, i);
+            if (!c.ok()) {
+                return c.status();
+            }
+            StatusOr<Z29Expr::Ptr> t = lower_autokey_calls(expr->if_true(), env, stream, i);
+            if (!t.ok()) {
+                return t.status();
+            }
+            StatusOr<Z29Expr::Ptr> f = lower_autokey_calls(expr->if_false(), env, stream, i);
+            if (!f.ok()) {
+                return f.status();
+            }
+            return Z29Expr::make_select(std::move(c.value()), std::move(t.value()),
+                                        std::move(f.value()), expr->prefer_branch());
+        }
+        if (Z29Expr::is_binary(expr->kind())) {
+            StatusOr<Z29Expr::Ptr> l = lower_autokey_calls(expr->left(), env, stream, i);
+            if (!l.ok()) {
+                return l.status();
+            }
+            StatusOr<Z29Expr::Ptr> r = lower_autokey_calls(expr->right(), env, stream, i);
+            if (!r.ok()) {
+                return r.status();
+            }
+            return Z29Expr::make_binary(expr->kind(), std::move(l.value()), std::move(r.value()));
+        }
+        if (Z29Expr::is_unary(expr->kind())) {
+            StatusOr<Z29Expr::Ptr> a = lower_autokey_calls(expr->arg(), env, stream, i);
+            if (!a.ok()) {
+                return a.status();
+            }
+            return Z29Expr::make_unary_kind(expr->kind(), std::move(a.value()));
+        }
+        return expr;
     }
 };
 

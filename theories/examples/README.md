@@ -18,6 +18,7 @@ Artifacts land under `data/theories/<name>/<version>/`
 |------|-------------------------------|-------|
 | `new_math_example.py` | `parcae://theories/quadratic_polynomial_stream@1` | Tier B keyed_stream; `poly2_mod29` arity 4 |
 | `full_lifecycle_example.py` | `parcae://theories/koan1_style@1` | Tier A `@ComposedTheory` (atbash+caesar); fuse/staged emit |
+| `matrix_builtins_example.py` | `matrix_mix_stream` + `atbash_then_matrix_mix` | `z29_det` / `z29_matmul` primitives; fuse DSL-only leaf |
 | `param_select_example.py` | `parcae://theories/param_select_example@1` | Param-uniform `if` → `Select` mux (**W011**); CI-safe |
 | `ignore_divergent_example.py` | `parcae://theories/ignore_divergent_example@1` | Research only — needs `--allow-dsl-ignores` (**W010**) |
 

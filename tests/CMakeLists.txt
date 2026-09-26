@@ -57,6 +57,7 @@ add_executable(parcae_tests
   dsl_compile_test.cpp
   dsl_examples_new_math_test.cpp
   dsl_examples_full_lifecycle_test.cpp
+  dsl_examples_matrix_builtins_test.cpp
   token_stream_test.cpp
   gematria_profile_test.cpp
   corpus_test.cpp

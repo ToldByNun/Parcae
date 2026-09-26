@@ -225,12 +225,12 @@ def z29_select(_cond: Any, _a: Any, _b: Any) -> Z29Expr:
 
 
 def z29_matmul(_matrix: Any, _rune_vec: Any) -> Z29Expr:
-    """Hill-style matrix × vector over Z29 (intrinsic; emit/fuse follow-on)."""
+    """Hill-style matrix × vector over Z29 (intrinsic; BuildIr / emit / fuse)."""
     raise_stub()
 
 
 def z29_det(_matrix: Any) -> Z29Expr:
-    """Determinant mod 29 (intrinsic; emit/fuse follow-on)."""
+    """Determinant mod 29 (intrinsic; BuildIr / emit / fuse)."""
     raise_stub()
 
 

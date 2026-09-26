@@ -3,6 +3,7 @@
 #include <parcae/core/index29.hpp>
 #include <parcae/core/z29.hpp>
 #include <parcae/dsl/compose_ir.hpp>
+#include <parcae/dsl/dsl_catalog_builtins.hpp>
 #include <parcae/dsl/dsl_fuse.hpp>
 #include <parcae/dsl/dsl_ir_applicator.hpp>
 #include <parcae/dsl/param_ir.hpp>
@@ -263,4 +264,91 @@ TEST_CASE("DslFuse emit_compose_auto attaches bench report", "[dsl][fuse][bench]
     } else {
         REQUIRE(bundle.value().selected_cpu_header() == bundle.value().staged_cpu_header());
     }
+}
+
+TEST_CASE("DslCatalogBuiltins lookup covers all()", "[dsl][fuse][catalog]") {
+    const auto catalog = DslCatalogBuiltins::all();
+    REQUIRE(catalog.size() == 6);
+    for (const TheoryIr& th : catalog) {
+        const auto found = DslCatalogBuiltins::lookup(th.name());
+        REQUIRE(found.has_value());
+        REQUIRE(found->name() == th.name());
+    }
+    REQUIRE_FALSE(DslCatalogBuiltins::lookup("missing_theory").has_value());
+    REQUIRE(DslCatalogBuiltins::is_staged_catalog_id("caesar"));
+    REQUIRE_FALSE(DslCatalogBuiltins::is_staged_catalog_id("matrix_mix"));
+    REQUIRE_FALSE(DslCatalogBuiltins::is_staged_catalog_id("autokey_lag"));
+}
+
+TEST_CASE("DslFuse inlines catalog matrix_mix (DSL-only leaf)", "[dsl][fuse][catalog]") {
+    const TheoryIr atbash = DslCatalogBuiltins::atbash();
+    const TheoryIr mix = DslCatalogBuiltins::matrix_mix();
+    const StatusOr<ParamIr> a = ParamIr::make("a", 0, 28);
+    const StatusOr<ParamIr> b = ParamIr::make("b", 0, 28);
+    const StatusOr<ParamIr> c = ParamIr::make("c", 0, 28);
+    const StatusOr<ParamIr> d = ParamIr::make("d", 0, 28);
+    REQUIRE(a.ok());
+    REQUIRE(b.ok());
+    REQUIRE(c.ok());
+    REQUIRE(d.ok());
+    const StatusOr<ComposeIr> compose = ComposeIr::make(
+        "atbash_then_mix", TheoryIr::Tier::A, {"atbash", "matrix_mix"},
+        {a.value(), b.value(), c.value(), d.value()},
+        {ComposeIr::StepParamBinding{"matrix_mix", "a", "a"},
+         ComposeIr::StepParamBinding{"matrix_mix", "b", "b"},
+         ComposeIr::StepParamBinding{"matrix_mix", "c", "c"},
+         ComposeIr::StepParamBinding{"matrix_mix", "d", "d"}});
+    REQUIRE(compose.ok());
+
+    const std::vector<TheoryIr> catalog{atbash, mix};
+    const StatusOr<DslFuse::Result> fused = DslFuse::fuse_inline(compose.value(), catalog);
+    REQUIRE(fused.ok());
+    REQUIRE(fused.value().flattened_steps() == std::vector<std::string>{"atbash", "matrix_mix"});
+
+    // det([[2,3],[5,7]]) = 28; encrypt: atbash(x + 28) after mix then atbash order…
+    // Decrypt chain: matrix_mix_dec(atbash(x)) = atbash(x) - det
+    Z29Expr::Env env{{"a", Index29{2}}, {"b", Index29{3}}, {"c", Index29{5}}, {"d", Index29{7}}};
+    const std::vector<Index29> cipher{Index29{10}, Index29{0}};
+    std::vector<Index29> out(cipher.size());
+    REQUIRE(DslIrApplicator::apply_into(fused.value().theory().decrypt_step(), "x", env, cipher,
+                                        out)
+                .ok());
+    REQUIRE(out.size() == 2);
+
+    const StatusOr<DslFuse::EmitBundle> bundle =
+        DslFuse::emit_compose(compose.value(), catalog, {}, DslFuse::FusionStatus::FallbackStaged);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().status() == DslFuse::FusionStatus::Fused);
+    REQUIRE(bundle.value().staged_recipe_json().empty());
+    REQUIRE(bundle.value().fused_cpu_header().find("AtbashThenMixTransform") != std::string::npos);
+    REQUIRE(bundle.value().fused_cuda_cu().find("Z29Device::") != std::string::npos);
+}
+
+TEST_CASE("DslFuse catalog autokey_lag emit includes AutokeyRing", "[dsl][fuse][catalog][autokey]") {
+    const TheoryIr lag = DslCatalogBuiltins::autokey_lag();
+    const StatusOr<ParamIr> L = ParamIr::make("lag", 1, 28);
+    REQUIRE(L.ok());
+    const StatusOr<ComposeIr> compose =
+        ComposeIr::make("just_autokey", TheoryIr::Tier::A, {"autokey_lag"}, {L.value()},
+                        {ComposeIr::StepParamBinding{"autokey_lag", "lag", "lag"}});
+    REQUIRE(compose.ok());
+
+    const std::vector<TheoryIr> catalog{lag};
+    const StatusOr<DslFuse::EmitBundle> bundle =
+        DslFuse::emit_compose(compose.value(), catalog, {}, DslFuse::FusionStatus::Fused);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().status() == DslFuse::FusionStatus::Fused);
+    REQUIRE(bundle.value().fused_cpu_header().find("AutokeyRing::shift") != std::string::npos);
+    REQUIRE(bundle.value().fused_cuda_cu().find("AutokeyRingDevice::shift") != std::string::npos);
+    REQUIRE(bundle.value().fused_cuda_cu().find("autokey_ring_device.hpp") != std::string::npos);
+
+    Z29Expr::Env env{{"lag", Index29{2}}};
+    const std::vector<Index29> cipher{Index29{5}, Index29{6}, Index29{7}, Index29{8}};
+    std::vector<Index29> out(cipher.size());
+    REQUIRE(DslIrApplicator::apply_into(lag.decrypt_step(), "x", env, cipher, out).ok());
+    // i<2 → key 0; i=2 key=cipher[0]=5 → 7-5=2; i=3 key=6 → 8-6=2
+    REQUIRE(out[0] == Index29{5});
+    REQUIRE(out[1] == Index29{6});
+    REQUIRE(out[2] == Index29{2});
+    REQUIRE(out[3] == Index29{2});
 }
