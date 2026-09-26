@@ -504,15 +504,17 @@ Generators emit deterministic sequences of transform envelopes.
 | `gen_hill_3` | explicit `matrices` **or** seed-bounded invertible sample (default max **128**, seed **1**) | \|matrices\| or ≤128 |
 | `gen_vigenere_explicit_keys` | caller-supplied key list only (no dictionary expansion) | \|keys\| |
 | `gen_beaufort_explicit_keys` | caller-supplied key list only (Beaufort; no dictionary) | \|keys\| |
+| `gen_ciphertext_autokey_explicit_primers` | caller-supplied CTAK primer list only | \|primers\| |
+| `gen_plaintext_autokey_explicit_primers` | caller-supplied PTAK primer list only | \|primers\| |
 | `gen_totient_offsets` | caller-supplied / bounded `prime_start_index` list | small |
 | `gen_compose_recipes` | empty → Atbash∘Caesar 29; or `recipes` / `stages` / `template` | \|recipes\| or 29 |
 
 `gen_affine` is the largest Tier-A monoalphabetic sweep in the CPU reference.
 Callers MUST treat 812 as an explicit budget (score/batch), not an unbounded
 search. `gen_hill_2` / `gen_hill_3` MUST NOT enumerate \(\mathrm{GL}(n,29)\);
-singular explicit matrices MUST hard-error. `gen_vigenere_explicit_keys` is an
-**applicator** for keys the caller already enumerated — it MUST NOT become a
-dictionary search engine.
+singular explicit matrices MUST hard-error. Explicit-key / explicit-primer
+generators (`vigenere` / `beaufort` / CTAK / PTAK) are **applicators** for lists
+the caller already enumerated — they MUST NOT become dictionary search engines.
 
 Generators **MUST NOT** silently run unbounded dictionary search.
 

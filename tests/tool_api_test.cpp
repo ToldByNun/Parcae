@@ -227,7 +227,7 @@ TEST_CASE("tool::list registries", "[tool]") {
 
 TEST_CASE("GenerateCandidates from_indices and from_source", "[tool][generate]") {
     const auto ctx = test_ctx();
-    REQUIRE(GenerateCandidates::list_generator_ids().size() == 10);
+    REQUIRE(GenerateCandidates::list_generator_ids().size() == 12);
 
     const std::vector<Index29> cipher = {I(0), I(5), I(10)};
     StatusOr<std::vector<TransformCandidate>> from_idx =

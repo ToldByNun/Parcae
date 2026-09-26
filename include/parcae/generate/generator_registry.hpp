@@ -9,10 +9,12 @@
 #include "parcae/generate/atbash_candidate_generator.hpp"
 #include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
+#include "parcae/generate/ciphertext_autokey_explicit_primer_candidate_generator.hpp"
 #include "parcae/generate/compose_recipe_candidate_generator.hpp"
 #include "parcae/generate/generator_catalog_entry.hpp"
 #include "parcae/generate/hill2_candidate_generator.hpp"
 #include "parcae/generate/hill3_candidate_generator.hpp"
+#include "parcae/generate/plaintext_autokey_explicit_primer_candidate_generator.hpp"
 #include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/transform_candidate.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
@@ -47,6 +49,10 @@ public:
              TransformId::vigenere_key().str(), 0, true},
             {std::string(BeaufortExplicitKeyCandidateGenerator::generator_id),
              TransformId::beaufort_key().str(), 0, true},
+            {std::string(CiphertextAutokeyExplicitPrimerCandidateGenerator::generator_id),
+             TransformId::ciphertext_autokey().str(), 0, true},
+            {std::string(PlaintextAutokeyExplicitPrimerCandidateGenerator::generator_id),
+             TransformId::plaintext_autokey().str(), 0, true},
             {std::string(TotientOffsetCandidateGenerator::generator_id),
              TransformId::totient_prime_stream().str(), 0, true},
             {std::string(ComposeRecipeCandidateGenerator::generator_id),
@@ -73,7 +79,8 @@ public:
 
     /// Dispatch `gen_*` → candidates.
     ///
-    /// Keyed generators (`gen_vigenere_explicit_keys` / `gen_beaufort_explicit_keys`):
+    /// Keyed generators (`gen_vigenere_explicit_keys` / `gen_beaufort_explicit_keys` /
+    /// `gen_ciphertext_autokey_explicit_primers` / `gen_plaintext_autokey_explicit_primers`):
     /// `params` MUST contain `key_indices_list` or `keys`.
     /// `gen_totient_offsets`: `params.prime_start_indices` (array of ints) required.
     /// `gen_hill_2` / `gen_hill_3`: empty → seed-bounded sample; or `matrices` /
@@ -119,6 +126,24 @@ public:
             }
             return BeaufortExplicitKeyCandidateGenerator::generate(ciphertext, keys.value(),
                                                                    direction);
+        }
+        if (generator_id == CiphertextAutokeyExplicitPrimerCandidateGenerator::generator_id) {
+            StatusOr<std::vector<ExplicitVigenereKey>> primers =
+                parse_explicit_keys(params, "gen_ciphertext_autokey_explicit_primers");
+            if (!primers.ok()) {
+                return primers.status();
+            }
+            return CiphertextAutokeyExplicitPrimerCandidateGenerator::generate(
+                ciphertext, primers.value(), direction);
+        }
+        if (generator_id == PlaintextAutokeyExplicitPrimerCandidateGenerator::generator_id) {
+            StatusOr<std::vector<ExplicitVigenereKey>> primers =
+                parse_explicit_keys(params, "gen_plaintext_autokey_explicit_primers");
+            if (!primers.ok()) {
+                return primers.status();
+            }
+            return PlaintextAutokeyExplicitPrimerCandidateGenerator::generate(
+                ciphertext, primers.value(), direction);
         }
         if (generator_id == TotientOffsetCandidateGenerator::generator_id) {
             return generate_totient(ciphertext, direction, params);

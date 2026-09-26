@@ -7,18 +7,22 @@
 #include <parcae/generate/atbash_caesar_candidate_generator.hpp>
 #include <parcae/generate/atbash_candidate_generator.hpp>
 #include <parcae/generate/caesar_candidate_generator.hpp>
+#include <parcae/generate/ciphertext_autokey_explicit_primer_candidate_generator.hpp>
 #include <parcae/generate/generator_registry.hpp>
 #include <parcae/generate/hill2_candidate_generator.hpp>
 #include <parcae/generate/hill3_candidate_generator.hpp>
+#include <parcae/generate/plaintext_autokey_explicit_primer_candidate_generator.hpp>
 #include <parcae/generate/vigenere_explicit_key_candidate_generator.hpp>
 #include <parcae/interrupt/policy.hpp>
 #include <parcae/score/exact_match.hpp>
 #include <parcae/transform/affine_transform.hpp>
 #include <parcae/transform/atbash_transform.hpp>
 #include <parcae/transform/caesar_transform.hpp>
+#include <parcae/transform/ciphertext_autokey_transform.hpp>
 #include <parcae/transform/compose_transform.hpp>
 #include <parcae/transform/hill2_transform.hpp>
 #include <parcae/transform/hill3_transform.hpp>
+#include <parcae/transform/plaintext_autokey_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
 #include <parcae/transform/vigenere_key_transform.hpp>
@@ -481,9 +485,85 @@ TEST_CASE("Generators include params that recover known synthetic ciphertexts at
     }
 }
 
+TEST_CASE("CiphertextAutokeyExplicitPrimerCandidateGenerator applies primers only",
+          "[generate][autokey][ctak]") {
+    REQUIRE(CiphertextAutokeyExplicitPrimerCandidateGenerator::generator_id ==
+            "gen_ciphertext_autokey_explicit_primers");
+
+    const std::vector<Index29> plain = {I(1), I(2), I(4), I(7), I(8)};
+    const nlohmann::json primer_params{{"key_indices", {3, 5}}};
+    StatusOr<std::vector<Index29>> cipher = CiphertextAutokeyTransform{}.apply(
+        plain, primer_params, TransformDirection::Encrypt);
+    REQUIRE(cipher.ok());
+
+    SECTION("rejects empty primer list") {
+        const std::vector<std::vector<Index29>> empty;
+        REQUIRE_FALSE(
+            CiphertextAutokeyExplicitPrimerCandidateGenerator::generate(cipher.value(), empty)
+                .ok());
+    }
+
+    SECTION("enumerates primers and recovers plaintext") {
+        const std::vector<std::vector<Index29>> primers = {
+            {I(1), I(1)},
+            {I(3), I(5)},
+            {I(9), I(9)},
+        };
+        StatusOr<std::vector<TransformCandidate>> candidates =
+            CiphertextAutokeyExplicitPrimerCandidateGenerator::generate(cipher.value(), primers);
+        REQUIRE(candidates.ok());
+        REQUIRE(candidates.value().size() == 3);
+        REQUIRE(candidates.value()[1].candidate_id() ==
+                "ciphertext_autokey:i=1:key_indices=3,5");
+        REQUIRE(candidates.value()[1].transform_id() == TransformId::ciphertext_autokey());
+        const std::size_t rank1 =
+            require_unique_exact_match_rank1(candidates.value(), plain);
+        REQUIRE(rank1 == 1);
+    }
+
+    SECTION("interrupt roundtrip via generator") {
+        StatusOr<InterruptPolicy> interrupt = InterruptPolicy::from_skip_indices({1});
+        REQUIRE(interrupt.ok());
+        StatusOr<std::vector<Index29>> cipher_i = CiphertextAutokeyTransform{}.apply(
+            plain, primer_params, TransformDirection::Encrypt, interrupt.value());
+        REQUIRE(cipher_i.ok());
+        const std::vector<std::vector<Index29>> primers = {{I(3), I(5)}};
+        StatusOr<std::vector<TransformCandidate>> candidates =
+            CiphertextAutokeyExplicitPrimerCandidateGenerator::generate(
+                cipher_i.value(), primers, TransformDirection::Decrypt, interrupt.value());
+        REQUIRE(candidates.ok());
+        REQUIRE(candidates.value()[0].output_indices() == plain);
+        REQUIRE(candidates.value()[0].interrupt().has_value());
+    }
+}
+
+TEST_CASE("PlaintextAutokeyExplicitPrimerCandidateGenerator applies primers only",
+          "[generate][autokey][ptak]") {
+    REQUIRE(PlaintextAutokeyExplicitPrimerCandidateGenerator::generator_id ==
+            "gen_plaintext_autokey_explicit_primers");
+
+    const std::vector<Index29> plain = {I(1), I(2), I(4), I(7), I(8)};
+    const nlohmann::json primer_params{{"key_indices", {3, 5}}};
+    StatusOr<std::vector<Index29>> cipher =
+        PlaintextAutokeyTransform{}.apply(plain, primer_params, TransformDirection::Encrypt);
+    REQUIRE(cipher.ok());
+
+    const std::vector<ExplicitVigenereKey> primers = {
+        ExplicitVigenereKey{{I(0), I(1)}, std::nullopt},
+        ExplicitVigenereKey{{I(3), I(5)}, std::string{"CF"}},
+    };
+    StatusOr<std::vector<TransformCandidate>> candidates =
+        PlaintextAutokeyExplicitPrimerCandidateGenerator::generate(cipher.value(), primers);
+    REQUIRE(candidates.ok());
+    REQUIRE(candidates.value().size() == 2);
+    REQUIRE(candidates.value()[1].params().at("key_latin").get<std::string>() == "CF");
+    REQUIRE(ExactMatch::score(candidates.value()[1].output_indices(), plain).value() == 1.0);
+    REQUIRE(ExactMatch::score(candidates.value()[0].output_indices(), plain).value() == 0.0);
+}
+
 TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][registry]") {
     const std::vector<std::string> ids = GeneratorRegistry::list_generator_ids();
-    REQUIRE(ids.size() == 10);
+    REQUIRE(ids.size() == 12);
     REQUIRE(ids[0] == "gen_atbash");
     REQUIRE(ids[1] == "gen_caesar");
     REQUIRE(ids[2] == "gen_atbash_caesar");
@@ -492,18 +572,22 @@ TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][regist
     REQUIRE(ids[5] == "gen_hill_3");
     REQUIRE(ids[6] == "gen_vigenere_explicit_keys");
     REQUIRE(ids[7] == "gen_beaufort_explicit_keys");
-    REQUIRE(ids[8] == "gen_totient_offsets");
-    REQUIRE(ids[9] == "gen_compose_recipes");
+    REQUIRE(ids[8] == "gen_ciphertext_autokey_explicit_primers");
+    REQUIRE(ids[9] == "gen_plaintext_autokey_explicit_primers");
+    REQUIRE(ids[10] == "gen_totient_offsets");
+    REQUIRE(ids[11] == "gen_compose_recipes");
     REQUIRE(GeneratorRegistry::is_known("gen_caesar"));
     REQUIRE(GeneratorRegistry::is_known("gen_hill_2"));
     REQUIRE(GeneratorRegistry::is_known("gen_hill_3"));
     REQUIRE(GeneratorRegistry::is_known("gen_beaufort_explicit_keys"));
+    REQUIRE(GeneratorRegistry::is_known("gen_ciphertext_autokey_explicit_primers"));
+    REQUIRE(GeneratorRegistry::is_known("gen_plaintext_autokey_explicit_primers"));
     REQUIRE(GeneratorRegistry::is_known("gen_totient_offsets"));
     REQUIRE(GeneratorRegistry::is_known("gen_compose_recipes"));
     REQUIRE_FALSE(GeneratorRegistry::is_known("gen_nope"));
 
     const std::vector<GeneratorCatalogEntry> entries = GeneratorRegistry::catalog();
-    REQUIRE(entries.size() == 10);
+    REQUIRE(entries.size() == 12);
     REQUIRE(entries[1].bounded_count() == 29);
     REQUIRE_FALSE(entries[1].requires_params());
     REQUIRE(entries[4].requires_params());
@@ -514,6 +598,8 @@ TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][regist
     REQUIRE(entries[7].requires_params());
     REQUIRE(entries[8].requires_params());
     REQUIRE(entries[9].requires_params());
+    REQUIRE(entries[10].requires_params());
+    REQUIRE(entries[11].requires_params());
     REQUIRE(entries[1].to_json().at("generator_id").get<std::string>() == "gen_caesar");
 
     const std::vector<Index29> cipher = {I(0), I(5), I(10)};
@@ -533,6 +619,10 @@ TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][regist
 
     REQUIRE_FALSE(GeneratorRegistry::generate("gen_vigenere_explicit_keys", cipher).ok());
     REQUIRE_FALSE(GeneratorRegistry::generate("gen_beaufort_explicit_keys", cipher).ok());
+    REQUIRE_FALSE(
+        GeneratorRegistry::generate("gen_ciphertext_autokey_explicit_primers", cipher).ok());
+    REQUIRE_FALSE(
+        GeneratorRegistry::generate("gen_plaintext_autokey_explicit_primers", cipher).ok());
     REQUIRE_FALSE(GeneratorRegistry::generate("gen_totient_offsets", cipher).ok());
 
     const std::vector<Index29> hill_cipher = {I(0), I(5), I(10), I(15)};
@@ -564,6 +654,18 @@ TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][regist
     REQUIRE(beaufort.ok());
     REQUIRE(beaufort.value().size() == 2);
     REQUIRE(beaufort.value()[0].transform_id() == TransformId::beaufort_key());
+
+    StatusOr<std::vector<TransformCandidate>> ctak = GeneratorRegistry::generate(
+        "gen_ciphertext_autokey_explicit_primers", cipher, TransformDirection::Decrypt, vig_params);
+    REQUIRE(ctak.ok());
+    REQUIRE(ctak.value().size() == 2);
+    REQUIRE(ctak.value()[0].transform_id() == TransformId::ciphertext_autokey());
+
+    StatusOr<std::vector<TransformCandidate>> ptak = GeneratorRegistry::generate(
+        "gen_plaintext_autokey_explicit_primers", cipher, TransformDirection::Decrypt, vig_params);
+    REQUIRE(ptak.ok());
+    REQUIRE(ptak.value().size() == 2);
+    REQUIRE(ptak.value()[0].transform_id() == TransformId::plaintext_autokey());
 
     const nlohmann::json totient_params = {{"prime_start_indices", {0, 1, 2}}};
     StatusOr<std::vector<TransformCandidate>> totient = GeneratorRegistry::generate(
