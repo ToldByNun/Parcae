@@ -264,7 +264,8 @@ public:
             TransformId::compose().str(),      TransformId::vigenere_key().str(),
             TransformId::ciphertext_autokey().str(), TransformId::plaintext_autokey().str(),
             TransformId::variable_delay_autokey().str(), TransformId::spiral_read().str(),
-            TransformId::boustrophedon_read().str(), TransformId::beaufort_key().str(),
+            TransformId::boustrophedon_read().str(), TransformId::diagonal_read().str(),
+            TransformId::columnar_transposition().str(), TransformId::beaufort_key().str(),
             TransformId::totient_prime_stream().str(),
         };
     }

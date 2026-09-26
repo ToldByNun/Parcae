@@ -6,7 +6,9 @@
 #include "parcae/transform/transform_direction.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <span>
+#include <vector>
 
 /// Deterministic row-major grid visit orders for transposition-style reads.
 /// Index `r * cols + c` is the row-major storage slot.
@@ -99,6 +101,79 @@ public:
                 for (std::size_t c = cols; c-- > 0;) {
                     order[n++] = r * cols + c;
                 }
+            }
+        }
+        return Status::success();
+    }
+
+    /// Main diagonals (`anti == false`): cells with constant `r + c`, increasing sum,
+    /// within each diagonal increasing `r`. Anti-diagonals: constant `r + (cols-1-c)`.
+    [[nodiscard]] static Status fill_diagonal(std::span<std::size_t> order, std::size_t rows,
+                                              std::size_t cols, bool anti) {
+        if (rows == 0 || cols == 0) {
+            return Status::error("grid rows and cols must be positive");
+        }
+        if (order.size() != rows * cols) {
+            return Status::error("grid order length must equal rows * cols");
+        }
+
+        std::size_t n = 0;
+        const std::size_t diag_count = rows + cols - 1;
+        for (std::size_t diag = 0; diag < diag_count; ++diag) {
+            const std::size_t r_min = diag >= cols ? diag - cols + 1 : 0;
+            const std::size_t r_max = diag < rows ? diag : rows - 1;
+            for (std::size_t r = r_min; r <= r_max; ++r) {
+                const std::size_t c_main = diag - r;
+                const std::size_t c = anti ? (cols - 1 - c_main) : c_main;
+                order[n++] = r * cols + c;
+            }
+        }
+        if (n != order.size()) {
+            return Status::error("diagonal order generation incomplete");
+        }
+        return Status::success();
+    }
+
+    /// Columnar transposition read order: write row-major, read columns sorted by
+    /// `(key[col], col)` ascending. `key.size()` MUST equal `cols`.
+    [[nodiscard]] static Status fill_columnar(std::span<std::size_t> order, std::size_t rows,
+                                              std::size_t cols,
+                                              std::span<const std::uint8_t> key) {
+        if (rows == 0 || cols == 0) {
+            return Status::error("grid rows and cols must be positive");
+        }
+        if (key.size() != cols) {
+            return Status::error("columnar key length must equal cols");
+        }
+        if (order.size() != rows * cols) {
+            return Status::error("grid order length must equal rows * cols");
+        }
+
+        // Insertion-sort column indices by (key, index) — cols is small.
+        std::vector<std::size_t> col_order(cols);
+        for (std::size_t c = 0; c < cols; ++c) {
+            col_order[c] = c;
+        }
+        for (std::size_t i = 1; i < cols; ++i) {
+            const std::size_t cur = col_order[i];
+            std::size_t j = i;
+            while (j > 0) {
+                const std::size_t prev = col_order[j - 1];
+                const bool out_of_order =
+                    key[prev] > key[cur] || (key[prev] == key[cur] && prev > cur);
+                if (!out_of_order) {
+                    break;
+                }
+                col_order[j] = prev;
+                --j;
+            }
+            col_order[j] = cur;
+        }
+
+        std::size_t n = 0;
+        for (std::size_t c : col_order) {
+            for (std::size_t r = 0; r < rows; ++r) {
+                order[n++] = r * cols + c;
             }
         }
         return Status::success();

@@ -320,6 +320,66 @@ the parity. Interrupt policy is ignored.
 Rules: same length / dimension constraints as `spiral_read`. Params MUST contain only
 `rows`, `cols`, and optional `first_row`.
 
+### `diagonal_read`
+
+```json
+{
+  "transform_id": "diagonal_read",
+  "direction": "decrypt",
+  "params": {
+    "rows": 3,
+    "cols": 3,
+    "anti": false
+  }
+}
+```
+
+Pure index permutation on a `rows × cols` row-major grid.
+
+| Direction | Semantics |
+|-----------|-----------|
+| `decrypt` | Read diagonal order (`out[i] = in[order[i]]`) |
+| `encrypt` | Inverse scatter |
+
+Diagonals with constant `r + c`, sums ascending; within each diagonal, `r` ascending.
+`anti` (default `false`) mirrors columns first (anti-diagonals). Interrupt policy is ignored.
+
+Rules: same length / dimension constraints as `spiral_read`. Params MUST contain only
+`rows`, `cols`, and optional `anti` (boolean).
+
+### `columnar_transposition`
+
+```json
+{
+  "transform_id": "columnar_transposition",
+  "direction": "encrypt",
+  "params": {
+    "rows": 2,
+    "key_indices": [2, 0, 1],
+    "key_latin": optional
+  }
+}
+```
+
+Classical columnar transposition: write by rows, read columns sorted by
+`(key[col], col)` ascending. `cols = len(key_indices)`.
+
+| Direction | Semantics |
+|-----------|-----------|
+| `encrypt` | Columnar read order from row-major (`out[i] = in[order[i]]`) |
+| `decrypt` | Inverse scatter |
+
+Interrupt policy is ignored. Optional modular subtraction after transposition is via
+`compose` with `caesar` / `vigenere_key`, not params on this family.
+
+Rules:
+
+- `rows` MUST be an integer `≥ 1`.
+- `key_indices` MUST be a non-empty array of integers in `0..28` (`cols` = its length).
+- Input length MUST equal `rows * cols`.
+- Optional `key_latin` is metadata only when `key_indices` is present.
+- Params MUST contain only `rows`, `key_indices`, and optional `key_latin`.
+
 ### `compose`
 
 ```json

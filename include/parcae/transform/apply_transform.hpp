@@ -10,7 +10,9 @@
 #include "parcae/transform/boustrophedon_read_transform.hpp"
 #include "parcae/transform/caesar_transform.hpp"
 #include "parcae/transform/ciphertext_autokey_transform.hpp"
+#include "parcae/transform/columnar_transposition_transform.hpp"
 #include "parcae/transform/compose_transform.hpp"
+#include "parcae/transform/diagonal_read_transform.hpp"
 #include "parcae/transform/hill2_transform.hpp"
 #include "parcae/transform/hill3_transform.hpp"
 #include "parcae/transform/identity_transform.hpp"
@@ -75,6 +77,13 @@ public:
         if (id == TransformId::boustrophedon_read()) {
             return BoustrophedonReadTransform{}.apply_into(input, output, params, direction,
                                                            interrupt);
+        }
+        if (id == TransformId::diagonal_read()) {
+            return DiagonalReadTransform{}.apply_into(input, output, params, direction, interrupt);
+        }
+        if (id == TransformId::columnar_transposition()) {
+            return ColumnarTranspositionTransform{}.apply_into(input, output, params, direction,
+                                                               interrupt);
         }
         if (id == TransformId::beaufort_key()) {
             return BeaufortKeyTransform{}.apply_into(input, output, params, direction, interrupt);

@@ -41,6 +41,12 @@ public:
         return TransformId{"boustrophedon_read"};
     }
 
+    [[nodiscard]] static TransformId diagonal_read() { return TransformId{"diagonal_read"}; }
+
+    [[nodiscard]] static TransformId columnar_transposition() {
+        return TransformId{"columnar_transposition"};
+    }
+
     [[nodiscard]] static TransformId compose() { return TransformId{"compose"}; }
 
     [[nodiscard]] static TransformId vigenere_key() { return TransformId{"vigenere_key"}; }
@@ -90,6 +96,12 @@ public:
         }
         if (text == "boustrophedon_read") {
             return boustrophedon_read();
+        }
+        if (text == "diagonal_read") {
+            return diagonal_read();
+        }
+        if (text == "columnar_transposition") {
+            return columnar_transposition();
         }
         if (text == "compose") {
             return compose();
