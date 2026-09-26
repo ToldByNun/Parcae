@@ -10,6 +10,7 @@
 #include "parcae/transform/hill2_transform.hpp"
 #include "parcae/transform/hill3_transform.hpp"
 #include "parcae/transform/identity_transform.hpp"
+#include "parcae/transform/plaintext_autokey_transform.hpp"
 #include "parcae/transform/totient_prime_stream_transform.hpp"
 #include "parcae/transform/transform.hpp"
 #include "parcae/transform/transform_buffer.hpp"
@@ -242,6 +243,10 @@ private:
         if (id.value() == TransformId::ciphertext_autokey()) {
             return CiphertextAutokeyTransform{}.apply_into(input, output, stage_params, direction,
                                                            stage_interrupt);
+        }
+        if (id.value() == TransformId::plaintext_autokey()) {
+            return PlaintextAutokeyTransform{}.apply_into(input, output, stage_params, direction,
+                                                          stage_interrupt);
         }
         if (id.value() == TransformId::beaufort_key()) {
             return BeaufortKeyTransform{}.apply_into(input, output, stage_params, direction,

@@ -11,6 +11,7 @@
 #include <parcae/transform/hill2_transform.hpp>
 #include <parcae/transform/hill3_transform.hpp>
 #include <parcae/transform/identity_transform.hpp>
+#include <parcae/transform/plaintext_autokey_transform.hpp>
 #include <parcae/transform/totient_prime_stream_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
@@ -25,6 +26,7 @@ TEST_CASE("TransformId serializes known catalog ids", "[transform]") {
     REQUIRE(TransformId::hill_2().str() == "hill_2");
     REQUIRE(TransformId::hill_3().str() == "hill_3");
     REQUIRE(TransformId::ciphertext_autokey().str() == "ciphertext_autokey");
+    REQUIRE(TransformId::plaintext_autokey().str() == "plaintext_autokey");
 
     StatusOr<TransformId> parsed = TransformId::from_string("compose");
     REQUIRE(parsed.ok());
@@ -41,6 +43,10 @@ TEST_CASE("TransformId serializes known catalog ids", "[transform]") {
     StatusOr<TransformId> ctak = TransformId::from_string("ciphertext_autokey");
     REQUIRE(ctak.ok());
     REQUIRE(ctak.value() == TransformId::ciphertext_autokey());
+
+    StatusOr<TransformId> ptak = TransformId::from_string("plaintext_autokey");
+    REQUIRE(ptak.ok());
+    REQUIRE(ptak.value() == TransformId::plaintext_autokey());
 
     StatusOr<TransformId> unknown = TransformId::from_string("not-a-transform");
     REQUIRE_FALSE(unknown.ok());
@@ -535,6 +541,82 @@ TEST_CASE("ComposeTransform can stage ciphertext_autokey", "[transform][autokey]
     const nlohmann::json params{
         {"stages",
          nlohmann::json::array({nlohmann::json{{"transform_id", "ciphertext_autokey"},
+                                               {"params", {{"key_indices", {3, 5}}}}}})},
+    };
+
+    StatusOr<std::vector<Index29>> cipher =
+        transform.apply(plain, params, TransformDirection::Encrypt);
+    REQUIRE(cipher.ok());
+    StatusOr<std::vector<Index29>> recovered =
+        transform.apply(cipher.value(), params, TransformDirection::Decrypt);
+    REQUIRE(recovered.ok());
+    REQUIRE(recovered.value() == plain);
+}
+
+TEST_CASE("PlaintextAutokeyTransform dense PTAK roundtrip matches primer+plaintext feedback",
+          "[transform][autokey][ptak]") {
+    const PlaintextAutokeyTransform transform;
+    REQUIRE(transform.id() == TransformId::plaintext_autokey());
+
+    // Primer L=2: [3,5]. Plain [1,2,4,7,8]
+    // Encrypt keys: 3,5,p0,p1 →
+    // c0=1+3=4, c1=2+5=7, c2=4+1=5, c3=7+2=9, c4=8+4=12
+    const std::vector<Index29> plain{Index29{1}, Index29{2}, Index29{4}, Index29{7}, Index29{8}};
+    const nlohmann::json params{{"key_indices", {3, 5}}};
+
+    StatusOr<std::vector<Index29>> cipher =
+        transform.apply(plain, params, TransformDirection::Encrypt);
+    REQUIRE(cipher.ok());
+    REQUIRE(cipher.value() == std::vector<Index29>{Index29{4}, Index29{7}, Index29{5}, Index29{9},
+                                                   Index29{12}});
+
+    StatusOr<std::vector<Index29>> recovered =
+        transform.apply(cipher.value(), params, TransformDirection::Decrypt);
+    REQUIRE(recovered.ok());
+    REQUIRE(recovered.value() == plain);
+
+    StatusOr<std::vector<Index29>> via_dispatch = ApplyTransform::apply(
+        TransformId::plaintext_autokey(), cipher.value(), params, TransformDirection::Decrypt);
+    REQUIRE(via_dispatch.ok());
+    REQUIRE(via_dispatch.value() == plain);
+}
+
+TEST_CASE("PlaintextAutokeyTransform interrupts skip primer/feedback cursor",
+          "[transform][autokey][ptak]") {
+    const PlaintextAutokeyTransform transform;
+    const nlohmann::json params{{"key_indices", {1, 2}}};
+    const std::vector<Index29> plain{Index29{0}, Index29{1}, Index29{2}, Index29{3}};
+    StatusOr<InterruptPolicy> interrupt = InterruptPolicy::from_skip_indices({1});
+    REQUIRE(interrupt.ok());
+
+    StatusOr<std::vector<Index29>> cipher =
+        transform.apply(plain, params, TransformDirection::Encrypt, interrupt.value());
+    REQUIRE(cipher.ok());
+    // i=0 consume primer[0]=1 → 1; i=1 skip → 1; i=2 consume primer[1]=2 → 4; i=3 feedback p0=0 → 3
+    REQUIRE(cipher.value() ==
+            std::vector<Index29>{Index29{1}, Index29{1}, Index29{4}, Index29{3}});
+
+    StatusOr<std::vector<Index29>> recovered =
+        transform.apply(cipher.value(), params, TransformDirection::Decrypt, interrupt.value());
+    REQUIRE(recovered.ok());
+    REQUIRE(recovered.value() == plain);
+}
+
+TEST_CASE("PlaintextAutokeyTransform rejects empty key", "[transform][autokey][ptak]") {
+    const PlaintextAutokeyTransform transform;
+    const std::vector<Index29> plain{Index29{0}};
+    REQUIRE_FALSE(transform
+                      .apply(plain, nlohmann::json{{"key_indices", nlohmann::json::array()}},
+                             TransformDirection::Encrypt)
+                      .ok());
+}
+
+TEST_CASE("ComposeTransform can stage plaintext_autokey", "[transform][autokey][ptak]") {
+    const ComposeTransform transform;
+    const std::vector<Index29> plain{Index29{1}, Index29{2}, Index29{4}, Index29{7}};
+    const nlohmann::json params{
+        {"stages",
+         nlohmann::json::array({nlohmann::json{{"transform_id", "plaintext_autokey"},
                                                {"params", {{"key_indices", {3, 5}}}}}})},
     };
 

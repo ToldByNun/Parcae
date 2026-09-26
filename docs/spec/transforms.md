@@ -182,6 +182,37 @@ Rules:
   rule as `vigenere_key`).
 - Empty primer MUST hard-error.
 
+### `plaintext_autokey`
+
+```json
+{
+  "transform_id": "plaintext_autokey",
+  "direction": "decrypt",
+  "params": {
+    "key_indices": [3, 5],
+    "key_latin": optional
+  },
+  "interrupt": {
+    "policy_id": "explicit_skip_indices_v0",
+    "rune_index_base": 0,
+    "skip_indices": []
+  }
+}
+```
+
+Plaintext autokey (PTAK) over \(\mathbb{Z}_{29}\) with primer length \(L\).
+
+| Direction | Key at consumed position \(j\) | Mix |
+|-----------|--------------------------------|-----|
+| `encrypt` | \(j < L\) → `key[j]`; else prior **plaintext** at lag \(L\) | `out = add(in, key)` |
+| `decrypt` | \(j < L\) → `key[j]`; else prior **plaintext** at lag \(L\) | `out = sub(in, key)` |
+
+Dense (empty skips): encrypt uses `input[i-L]` as feedback; decrypt uses already
+written `output[i-L]`.
+
+Rules: same as `ciphertext_autokey` for `key_indices` / `key_latin` / interrupts /
+empty primer.
+
 ### `compose`
 
 ```json

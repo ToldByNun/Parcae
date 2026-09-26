@@ -27,6 +27,10 @@ public:
         return TransformId{"ciphertext_autokey"};
     }
 
+    [[nodiscard]] static TransformId plaintext_autokey() {
+        return TransformId{"plaintext_autokey"};
+    }
+
     [[nodiscard]] static TransformId compose() { return TransformId{"compose"}; }
 
     [[nodiscard]] static TransformId vigenere_key() { return TransformId{"vigenere_key"}; }
@@ -64,6 +68,9 @@ public:
         }
         if (text == "ciphertext_autokey") {
             return ciphertext_autokey();
+        }
+        if (text == "plaintext_autokey") {
+            return plaintext_autokey();
         }
         if (text == "compose") {
             return compose();
