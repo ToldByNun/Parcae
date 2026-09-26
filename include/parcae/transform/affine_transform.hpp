@@ -24,12 +24,15 @@ public:
         if (!sizes.ok()) {
             return sizes;
         }
-        const Index29 inv_a = Z29::inv(a);
+        StatusOr<Index29> inv_a = Z29::try_inv(a);
+        if (!inv_a.ok()) {
+            return inv_a.status();
+        }
         for (std::size_t i = 0; i < input.size(); ++i) {
             if (direction == TransformDirection::Encrypt) {
                 output[i] = Z29::add(Z29::mul(a, input[i]), b);
             } else {
-                output[i] = Z29::mul(inv_a, Z29::sub(input[i], b));
+                output[i] = Z29::mul(inv_a.value(), Z29::sub(input[i], b));
             }
         }
         return Status::success();

@@ -845,6 +845,98 @@ TEST_CASE("SearchScheduler::run_loop emits iteration stages / digests match sile
     std::filesystem::remove_all(root_live, ec);
 }
 
+TEST_CASE("SearchScheduler survives singular/invalid candidate Status without death",
+          "[search][scheduler][status][hill][affine]") {
+    // External/candidate failures MUST return Status — never std::abort (plan §Abort→Status).
+    const auto root = make_sandbox("parcae_search_scheduler_soft_status");
+    const Context ctx{root};
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("soft-status-ws", "2026-09-26T21:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    SearchScheduler::Options opts;
+    opts.created_utc = "2026-09-26T21:00:01Z";
+    opts.omit_timing = true;
+
+    // Singular hill_2 matrix (det ≡ 0) → Status, process continues.
+    {
+        StatusOr<SearchJob> singular = SearchJob::make(
+            "soft-status-ws", "hill_2", "chi2_english_gp_v0", /*k=*/1, /*seed=*/1, Backend::Cpu,
+            /*max_candidates=*/8, TransformDirection::Decrypt,
+            nlohmann::json{{"matrices", nlohmann::json::array({nlohmann::json::array({1, 2, 2, 4})})}},
+            std::nullopt, "v0", /*allow_extended_families=*/true);
+        REQUIRE(singular.ok());
+        opts.batch_id = "b-soft-singular-hill";
+        StatusOr<SearchScheduler::CycleResult> cycle =
+            SearchScheduler::run_once(root, ctx, singular.value(), opts);
+        REQUIRE_FALSE(cycle.ok());
+        const std::string& msg = cycle.status().message();
+        REQUIRE((msg.find("invertible") != std::string::npos ||
+                 msg.find("singular") != std::string::npos));
+    }
+
+    // Out-of-range matrix entry → try_make Status (no Index29 abort).
+    {
+        StatusOr<SearchJob> oob = SearchJob::make(
+            "soft-status-ws", "hill_2", "chi2_english_gp_v0", /*k=*/1, /*seed=*/1, Backend::Cpu,
+            /*max_candidates=*/8, TransformDirection::Decrypt,
+            nlohmann::json{{"matrices", nlohmann::json::array({nlohmann::json::array({0, 1, 2, 29})})}},
+            std::nullopt, "v0", /*allow_extended_families=*/true);
+        REQUIRE(oob.ok());
+        opts.batch_id = "b-soft-oob-hill";
+        StatusOr<SearchScheduler::CycleResult> cycle =
+            SearchScheduler::run_once(root, ctx, oob.value(), opts);
+        REQUIRE_FALSE(cycle.ok());
+        REQUIRE(cycle.status().message().find("0..28") != std::string::npos);
+    }
+
+    // Affined seed with a=0 → try_inv / parse Status when materializing prior seed.
+    {
+        const nlohmann::json bad_affine = {
+            {"transform_id", "affine"},
+            {"direction", "decrypt"},
+            {"params", {{"a", 0}, {"b", 1}}},
+        };
+        StatusOr<SearchPrior> prior = SearchPrior::make(
+            "soft-status-ws",
+            {SearchPrior::Seed{"h-soft-affine-a0", bad_affine}}, {}, "2026-09-26T21:00:01Z");
+        REQUIRE(prior.ok());
+
+        StatusOr<SearchJob> job = SearchJob::make(
+            "soft-status-ws", "caesar", "chi2_english_gp_v0", /*k=*/1, /*seed=*/1, Backend::Cpu,
+            /*max_candidates=*/64, TransformDirection::Decrypt, nlohmann::json::object(),
+            prior.value().to_json());
+        REQUIRE(job.ok());
+        opts.batch_id = "b-soft-affine-a0";
+        StatusOr<SearchScheduler::CycleResult> cycle =
+            SearchScheduler::run_once(root, ctx, job.value(), opts);
+        REQUIRE_FALSE(cycle.ok());
+        const std::string& msg = cycle.status().message();
+        REQUIRE((msg.find("out of valid range") != std::string::npos ||
+                 msg.find("try_inv") != std::string::npos ||
+                 msg.find("inverse of 0") != std::string::npos));
+    }
+
+    // Scheduler still usable after soft failures (no process death / poisoned state).
+    {
+        StatusOr<SearchJob> ok_job = SearchJob::make(
+            "soft-status-ws", "atbash", "chi2_english_gp_v0", /*k=*/1, /*seed=*/1, Backend::Cpu,
+            /*max_candidates=*/8);
+        REQUIRE(ok_job.ok());
+        opts.batch_id = "b-soft-recover-atbash";
+        StatusOr<SearchScheduler::CycleResult> cycle =
+            SearchScheduler::run_once(root, ctx, ok_job.value(), opts);
+        if (!cycle.ok()) {
+            FAIL(cycle.status().message());
+        }
+        REQUIRE(cycle.value().hypotheses_written() == 1);
+    }
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
 #if defined(PARCAE_HAS_CUDA)
 
 TEST_CASE("SearchScheduler backend=cuda with log_bigram falls back to CPU export",
