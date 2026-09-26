@@ -55,20 +55,27 @@ Library classes land under `include/parcae/search/` (`SearchJob`, `SearchPrior`,
 
 ## Directory layout (workspace extension)
 
-In addition to [`hypothesis-workspace.md`](hypothesis-workspace.md):
+In addition to [`hypothesis-workspace.md`](hypothesis-workspace.md) (slim **or**
+canonical **research** layout):
 
 ```text
 data/workspaces/<workspace_id>/
   workspace.json
   hypotheses/
   transcripts/
-  inputs/                         # optional ciphertext copies
+  inputs/                         # research default: ciphertext.txt
+  pages/                          # optional page splits (research layout)
+  research/                       # REPRODUCE.md, digests, run.log (research)
   batches/                        # search-loop artifacts (this spec)
     <batch_id>/
       manifest.json               # parcae.batch_artifact.v0
       candidates.jsonl
       report.json                 # optional
 ```
+
+Research layout + determinism (fixed UTC, sorted JSON keys, no host paths in
+logs): [`hypothesis-workspace.md`](hypothesis-workspace.md) § Research scaffold
+and § Determinism rules.
 
 | Rule | Requirement |
 |------|-------------|

@@ -65,19 +65,32 @@ committed solved fixtures (`fixture_ciphertext`) are fine; **research** on an
 unsolved page MUST use a local workspace whose ciphertext lives under
 `inputs/` — never assume a fixture plaintext exists.
 
+Normative research tree + determinism:
+[`hypothesis-workspace.md`](../spec/hypothesis-workspace.md) § Research
+(canonical) and § Determinism rules. Prefer
+`WorkspaceScaffold::ensure_research` (library) so `README.md`, `SOURCE.txt`,
+`pages/`, `research/`, and friends exist before writers run.
+
 A helper `parcae.corpus.load_page` (solved-fixture warning + workspace resolve)
 is **deferred** — until it lands, copy ciphertext into `inputs/ciphertext.txt`
-manually as below.
+(or `pages/NN.txt` then copy) as below.
 
 ### Layout
 
 ```text
 data/workspaces/lp2-page-0-explore/     # id MUST match directory; gitignored except _example
+  README.md
+  SOURCE.txt
   workspace.json
+  pages/                                # optional NN.txt splits
   inputs/
+    INDEX.md
     ciphertext.txt                      # UTF-8 runes / separator text (tokenized)
   hypotheses/                           # created by search_cycle / hypothesis tools
   batches/                              # BatchArtifact trees
+  research/
+    REPRODUCE.md
+  transcripts/
 ```
 
 `WorkspaceCipher` tokenizes `inputs/ciphertext.txt` the same way as fixture
@@ -110,6 +123,7 @@ rejected.
 | Use `kind: "workspace_file"` + workspace-relative `path` | Invent `data/fixtures/` entries with fake plaintext for unsolved pages |
 | Keep fixtures read-only (`fixture_ciphertext` for drills only) | Ask tools to read fixture **plaintext** when building search inputs |
 | Let `search_cycle` write batches/hypotheses under the workspace | Write under `data/fixtures/` (AgentPolicy denies) |
+| Fix `created_utc` / seeds when claiming reproducible digests | Stamp wall-clock “now” into hashed research artifacts |
 
 Normative: [`search-loop.md`](../spec/search-loop.md) § Ciphertext resolution —
 `WorkspaceCipher` MUST NOT read fixture plaintext for unsolved research
@@ -119,11 +133,12 @@ workspaces. Fixture loaders used by search only consume ciphertext files
 ### Bootstrap (shell)
 
 ```bash
-# From repo root — create a local (gitignored) workspace
-mkdir -p data/workspaces/lp2-page-0-explore/inputs
+# From repo root — create a local (gitignored) research workspace tree.
+# Prefer WorkspaceScaffold::ensure_research from C++/tests; manual equivalent:
+mkdir -p data/workspaces/lp2-page-0-explore/{inputs,pages,hypotheses,batches,research,transcripts}
 # Place UTF-8 ciphertext into:
 #   data/workspaces/lp2-page-0-explore/inputs/ciphertext.txt
-# Then write workspace.json as above (id == directory name).
+# Then write workspace.json as above (id == directory name; fixed UTC for digests).
 
 parcae-search-cycle \
   --workspace lp2-page-0-explore \

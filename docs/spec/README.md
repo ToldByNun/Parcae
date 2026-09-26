@@ -19,7 +19,7 @@ are binding for conforming implementations.
 | [fixtures.md](fixtures.md) | Fixture manifest format (incl. literals) |
 | [tools.md](tools.md) | Library + CLI contracts (incl. `parcae-bench` suites) |
 | [agent-tools.md](agent-tools.md) | Agent allow-list, JSON envelope, `parcae.agent_config.v0`, loop contract |
-| [hypothesis-workspace.md](hypothesis-workspace.md) | Workspace + HypothesisRecord + transcripts |
+| [hypothesis-workspace.md](hypothesis-workspace.md) | Workspace + HypothesisRecord + transcripts; research layout + determinism |
 | [search-loop.md](search-loop.md) | Search job / batch artifact / prior / cycle contract |
 | [parity.md](parity.md) | CPU↔CUDA parity contract |
 | [dsl.md](dsl.md) | Theory DSL language, `dsl_spec_version`, verify gates |

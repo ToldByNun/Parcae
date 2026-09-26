@@ -4,12 +4,25 @@
 **Schema ids:** `parcae.workspace.v0`, `parcae.hypothesis.v0`, `parcae.transcript_step.v0`  
 **Root path:** `data/workspaces/<workspace_id>/`  
 **Related:** [`agent-tools.md`](agent-tools.md), [`fixtures.md`](fixtures.md),
-[`transforms.md`](transforms.md), [`search-loop.md`](search-loop.md)
+[`transforms.md`](transforms.md), [`search-loop.md`](search-loop.md),
+[`search-handbook.md`](../architecture/search-handbook.md)
 
 Workspaces hold **mutable** agent/human research state. Fixtures under
 `data/fixtures/` remain **read-only**; hypothesis tools MUST NOT write there.
 
+Two conforming layouts share the same root and schema:
+
+| Layout | Intent |
+|--------|--------|
+| **Slim** | Agent / practice trees: `workspace.json` + `hypotheses/` (+ optional `transcripts/`, `inputs/`, `batches/`) |
+| **Research** | Canonical Liber Primus / falsify trees: full scaffold below (plus slim dirs) |
+
+Slim trees remain valid. Research tools and scripts MUST target the research
+layout (or call `WorkspaceScaffold::ensure_research` first).
+
 ## Directory layout
+
+### Slim (minimum)
 
 ```text
 data/workspaces/
@@ -23,8 +36,7 @@ data/workspaces/
     workspace.json
     hypotheses/
       <hypothesis_id>.json
-    transcripts/
-      <utc_stamp>_<seq>.jsonl
+    transcripts/                     # optional
     inputs/                          # optional copies / pointers
       ciphertext.txt                 # optional
     batches/                         # search-loop artifacts ([search-loop.md](search-loop.md))
@@ -33,7 +45,41 @@ data/workspaces/
         candidates.jsonl
 ```
 
-Rules:
+### Research (canonical)
+
+```text
+data/workspaces/<workspace_id>/
+  README.md                          # human orientation (template if missing)
+  SOURCE.txt                         # ciphertext provenance notes (no host paths)
+  workspace.json                     # parcae.workspace.v0
+  pages/                             # optional page splits: 00.txt, 01.txt, …
+  inputs/
+    INDEX.md                         # template index when scaffolded
+    ciphertext.txt                   # primary UTF-8 ciphertext (tokenized)
+  hypotheses/
+    <hypothesis_id>.json
+  batches/
+    <batch_id>/
+      manifest.json
+      candidates.jsonl
+      report.json                    # optional
+  research/
+    REPRODUCE.md                     # commands, fixed UTC, digests
+    run.log                          # optional; MUST avoid host-absolute paths
+    digests/                         # optional derived digest files
+  transcripts/                       # optional agent / CLI JSONL
+```
+
+| Path | Requirement |
+|------|-------------|
+| `README.md` / `SOURCE.txt` | SHOULD exist for research workspaces; scaffold writes templates **only if missing** (never overwrite) |
+| `pages/` | MAY hold per-page ciphertext (`NN.txt`); multi-page `load_page` resolve is deferred — until then operators MAY copy a page into `inputs/ciphertext.txt` |
+| `inputs/ciphertext.txt` | MUST be the default `workspace_file` path for new research manifests |
+| `inputs/INDEX.md` | SHOULD document input files; scaffold template only if missing |
+| `research/REPRODUCE.md` | SHOULD record how to reproduce digests / cycles; scaffold template only if missing |
+| `research/run.log` | MAY exist; MUST NOT embed host-absolute paths (normalize to workspace-relative or omit) |
+
+Rules (all layouts):
 
 | Rule | Requirement |
 |------|-------------|
@@ -43,6 +89,46 @@ Rules:
 | Paths | All relative paths inside a workspace MUST resolve under that workspace root (no `..`, no absolute escapes) |
 | Encoding | UTF-8; LF preferred |
 | Fixtures | References to fixtures use fixture **ids** or paths under `data/fixtures/` for **read** only |
+
+Path helpers (conforming C++): `WorkspacePaths::{pages_dir,research_dir,readme_path,source_path,inputs_dir,transcripts_dir,…}` under
+`include/parcae/hypothesis/workspace_paths.hpp`.
+
+## Research scaffold
+
+Conforming implementations MUST provide an idempotent ensure API equivalent to
+`WorkspaceScaffold::ensure_research(data_root, workspace_id, options)`
+(`include/parcae/hypothesis/workspace_scaffold.hpp`):
+
+1. Create missing directories listed in the research layout.
+2. Create `workspace.json` if missing, with:
+   - `input.kind = "workspace_file"`
+   - `input.path = "inputs/ciphertext.txt"`
+   - `created_utc` / `updated_utc` from `options.created_utc` (RFC 3339 UTC; **required** when creating)
+3. Write `README.md`, `SOURCE.txt`, `inputs/INDEX.md`, and `research/REPRODUCE.md`
+   **only when absent** — existing files MUST NOT be overwritten.
+4. Refuse writes under `data/fixtures/` (same path policy as below).
+5. Second call with a complete tree MUST create nothing new.
+
+CLI surface (`parcae-hypothesis ensure --layout research` or equivalent) MAY wrap
+this API; until shipped, library / script callers MUST invoke the scaffold
+directly.
+
+## Determinism rules (research writers)
+
+Same inputs + fixed seed / fixed UTC ⇒ **same tree shape** and **same digests**.
+Research scripts, scaffolds, and batch/hypothesis writers MUST obey:
+
+| Rule | Requirement |
+|------|-------------|
+| Timestamps | Use explicit RFC 3339 UTC (`ScaffoldOptions.created_utc`, job/CLI `--omit-timing` counterparts, or a documented `--deterministic` / seed-derived clock). MUST NOT stamp wall-clock “now” into digests or golden trees when reproducibility is claimed |
+| JSON | Object keys sorted lexicographically for any hashed / digests payload (same policy as `HypothesisRecord::canonicalize_json` / batch digests in [search-loop.md](search-loop.md)) |
+| File lists | Directory listings used for digests or `REPRODUCE.md` inventories MUST be sorted |
+| Paths in logs | `research/run.log` and similar MUST use workspace-relative paths or omit paths; MUST NOT embed host-absolute roots |
+| Schema-valid artifacts | Writers MUST emit loadable `BatchArtifact` ([search-loop.md](search-loop.md): `ordering=batch_ordering_v0`, registered `family` / `score_id`, digests) and `HypothesisRecord` (registered `transform_id`, valid `source` / `scores` when claimed) |
+| Two-run check | Two scaffold + writer runs with identical inputs/seed/UTC MUST produce identical content digests for stable files (templates left untouched on the second ensure) |
+
+Non-stable files (live `run.log` append streams, optional wall-clock progress) MUST
+be excluded from digest claims or normalized before hashing.
 
 ## Workspace manifest — `parcae.workspace.v0`
 
@@ -57,9 +143,9 @@ File: `data/workspaces/<workspace_id>/workspace.json`
   "title": "LP2 page 0 exploratory",
   "notes": "optional free text",
   "input": {
-    "kind": "fixture_ciphertext",
-    "fixture_id": "a-warning",
-    "path": null
+    "kind": "workspace_file",
+    "fixture_id": null,
+    "path": "inputs/ciphertext.txt"
   },
   "default_score_id": "chi2_english_gp_v0",
   "default_score_version": "v0"
@@ -76,6 +162,13 @@ File: `data/workspaces/<workspace_id>/workspace.json`
 | `input.kind` | See table below |
 | `default_score_id` | Registered score id (MAY be null until first score) |
 
+### Optional research fields
+
+| Field | Rule |
+|-------|------|
+| `layout` | MAY be `"research"` to declare the canonical tree; absent ⇒ slim or unspecified. Loaders MUST accept unknown optional keys only if documented here — v0 implementations MAY ignore `layout` until wired |
+| `source_digest` | MAY be a hex SHA-256 of `SOURCE.txt` or primary ciphertext bytes; when non-null, tools MAY verify integrity |
+
 ### `input.kind`
 
 | Kind | Meaning | `fixture_id` | `path` |
@@ -90,7 +183,8 @@ For **unsolved LP2** research workspaces, prefer `workspace_file` under
 `inputs/` and MUST NOT assume fixture plaintext exists. See the operator recipe
 in [`search-handbook.md`](../architecture/search-handbook.md) § LP2 workspace
 recipe. `fixture_ciphertext` remains appropriate for solved/draft drills (e.g.
-committed `_example` → `a-warning`).
+committed `_example` → `a-warning`). New research scaffolds MUST default to
+`workspace_file` + `inputs/ciphertext.txt`.
 
 ## HypothesisRecord — `parcae.hypothesis.v0`
 
@@ -287,10 +381,12 @@ Implementations (CLI + AgentPolicy) MUST:
 
 ## Example tree
 
-Committed illustration: [`data/workspaces/_example/`](../../data/workspaces/_example/).
+Committed illustration (slim): [`data/workspaces/_example/`](../../data/workspaces/_example/).
 
 Runtime workspaces (anything other than `_example/`) are local scratch and are
-gitignored (see repo `.gitignore`).
+gitignored (see repo `.gitignore`). Research trees SHOULD be created with
+`WorkspaceScaffold::ensure_research` (or the future CLI ensure) before writers
+run.
 
 ## Non-goals
 
@@ -298,6 +394,7 @@ gitignored (see repo `.gitignore`).
 - Multi-agent debate logs as a separate schema
 - Storing GPU timing / throughput in hypothesis scores
 - Embedding original puzzle JPGs
+- Requiring every agent workspace to carry the full research scaffold
 
 ## Conformance (preview)
 
@@ -306,3 +403,5 @@ gitignored (see repo `.gitignore`).
 3. `method` round-trips through `TransformEnvelope`.
 4. Status transitions follow the table.
 5. Path policy refuses fixture mutation and traversal.
+6. Research scaffold is idempotent and does not overwrite existing templates.
+7. Determinism rules above hold for claimed reproducible research runs.
