@@ -11,6 +11,8 @@
 #include "parcae/generate/caesar_candidate_generator.hpp"
 #include "parcae/generate/compose_recipe_candidate_generator.hpp"
 #include "parcae/generate/generator_catalog_entry.hpp"
+#include "parcae/generate/hill2_candidate_generator.hpp"
+#include "parcae/generate/hill3_candidate_generator.hpp"
 #include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/transform_candidate.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
@@ -37,6 +39,10 @@ public:
              TransformId::compose().str(), AtbashCaesarCandidateGenerator::candidate_count, false},
             {std::string(AffineCandidateGenerator::generator_id), TransformId::affine().str(),
              AffineCandidateGenerator::candidate_count, false},
+            {std::string(Hill2CandidateGenerator::generator_id), TransformId::hill_2().str(), 0,
+             true},
+            {std::string(Hill3CandidateGenerator::generator_id), TransformId::hill_3().str(), 0,
+             true},
             {std::string(VigenereExplicitKeyCandidateGenerator::generator_id),
              TransformId::vigenere_key().str(), 0, true},
             {std::string(BeaufortExplicitKeyCandidateGenerator::generator_id),
@@ -70,6 +76,8 @@ public:
     /// Keyed generators (`gen_vigenere_explicit_keys` / `gen_beaufort_explicit_keys`):
     /// `params` MUST contain `key_indices_list` or `keys`.
     /// `gen_totient_offsets`: `params.prime_start_indices` (array of ints) required.
+    /// `gen_hill_2` / `gen_hill_3`: empty → seed-bounded sample; or `matrices` /
+    /// `max_candidates`+`seed` (see Hill2/Hill3CandidateGenerator).
     /// `gen_compose_recipes`: empty → Atbash∘Caesar 29; or `recipes` / `params_list` /
     /// `stages` / `template`=`atbash_caesar` (see ComposeRecipeCandidateGenerator).
     [[nodiscard]] static StatusOr<std::vector<TransformCandidate>>
@@ -87,6 +95,12 @@ public:
         }
         if (generator_id == AffineCandidateGenerator::generator_id) {
             return AffineCandidateGenerator::generate(ciphertext, direction);
+        }
+        if (generator_id == Hill2CandidateGenerator::generator_id) {
+            return Hill2CandidateGenerator::generate(ciphertext, direction, params);
+        }
+        if (generator_id == Hill3CandidateGenerator::generator_id) {
+            return Hill3CandidateGenerator::generate(ciphertext, direction, params);
         }
         if (generator_id == VigenereExplicitKeyCandidateGenerator::generator_id) {
             StatusOr<std::vector<ExplicitVigenereKey>> keys =

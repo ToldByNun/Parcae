@@ -1015,6 +1015,92 @@ TEST_CASE("ComposeTransform can stage diagonal_read and columnar_transposition",
     REQUIRE(recovered.value() == plain);
 }
 
+TEST_CASE("Compose spiral_read then hill_2 decrypt recipe roundtrips",
+          "[transform][transposition][compose]") {
+    const ComposeTransform compose;
+    // 3×4 = 12 (even for hill_2). Decrypt pipeline: spiral_read → hill_2.
+    std::vector<Index29> plain;
+    plain.reserve(12);
+    for (std::uint8_t i = 0; i < 12; ++i) {
+        plain.push_back(Index29{static_cast<std::uint8_t>(i % 29)});
+    }
+    const nlohmann::json spiral_params{{"rows", 3}, {"cols", 4}, {"spiral", "inward"}};
+    const nlohmann::json hill_params{{"matrix", {2, 3, 5, 7}}};
+    const nlohmann::json params{
+        {"stages",
+         nlohmann::json::array(
+             {nlohmann::json{{"transform_id", "spiral_read"}, {"params", spiral_params}},
+              nlohmann::json{{"transform_id", "hill_2"}, {"params", hill_params}}})},
+    };
+
+    StatusOr<std::vector<Index29>> cipher =
+        compose.apply(plain, params, TransformDirection::Encrypt);
+    REQUIRE(cipher.ok());
+    REQUIRE(cipher.value() != plain);
+
+    StatusOr<std::vector<Index29>> recovered =
+        compose.apply(cipher.value(), params, TransformDirection::Decrypt);
+    REQUIRE(recovered.ok());
+    REQUIRE(recovered.value() == plain);
+
+    // Decrypt path equals staged kernels in array order.
+    StatusOr<std::vector<Index29>> after_spiral =
+        SpiralReadTransform{}.apply(cipher.value(), spiral_params, TransformDirection::Decrypt);
+    REQUIRE(after_spiral.ok());
+    StatusOr<std::vector<Index29>> after_hill =
+        Hill2Transform{}.apply(after_spiral.value(), hill_params, TransformDirection::Decrypt);
+    REQUIRE(after_hill.ok());
+    REQUIRE(after_hill.value() == plain);
+}
+
+TEST_CASE("Compose columnar_transposition then vigenere_key decrypt recipe roundtrips",
+          "[transform][transposition][compose]") {
+    const ComposeTransform compose;
+    // rows=2, key cols=3 → N=6. Decrypt: columnar → vigenere.
+    const std::vector<Index29> plain{Index29{1}, Index29{2}, Index29{3}, Index29{4}, Index29{5},
+                                     Index29{6}};
+    const nlohmann::json columnar_params{{"rows", 2}, {"key_indices", {2, 0, 1}}};
+    const nlohmann::json vigenere_params{{"key_indices", {1, 2, 3}}};
+    const nlohmann::json params{
+        {"stages",
+         nlohmann::json::array(
+             {nlohmann::json{{"transform_id", "columnar_transposition"},
+                             {"params", columnar_params}},
+              nlohmann::json{{"transform_id", "vigenere_key"}, {"params", vigenere_params}}})},
+    };
+
+    StatusOr<std::vector<Index29>> cipher =
+        compose.apply(plain, params, TransformDirection::Encrypt);
+    REQUIRE(cipher.ok());
+    REQUIRE(cipher.value() != plain);
+
+    StatusOr<std::vector<Index29>> recovered =
+        compose.apply(cipher.value(), params, TransformDirection::Decrypt);
+    REQUIRE(recovered.ok());
+    REQUIRE(recovered.value() == plain);
+
+    StatusOr<std::vector<Index29>> after_col = ColumnarTranspositionTransform{}.apply(
+        cipher.value(), columnar_params, TransformDirection::Decrypt);
+    REQUIRE(after_col.ok());
+    StatusOr<std::vector<Index29>> after_vig =
+        VigenereKeyTransform{}.apply(after_col.value(), vigenere_params, TransformDirection::Decrypt);
+    REQUIRE(after_vig.ok());
+    REQUIRE(after_vig.value() == plain);
+
+    SECTION("with outer interrupts on vigenere consumable stream") {
+        StatusOr<InterruptPolicy> interrupt = InterruptPolicy::from_skip_indices({1, 4});
+        REQUIRE(interrupt.ok());
+
+        StatusOr<std::vector<Index29>> cipher_i =
+            compose.apply(plain, params, TransformDirection::Encrypt, interrupt.value());
+        REQUIRE(cipher_i.ok());
+        StatusOr<std::vector<Index29>> recovered_i =
+            compose.apply(cipher_i.value(), params, TransformDirection::Decrypt, interrupt.value());
+        REQUIRE(recovered_i.ok());
+        REQUIRE(recovered_i.value() == plain);
+    }
+}
+
 TEST_CASE("Synthetic Vigenere hand vectors with and without interrupts", "[transform]") {
     const VigenereKeyTransform transform;
     const nlohmann::json params{{"key_indices", {1, 2}}};

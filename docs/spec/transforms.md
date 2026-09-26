@@ -500,6 +500,8 @@ Generators emit deterministic sequences of transform envelopes.
 | `gen_atbash` | single candidate | 1 |
 | `gen_atbash_caesar` | Atbash ∘ Caesar(+shift) for all shifts (Koan-1 family) | 29 |
 | `gen_affine` | all `a∈1..28`, `b∈0..28` (nested `a` then `b`) | **28×29 = 812** |
+| `gen_hill_2` | explicit `matrices` **or** seed-bounded invertible sample (default max **256**, seed **1**) | \|matrices\| or ≤256 |
+| `gen_hill_3` | explicit `matrices` **or** seed-bounded invertible sample (default max **128**, seed **1**) | \|matrices\| or ≤128 |
 | `gen_vigenere_explicit_keys` | caller-supplied key list only (no dictionary expansion) | \|keys\| |
 | `gen_beaufort_explicit_keys` | caller-supplied key list only (Beaufort; no dictionary) | \|keys\| |
 | `gen_totient_offsets` | caller-supplied / bounded `prime_start_index` list | small |
@@ -507,8 +509,10 @@ Generators emit deterministic sequences of transform envelopes.
 
 `gen_affine` is the largest Tier-A monoalphabetic sweep in the CPU reference.
 Callers MUST treat 812 as an explicit budget (score/batch), not an unbounded
-search. `gen_vigenere_explicit_keys` is an **applicator** for keys the caller
-already enumerated — it MUST NOT become a dictionary search engine.
+search. `gen_hill_2` / `gen_hill_3` MUST NOT enumerate \(\mathrm{GL}(n,29)\);
+singular explicit matrices MUST hard-error. `gen_vigenere_explicit_keys` is an
+**applicator** for keys the caller already enumerated — it MUST NOT become a
+dictionary search engine.
 
 Generators **MUST NOT** silently run unbounded dictionary search.
 

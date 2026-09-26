@@ -8,6 +8,8 @@
 #include <parcae/generate/atbash_candidate_generator.hpp>
 #include <parcae/generate/caesar_candidate_generator.hpp>
 #include <parcae/generate/generator_registry.hpp>
+#include <parcae/generate/hill2_candidate_generator.hpp>
+#include <parcae/generate/hill3_candidate_generator.hpp>
 #include <parcae/generate/vigenere_explicit_key_candidate_generator.hpp>
 #include <parcae/interrupt/policy.hpp>
 #include <parcae/score/exact_match.hpp>
@@ -15,6 +17,8 @@
 #include <parcae/transform/atbash_transform.hpp>
 #include <parcae/transform/caesar_transform.hpp>
 #include <parcae/transform/compose_transform.hpp>
+#include <parcae/transform/hill2_transform.hpp>
+#include <parcae/transform/hill3_transform.hpp>
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
 #include <parcae/transform/vigenere_key_transform.hpp>
@@ -217,6 +221,109 @@ TEST_CASE("AffineCandidateGenerator enumerates 28x29=812 with documented cost",
     REQUIRE(ExactMatch::score(recovered.value()[34].output_indices(), cipher).value() == 1.0);
 }
 
+TEST_CASE("Hill2CandidateGenerator explicit matrices and seed sample", "[generate][hill2]") {
+    REQUIRE(Hill2CandidateGenerator::generator_id == "gen_hill_2");
+    REQUIRE(Hill2CandidateGenerator::default_max_candidates == 256);
+
+    const std::vector<Index29> cipher = {I(4), I(6), I(1), I(0)};
+    const nlohmann::json explicit_params{{"matrices", {{2, 3, 5, 7}, {1, 0, 0, 1}}}};
+
+    StatusOr<std::vector<TransformCandidate>> candidates =
+        Hill2CandidateGenerator::generate(cipher, TransformDirection::Decrypt, explicit_params);
+    REQUIRE(candidates.ok());
+    REQUIRE(candidates.value().size() == 2);
+    REQUIRE(candidates.value()[0].transform_id() == TransformId::hill_2());
+    REQUIRE(candidates.value()[0].candidate_id() == "hill_2:i=0:matrix=2,3,5,7");
+    REQUIRE(candidates.value()[1].params().at("matrix") == nlohmann::json{1, 0, 0, 1});
+
+    const Hill2Transform hill;
+    StatusOr<std::vector<Index29>> expected =
+        hill.apply(cipher, nlohmann::json{{"matrix", {2, 3, 5, 7}}}, TransformDirection::Decrypt);
+    REQUIRE(expected.ok());
+    REQUIRE(candidates.value()[0].output_indices() == expected.value());
+
+    // Encrypt with known matrix then recover via explicit decrypt list.
+    StatusOr<std::vector<TransformCandidate>> encrypted = Hill2CandidateGenerator::generate(
+        cipher, TransformDirection::Encrypt, nlohmann::json{{"matrices", {{2, 3, 5, 7}}}});
+    REQUIRE(encrypted.ok());
+    StatusOr<std::vector<TransformCandidate>> recovered = Hill2CandidateGenerator::generate(
+        encrypted.value()[0].output_indices(), TransformDirection::Decrypt,
+        nlohmann::json{{"matrices", {{2, 3, 5, 7}}}});
+    REQUIRE(recovered.ok());
+    REQUIRE(ExactMatch::score(recovered.value()[0].output_indices(), cipher).value() == 1.0);
+
+    SECTION("rejects singular and odd length") {
+        REQUIRE_FALSE(Hill2CandidateGenerator::generate(
+                          cipher, TransformDirection::Decrypt,
+                          nlohmann::json{{"matrices", {{1, 2, 2, 4}}}})
+                          .ok());
+        const std::vector<Index29> odd = {I(1), I(2), I(3)};
+        REQUIRE_FALSE(Hill2CandidateGenerator::generate(odd, TransformDirection::Decrypt,
+                                                        explicit_params)
+                          .ok());
+    }
+
+    SECTION("seed sample is bounded deterministic and invertible") {
+        const nlohmann::json sample_params{{"max_candidates", 16}, {"seed", 7}};
+        StatusOr<std::vector<TransformCandidate>> a =
+            Hill2CandidateGenerator::generate(cipher, TransformDirection::Decrypt, sample_params);
+        StatusOr<std::vector<TransformCandidate>> b =
+            Hill2CandidateGenerator::generate(cipher, TransformDirection::Decrypt, sample_params);
+        REQUIRE(a.ok());
+        REQUIRE(b.ok());
+        REQUIRE(a.value().size() == 16);
+        REQUIRE(b.value().size() == 16);
+        for (std::size_t i = 0; i < a.value().size(); ++i) {
+            REQUIRE(a.value()[i].candidate_id() == b.value()[i].candidate_id());
+            REQUIRE(a.value()[i].params() == b.value()[i].params());
+        }
+        StatusOr<std::vector<TransformCandidate>> defaults =
+            Hill2CandidateGenerator::generate(cipher);
+        REQUIRE(defaults.ok());
+        REQUIRE(defaults.value().size() == Hill2CandidateGenerator::default_max_candidates);
+    }
+}
+
+TEST_CASE("Hill3CandidateGenerator explicit matrices and seed sample", "[generate][hill3]") {
+    REQUIRE(Hill3CandidateGenerator::generator_id == "gen_hill_3");
+    REQUIRE(Hill3CandidateGenerator::default_max_candidates == 128);
+
+    const std::vector<Index29> cipher = {I(2), I(3), I(4), I(5), I(6), I(7)};
+    const nlohmann::json explicit_params{
+        {"matrices", {{1, 2, 3, 0, 1, 4, 5, 6, 0}, {1, 0, 0, 0, 1, 0, 0, 0, 1}}}};
+
+    StatusOr<std::vector<TransformCandidate>> candidates =
+        Hill3CandidateGenerator::generate(cipher, TransformDirection::Decrypt, explicit_params);
+    REQUIRE(candidates.ok());
+    REQUIRE(candidates.value().size() == 2);
+    REQUIRE(candidates.value()[0].transform_id() == TransformId::hill_3());
+
+    const Hill3Transform hill;
+    StatusOr<std::vector<Index29>> expected = hill.apply(
+        cipher, nlohmann::json{{"matrix", {1, 2, 3, 0, 1, 4, 5, 6, 0}}}, TransformDirection::Decrypt);
+    REQUIRE(expected.ok());
+    REQUIRE(candidates.value()[0].output_indices() == expected.value());
+
+    SECTION("rejects bad length and singular") {
+        const std::vector<Index29> bad_len = {I(1), I(2), I(3), I(4)};
+        REQUIRE_FALSE(Hill3CandidateGenerator::generate(bad_len, TransformDirection::Decrypt,
+                                                        explicit_params)
+                          .ok());
+        REQUIRE_FALSE(Hill3CandidateGenerator::generate(
+                          cipher, TransformDirection::Decrypt,
+                          nlohmann::json{{"matrices", {{1, 2, 3, 2, 4, 6, 0, 1, 0}}}})
+                          .ok());
+    }
+
+    SECTION("seed sample capped") {
+        StatusOr<std::vector<TransformCandidate>> sampled = Hill3CandidateGenerator::generate(
+            cipher, TransformDirection::Decrypt,
+            nlohmann::json{{"max_candidates", 8}, {"seed", 3}});
+        REQUIRE(sampled.ok());
+        REQUIRE(sampled.value().size() == 8);
+    }
+}
+
 TEST_CASE("VigenereExplicitKeyCandidateGenerator applies caller keys only",
           "[generate][vigenere]") {
     REQUIRE(VigenereExplicitKeyCandidateGenerator::generator_id == "gen_vigenere_explicit_keys");
@@ -376,30 +483,37 @@ TEST_CASE("Generators include params that recover known synthetic ciphertexts at
 
 TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][registry]") {
     const std::vector<std::string> ids = GeneratorRegistry::list_generator_ids();
-    REQUIRE(ids.size() == 8);
+    REQUIRE(ids.size() == 10);
     REQUIRE(ids[0] == "gen_atbash");
     REQUIRE(ids[1] == "gen_caesar");
     REQUIRE(ids[2] == "gen_atbash_caesar");
     REQUIRE(ids[3] == "gen_affine");
-    REQUIRE(ids[4] == "gen_vigenere_explicit_keys");
-    REQUIRE(ids[5] == "gen_beaufort_explicit_keys");
-    REQUIRE(ids[6] == "gen_totient_offsets");
-    REQUIRE(ids[7] == "gen_compose_recipes");
+    REQUIRE(ids[4] == "gen_hill_2");
+    REQUIRE(ids[5] == "gen_hill_3");
+    REQUIRE(ids[6] == "gen_vigenere_explicit_keys");
+    REQUIRE(ids[7] == "gen_beaufort_explicit_keys");
+    REQUIRE(ids[8] == "gen_totient_offsets");
+    REQUIRE(ids[9] == "gen_compose_recipes");
     REQUIRE(GeneratorRegistry::is_known("gen_caesar"));
+    REQUIRE(GeneratorRegistry::is_known("gen_hill_2"));
+    REQUIRE(GeneratorRegistry::is_known("gen_hill_3"));
     REQUIRE(GeneratorRegistry::is_known("gen_beaufort_explicit_keys"));
     REQUIRE(GeneratorRegistry::is_known("gen_totient_offsets"));
     REQUIRE(GeneratorRegistry::is_known("gen_compose_recipes"));
     REQUIRE_FALSE(GeneratorRegistry::is_known("gen_nope"));
 
     const std::vector<GeneratorCatalogEntry> entries = GeneratorRegistry::catalog();
-    REQUIRE(entries.size() == 8);
+    REQUIRE(entries.size() == 10);
     REQUIRE(entries[1].bounded_count() == 29);
     REQUIRE_FALSE(entries[1].requires_params());
     REQUIRE(entries[4].requires_params());
     REQUIRE(entries[4].bounded_count() == 0);
     REQUIRE(entries[5].requires_params());
     REQUIRE(entries[6].requires_params());
+    REQUIRE(entries[6].bounded_count() == 0);
     REQUIRE(entries[7].requires_params());
+    REQUIRE(entries[8].requires_params());
+    REQUIRE(entries[9].requires_params());
     REQUIRE(entries[1].to_json().at("generator_id").get<std::string>() == "gen_caesar");
 
     const std::vector<Index29> cipher = {I(0), I(5), I(10)};
@@ -420,6 +534,22 @@ TEST_CASE("GeneratorRegistry lists gen_* ids and dispatches", "[generate][regist
     REQUIRE_FALSE(GeneratorRegistry::generate("gen_vigenere_explicit_keys", cipher).ok());
     REQUIRE_FALSE(GeneratorRegistry::generate("gen_beaufort_explicit_keys", cipher).ok());
     REQUIRE_FALSE(GeneratorRegistry::generate("gen_totient_offsets", cipher).ok());
+
+    const std::vector<Index29> hill_cipher = {I(0), I(5), I(10), I(15)};
+    StatusOr<std::vector<TransformCandidate>> hill2 = GeneratorRegistry::generate(
+        "gen_hill_2", hill_cipher, TransformDirection::Decrypt,
+        nlohmann::json{{"matrices", {{2, 3, 5, 7}}}});
+    REQUIRE(hill2.ok());
+    REQUIRE(hill2.value().size() == 1);
+    REQUIRE(hill2.value()[0].transform_id() == TransformId::hill_2());
+
+    const std::vector<Index29> hill3_cipher = {I(0), I(5), I(10), I(15), I(20), I(25)};
+    StatusOr<std::vector<TransformCandidate>> hill3 = GeneratorRegistry::generate(
+        "gen_hill_3", hill3_cipher, TransformDirection::Decrypt,
+        nlohmann::json{{"max_candidates", 4}, {"seed", 2}});
+    REQUIRE(hill3.ok());
+    REQUIRE(hill3.value().size() == 4);
+    REQUIRE(hill3.value()[0].transform_id() == TransformId::hill_3());
 
     const nlohmann::json vig_params = {
         {"key_indices_list", {{1, 2, 3}, {4, 5}}},
