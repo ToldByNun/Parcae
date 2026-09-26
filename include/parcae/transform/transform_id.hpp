@@ -23,6 +23,10 @@ public:
 
     [[nodiscard]] static TransformId hill_3() { return TransformId{"hill_3"}; }
 
+    [[nodiscard]] static TransformId ciphertext_autokey() {
+        return TransformId{"ciphertext_autokey"};
+    }
+
     [[nodiscard]] static TransformId compose() { return TransformId{"compose"}; }
 
     [[nodiscard]] static TransformId vigenere_key() { return TransformId{"vigenere_key"}; }
@@ -57,6 +61,9 @@ public:
         }
         if (text == "hill_3") {
             return hill_3();
+        }
+        if (text == "ciphertext_autokey") {
+            return ciphertext_autokey();
         }
         if (text == "compose") {
             return compose();

@@ -146,6 +146,42 @@ Rules:
 - Interrupt policy is ignored (block cipher; same stance as `hill_2` / `affine`).
 - Params MUST contain only `matrix`.
 
+### `ciphertext_autokey`
+
+```json
+{
+  "transform_id": "ciphertext_autokey",
+  "direction": "decrypt",
+  "params": {
+    "key_indices": [3, 5],
+    "key_latin": optional
+  },
+  "interrupt": {
+    "policy_id": "explicit_skip_indices_v0",
+    "rune_index_base": 0,
+    "skip_indices": []
+  }
+}
+```
+
+Ciphertext autokey (CTAK) over \(\mathbb{Z}_{29}\) with primer length \(L\).
+
+| Direction | Key at consumed position \(j\) | Mix |
+|-----------|--------------------------------|-----|
+| `encrypt` | \(j < L\) → `key[j]`; else prior **ciphertext** at lag \(L\) | `out = add(in, key)` |
+| `decrypt` | \(j < L\) → `key[j]`; else prior **ciphertext** at lag \(L\) | `out = sub(in, key)` |
+
+Dense (empty skips) matches the CUDA `DeepScoreBatch` autokey hist kernel:
+primer while absolute index \(i < L\), then key = `ciphertext[i-L]`.
+
+Rules:
+
+- `key_indices` MUST be a non-empty array of integers in `0..28`.
+- Optional `key_latin` is metadata only when `key_indices` is present.
+- Interrupt skips pass through and do **not** consume primer/feedback (same cursor
+  rule as `vigenere_key`).
+- Empty primer MUST hard-error.
+
 ### `compose`
 
 ```json

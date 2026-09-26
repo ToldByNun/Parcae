@@ -8,6 +8,7 @@
 #include "parcae/transform/atbash_transform.hpp"
 #include "parcae/transform/beaufort_key_transform.hpp"
 #include "parcae/transform/caesar_transform.hpp"
+#include "parcae/transform/ciphertext_autokey_transform.hpp"
 #include "parcae/transform/compose_transform.hpp"
 #include "parcae/transform/hill2_transform.hpp"
 #include "parcae/transform/hill3_transform.hpp"
@@ -51,6 +52,10 @@ public:
         }
         if (id == TransformId::vigenere_key()) {
             return VigenereKeyTransform{}.apply_into(input, output, params, direction, interrupt);
+        }
+        if (id == TransformId::ciphertext_autokey()) {
+            return CiphertextAutokeyTransform{}.apply_into(input, output, params, direction,
+                                                          interrupt);
         }
         if (id == TransformId::beaufort_key()) {
             return BeaufortKeyTransform{}.apply_into(input, output, params, direction, interrupt);
