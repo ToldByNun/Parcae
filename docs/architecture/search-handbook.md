@@ -71,9 +71,11 @@ Normative research tree + determinism:
 `WorkspaceScaffold::ensure_research` (library) so `README.md`, `SOURCE.txt`,
 `pages/`, `research/`, and friends exist before writers run.
 
-A helper `parcae.corpus.load_page` (solved-fixture warning + workspace resolve)
-is **deferred** — until it lands, copy ciphertext into `inputs/ciphertext.txt`
-(or `pages/NN.txt` then copy) as below.
+A helper `WorkspaceCipher::load_page` resolves `pages/NN.txt` under the
+workspace (tokenize + ciphertext digest; never fixture plaintext). Example:
+`load_page(data, "lp2-page-0-explore", 0)` → `pages/00.txt`. Operators MAY
+still copy a page into `inputs/ciphertext.txt` for `search_cycle` default
+input.
 
 ### Layout
 

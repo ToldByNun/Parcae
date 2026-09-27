@@ -184,6 +184,18 @@ public:
         return cipher;
     }
 
+    /// Load research-layout page ciphertext `pages/NN.txt` (NN zero-padded).
+    /// Same tokenize + digest path as `from_workspace_file`; MUST NOT touch fixtures.
+    [[nodiscard]] static StatusOr<WorkspaceCipher>
+    load_page(const std::filesystem::path& data_root, std::string_view workspace_id,
+              unsigned page_index, unsigned width = 2) {
+        StatusOr<std::string> rel = WorkspacePaths::page_relative_path(page_index, width);
+        if (!rel.ok()) {
+            return rel.status();
+        }
+        return from_workspace_file(data_root, workspace_id, rel.value());
+    }
+
 private:
     [[nodiscard]] static StatusOr<WorkspaceCipher>
     from_utf8_runes(const std::filesystem::path& data_root, std::string workspace_id,

@@ -73,7 +73,11 @@ data/workspaces/<workspace_id>/
 | Path | Requirement |
 |------|-------------|
 | `README.md` / `SOURCE.txt` | SHOULD exist for research workspaces; scaffold writes templates **only if missing** (never overwrite) |
-| `pages/` | MAY hold per-page ciphertext (`NN.txt`); multi-page `load_page` resolve is deferred — until then operators MAY copy a page into `inputs/ciphertext.txt` |
+| `pages/` | MAY hold per-page ciphertext (`NN.txt`). Conforming C++ resolves via
+  `WorkspaceCipher::load_page(data_root, workspace_id, page_index)` →
+  `pages/NN.txt` (zero-padded width 2 by default) with the same tokenize +
+  `ciphertext_sha256` path as `workspace_file`. Path helpers:
+  `WorkspacePaths::page_relative_path` / `page_file`. |
 | `inputs/ciphertext.txt` | MUST be the default `workspace_file` path for new research manifests |
 | `inputs/INDEX.md` | SHOULD document input files; scaffold template only if missing |
 | `research/REPRODUCE.md` | SHOULD record how to reproduce digests / cycles; scaffold template only if missing |

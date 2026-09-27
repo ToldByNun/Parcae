@@ -105,6 +105,44 @@ public:
         return root.value() / "pages";
     }
 
+    /// Relative path `pages/NN.txt` (NN zero-padded to `width` digits, default 2).
+    [[nodiscard]] static StatusOr<std::string> page_relative_path(unsigned page_index,
+                                                                  unsigned width = 2) {
+        if (width < 1 || width > 4) {
+            return Status::error("WorkspacePaths: page filename width must be 1..4");
+        }
+        unsigned limit = 1;
+        for (unsigned i = 0; i < width; ++i) {
+            limit *= 10u;
+        }
+        if (page_index >= limit) {
+            return Status::error("WorkspacePaths: page_index out of range for width " +
+                                 std::to_string(width));
+        }
+        std::string name(width, '0');
+        unsigned v = page_index;
+        for (unsigned i = 0; i < width; ++i) {
+            name[width - 1 - i] = static_cast<char>('0' + (v % 10u));
+            v /= 10u;
+        }
+        return std::string("pages/") + name + ".txt";
+    }
+
+    /// Absolute path to `pages/NN.txt` under the workspace (file need not exist yet).
+    [[nodiscard]] static StatusOr<std::filesystem::path>
+    page_file(const std::filesystem::path& data_root, std::string_view workspace_id,
+              unsigned page_index, unsigned width = 2) {
+        StatusOr<std::string> rel = page_relative_path(page_index, width);
+        if (!rel.ok()) {
+            return rel.status();
+        }
+        StatusOr<std::filesystem::path> root = workspace_root(data_root, workspace_id);
+        if (!root.ok()) {
+            return root.status();
+        }
+        return root.value() / std::filesystem::path(rel.value());
+    }
+
     /// Research layout: `research/` (REPRODUCE.md, run.log, digests, …).
     [[nodiscard]] static StatusOr<std::filesystem::path>
     research_dir(const std::filesystem::path& data_root, std::string_view workspace_id) {

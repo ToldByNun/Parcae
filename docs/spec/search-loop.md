@@ -174,7 +174,9 @@ MUST NOT expand TheorySweep grids). Hill / autokey families MUST use CPU export
 MUST NOT read fixture **plaintext** when building search inputs for unsolved
 research workspaces. Operator recipe for LP2-style trees (`inputs/` +
 `workspace_file`): [`search-handbook.md`](../architecture/search-handbook.md)
-§ LP2 workspace recipe.
+§ LP2 workspace recipe. Multi-page research MAY load `pages/NN.txt` via
+`WorkspaceCipher::load_page` (same sandbox + digest rules as `workspace_file`);
+default `search_cycle` input remains the workspace `input.path`.
 
 ---
 

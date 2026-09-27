@@ -91,6 +91,18 @@ TEST_CASE("WorkspacePaths research layout helpers", "[hypothesis][paths][researc
     REQUIRE_FALSE(WorkspacePaths::research_dir(data_root(), "").ok());
     REQUIRE_FALSE(WorkspacePaths::readme_path(data_root(), "../evil").ok());
     REQUIRE_FALSE(WorkspacePaths::source_path(data_root(), "1leading").ok());
+
+    REQUIRE(WorkspacePaths::page_relative_path(0).value() == "pages/00.txt");
+    REQUIRE(WorkspacePaths::page_relative_path(7).value() == "pages/07.txt");
+    REQUIRE(WorkspacePaths::page_relative_path(55).value() == "pages/55.txt");
+    REQUIRE(WorkspacePaths::page_relative_path(7, 3).value() == "pages/007.txt");
+    REQUIRE_FALSE(WorkspacePaths::page_relative_path(100).ok());
+    REQUIRE_FALSE(WorkspacePaths::page_relative_path(0, 0).ok());
+
+    StatusOr<std::filesystem::path> page0 =
+        WorkspacePaths::page_file(data_root(), "_example", 0);
+    REQUIRE(page0.ok());
+    REQUIRE(page0.value() == data_root() / "workspaces" / "_example" / "pages" / "00.txt");
 }
 
 TEST_CASE("HypothesisRecord loads committed _example", "[hypothesis][load]") {

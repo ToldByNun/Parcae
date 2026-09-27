@@ -349,3 +349,57 @@ TEST_CASE("C10 from_manifest routes kinds / unknown kind fails", "[search][ciphe
 
     std::filesystem::remove_all(tmp, ec);
 }
+
+TEST_CASE("WorkspaceCipher::load_page resolves pages/NN.txt with digest",
+          "[search][cipher][resolve][page]") {
+    const auto tmp = std::filesystem::temp_directory_path() / "parcae_cipher_load_page";
+    std::error_code ec;
+    std::filesystem::remove_all(tmp, ec);
+    std::filesystem::create_directories(tmp / "workspaces", ec);
+    copy_tokenize_profiles(tmp);
+
+    REQUIRE(store_workspace_with_input(tmp, "page-ws",
+                                       nlohmann::json{
+                                           {"kind", "workspace_file"},
+                                           {"fixture_id", nullptr},
+                                           {"path", "inputs/ciphertext.txt"},
+                                       })
+                .ok());
+
+    StatusOr<std::filesystem::path> pages = WorkspacePaths::pages_dir(tmp, "page-ws");
+    REQUIRE(pages.ok());
+    std::filesystem::create_directories(pages.value(), ec);
+    std::filesystem::copy_file(data_root() / "fixtures" / "solved" / "welcome" / "ciphertext.txt",
+                               pages.value() / "00.txt", ec);
+    REQUIRE(!ec);
+    std::filesystem::copy_file(data_root() / "fixtures" / "solved" / "a-warning" / "ciphertext.txt",
+                               pages.value() / "07.txt", ec);
+    REQUIRE(!ec);
+
+    StatusOr<WorkspaceCipher> page0 = WorkspaceCipher::load_page(tmp, "page-ws", 0);
+    REQUIRE(page0.ok());
+    REQUIRE(page0.value().source_kind() == WorkspaceCipher::SourceKind::WorkspaceFile);
+    REQUIRE(page0.value().source_path() == "pages/00.txt");
+    REQUIRE(page0.value().size() > 0);
+    REQUIRE(page0.value().ciphertext_sha256().size() == 64);
+
+    StatusOr<WorkspaceCipher> via_file =
+        WorkspaceCipher::from_workspace_file(tmp, "page-ws", "pages/00.txt");
+    REQUIRE(via_file.ok());
+    REQUIRE(via_file.value().indices() == page0.value().indices());
+    REQUIRE(via_file.value().ciphertext_sha256() == page0.value().ciphertext_sha256());
+
+    StatusOr<WorkspaceCipher> page7 = WorkspaceCipher::load_page(tmp, "page-ws", 7);
+    REQUIRE(page7.ok());
+    REQUIRE(page7.value().source_path() == "pages/07.txt");
+    REQUIRE(page7.value().ciphertext_sha256() != page0.value().ciphertext_sha256());
+
+    // Missing page → Status (no abort).
+    REQUIRE_FALSE(WorkspaceCipher::load_page(tmp, "page-ws", 3).ok());
+    REQUIRE_FALSE(WorkspaceCipher::load_page(tmp, "page-ws", 100).ok());
+
+    // Must not resolve outside pages/ via path tricks — page API only builds pages/NN.txt.
+    REQUIRE(WorkspacePaths::page_relative_path(0).value().find("..") == std::string::npos);
+
+    std::filesystem::remove_all(tmp, ec);
+}
