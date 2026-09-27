@@ -237,13 +237,22 @@ representatives. `**` is modular exponentiation (`0**0` → `1`). `~x` is
 | `z29_bool_not` / `not` | zero → `1` else `0` |
 | `z29_atbash` | `28 - x` |
 | `select` / `z29_select` | Branch-free mux: nonzero cond → true arm, else false arm |
-| `z29_matmul` | Matrix × vector over Z29 (Hill-style). BuildIr: `z29_matmul(M, v)[i]` expands to a scalar tree; bare call is E032. CUDA emit expands flattened Call via `MatrixIr` → `Z29Device` |
+| `z29_matmul` | Matrix × vector over Z29 (Hill-style). Args: matrix tuple (4 or 9 `Z29Expr` entries) + length-matching vector. BuildIr: **MUST** subscript — `z29_matmul(M, v)[i]` expands to a scalar tree; bare call → **E032**. CUDA emit expands flattened Call via `MatrixIr` → `Z29Device` / `Z29Matrix{2,3}Device` |
 | `z29_det` | Determinant mod 29. BuildIr expands `z29_det((…))` via `MatrixIr::det_expr()`; CUDA emit expands Call the same way |
-| `z29_autokey_shift` | Autokey lag / ringbuffer read (`stream`, `lag`). BuildIr keeps Call; CPU → `AutokeyRing::shift`; CUDA → `AutokeyRingDevice::shift`. `stream` MUST be the HotLoop cipher var; primer-less v0 returns 0 when `i < lag` |
+| `z29_autokey_shift` | Autokey lag / ringbuffer read. Args: `(stream, lag)`. BuildIr keeps Call; CPU → `AutokeyRing::shift`; CUDA → `AutokeyRingDevice::shift`. `stream` **MUST** be the HotLoop cipher var; primer-less v0 returns `0` when `i < lag` |
 
-Catalog compose leaves (`DslCatalogBuiltins`): `identity` / `atbash` / `caesar` /
-`affine` are ComposeTransform staged-fallback ids; DSL-only `matrix_mix` /
-`autokey_lag` fuse-inline and emit fused kernels only (no staged twin).
+#### `DslCatalogBuiltins` / `@ComposedTheory` step ids
+
+| Step id | Kind | Notes |
+|---------|------|-------|
+| `identity` / `atbash` / `caesar` / `affine` | Catalog leaves | ComposeTransform staged-fallback ids |
+| `matrix_mix` | DSL-only | Fuses `z29_matmul` / Hill-style mix; **no** `TransformId` / `parcae-decode --transform-id` twin |
+| `autokey_lag` | DSL-only | Fuses `z29_autokey_shift`; fuse-inline emit only (no staged twin) |
+
+Authoring example (matrix builtins):
+[`theories/examples/matrix_builtins_example.py`](../../theories/examples/matrix_builtins_example.py)
+(`z29_det` / `z29_matmul`, `@define_primitive`). Compile via `parcae-compile`
+(see root README § Theory DSL).
 
 `z29_*` Call names **MUST** appear on the `DslZ29Builtins` allowlist
 (`DslSemanticGate` rejects unknown `z29_*` with **E032**). Custom

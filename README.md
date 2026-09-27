@@ -141,6 +141,12 @@ class HelloAtbashCaesar:
         return {"atbash": {}, "caesar": {"shift": self.caesar_shift}}
 ```
 
+Matrix / autokey builtins (`z29_matmul`, `z29_det`, compose leaves `matrix_mix` /
+`autokey_lag`): see
+[`theories/examples/matrix_builtins_example.py`](theories/examples/matrix_builtins_example.py)
+and [`docs/spec/dsl.md`](docs/spec/dsl.md) § Core math ops. Specs for Hill /
+autokey catalog transforms: [`docs/spec/transforms.md`](docs/spec/transforms.md).
+
 #### New math: `@define_primitive` + keyed `@Theory`
 
 ```python
@@ -255,12 +261,13 @@ ciphertext / runes
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Learn the 29-rune alphabet            | [`docs/research/gematria-primus.md`](docs/research/gematria-primus.md)                                                  |
 | Reproduce a solved page               | `parcae-decode --manifest ...` + `parcae-validate`                                                                        |
+| Apply Hill / autokey / grid transforms | `parcae-decode --transform-id …` ([`transforms.md`](docs/spec/transforms.md) catalog)                                    |
 | Score a candidate plaintext           | `parcae-score`                                                                                                          |
 | Enumerate small transform grids       | `parcae-generate` -> `parcae-rank`                                                                                       |
 | Record a research hypothesis          | `parcae-hypothesis` + [`docs/spec/hypothesis-workspace.md`](docs/spec/hypothesis-workspace.md)                          |
 | Author a new theory (DSL)             | [Theory DSL examples](#4-write-a-theory-dsl); [`theories/examples/`](theories/examples/)  |
 | Drive tools from an LLM               | [`agents/`](agents/README.md) (`parcae-agent`)                                                                          |
-| Closed-loop search (workspace cycles) | [`docs/architecture/search-handbook.md`](docs/architecture/search-handbook.md) (`parcae-search-cycle` / `search_cycle`) |
+| Closed-loop search (workspace cycles) | [`search-handbook.md`](docs/architecture/search-handbook.md) (`parcae-search-cycle`; `--allow-extended-families` / `--allow-theory-uri`) |
 | GPU fused search / throughput         | [`docs/architecture/cuda-build.md`](docs/architecture/cuda-build.md)                                                    |
 
 
@@ -348,9 +355,10 @@ Normative contracts: [`docs/spec/tools.md`](docs/spec/tools.md). Agent allow/den
 | `parcae-catalog`                      | List transforms, scores, generators, theories                                                           |
 | `parcae-generate`                     | Expand bounded candidate grids                                                                          |
 | `parcae-rank`                         | Top-k score candidates                                                                                  |
-| `parcae-hypothesis`                   | Workspace hypothesis CRUD / score                                                                       |
+| `parcae-hypothesis`                   | Workspace hypothesis CRUD / score / `ensure --layout research`                                          |
 | `parcae-compile`                      | Theory DSL -> verified artifact                                                                          |
 | `parcae-sweep`                        | Expand theory `param_grid` plans                                                                        |
+| `parcae-search-cycle`                 | Closed-loop search (job → batch → hypotheses; `--allow-extended-families` / `--allow-theory-uri`)       |
 | `parcae-search-run`                   | Fused search / throughput-style sweeps                                                                  |
 | `parcae-parity` / `parcae-parity-gen` | CPU↔CUDA parity records                                                                                 |
 | `parcae-blind-crack`                  | Research battery on locked fixtures                                                                     |
@@ -431,7 +439,8 @@ CMD agent tooling     ->  agents/ + agent-facing CLIs        in progress -- v0.6
 Search engine loop    ->  GPU ↔ candidates ↔ hypotheses      done -- v0.7.0-search-engine
 Smart DSL + console   ->  scopes/Select/#ignore + dashboard  done -- v0.8.0-dsl-console
 Bench & diagnostics   ->  parcae-bench SLO/accuracy/hw/probe done -- v0.9.0-bench
-Open-source polish    ->  packaging, contribution docs       later
+Catalog + DSL math    ->  Hill/autokey/grids + z29_matmul/det/autokey_shift  done (1.0.0 prep)
+Open-source polish    ->  packaging, RELEASE_NOTES, version bump to 1.0.0   next
 ```
 
 Frozen CUDA commit list: [`docs/architecture/cuda-roadmap.md`](docs/architecture/cuda-roadmap.md).  

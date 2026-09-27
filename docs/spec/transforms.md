@@ -1,8 +1,35 @@
 # Spec: Transform Families and Parameter Schemas
 
 **Status:** Normative  
-**Headers (planned):** `parcae/transform/*.hpp`  
+**Headers:** `include/parcae/transform/*.hpp` (dispatch:
+`apply_transform.hpp`), math: `include/parcae/math/z29_matrix{2,3}.hpp`  
 **Research:** [hypotheses.md](../research/hypotheses.md), [solved-methods.md](../research/solved-methods.md)
+
+## Catalog index (`transform_id` roster)
+
+Stable ids accepted by `TransformId::from_string` / `parcae-catalog` /
+`TransformEnvelope` (order matches the catalog parser):
+
+| `transform_id` | Role |
+|----------------|------|
+| `identity` | Copy stream |
+| `atbash` | \(28-x\) |
+| `caesar` | Additive shift |
+| `affine` | \(a\cdot x+b\) |
+| `hill_2` / `hill_3` | \(2\times2\) / \(3\times3\) Hill over \(\mathbb{Z}_{29}\) (`Z29Matrix2`/`Z29Matrix3`) |
+| `ciphertext_autokey` | CTAK (primer + ciphertext lag) |
+| `plaintext_autokey` | PTAK (primer + plaintext lag) |
+| `variable_delay_autokey` | Prime-lag CTAK/PTAK |
+| `spiral_read` / `boustrophedon_read` / `diagonal_read` | Grid reorder |
+| `columnar_transposition` | Columnar permute |
+| `compose` | Staged recipes |
+| `vigenere_key` / `beaufort_key` | Periodic keyed streams |
+| `totient_prime_stream` | Totient / prime-index stream |
+
+**Search vs catalog:** Closed-loop `SearchJob.family` is a **subset** of these
+ids (plus compose aliases like `atbash_caesar`). Grid reads, columnar, and
+`variable_delay_autokey` are decode/generate envelopes only — see
+[search-loop.md](search-loop.md) § family ↔ `transform_id`.
 
 ## Common contract
 
@@ -115,7 +142,8 @@ Non-rune tokens are handled by the corpus layer, not inside Index29 kernels.
 Rules:
 
 - Each entry MUST be in `0..28`.
-- \(\det(A) \not\equiv 0 \pmod{29}\) (singular keys MUST hard-error).
+- \(\det(A) \not\equiv 0 \pmod{29}\) (singular keys MUST hard-error via
+  `Z29Matrix2::try_inverse` / Status — see [z29.md](z29.md) § Matrices).
 - Input length MUST be even; odd length MUST hard-error (no implicit pad in v0).
 - Interrupt policy is ignored (block cipher; same stance as `affine`).
 - Params MUST contain only `matrix`.
@@ -141,7 +169,8 @@ entries for \(\begin{pmatrix}a&b&c\\d&e&f\\g&h&i\end{pmatrix}\).
 Rules:
 
 - Each entry MUST be in `0..28`.
-- \(\det(A) \not\equiv 0 \pmod{29}\) (singular keys MUST hard-error).
+- \(\det(A) \not\equiv 0 \pmod{29}\) (singular keys MUST hard-error via
+  `Z29Matrix3::try_inverse` / Status — see [z29.md](z29.md) § Matrices).
 - Input length MUST be a multiple of 3; other lengths MUST hard-error (no implicit pad in v0).
 - Interrupt policy is ignored (block cipher; same stance as `hill_2` / `affine`).
 - Params MUST contain only `matrix`.
@@ -508,6 +537,10 @@ Generators emit deterministic sequences of transform envelopes.
 | `gen_plaintext_autokey_explicit_primers` | caller-supplied PTAK primer list only | \|primers\| |
 | `gen_totient_offsets` | caller-supplied / bounded `prime_start_index` list | small |
 | `gen_compose_recipes` | empty → Atbash∘Caesar 29; or `recipes` / `stages` / `template` | \|recipes\| or 29 |
+
+**No dedicated `gen_*` (v0):** `identity` (decode-only), `variable_delay_autokey`,
+`spiral_read`, `boustrophedon_read`, `diagonal_read`, `columnar_transposition`.
+Use `parcae-decode` / explicit envelopes; do not invent unbounded generators.
 
 `gen_affine` is the largest Tier-A monoalphabetic sweep in the CPU reference.
 Callers MUST treat 812 as an explicit budget (score/batch), not an unbounded

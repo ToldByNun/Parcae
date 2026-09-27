@@ -106,7 +106,9 @@ In-memory record and JSON object used by `SearchScheduler` / CLI.
   "max_candidates": 4096,
   "direction": "decrypt",
   "param_grid": null,
-  "prior": null
+  "prior": null,
+  "allow_extended_families": false,
+  "allow_theory_uri": false
 }
 ```
 
@@ -131,6 +133,8 @@ In-memory record and JSON object used by `SearchScheduler` / CLI.
 | `direction` | `encrypt` \| `decrypt`; default `decrypt` |
 | `param_grid` | Object; family-specific bounds. `null` ⇒ use family default grid |
 | `prior` | Inline `parcae.search_prior.v0` object, **or** omit and load from workspace hypotheses |
+| `allow_extended_families` | Default `false`. When `true`, permits `beaufort` / `totient` / `hill_*` / CTAK / PTAK (CLI: `--allow-extended-families`) |
+| `allow_theory_uri` | Default `false`. When `true`, permits `family=theory` (CLI: `--allow-theory-uri`) |
 
 ### `family` (v0)
 
@@ -158,6 +162,38 @@ rejected unless `allow_extended_families` is true (job JSON and/or CLI
 jobs MUST supply a non-empty `params_list` of param objects (top candidates only;
 MUST NOT expand TheorySweep grids). Hill / autokey families MUST use CPU export
 (no fused CUDA χ² path in v0).
+
+### `family` ↔ catalog `transform_id`
+
+| `SearchJob.family` | Primary catalog `transform_id` / envelope |
+|--------------------|-------------------------------------------|
+| `caesar` | `caesar` |
+| `atbash` | `atbash` |
+| `atbash_caesar` | `compose` (Atbash∘Caesar) |
+| `affine` | `affine` |
+| `vigenere` | `vigenere_key` |
+| `compose` | `compose` |
+| `beaufort` | `beaufort_key` |
+| `totient` | `totient_prime_stream` |
+| `hill_2` / `hill_3` | `hill_2` / `hill_3` |
+| `ciphertext_autokey` / `plaintext_autokey` | same ids |
+| `theory` | theory URI envelope (not a catalog id) |
+
+**Out of search-cycle scope (v0):** catalog transforms with **no** `family` —
+`spiral_read`, `boustrophedon_read`, `diagonal_read`, `columnar_transposition`,
+`variable_delay_autokey`, and bare `identity`. Use `parcae-decode` /
+`parcae-generate` with envelopes ([transforms.md](transforms.md)).
+
+### Extended `param_grid` shapes (normative summary)
+
+Operator detail: [search-handbook.md](../architecture/search-handbook.md) § Extended families.
+
+| Family | Typical `param_grid` keys |
+|--------|---------------------------|
+| `vigenere` / `beaufort` / CTAK / PTAK | `keys` / `key_indices` lists (explicit); optional length bounds |
+| `totient` | `prime_start_indices` **or** `prime_start_count` |
+| `hill_2` / `hill_3` | `matrices` (row-major arrays) **or** rely on `max_candidates` + `seed` for bounded invertible sample |
+| `theory` | `theory_uri` + non-empty `params_list` of param objects |
 
 ### Ciphertext resolution
 

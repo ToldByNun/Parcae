@@ -7,13 +7,13 @@ with [`docs/research/`](../research/README.md) (including confidence demotions).
 
 ### Arithmetic & tokens
 
-- [x] [z29.md](z29.md) — Index29, ops, inv, error policy, test vectors
+- [x] [z29.md](z29.md) — Index29, ops, inv, matrices (`Z29Matrix2`/`3`), error policy, test vectors
 - [x] [tokens.md](tokens.md) — kinds, consumable indices, masks, literal kinds
 
 ### Interrupts & transforms
 
 - [x] [interrupts.md](interrupts.md) — explicit skip policy; forbidden all-F skip as oracle
-- [x] [transforms.md](transforms.md) — required families, JSON envelopes, generators, fixture map
+- [x] [transforms.md](transforms.md) — catalog roster, Hill/autokey/grids, generators, fixture map
 
 ### Scores & fixtures
 
@@ -25,12 +25,12 @@ with [`docs/research/`](../research/README.md) (including confidence demotions).
 - [x] [tools.md](tools.md) — library + CLI contracts; agent-facing five primitives
 - [x] [agent-tools.md](agent-tools.md) — allow-list, deny-list, tool_response envelope, agent loop
 - [x] [hypothesis-workspace.md](hypothesis-workspace.md) — workspace layout, HypothesisRecord, transcripts
-- [x] [search-loop.md](search-loop.md) — SearchJob, BatchArtifact, SearchPrior, cycle semantics
+- [x] [search-loop.md](search-loop.md) — SearchJob, BatchArtifact, SearchPrior, cycle; family ↔ transform; extended opt-ins
 - [x] [parity.md](parity.md) — CPU obligations for later CUDA bit-identity
 
 ### Theory DSL & artifacts
 
-- [x] [dsl.md](dsl.md) — language subset, tiers/interrupts, verify gates, `dsl_spec_version`
+- [x] [dsl.md](dsl.md) — language subset, `z29_matmul`/`det`/`autokey_shift`, compose leaves, verify gates
 - [x] [dsl-ast-json.md](dsl-ast-json.md) — `parcae.dsl_ast_json.v0`, ingest limits, node whitelist
 - [x] [theory-artifact.md](theory-artifact.md) — `parcae.theory_artifact.v0`, URIs, stale-spec reject
 
@@ -48,6 +48,8 @@ with [`docs/research/`](../research/README.md) (including confidence demotions).
 | Why 29 runes | research; transforms assume frozen profile id |
 | Crypto runtime | tools/parity C++-first; DSL authoring may be `.py`, compile/verify in C++ |
 | Stale theories | theory-artifact + dsl `dsl_spec_version` MAJOR mismatch → reject |
+| Catalog vs search | transforms roster ↔ search-loop family map; generators gaps documented |
+| Matrix / Hill | z29 matrices + transforms `hill_*` + dsl `z29_matmul`/`z29_det` |
 
 ## Artifacts
 

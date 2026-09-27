@@ -20,10 +20,15 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `batch_artifact.hpp` | `BatchArtifact` | Done (`parcae.batch_artifact.v0`) |
 | `workspace_cipher.hpp` | `WorkspaceCipher` | Done (`workspace.v0` → `Index29`) |
 | `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere + compose recipes + opt-in beaufort/totient) |
-| `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (generate + rank + prior + compose + extended + theory URI) |
+| `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (v0 families + extended `hill_2`/`hill_3`/CTAK/PTAK + `theory` URI; CPU-only for hill/autokey/theory) |
 | `hypothesis_bridge.hpp` | `HypothesisBridge` | Done (ingest + idempotent ids / provenance) |
 | `search_scheduler.hpp` | `SearchScheduler` | Done (`run_once` / `run_loop` + prior feedback) |
-| CLI `parcae-search-cycle` | tool `search_cycle` | Done (`--status` / run / `--omit-timing` / AgentPolicy + JSON goldens) |
+| CLI `parcae-search-cycle` | tool `search_cycle` | Done (`--status` / run / `--omit-timing` / `--allow-extended-families` / `--allow-theory-uri` / AgentPolicy + JSON goldens) |
+
+`SearchJob` emits `allow_extended_families` / `allow_theory_uri` (default false).
+`is_cpu_export_only_family` covers hill / CTAK / PTAK / theory. Family ↔ catalog
+`transform_id` map: [`search-loop.md`](../../../docs/spec/search-loop.md).
+Grid-read / columnar / `variable_delay_autokey` are **not** search families.
 
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,
 `[search][cipher]`, `[search][cipher][resolve]`, `[search][export]`,
@@ -33,10 +38,10 @@ Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtri
 `[search][adversarial]`, `[search][adversarial][job]`,
 `[search][adversarial][path]`, `[search][adversarial][caps]`,
 `[search][batch][limits]`, `[search][batch][fuzz]`,
-`[tool][search_cycle]`, `[tool][golden][cli][search_cycle]`,
-`[tool][policy][cli][search_cycle]` — types + export + ingest + scheduler + CLI
-cycle run + goldens + AgentPolicy allow path + adversarial job/path/caps +
-BatchArtifact limits / ordering fuzz.
+`[research][falsify]`, `[tool][search_cycle]`, `[tool][golden][cli][search_cycle]`,
+`[tool][policy][cli][search_cycle]` — types + export (incl. extended/hill/autokey/theory)
++ ingest + scheduler + falsify corpus load/determinism + CLI cycle run + goldens +
+AgentPolicy allow path + adversarial job/path/caps + BatchArtifact limits / ordering fuzz.
 CLI smoke: `ctest -R cli_search_cycle_status_json`.
 Hosted CI matrix gate: `parcae_tests "[search]"` (`.github/workflows/ci.yml`).
 Tag table (CPU vs CUDA): [`docs/architecture/cuda-build.md`](../../../docs/architecture/cuda-build.md)

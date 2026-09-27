@@ -42,7 +42,7 @@ private:
 | `dsl_host_glue.hpp` | `DslHostGlue` | Done (for/while → HostGlueIr / E035) |
 | `dsl_exec_scope.hpp` | `DslExecScope` | Done (OuterControl / HotLoop + loop depth) |
 | `dsl_scope_analyzer.hpp` | `DslScopeAnalyzer` / `DslScopeMap` | Done (AST → scope map) |
-| `matrix_ir.hpp` | `MatrixIr` | Done (2×2 / 3×3 Z29Expr; det / mul_vec expand) |
+| `matrix_ir.hpp` | `MatrixIr` | Done (2×2 / 3×3 `Z29Expr`; det / mul_vec expand → host `Z29Matrix{2,3}` / device twins) |
 | `param_ir.hpp` | `ParamIr` | Done |
 | `primitive_ir.hpp` | `PrimitiveIr` | Done |
 | `theory_ir.hpp` | `TheoryIr` | Done |
@@ -51,7 +51,7 @@ private:
 | `dsl_emit_cpu.hpp` | `DslEmitCpu` | Done (Transform-shaped; `Select` → `Z29::select` / branch; matmul/det/autokey) |
 | `dsl_emit_cuda.hpp` | `DslEmitCuda` | Done (Z29Device; matmul/det expand; autokey → AutokeyRingDevice) |
 | `dsl_verifier.hpp` | `DslVerifier` | Done (exhaustive ≤4 + fuzz + CPU↔CUDA mirror) |
-| `dsl_catalog_builtins.hpp` | `DslCatalogBuiltins` | Done (`identity`/`atbash`/`caesar`/`affine` + DSL-only `matrix_mix`/`autokey_lag`; `lookup`) |
+| `dsl_catalog_builtins.hpp` | `DslCatalogBuiltins` | Done (`identity`/`atbash`/`caesar`/`affine` + DSL-only `matrix_mix`/`autokey_lag`; **not** `TransformId` / decode `--transform-id`) |
 | `dsl_fuse.hpp` | `DslFuse` | Done (inline + emit + CPU bench; DSL-only leaves → fused emit) |
 | `dsl_optimize.hpp` | `DslOptimize` | Done (const-fold + Select dead-arm + `inv` hoist) |
 | `dsl_launch_plan.hpp` | `DslLaunchPlan` | Done (1D / HistFast 2D twin grids) |
@@ -102,10 +102,11 @@ Tests: `[dsl][dispatch][i41]` TheoryDispatch catalog + theory URI apply.
 Tests: `[cuda][dsl][smoke]` DslEmitCuda text + `DslSmokeCaesarKernel` (device when CUDA ON).
 
 Authoring examples (also CI via `scripts/check-dsl-examples.sh`):
-[`theories/examples/`](../../../theories/examples/) — `param_select_example.py`
-(Param → Select / **W011**); `ignore_divergent_example.py` denied without
-`--allow-dsl-ignores` (**E031**). Handbook:
-[python-transpiler.md](../../../docs/architecture/python-transpiler.md)
+[`theories/examples/`](../../../theories/examples/) —
+`matrix_builtins_example.py` (`z29_det` / `z29_matmul` / `@define_primitive`);
+`param_select_example.py` (Param → Select / **W011**);
+`ignore_divergent_example.py` denied without `--allow-dsl-ignores` (**E031**).
+Handbook: [python-transpiler.md](../../../docs/architecture/python-transpiler.md)
 § Execution scopes.
 
 ## Status
