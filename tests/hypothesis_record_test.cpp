@@ -225,3 +225,68 @@ TEST_CASE("HypothesisRecord load rejects id mismatch", "[hypothesis][load]") {
     REQUIRE_FALSE(HypothesisRecord::load_file(path, "_example", "wrong-id").ok());
     REQUIRE_FALSE(HypothesisRecord::load_file(path, "other-ws", "h-atbash-example").ok());
 }
+
+TEST_CASE("HypothesisRecord loads falsify-shaped research writer JSON",
+          "[hypothesis][research][load]") {
+    // Mirrors scripts/research/falsify_nt_keystreams_lp2.py make_hypothesis_record().
+    nlohmann::json root = {
+        {"schema", "parcae.hypothesis.v0"},
+        {"id", "h_nt_stream_a_phi"},
+        {"workspace_id", "_falsify_schema_check"},
+        {"created_utc", "2026-09-27T00:00:00Z"},
+        {"updated_utc", "2026-09-27T00:00:00Z"},
+        {"status", "rejected"},
+        {"title", "Keystream A: S_t = phi(t) mod 29"},
+        {"rationale", "schema self-check"},
+        {"method",
+         {{"transform_id", "vigenere_key"},
+          {"direction", "decrypt"},
+          {"params",
+           {{"stream_id", "A_phi_pos"},
+            {"formula", "S_t = EulerTotient(t) mod 29"},
+            {"mixer_ops", {"sub", "add"}},
+            {"domains", {"index", "prime_mod_as_index"}},
+            {"pos_bases", {1, 0}},
+            {"modulus", 29},
+            {"research", "nt_keystream_falsify"}}}}},
+        {"source",
+         {{"generator_id", "research_falsify_nt_keystreams_lp2"},
+          {"batch_id", "b_falsify_schema_v0"},
+          {"candidate_id", "a_phi_pos"},
+          {"family", "vigenere"},
+          {"agent_run_id", nullptr},
+          {"rank", nullptr}}},
+        {"preview", {{"latin_prefix", "def"}, {"max_chars", 96}}},
+        {"scores",
+         {{{"score_id", "chi2_english_gp_v0"},
+           {"score_version", "v0"},
+           {"value", 90.0},
+           {"backend", "cpu"},
+           {"scored_utc", "2026-09-27T00:00:00Z"}}}},
+        {"digests", {{"method_sha256", nullptr}, {"output_indices_sha256", nullptr}}},
+        {"promotion",
+         {{"notes", "Research falsification only. Tools MUST NOT auto-write fixtures."},
+          {"target_fixture_id", nullptr}}},
+    };
+
+    StatusOr<HypothesisRecord> parsed = HypothesisRecord::from_json(root);
+    REQUIRE(parsed.ok());
+    REQUIRE(parsed.value().status() == HypothesisStatus::Rejected);
+    REQUIRE(parsed.value().method().at("transform_id").get<std::string>() == "vigenere_key");
+    REQUIRE(parsed.value().source().at("family").get<std::string>() == "vigenere");
+    REQUIRE(parsed.value().scores().size() == 1);
+    REQUIRE(parsed.value().scores()[0].at("backend").get<std::string>() == "cpu");
+    REQUIRE(parsed.value().scores()[0].at("scored_utc").get<std::string>() ==
+            "2026-09-27T00:00:00Z");
+
+    const auto tmp = std::filesystem::temp_directory_path() / "parcae_falsify_schema_hyp";
+    std::error_code ec;
+    std::filesystem::remove_all(tmp, ec);
+    std::filesystem::create_directories(tmp / "workspaces", ec);
+    REQUIRE(parsed.value().store(tmp).ok());
+    StatusOr<HypothesisRecord> loaded =
+        HypothesisRecord::load(tmp, "_falsify_schema_check", "h_nt_stream_a_phi");
+    REQUIRE(loaded.ok());
+    REQUIRE(loaded.value().id() == "h_nt_stream_a_phi");
+    std::filesystem::remove_all(tmp, ec);
+}

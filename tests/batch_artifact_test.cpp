@@ -12,7 +12,12 @@
 #include <parcae/transform/transform_direction.hpp>
 #include <parcae/transform/transform_id.hpp>
 #include <string>
+#include <string_view>
 #include <vector>
+
+#ifndef PARCAE_TEST_DATA_DIR
+#error "PARCAE_TEST_DATA_DIR must be defined"
+#endif
 
 namespace {
 
@@ -131,4 +136,93 @@ TEST_CASE("BatchArtifact load rejects count mismatch", "[search][batch]") {
     REQUIRE_FALSE(BatchArtifact::load(tmp, "batch-ws", "b-bad-count").ok());
 
     std::filesystem::remove_all(tmp, ec);
+}
+
+TEST_CASE("BatchArtifact loads falsify-shaped research writer rows", "[search][batch][research]") {
+    // Mirrors scripts/research/falsify_nt_keystreams_lp2.py schema writers:
+    // ordering=batch_ordering_v0, backend=cpu, family=vigenere, transform_id=vigenere_key,
+    // output_indices present, best-first chi2 Asc.
+    const auto tmp = std::filesystem::temp_directory_path() / "parcae_falsify_schema_batch";
+    std::error_code ec;
+    std::filesystem::remove_all(tmp, ec);
+    std::filesystem::create_directories(tmp / "workspaces", ec);
+
+    const std::string job_d = fake_digest("falsify-schema-self-check");
+    const std::string prior_d = Sha256::hex_digest(std::string_view{});
+
+    nlohmann::json row0 = {
+        {"candidate_id", "lp2-00:B_nth_prime_mod:index:add:base=1"},
+        {"envelope",
+         {{"transform_id", "vigenere_key"},
+          {"direction", "decrypt"},
+          {"params",
+           {{"stream", "B_nth_prime_mod"},
+            {"domain", "index"},
+            {"op", "add"},
+            {"pos_base", 1},
+            {"research", "nt_keystream_falsify"}}}}},
+        {"output_indices", {4, 5, 6}},
+        {"rank", 0},
+        {"score",
+         {{"score_id", "chi2_english_gp_v0"},
+          {"score_version", "v0"},
+          {"value", 90.0},
+          {"backend", "cpu"}}},
+    };
+    nlohmann::json row1 = {
+        {"candidate_id", "lp2-00:A_phi_pos:index:sub:base=1"},
+        {"envelope",
+         {{"transform_id", "vigenere_key"},
+          {"direction", "decrypt"},
+          {"params",
+           {{"stream", "A_phi_pos"},
+            {"domain", "index"},
+            {"op", "sub"},
+            {"pos_base", 1},
+            {"research", "nt_keystream_falsify"}}}}},
+        {"output_indices", {1, 2, 3}},
+        {"rank", 1},
+        {"score",
+         {{"score_id", "chi2_english_gp_v0"},
+          {"score_version", "v0"},
+          {"value", 120.5},
+          {"backend", "cpu"}}},
+    };
+
+    StatusOr<BatchArtifact> art = BatchArtifact::make(
+        "_falsify_schema_check", "b_falsify_schema_v0", "2026-09-27T00:00:00Z", job_d, prior_d,
+        "vigenere", "chi2_english_gp_v0", "v0", Backend::Cpu, 2, 0, {row0, row1});
+    REQUIRE(art.ok());
+    REQUIRE(art.value().store(tmp).ok());
+
+    StatusOr<BatchArtifact> loaded =
+        BatchArtifact::load(tmp, "_falsify_schema_check", "b_falsify_schema_v0");
+    REQUIRE(loaded.ok());
+    REQUIRE(loaded.value().family() == "vigenere");
+    REQUIRE(loaded.value().backend() == Backend::Cpu);
+    REQUIRE(loaded.value().candidate_count() == 2);
+    REQUIRE(loaded.value().candidates()[0].at("envelope").at("transform_id").get<std::string>() ==
+            "vigenere_key");
+
+    std::filesystem::remove_all(tmp, ec);
+}
+
+TEST_CASE("BatchArtifact load Python falsify schema-self-check tree",
+          "[search][batch][research]") {
+    // Written by: python scripts/research/falsify_nt_keystreams_lp2.py --schema-self-check
+    const auto root = std::filesystem::path(PARCAE_TEST_DATA_DIR);
+    const auto manifest =
+        root / "workspaces" / "_falsify_schema_check" / "batches" / "b_falsify_schema_v0" /
+        "manifest.json";
+    if (!std::filesystem::is_regular_file(manifest)) {
+        SKIP("run: python scripts/research/falsify_nt_keystreams_lp2.py --schema-self-check");
+    }
+    StatusOr<BatchArtifact> loaded =
+        BatchArtifact::load(root, "_falsify_schema_check", "b_falsify_schema_v0");
+    REQUIRE(loaded.ok());
+    REQUIRE(loaded.value().manifest_to_json().at("ordering").get<std::string>() ==
+            BatchArtifact::ordering_id);
+    REQUIRE(loaded.value().family() == "vigenere");
+    REQUIRE(loaded.value().backend() == Backend::Cpu);
+    REQUIRE(loaded.value().candidate_count() == 2);
 }
