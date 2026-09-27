@@ -111,14 +111,14 @@ Handbook: [python-transpiler.md](../../../docs/architecture/python-transpiler.md
 
 ## Status
 
-Toolkit **0.9.0** (`v0.9.0-bench`; prior dsl-console exit `v0.8.0-dsl-console`;
-search-engine exit `v0.7.0-search-engine`; DSL exit `v0.5.0-theory-dsl`).
-Freeze checklist for this cut:
+Toolkit **1.0.0** (prior: `v0.9.0-bench`, `v0.8.0-dsl-console`,
+`v0.7.0-search-engine`, `v0.5.0-theory-dsl`).
+Freeze checklist for the prior bench cut:
 [`bench-exit.md`](../../../docs/architecture/bench-exit.md); smart-DSL freeze:
 [`dsl-console-exit.md`](../../../docs/architecture/dsl-console-exit.md).
 CI gates: `[dsl-smart]`, `[cli-progress]`, `[bench]`, `[dsl][examples]`,
-`[dsl][registry][stale]`, plus `dsl-examples-cli` / `dsl-stubs-pytest` jobs in
-`.github/workflows/ci.yml`.
+`[dsl][registry][stale]`, `[falsify]`, `[research]`, plus `dsl-examples-cli` /
+`dsl-stubs-pytest` jobs in `.github/workflows/ci.yml`.
 
 Headers are part of the header-only `parcae::core` INTERFACE include tree
 (`include/` via root `CMakeLists.txt`).

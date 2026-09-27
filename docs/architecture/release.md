@@ -10,10 +10,10 @@ installers. Releases run only when you cut a real version tag.
 
 ## Artifact names
 
-Filenames use SemVer `X.Y.Z` from CMake (e.g. `0.9.0`). The git tag may carry a
-milestone suffix (`v0.9.0-bench`); that suffix is **not** in artifact
+Filenames use SemVer `X.Y.Z` from CMake (e.g. `1.0.0`). The git tag may carry a
+milestone suffix (`v1.0.0`); that suffix is **not** in artifact
 names. Human-readable notes:
-[`release/0.9.0/RELEASE_NOTES.md`](../../release/0.9.0/RELEASE_NOTES.md).
+[`release/1.0.0/RELEASE_NOTES.md`](../../release/1.0.0/RELEASE_NOTES.md).
 
 | Kind | Pattern |
 |------|---------|
@@ -84,4 +84,4 @@ Actions → Release → Run workflow → tag = v0.9.0-bench
 See [`packaging/README.md`](../../packaging/README.md). Hosted CI artifacts land
 in the workflow’s `release-folder` artifact and on the GitHub Release; the
 tracked [`release/`](../../release/) tree keeps per-version `README.md`,
-`.gitignore`, and [`RELEASE_NOTES.md`](../../release/0.9.0/RELEASE_NOTES.md).
+`.gitignore`, and [`RELEASE_NOTES.md`](../../release/1.0.0/RELEASE_NOTES.md).

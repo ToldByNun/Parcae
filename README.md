@@ -15,7 +15,7 @@ not another cipher notebook full of vibes.
 |                     |                                                                     |
 | ------------------- | ------------------------------------------------------------------- |
 | **License**         | [MIT](LICENSE)                                                      |
-| **Toolkit version** | **0.9.0** (`v0.9.0-bench`)                                          |
+| **Toolkit version** | **1.0.0** (`v1.0.0`)                                                 |
 | **Language (core)** | C++20 (header-first library + CLIs)                                 |
 | **GPU**             | Optional CUDA twins (CI stays CPU-only)                             |
 | **Python**          | IDE stubs + AST dump + optional CMD agent -- **not** the crypto core |

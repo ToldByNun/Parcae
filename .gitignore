@@ -103,8 +103,10 @@ scripts/research/falsify_nt_keystreams_lp2.py
 /stage-cpu
 /stage-cuda
 /stage-full
-/release
 /stage-rel-cpu
 /stage-rel-cuda
 /stage-rel-full
+/release
 /logs
+/release-docker-out
+/release-win-out

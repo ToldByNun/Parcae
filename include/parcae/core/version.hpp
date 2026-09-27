@@ -5,11 +5,11 @@
 // fallbacks keep the header usable for tooling that only parses includes.
 
 #ifndef PARCAE_VERSION_MAJOR
-#define PARCAE_VERSION_MAJOR 0
+#define PARCAE_VERSION_MAJOR 1
 #endif
 
 #ifndef PARCAE_VERSION_MINOR
-#define PARCAE_VERSION_MINOR 9
+#define PARCAE_VERSION_MINOR 0
 #endif
 
 #ifndef PARCAE_VERSION_PATCH
@@ -17,7 +17,7 @@
 #endif
 
 #ifndef PARCAE_VERSION_STRING
-#define PARCAE_VERSION_STRING "0.9.0"
+#define PARCAE_VERSION_STRING "1.0.0"
 #endif
 
 class Version {
