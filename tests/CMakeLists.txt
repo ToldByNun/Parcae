@@ -76,6 +76,7 @@ add_executable(parcae_tests
   hypothesis_record_test.cpp
   hypothesis_sandbox_test.cpp
   workspace_scaffold_test.cpp
+  falsify_research_corpus_test.cpp
   search_job_test.cpp
   search_adversarial_test.cpp
   search_prior_test.cpp
@@ -139,6 +140,7 @@ target_link_libraries(parcae_tests PRIVATE
 
 target_compile_definitions(parcae_tests PRIVATE
   PARCAE_TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/data"
+  PARCAE_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
   PARCAE_DSL_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/dsl"
   PARCAE_EXAMPLES_DIR="${CMAKE_SOURCE_DIR}/theories/examples"
   PARCAE_PYTHON_DIR="${CMAKE_SOURCE_DIR}/python"

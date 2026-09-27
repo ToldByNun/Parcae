@@ -206,23 +206,3 @@ TEST_CASE("BatchArtifact loads falsify-shaped research writer rows", "[search][b
 
     std::filesystem::remove_all(tmp, ec);
 }
-
-TEST_CASE("BatchArtifact load Python falsify schema-self-check tree",
-          "[search][batch][research]") {
-    // Written by: python scripts/research/falsify_nt_keystreams_lp2.py --schema-self-check
-    const auto root = std::filesystem::path(PARCAE_TEST_DATA_DIR);
-    const auto manifest =
-        root / "workspaces" / "_falsify_schema_check" / "batches" / "b_falsify_schema_v0" /
-        "manifest.json";
-    if (!std::filesystem::is_regular_file(manifest)) {
-        SKIP("run: python scripts/research/falsify_nt_keystreams_lp2.py --schema-self-check");
-    }
-    StatusOr<BatchArtifact> loaded =
-        BatchArtifact::load(root, "_falsify_schema_check", "b_falsify_schema_v0");
-    REQUIRE(loaded.ok());
-    REQUIRE(loaded.value().manifest_to_json().at("ordering").get<std::string>() ==
-            BatchArtifact::ordering_id);
-    REQUIRE(loaded.value().family() == "vigenere");
-    REQUIRE(loaded.value().backend() == Backend::Cpu);
-    REQUIRE(loaded.value().candidate_count() == 2);
-}
