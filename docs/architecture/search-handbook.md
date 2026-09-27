@@ -133,12 +133,16 @@ workspaces. Fixture loaders used by search only consume ciphertext files
 ### Bootstrap (shell)
 
 ```bash
-# From repo root — create a local (gitignored) research workspace tree.
-# Prefer WorkspaceScaffold::ensure_research from C++/tests; manual equivalent:
-mkdir -p data/workspaces/lp2-page-0-explore/{inputs,pages,hypotheses,batches,research,transcripts}
+# From repo root — scaffold a local (gitignored) research workspace tree:
+parcae-hypothesis ensure \
+  --workspace lp2-page-0-explore \
+  --layout research \
+  --title "LP2 page 0 exploratory" \
+  --utc 2026-09-23T00:00:00Z \
+  --data-dir data
+
 # Place UTF-8 ciphertext into:
 #   data/workspaces/lp2-page-0-explore/inputs/ciphertext.txt
-# Then write workspace.json as above (id == directory name; fixed UTC for digests).
 
 parcae-search-cycle \
   --workspace lp2-page-0-explore \

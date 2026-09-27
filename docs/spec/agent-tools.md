@@ -41,6 +41,7 @@ functions. Each maps to one primary CLI binary (or subcommand family).
 | `catalog` | `parcae-catalog` | List transforms, scores, generators, backends |
 | `generate` | `parcae-generate` | Emit `TransformCandidate` JSON from a generator |
 | `rank` | `parcae-rank` | Score + rank candidates; stable ties |
+| `hypothesis_ensure` | `parcae-hypothesis ensure` | Scaffold research workspace tree (`--layout research`) |
 | `hypothesis_init` | `parcae-hypothesis init` | Create workspace hypothesis stub |
 | `hypothesis_propose` | `parcae-hypothesis propose` | Write / update a HypothesisRecord |
 | `hypothesis_show` | `parcae-hypothesis show` | Read one hypothesis |

@@ -4,6 +4,7 @@
 #include "parcae/hypothesis/hypothesis_status.hpp"
 #include "parcae/hypothesis/workspace_manifest.hpp"
 #include "parcae/hypothesis/workspace_paths.hpp"
+#include "parcae/hypothesis/workspace_scaffold.hpp"
 #include "parcae/score/score_id.hpp"
 #include "parcae/tool/api.hpp"
 #include "parcae/tool/transform_envelope.hpp"
@@ -49,6 +50,8 @@ namespace {
 
 void print_help() {
     std::cerr << "Usage:\n"
+              << "  parcae-hypothesis ensure --workspace <id> --layout research\n"
+              << "      [--title <text>] [--notes <text>] [--utc <RFC3339>] [--json]\n"
               << "  parcae-hypothesis init --workspace <id> --id <hid>\n"
               << "      [--title <text>] [--method-json <json>] [--utc <RFC3339>] [--json]\n"
               << "  parcae-hypothesis propose --workspace <id> --id <hid>\n"
@@ -65,8 +68,10 @@ void print_help() {
               << "      [--utc <RFC3339>] [--json]\n"
               << "\n"
               << "HypothesisRecord I/O under data/workspaces/<id>/hypotheses/.\n"
+              << "ensure --layout research scaffolds the canonical research tree\n"
+              << "  (README/SOURCE/pages/inputs/research/…; templates only if missing).\n"
               << "Common: --data-dir <path>  [--allow-cuda]  -h/--help\n"
-              << "JSON tool names: hypothesis_init|propose|show|list|score|set_status\n"
+              << "JSON tool names: hypothesis_ensure|init|propose|show|list|score|set_status\n"
               << "Writes are gated by AgentPolicy (fixtures / path escape → policy).\n";
 }
 
@@ -139,6 +144,22 @@ void print_help() {
     return policy.allow_workspace_write(workspace_id, "workspace.json");
 }
 
+[[nodiscard]] Status require_research_scaffold_write(const AgentPolicy& policy,
+                                                     std::string_view workspace_id) {
+    Status manifest = require_workspace_manifest_write(policy, workspace_id);
+    if (!manifest.ok()) {
+        return manifest;
+    }
+    // Gate a few research-layout paths; same sandbox as workspace.json.
+    for (const char* rel : {"README.md", "SOURCE.txt", "pages", "inputs", "research"}) {
+        Status ok = policy.allow_workspace_write(workspace_id, rel);
+        if (!ok.ok()) {
+            return ok;
+        }
+    }
+    return Status::success();
+}
+
 [[nodiscard]] std::string letters_only_upper(std::string_view text) {
     std::string out;
     out.reserve(text.size());
@@ -207,6 +228,66 @@ load_input_indices(const Context& ctx, const std::string& source, std::string_vi
         return Status::error("No Latin letters in input");
     }
     return codec.delatinize(letters);
+}
+
+[[nodiscard]] int cmd_ensure(const std::vector<std::string>& args, const Context& ctx,
+                             const AgentPolicy& policy, bool json_mode) {
+    constexpr std::string_view tool = "hypothesis_ensure";
+
+    StatusOr<std::string> workspace = CliIo::require_option(args, "--workspace");
+    if (!workspace.ok()) {
+        return fail(tool, json_mode, ToolErrorCode::Usage, workspace.status().message(),
+                    CliIo::kExitUsage);
+    }
+    StatusOr<std::string> layout = CliIo::require_option(args, "--layout");
+    if (!layout.ok()) {
+        return fail(tool, json_mode, ToolErrorCode::Usage, layout.status().message(),
+                    CliIo::kExitUsage);
+    }
+    if (layout.value() != "research") {
+        return fail(tool, json_mode, ToolErrorCode::Usage,
+                    "ensure --layout must be 'research' (got '" + layout.value() + "')",
+                    CliIo::kExitUsage);
+    }
+
+    Status ws_write = require_research_scaffold_write(policy, workspace.value());
+    if (!ws_write.ok()) {
+        return fail_status(tool, json_mode, ws_write, CliIo::kExitUsage);
+    }
+
+    WorkspaceScaffold::Options opts;
+    opts.created_utc = resolve_utc(args);
+    opts.title = CliIo::optional_option(args, "--title");
+    opts.notes = CliIo::optional_option(args, "--notes");
+
+    StatusOr<WorkspaceScaffold::Result> result =
+        WorkspaceScaffold::ensure_research(ctx.data_root(), workspace.value(), opts);
+    if (!result.ok()) {
+        return fail(tool, json_mode, ToolErrorCode::Io, result.status().message(),
+                    CliIo::kExitFail);
+    }
+
+    if (!json_mode) {
+        std::cout << result.value().workspace_id() << "\tlayout=research\tcreated="
+                  << (result.value().any_created() ? "yes" : "no") << '\n';
+        for (const std::string& rel : result.value().created()) {
+            std::cout << "  + " << rel << '\n';
+        }
+        return CliIo::kExitOk;
+    }
+
+    nlohmann::json payload{
+        {"workspace_id", result.value().workspace_id()},
+        {"layout", "research"},
+        {"created_manifest", result.value().created_manifest()},
+        {"created_readme", result.value().created_readme()},
+        {"created_source", result.value().created_source()},
+        {"created_inputs_index", result.value().created_inputs_index()},
+        {"created_reproduce", result.value().created_reproduce()},
+        {"any_created", result.value().any_created()},
+        {"created", result.value().created()},
+    };
+    return ToolCliJson::ok(tool, std::nullopt, std::move(payload));
 }
 
 [[nodiscard]] int cmd_init(const std::vector<std::string>& args, const Context& ctx,
@@ -708,9 +789,9 @@ int main(int argc, char** argv) {
     for (std::size_t i = 0; i < args.size(); ++i) {
         const std::string& arg = args[i];
         if (arg == "--data-dir" || arg == "--utc" || arg == "--workspace" || arg == "--id" ||
-            arg == "--title" || arg == "--method-json" || arg == "--method-file" ||
-            arg == "--rationale" || arg == "--source-json" || arg == "--input" ||
-            arg == "--score-id" || arg == "--status") {
+            arg == "--title" || arg == "--notes" || arg == "--layout" || arg == "--method-json" ||
+            arg == "--method-file" || arg == "--rationale" || arg == "--source-json" ||
+            arg == "--input" || arg == "--score-id" || arg == "--status") {
             rest.push_back(arg);
             if (i + 1 < args.size()) {
                 rest.push_back(args[++i]);
@@ -736,10 +817,13 @@ int main(int argc, char** argv) {
     if (cmd.empty()) {
         print_help();
         return fail("hypothesis", json_mode, ToolErrorCode::Usage,
-                    "Missing subcommand (init|propose|show|list|score|set-status)",
+                    "Missing subcommand (ensure|init|propose|show|list|score|set-status)",
                     CliIo::kExitUsage);
     }
 
+    if (cmd == "ensure") {
+        return cmd_ensure(rest, ctx.value(), policy, json_mode);
+    }
     if (cmd == "init") {
         return cmd_init(rest, ctx.value(), policy, json_mode);
     }

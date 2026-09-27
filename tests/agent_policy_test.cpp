@@ -43,6 +43,7 @@ TEST_CASE("AgentPolicy allow-list and deny-list", "[tool][policy]") {
 
     REQUIRE(AgentPolicy::is_default_allowed_tool("rank"));
     REQUIRE(AgentPolicy::is_default_allowed_tool("search_cycle"));
+    REQUIRE(AgentPolicy::is_default_allowed_tool("hypothesis_ensure"));
     REQUIRE(AgentPolicy::is_default_denied_binary("parcae-blind-crack"));
     REQUIRE(AgentPolicy::is_default_denied_binary("search-run"));
     REQUIRE(AgentPolicy::is_default_denied_binary("bench"));

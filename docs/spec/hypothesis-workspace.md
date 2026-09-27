@@ -109,9 +109,9 @@ Conforming implementations MUST provide an idempotent ensure API equivalent to
 4. Refuse writes under `data/fixtures/` (same path policy as below).
 5. Second call with a complete tree MUST create nothing new.
 
-CLI surface (`parcae-hypothesis ensure --layout research` or equivalent) MAY wrap
-this API; until shipped, library / script callers MUST invoke the scaffold
-directly.
+CLI surface: `parcae-hypothesis ensure --workspace <id> --layout research`
+(`hypothesis_ensure`) wraps this API; library / script callers MAY also invoke
+the scaffold directly.
 
 ## Determinism rules (research writers)
 

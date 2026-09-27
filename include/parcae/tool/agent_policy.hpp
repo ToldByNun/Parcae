@@ -41,6 +41,7 @@ public:
             "generate",
             "rank",
             "hypothesis_init",
+            "hypothesis_ensure",
             "hypothesis_propose",
             "hypothesis_show",
             "hypothesis_list",

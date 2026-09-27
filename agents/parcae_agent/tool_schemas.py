@@ -21,6 +21,7 @@ TOOL_SCHEMA_ORDER: tuple[str, ...] = (
     "generate",
     "rank",
     "hypothesis_init",
+    "hypothesis_ensure",
     "hypothesis_propose",
     "hypothesis_show",
     "hypothesis_list",
@@ -256,6 +257,25 @@ _TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "utc": {**_STRING, "description": "RFC3339 timestamp"},
             },
             required=["id"],
+        ),
+    ),
+    "hypothesis_ensure": _tool(
+        "hypothesis_ensure",
+        "Scaffold the canonical research workspace tree "
+        "(README/SOURCE/pages/inputs/research/…; templates only if missing). "
+        "Workspace id is injected by ToolBridge.",
+        _object(
+            {
+                "layout": {
+                    **_STRING,
+                    "enum": ["research"],
+                    "description": "Must be 'research'",
+                },
+                "title": {**_STRING},
+                "notes": {**_STRING},
+                "utc": {**_STRING, "description": "RFC3339 timestamp for new manifest"},
+            },
+            required=["layout"],
         ),
     ),
     "hypothesis_propose": _tool(

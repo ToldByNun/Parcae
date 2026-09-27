@@ -12,6 +12,7 @@ ALLOWED_TOOLS: frozenset[str] = frozenset(
         "generate",
         "rank",
         "hypothesis_init",
+        "hypothesis_ensure",
         "hypothesis_propose",
         "hypothesis_show",
         "hypothesis_list",
@@ -49,6 +50,7 @@ TOOL_BINARY: dict[str, str] = {
     "generate": "parcae-generate",
     "rank": "parcae-rank",
     "hypothesis_init": "parcae-hypothesis",
+    "hypothesis_ensure": "parcae-hypothesis",
     "hypothesis_propose": "parcae-hypothesis",
     "hypothesis_show": "parcae-hypothesis",
     "hypothesis_list": "parcae-hypothesis",
@@ -59,6 +61,7 @@ TOOL_BINARY: dict[str, str] = {
 
 HYPOTHESIS_SUBCOMMAND: dict[str, str] = {
     "hypothesis_init": "init",
+    "hypothesis_ensure": "ensure",
     "hypothesis_propose": "propose",
     "hypothesis_show": "show",
     "hypothesis_list": "list",
@@ -125,6 +128,7 @@ TOOL_ARG_KEYS: dict[str, frozenset[str]] = {
         }
     ),
     "hypothesis_init": frozenset({"id", "title", "method_json", "utc"}),
+    "hypothesis_ensure": frozenset({"layout", "title", "notes", "utc"}),
     "hypothesis_propose": frozenset(
         {
             "id",
@@ -200,6 +204,8 @@ VALUE_FLAGS: dict[str, str] = {
     "k": "--k",
     "latin_max": "--latin-max",
     "title": "--title",
+    "notes": "--notes",
+    "layout": "--layout",
     "method_json": "--method-json",
     "method_file": "--method-file",
     "rationale": "--rationale",

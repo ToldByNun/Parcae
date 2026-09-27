@@ -213,6 +213,56 @@ TEST_CASE("sandbox CLI: rejects traversal workspace/id", "[hypothesis][sandbox][
     }
 }
 
+TEST_CASE("sandbox CLI: ensure --layout research scaffolds tree",
+          "[hypothesis][sandbox][cli][scaffold]") {
+    const auto root = make_sandbox_root("parcae_hypothesis_cli_ensure");
+    const CliSpawnResult run = run_hypothesis_cli(
+        {"--data-dir", root.string(), "ensure", "--workspace", "lp2-cli-ensure", "--layout",
+         "research", "--title", "CLI ensure", "--utc", "2026-09-27T02:00:00Z", "--json"});
+    REQUIRE(run.exit_code == 0);
+    StatusOr<nlohmann::json> envelope = ToolResponse::parse(run.stdout_text);
+    REQUIRE(envelope.ok());
+    REQUIRE(envelope.value().at("ok").get<bool>());
+    REQUIRE(envelope.value().at("tool").get<std::string>() == "hypothesis_ensure");
+    const nlohmann::json& result = envelope.value().at("result");
+    REQUIRE(result.at("workspace_id").get<std::string>() == "lp2-cli-ensure");
+    REQUIRE(result.at("layout").get<std::string>() == "research");
+    REQUIRE(result.at("any_created").get<bool>());
+    REQUIRE(result.at("created_manifest").get<bool>());
+
+    const auto ws = root / "workspaces" / "lp2-cli-ensure";
+    REQUIRE(std::filesystem::is_directory(ws / "pages"));
+    REQUIRE(std::filesystem::is_regular_file(ws / "README.md"));
+    REQUIRE(std::filesystem::is_regular_file(ws / "workspace.json"));
+
+    // Idempotent second call.
+    const CliSpawnResult again = run_hypothesis_cli(
+        {"--data-dir", root.string(), "ensure", "--workspace", "lp2-cli-ensure", "--layout",
+         "research", "--utc", "2026-09-27T02:00:00Z", "--json"});
+    REQUIRE(again.exit_code == 0);
+    StatusOr<nlohmann::json> again_env = ToolResponse::parse(again.stdout_text);
+    REQUIRE(again_env.ok());
+    REQUIRE_FALSE(again_env.value().at("result").at("any_created").get<bool>());
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE("sandbox CLI: ensure rejects unknown layout", "[hypothesis][sandbox][cli][scaffold]") {
+    const auto root = make_sandbox_root("parcae_hypothesis_cli_ensure_bad");
+    const CliSpawnResult run =
+        run_hypothesis_cli({"--data-dir", root.string(), "ensure", "--workspace", "bad-layout-ws",
+                            "--layout", "slim", "--utc", "2026-09-27T02:00:00Z", "--json"});
+    REQUIRE(run.exit_code != 0);
+    StatusOr<nlohmann::json> envelope = ToolResponse::parse(run.stdout_text);
+    REQUIRE(envelope.ok());
+    REQUIRE_FALSE(envelope.value().at("ok").get<bool>());
+    REQUIRE(envelope.value().at("tool").get<std::string>() == "hypothesis_ensure");
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
 TEST_CASE("sandbox CLI: show _example and list stay read-only", "[hypothesis][sandbox][cli]") {
     const CliSpawnResult listed_run =
         run_hypothesis_cli({"--data-dir", std::string(PARCAE_TEST_DATA_DIR), "list", "--workspace",
