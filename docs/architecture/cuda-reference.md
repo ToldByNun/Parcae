@@ -167,4 +167,5 @@ Prerequisites for annotated tag `v0.3.0-cuda-parity` (also mirrored in
 - [`cuda-score-reduction.md`](cuda-score-reduction.md) — FP / histogram rules
 - [`cuda-build.md`](cuda-build.md) — local Toolkit / CMake
 - [`cuda-roadmap.md`](cuda-roadmap.md) — frozen commit plan
+- [`cuda-catalog-parity.md`](cuda-catalog-parity.md) — **1.1.0 exit freeze** (1.0 catalog GPU twins + search export)
 - [`docs/spec/tools.md`](../spec/tools.md) — CLI contracts incl. search-run

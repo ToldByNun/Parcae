@@ -29,10 +29,10 @@ workspace  →  parcae-search-cycle [--quiet|panel|lines]  →  batches + hypoth
 | C++ style (HARD) | No namespaces; one top-level class per header; `#ifndef` / `#endif` guards |
 | Naming | Descriptive kebab paths only — **no** “phase*” filenames, tags, or CI job names |
 | Agent git | User owns commits, annotated tags, and release pushes |
-| `dsl_spec_version` | Stays MAJOR **`1.0.0`** for this cut; language MINOR **`1.1.0`** is pack D (post-exit / optional on-tag) |
+| `dsl_spec_version` | Stays MAJOR **`1.0.0`** for this cut; language MINOR **`1.1.0`** is pack D (post-exit) |
 | `dsl_ast_json_version` | **`1.1.0`** (directives wire format) recorded in artifacts |
 | `load_page` | **Deferred** — not required to cut `v0.8.0-dsl-console` |
-| Pack D (multi-diag, dumps, `z29_match`, …) | Nice-to-have on the same tag if already green; **do not** block 0.8.0 on `dsl_spec` 1.1 |
+| Pack D (multi-diag, dumps, `z29_match`, …) | Nice-to-have on the same tag if already green; **do not** block 0.8.0 on `dsl_spec` 1.1. Required Pack D subset for toolkit **1.1.0**: [`dsl-pack-d.md`](dsl-pack-d.md) / [`cuda-catalog-parity.md`](cuda-catalog-parity.md) |
 
 Architecture companions: [`python-transpiler.md`](python-transpiler.md) (smart
 compiler), [`search-handbook.md`](search-handbook.md) § Console progress,
@@ -93,8 +93,9 @@ out of the cut on purpose.
 
 **Nice-to-have on the same tag** (language/tooling pack; do not block):
 multi-diagnostic compile, `--dump-ir` / `--dump-scopes`, IR source maps,
-`--strict-portable`. Language MINOR `dsl_spec_version` **1.1.0** may follow under
-toolkit 0.8.x.
+`--strict-portable`. Language MINOR `dsl_spec_version` **1.1.0** and the required
+Pack D subset ship on toolkit **1.1.0** — see [`dsl-pack-d.md`](dsl-pack-d.md)
+and [`cuda-catalog-parity.md`](cuda-catalog-parity.md).
 
 ---
 

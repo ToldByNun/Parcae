@@ -352,11 +352,14 @@ Community `.py` / hostile JSON must not crash the compiler:
 and `#ignore DSL_FLAG` / `--allow-dsl-ignores` are implemented — see § Execution
 scopes above and examples under [`theories/examples/`](../../theories/examples/)
 (`param_select_example.py`, `ignore_divergent_example.py`). A Python
-`parcae.corpus.load_page` helper for LP2 workspaces is **deferred**.
+`parcae.corpus.load_page` helper for LP2 workspaces was deferred past
+`v0.8.0-dsl-console`; it is required Pack D for toolkit **1.1.0** —
+[`dsl-pack-d.md`](dsl-pack-d.md).
 
 **Exit:** theory-DSL workstream complete at toolkit 0.5.0. Combined smart-compiler
 + console-dashboard cut: toolkit **0.8.0** / tag `v0.8.0-dsl-console` — freeze
-checklist [`dsl-console-exit.md`](dsl-console-exit.md).
+checklist [`dsl-console-exit.md`](dsl-console-exit.md). Catalog CUDA parity +
+Pack D: toolkit **1.1.0** / `v1.1.0` — [`cuda-catalog-parity.md`](cuda-catalog-parity.md).
 
 ---
 

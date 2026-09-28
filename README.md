@@ -439,8 +439,8 @@ CMD agent tooling     ->  agents/ + agent-facing CLIs        in progress -- v0.6
 Search engine loop    ->  GPU ↔ candidates ↔ hypotheses      done -- v0.7.0-search-engine
 Smart DSL + console   ->  scopes/Select/#ignore + dashboard  done -- v0.8.0-dsl-console
 Bench & diagnostics   ->  parcae-bench SLO/accuracy/hw/probe done -- v0.9.0-bench
-Catalog + DSL math    ->  Hill/autokey/grids + z29_matmul/det/autokey_shift  done (1.0.0 prep)
-Open-source polish    ->  packaging, RELEASE_NOTES, version bump to 1.0.0   next
+Catalog + DSL math    ->  Hill/autokey/grids + z29_matmul/det/autokey_shift  done -- v1.0.0
+CUDA catalog + Pack D ->  1.0 GPU twins + hill/autokey export + dsl_spec 1.1  next -- v1.1.0
 ```
 
 Frozen CUDA commit list: [`docs/architecture/cuda-roadmap.md`](docs/architecture/cuda-roadmap.md).  
@@ -456,7 +456,11 @@ Smart DSL + console exit: [`docs/architecture/dsl-console-exit.md`](docs/archite
 console progress in [`docs/architecture/search-handbook.md`](docs/architecture/search-handbook.md).  
 Bench exit: [`docs/architecture/bench-exit.md`](docs/architecture/bench-exit.md)
 (`v0.9.0-bench`) | operator guide
-[`docs/architecture/bench-diagnostics.md`](docs/architecture/bench-diagnostics.md).
+[`docs/architecture/bench-diagnostics.md`](docs/architecture/bench-diagnostics.md).  
+1.1.0 exit freeze (CUDA catalog parity + Pack D):
+[`docs/architecture/cuda-catalog-parity.md`](docs/architecture/cuda-catalog-parity.md)
+(`v1.1.0`) | Pack D checklist
+[`docs/architecture/dsl-pack-d.md`](docs/architecture/dsl-pack-d.md).
 
 ### Goals
 

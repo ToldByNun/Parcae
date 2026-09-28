@@ -26,8 +26,11 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | CLI `parcae-search-cycle` | tool `search_cycle` | Done (`--status` / run / `--omit-timing` / `--allow-extended-families` / `--allow-theory-uri` / AgentPolicy + JSON goldens) |
 
 `SearchJob` emits `allow_extended_families` / `allow_theory_uri` (default false).
-`is_cpu_export_only_family` covers hill / CTAK / PTAK / theory. Family ↔ catalog
-`transform_id` map: [`search-loop.md`](../../../docs/spec/search-loop.md).
+`is_cpu_export_only_family` covers hill / CTAK / PTAK / theory today; toolkit
+**1.1.0** lifts hill/autokey off that list (theory stays CPU-only) —
+[`cuda-catalog-parity.md`](../../../docs/architecture/cuda-catalog-parity.md).
+Family ↔ catalog `transform_id` map:
+[`search-loop.md`](../../../docs/spec/search-loop.md).
 Grid-read / columnar / `variable_delay_autokey` are **not** search families.
 
 Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtrip]`,

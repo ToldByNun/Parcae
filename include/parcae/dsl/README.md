@@ -113,6 +113,9 @@ Handbook: [python-transpiler.md](../../../docs/architecture/python-transpiler.md
 
 Toolkit **1.0.0** (prior: `v0.9.0-bench`, `v0.8.0-dsl-console`,
 `v0.7.0-search-engine`, `v0.5.0-theory-dsl`).
+Next exit freeze (CUDA catalog parity + Pack D → toolkit **1.1.0** / `v1.1.0`):
+[`cuda-catalog-parity.md`](../../../docs/architecture/cuda-catalog-parity.md),
+[`dsl-pack-d.md`](../../../docs/architecture/dsl-pack-d.md).
 Freeze checklist for the prior bench cut:
 [`bench-exit.md`](../../../docs/architecture/bench-exit.md); smart-DSL freeze:
 [`dsl-console-exit.md`](../../../docs/architecture/dsl-console-exit.md).
