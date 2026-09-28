@@ -556,9 +556,13 @@ public:
 
 private:
     [[nodiscard]] static bool is_known_family(std::string_view family) noexcept {
+        // Keep aligned with SearchJob families + docs/spec/hypothesis-workspace.md
+        // (incl. opt-in theory / compose / hill / autokey).
         return family == "caesar" || family == "atbash" || family == "atbash_caesar" ||
                family == "affine" || family == "vigenere" || family == "beaufort" ||
-               family == "totient";
+               family == "totient" || family == "compose" || family == "theory" ||
+               family == "hill_2" || family == "hill_3" || family == "ciphertext_autokey" ||
+               family == "plaintext_autokey";
     }
 
     [[nodiscard]] static Status validate_optional_id_string(const nlohmann::json& source,
