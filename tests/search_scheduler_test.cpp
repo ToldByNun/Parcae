@@ -3,8 +3,10 @@
 #include <filesystem>
 #include <fstream>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include <parcae/cli/console_progress_sink.hpp>
 #include <parcae/core/sha256.hpp>
+#include <parcae/dsl/dsl_compile.hpp>
 #include <parcae/hypothesis/hypothesis_record.hpp>
 #include <parcae/hypothesis/hypothesis_status.hpp>
 #include <parcae/hypothesis/workspace_manifest.hpp>
@@ -23,6 +25,15 @@
 
 #ifndef PARCAE_TEST_DATA_DIR
 #error "PARCAE_TEST_DATA_DIR must be defined"
+#endif
+#ifndef PARCAE_EXAMPLES_DIR
+#error "PARCAE_EXAMPLES_DIR must be defined"
+#endif
+#ifndef PARCAE_PYTHON_EXE
+#error "PARCAE_PYTHON_EXE must be defined"
+#endif
+#ifndef PARCAE_PYTHON_DIR
+#error "PARCAE_PYTHON_DIR must be defined"
 #endif
 
 namespace {
@@ -976,6 +987,72 @@ TEST_CASE("SearchScheduler backend=cuda with log_bigram falls back to CPU export
     std::filesystem::remove_all(root, ec);
 }
 
+TEST_CASE("SearchScheduler backend=cuda theory uses fused export_backend=cuda",
+          "[search][scheduler][theory][cuda]") {
+    DslCompile::Options compile_opt;
+    (void)compile_opt.set_python_exe(PARCAE_PYTHON_EXE);
+    (void)compile_opt.set_python_path(PARCAE_PYTHON_DIR);
+    REQUIRE(DslCompile::pipeline_ready(compile_opt));
+
+    const auto root = make_sandbox("parcae_search_scheduler_theory_cuda");
+    std::error_code ec;
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const auto src = std::filesystem::path(PARCAE_EXAMPLES_DIR) / "new_math_example.py";
+    StatusOr<DslCompile::Result> compiled =
+        DslCompile::compile_file(src, root / "theories", compile_opt);
+    REQUIRE(compiled.ok());
+
+    const Context ctx{root};
+    StatusOr<WorkspaceManifest> ws =
+        make_fixture_workspace("theory-cuda-ws", "2026-09-30T18:00:00Z");
+    REQUIRE(ws.ok());
+    REQUIRE(ws.value().store(root).ok());
+
+    const std::string uri = "parcae://theories/quadratic_polynomial_stream@1";
+    const nlohmann::json param_grid{
+        {"theory_uri", uri},
+        {"params_list",
+         nlohmann::json::array({nlohmann::json{{"c2", 1}, {"c1", 0}, {"c0", 0}},
+                                nlohmann::json{{"c2", 0}, {"c1", 1}, {"c0", 0}},
+                                nlohmann::json{{"c2", 2}, {"c1", 3}, {"c0", 5}},
+                                nlohmann::json{{"c2", 0}, {"c1", 0}, {"c0", 14}}})}};
+
+    StatusOr<SearchJob> job =
+        SearchJob::make("theory-cuda-ws", "theory", "chi2_english_gp_v0", /*k=*/2, /*seed=*/1,
+                        Backend::Cuda, /*max_candidates=*/64, TransformDirection::Decrypt,
+                        param_grid, std::nullopt, "v0", /*allow_extended=*/false,
+                        /*allow_theory_uri=*/true);
+    REQUIRE(job.ok());
+    REQUIRE(SearchJob::has_fused_cuda_chi2_export("theory"));
+
+    SearchScheduler::Options opts;
+    opts.created_utc = "2026-09-30T18:00:01Z";
+    opts.batch_id = "b-theory-cuda-0001";
+    opts.omit_timing = true;
+
+    StatusOr<SearchScheduler::CycleResult> cycle =
+        SearchScheduler::run_once(root, ctx, job.value(), opts);
+    if (!cycle.ok()) {
+        FAIL(cycle.status().message());
+    }
+    REQUIRE(cycle.value().export_backend() == Backend::Cuda);
+    REQUIRE(cycle.value().batches().size() == 1);
+    REQUIRE(cycle.value().hypotheses_written() >= 1);
+
+    nlohmann::json cycle_json = cycle.value().to_json();
+    REQUIRE(cycle_json.at("export_backend").get<std::string>() == "cuda");
+
+    StatusOr<BatchArtifact> loaded =
+        BatchArtifact::load(root, "theory-cuda-ws", "b-theory-cuda-0001");
+    REQUIRE(loaded.ok());
+    REQUIRE(loaded.value().backend() == Backend::Cuda);
+    REQUIRE(loaded.value().candidate_count() == 2);
+    REQUIRE(loaded.value().family() == "theory");
+
+    std::filesystem::remove_all(root, ec);
+}
+
 #else
 
 TEST_CASE("SearchScheduler log_bigram CPU path scores without fused CUDA",
@@ -1011,6 +1088,11 @@ TEST_CASE("SearchScheduler log_bigram CPU path scores without fused CUDA",
 
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE("SearchJob has_fused_cuda_chi2_export(theory) is true without CUDA build",
+          "[search][scheduler][theory]") {
+    REQUIRE(SearchJob::has_fused_cuda_chi2_export("theory"));
 }
 
 #endif

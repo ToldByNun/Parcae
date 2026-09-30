@@ -587,7 +587,7 @@ private:
         }
 
         // Soft fallback: family allowed on CUDA policy-wise but fused twin not
-        // landed yet (today: `theory`). Do not hard-error; report CPU export.
+        // landed yet. Do not hard-error; report CPU export.
         if (!SearchJob::has_fused_cuda_chi2_export(job.family())) {
             return CpuCandidateExport::from_job(cipher, job, ctx, &prior, progress);
         }
@@ -598,7 +598,7 @@ private:
         }
 
         StatusOr<CpuCandidateExport::Result> fused =
-            export_cuda_fused(cipher, job, freqs.value(), progress);
+            export_cuda_fused(cipher, job, freqs.value(), ctx.data_root() / "theories", progress);
         if (!fused.ok()) {
             return fused.status();
         }
@@ -615,6 +615,7 @@ private:
     [[nodiscard]] static StatusOr<CpuCandidateExport::Result>
     export_cuda_fused(std::span<const Index29> cipher, const SearchJob& job,
                       const ExpectedFrequencyTable& freqs,
+                      const std::filesystem::path& theories_root,
                       BatchRunner::Progress progress = BatchRunner::Progress{}) {
         const std::string& family = job.family();
         if (family == "caesar") {
@@ -692,6 +693,25 @@ private:
             }
             return GpuCandidateExport::totient_bounded(cipher, freqs, job.k(), count,
                                                        job.direction(), progress);
+        }
+        if (family == "theory") {
+            if (!job.allow_theory_uri()) {
+                return Status::error("SearchScheduler: theory requires allow_theory_uri");
+            }
+            Status grid_ok = SearchJob::validate_theory_param_grid(job.param_grid());
+            if (!grid_ok.ok()) {
+                return Status::error(std::string("SearchScheduler: ") + grid_ok.message());
+            }
+            const std::string theory_uri =
+                job.param_grid().at("theory_uri").get<std::string>();
+            std::vector<nlohmann::json> params_list;
+            params_list.reserve(job.param_grid().at("params_list").size());
+            for (const auto& item : job.param_grid().at("params_list")) {
+                params_list.push_back(item);
+            }
+            return GpuCandidateExport::theory_explicit_params(
+                cipher, freqs, theories_root, theory_uri, params_list, job.k(), job.direction(),
+                progress);
         }
         return Status::error("SearchScheduler: unsupported family for cuda export: " + family);
     }

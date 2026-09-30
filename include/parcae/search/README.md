@@ -27,9 +27,9 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 
 `SearchJob` emits `allow_extended_families` / `allow_theory_uri` (default false).
 `is_cpu_export_only_family` covers hill / CTAK / PTAK (hard CPU). `theory` is
-**not** hard CPU-only: with χ² + decrypt it is eligible for fused CUDA once
-`GpuCandidateExport::theory_*` lands; until then the scheduler soft-falls back
-to CPU (`has_fused_cuda_chi2_export("theory") == false`). Toolkit **1.1.0**
+**not** hard CPU-only: with χ² + decrypt,
+`has_fused_cuda_chi2_export("theory")` is true and the scheduler calls
+`GpuCandidateExport::theory_explicit_params`. Toolkit **1.1.0**
 lifts hill/autokey off the hard list —
 [`cuda-catalog-parity.md`](../../../docs/architecture/cuda-catalog-parity.md).
 Family ↔ catalog `transform_id` map:
