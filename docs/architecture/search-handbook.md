@@ -92,12 +92,33 @@ data/workspaces/lp2-page-0-explore/     # id MUST match directory; gitignored ex
   batches/                              # BatchArtifact trees
   research/
     REPRODUCE.md
+    run.log                         # append-only; not hashed (throughput)
   transcripts/
 ```
 
 `WorkspaceCipher` tokenizes `inputs/ciphertext.txt` the same way as fixture
 ciphertext files (consumable Index29 stream). Path escapes (`..`, absolute) are
 rejected.
+
+### Campaign guard (ops)
+
+Unsolved LP2 campaigns MUST keep evaluation on the Parcae path:
+
+| Layer | Role |
+|-------|------|
+| **Parcae** (`parcae-search-cycle`, compile, score) | Z29 transforms, χ² / IC, batch + hypothesis writers |
+| **Python** (agent / scripts) | MAY choose jobs, parse JSON envelopes, write notes — MUST NOT reimplement Z29 or χ² |
+
+`parcae-search-cycle` appends one `event=search_cycle` line to
+`research/run.log` when `research/` exists (no-op on slim workspaces). Marker:
+`engine=parcae`. Fields include `family`, `export_backend`,
+`candidates_expanded`, `rune_count`, `runes_work`, `wall_seconds`,
+`runes_per_s`. Paths are workspace-relative or omitted (absolute hosts →
+`REDACTED_ABS_PATH`). Do not include `run.log` in content digests.
+
+If a campaign’s only throughput evidence is a Python mirror auditor, treat it as
+out-of-band — re-run through `search_cycle` and confirm `engine=parcae` in
+`run.log`.
 
 ### `workspace.json` (recommended for unsolved LP2)
 
@@ -482,6 +503,7 @@ Details: [`agent-tools.md`](../spec/agent-tools.md) § `search_cycle` vs
 - [ ] Fixed `--seed` + `--created-utc` for replay / golden digests
 - [ ] `--allow-cuda` / `allow_cuda: true` only when intended
 - [ ] Do not expose deny-listed `search-run` / `blind-crack` to the agent
+- [ ] LP2 research: Python orchestrates only — Z29/χ² stays in Parcae; `research/run.log` shows `engine=parcae`
 
 ## Tests (operators / CI)
 
@@ -493,6 +515,7 @@ Details: [`agent-tools.md`](../spec/agent-tools.md) § `search_cycle` vs
 | CLI status smoke | `ctest -R cli_search_cycle_status_json` |
 | Catch2 search + CLI | `parcae_tests "[search]"` / `"[tool][search_cycle]"` |
 | Progress digest invariance | `parcae_tests "[tool][search_cycle][progress][determinism]"` |
+| Research campaign log | `parcae_tests "[hypothesis][campaign]"` |
 | Scheduler subset | `parcae_tests "[search][scheduler]"` (see [`cuda-build.md`](cuda-build.md) § Catch2 tags) |
 | JSON goldens | `parcae_tests "[tool][golden][cli][search_cycle]"` |
 | AgentPolicy path | `parcae_tests "[tool][policy][cli][search_cycle]"` |

@@ -147,12 +147,23 @@ public:
 
         [[nodiscard]] bool omit_timing() const noexcept { return omit_timing_; }
 
+        /// Ciphertext rune length for the cycle (consumable Index29 count).
+        [[nodiscard]] std::size_t rune_count() const noexcept { return rune_count_; }
+
+        /// Backend that actually scored/exported candidates (may soft-fall back from cuda).
+        [[nodiscard]] Backend export_backend() const noexcept { return export_backend_; }
+
+        /// Expanded grid size before top-k when known; else 0.
+        [[nodiscard]] std::size_t candidates_expanded() const noexcept {
+            return candidates_expanded_;
+        }
+
         [[nodiscard]] nlohmann::json to_json() const {
             nlohmann::json batches = nlohmann::json::array();
             for (const BatchSummary& b : batches_) {
                 batches.push_back(b.to_json());
             }
-            return nlohmann::json{
+            nlohmann::json out{
                 {"schema", std::string(result_schema_id)},
                 {"workspace_id", workspace_id_},
                 {"iterations", iterations_},
@@ -160,7 +171,15 @@ public:
                 {"batches", std::move(batches)},
                 {"hypotheses_written", hypotheses_written_},
                 {"omit_timing", omit_timing_},
+                {"rune_count", rune_count_},
+                {"export_backend", std::string(BackendUtil::to_string(export_backend_))},
             };
+            if (candidates_expanded_ > 0) {
+                out["candidates_expanded"] = candidates_expanded_;
+            } else {
+                out["candidates_expanded"] = nullptr;
+            }
+            return out;
         }
 
     private:
@@ -171,6 +190,9 @@ public:
         std::vector<BatchSummary> batches_;
         std::size_t hypotheses_written_ = 0;
         bool omit_timing_ = true;
+        std::size_t rune_count_ = 0;
+        Backend export_backend_ = Backend::Cpu;
+        std::size_t candidates_expanded_ = 0;
     };
 
     /// Run one cycle: cipher → prior (workspace or inline job) → export → batch → bridge.
@@ -217,6 +239,11 @@ public:
         result.workspace_id_ = job.workspace_id();
         result.iterations_ = 1;
         result.omit_timing_ = options.omit_timing;
+        result.rune_count_ = cipher.value().indices().size();
+        result.export_backend_ = exported.value().backend();
+        // Top-k retained size is known; expanded grid size is not on Result yet —
+        // theory jobs can fill via params_list in the CLI log helper.
+        result.candidates_expanded_ = 0;
 
         if (exported.value().size() == 0) {
             result.stop_reason_ = std::string(stop_no_new_candidates);
@@ -368,6 +395,11 @@ public:
 
             result.iterations_ = i + 1;
             result.hypotheses_written_ += cycle.value().hypotheses_written();
+            result.rune_count_ = cycle.value().rune_count();
+            result.export_backend_ = cycle.value().export_backend();
+            if (cycle.value().candidates_expanded() > 0) {
+                result.candidates_expanded_ = cycle.value().candidates_expanded();
+            }
             for (const BatchSummary& b : cycle.value().batches()) {
                 result.batches_.push_back(b);
             }

@@ -331,7 +331,24 @@ private:
         body += workspace_id;
         body += "`\n\n";
         body += "Record fixed UTC timestamps, job digests, and CLI invocations here.\n"
-                "Avoid host-absolute paths in `run.log` / digests.\n";
+                "Avoid host-absolute paths in `run.log` / digests.\n\n";
+        body += "## Campaign guard (Parcae path)\n\n";
+        body += "LP2 / Liber Primus research MUST run crypto evaluation through Parcae tools\n"
+                "(`parcae-search-cycle`, `parcae-compile`, …). Python MAY orchestrate jobs and\n"
+                "parse envelopes, but MUST NOT reimplement Z29 transforms or χ² / IC scoring.\n\n";
+        body += "`parcae-search-cycle` appends throughput lines to `research/run.log` when this\n"
+                "directory exists. Look for `engine=parcae` and `event=search_cycle`. Digests\n"
+                "MUST NOT hash `run.log` (wall-clock / throughput).\n\n";
+        body += "Example (fixed UTC + seed):\n\n";
+        body += "```bash\n";
+        body += "parcae-search-cycle \\\n";
+        body += "  --workspace ";
+        body += workspace_id;
+        body += " \\\n";
+        body += "  --family caesar --k 16 --seed 1 \\\n";
+        body += "  --created-utc 2026-09-28T00:00:00Z \\\n";
+        body += "  --backend cpu --omit-timing --json --data-dir data\n";
+        body += "```\n";
         return body;
     }
 };

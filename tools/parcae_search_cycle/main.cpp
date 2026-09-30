@@ -4,6 +4,7 @@
 #include "parcae/cli/console_progress_sink.hpp"
 #include "parcae/cli/console_progress_snapshot.hpp"
 #include "parcae/core/version.hpp"
+#include "parcae/hypothesis/research_campaign_log.hpp"
 #include "parcae/hypothesis/workspace_manifest.hpp"
 #include "parcae/search/batch_artifact.hpp"
 #include "parcae/search/search_job.hpp"
@@ -39,6 +40,35 @@ constexpr std::string_view kTool = "search_cycle";
 constexpr std::size_t kDefaultK = 16;
 constexpr std::uint32_t kDefaultSeed = 1;
 constexpr std::size_t kDefaultMaxCandidates = 4096;
+
+[[nodiscard]] std::size_t theory_params_list_size(const SearchJob& job) {
+    if (!SearchJob::is_theory_family(job.family())) {
+        return 0;
+    }
+    if (!job.param_grid().is_object() || !job.param_grid().contains("params_list") ||
+        !job.param_grid().at("params_list").is_array()) {
+        return 0;
+    }
+    return job.param_grid().at("params_list").size();
+}
+
+[[nodiscard]] std::size_t known_family_grid_size(const SearchJob& job) {
+    const std::string& family = job.family();
+    if (family == "caesar" || family == "atbash") {
+        return 29;
+    }
+    if (family == "atbash_caesar") {
+        return 29;
+    }
+    if (family == "affine") {
+        return 28 * 29; // a in 1..28, b in 0..28
+    }
+    const std::size_t theory_n = theory_params_list_size(job);
+    if (theory_n > 0) {
+        return theory_n;
+    }
+    return 0;
+}
 
 void print_help() {
     std::cerr
@@ -507,8 +537,11 @@ int main(int argc, char** argv) {
         loop.progress = &progress_bridge.value();
     }
 
+    const auto wall0 = std::chrono::steady_clock::now();
     StatusOr<SearchScheduler::CycleResult> cycle =
         SearchScheduler::run_loop(data_root, ctx.value(), job.value(), loop);
+    const double wall_seconds =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count();
     if (!cycle.ok()) {
         if (progress_bridge.has_value()) {
             progress_bridge->finish();
@@ -529,6 +562,36 @@ int main(int argc, char** argv) {
         progress_bridge->finish();
     }
 
+    // Research campaign guard: append throughput to research/run.log when present.
+    {
+        std::size_t retained = 0;
+        std::string last_batch;
+        for (const SearchScheduler::BatchSummary& b : cycle.value().batches()) {
+            retained += b.candidate_count();
+            last_batch = b.batch_id();
+        }
+        ResearchCampaignLog::SearchCycleEntry entry;
+        entry.family = job.value().family();
+        entry.score_id = job.value().score_id();
+        entry.backend_requested = backend.value();
+        entry.export_backend = cycle.value().export_backend();
+        entry.candidates_retained = retained;
+        entry.candidates_expanded = cycle.value().candidates_expanded() > 0
+                                        ? cycle.value().candidates_expanded()
+                                        : known_family_grid_size(job.value());
+        entry.rune_count = cycle.value().rune_count();
+        entry.wall_seconds = wall_seconds;
+        entry.batch_id = std::move(last_batch);
+        entry.created_utc = loop.created_utc;
+        entry.notes = "engine=parcae_search_cycle";
+        Status log_st =
+            ResearchCampaignLog::append_search_cycle(data_root, cycle.value().workspace_id(), entry);
+        if (!log_st.ok()) {
+            // Non-fatal for digests, but surface on stderr for operators.
+            std::cerr << "warning: research/run.log: " << log_st.message() << '\n';
+        }
+    }
+
     nlohmann::json result = cycle.value().to_json();
     if (json_mode) {
         return ToolCliJson::ok(kTool, backend_label, std::move(result));
@@ -540,7 +603,10 @@ int main(int argc, char** argv) {
               << "  stop_reason:          " << cycle.value().stop_reason() << '\n'
               << "  hypotheses_written:   " << cycle.value().hypotheses_written() << '\n'
               << "  batches:              " << cycle.value().batches().size() << '\n'
-              << "  backend:              " << *backend_label << '\n';
+              << "  backend:              " << *backend_label << '\n'
+              << "  export_backend:       "
+              << BackendUtil::to_string(cycle.value().export_backend()) << '\n'
+              << "  rune_count:           " << cycle.value().rune_count() << '\n';
     for (const SearchScheduler::BatchSummary& b : cycle.value().batches()) {
         std::cout << "    - " << b.batch_id() << "  candidates=" << b.candidate_count() << '\n';
     }

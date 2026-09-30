@@ -80,8 +80,8 @@ data/workspaces/<workspace_id>/
   `WorkspacePaths::page_relative_path` / `page_file`. |
 | `inputs/ciphertext.txt` | MUST be the default `workspace_file` path for new research manifests |
 | `inputs/INDEX.md` | SHOULD document input files; scaffold template only if missing |
-| `research/REPRODUCE.md` | SHOULD record how to reproduce digests / cycles; scaffold template only if missing |
-| `research/run.log` | MAY exist; MUST NOT embed host-absolute paths (normalize to workspace-relative or omit) |
+| `research/REPRODUCE.md` | SHOULD record how to reproduce digests / cycles; scaffold template only if missing; SHOULD mention Parcae-path campaign guard (`engine=parcae` / no Python Z29/χ² reimplementation) |
+| `research/run.log` | MAY exist; MUST NOT embed host-absolute paths (normalize to workspace-relative or omit); `parcae-search-cycle` appends `event=search_cycle` lines with `engine=parcae` when `research/` exists — non-golden (exclude from digests) |
 
 Rules (all layouts):
 

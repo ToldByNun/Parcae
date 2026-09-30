@@ -77,6 +77,7 @@ add_executable(parcae_tests
   hypothesis_record_test.cpp
   hypothesis_sandbox_test.cpp
   workspace_scaffold_test.cpp
+  research_campaign_log_test.cpp
   falsify_research_corpus_test.cpp
   search_job_test.cpp
   search_adversarial_test.cpp

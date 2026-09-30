@@ -76,6 +76,12 @@ TEST_CASE("WorkspaceScaffold::ensure_research builds canonical tree",
     REQUIRE(is_file(ws / "inputs" / "INDEX.md"));
     REQUIRE(is_file(ws / "research" / "REPRODUCE.md"));
 
+    const std::string repro = read_text(ws / "research" / "REPRODUCE.md");
+    REQUIRE(repro.find("Campaign guard") != std::string::npos);
+    REQUIRE(repro.find("engine=parcae") != std::string::npos);
+    REQUIRE(repro.find("MUST NOT reimplement Z29") != std::string::npos);
+    REQUIRE(repro.find(data.string()) == std::string::npos);
+
     StatusOr<WorkspaceManifest> manifest = WorkspaceManifest::load(data, "lp2-scaffold");
     REQUIRE(manifest.ok());
     REQUIRE(manifest.value().id() == "lp2-scaffold");
