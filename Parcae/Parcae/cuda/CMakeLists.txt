@@ -28,6 +28,7 @@ set(PARCAE_CUDA_SOURCES
   chi2_batch_score.cu
   caesar_chi2_batch.cu
   family_chi2_batch.cu
+  theory_chi2_batch.cu
   deep_score_batch.cu
   ciphertext_autokey_kernel.cu
   z29_matrix_device_ops.cu
