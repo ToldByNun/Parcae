@@ -145,6 +145,9 @@ TEST_CASE("SearchJob rejects bad schema and bounds", "[search][job]") {
         REQUIRE(job.value().family() == "theory");
         REQUIRE(job.value().allow_theory_uri());
         REQUIRE(job.value().to_json().at("allow_theory_uri") == true);
+        REQUIRE_FALSE(SearchJob::is_cpu_export_only_family("theory"));
+        REQUIRE_FALSE(SearchJob::has_fused_cuda_chi2_export("theory"));
+        REQUIRE(SearchJob::has_fused_cuda_chi2_export("caesar"));
     }
     {
         nlohmann::json j = valid_job_json();

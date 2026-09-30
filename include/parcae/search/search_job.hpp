@@ -72,14 +72,29 @@ public:
                family == "plaintext_autokey";
     }
 
-    /// Extended families without a fused CUDA χ² path (CPU RankCandidates only).
+    /// Families that MUST stay on CPU export even when `backend=cuda` (no fused
+    /// χ² twin and no soft fallback policy). Hill / CTAK / PTAK today.
+    /// `theory` is **not** listed: with `score_id=chi2_english_gp_v0` + decrypt it
+    /// may take the CUDA fused path once `GpuCandidateExport::theory_*` lands;
+    /// until then the scheduler soft-falls back to CPU (see
+    /// `has_fused_cuda_chi2_export`).
     [[nodiscard]] static bool is_cpu_export_only_family(std::string_view family) noexcept {
         return family == "hill_2" || family == "hill_3" || family == "ciphertext_autokey" ||
-               family == "plaintext_autokey" || is_theory_family(family);
+               family == "plaintext_autokey";
     }
 
     [[nodiscard]] static bool is_theory_family(std::string_view family) noexcept {
         return family == "theory";
+    }
+
+    /// Families with a landed `GpuCandidateExport` fused χ² path.
+    /// `theory` returns false until the bytecode/CUDA batch export ships — the
+    /// scheduler then soft-falls back to `CpuCandidateExport` under χ²+decrypt.
+    [[nodiscard]] static bool has_fused_cuda_chi2_export(std::string_view family) noexcept {
+        return family == "caesar" || family == "atbash" || family == "atbash_caesar" ||
+               family == "affine" || family == "vigenere" || family == "compose" ||
+               family == "beaufort" || family == "totient";
+        // theory: intentionally false until GpuCandidateExport::theory_explicit_params
     }
 
     [[nodiscard]] static StatusOr<std::string>

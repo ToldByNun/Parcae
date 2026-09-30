@@ -388,8 +388,10 @@ Example `param_grid`:
 }
 ```
 
-Theory jobs are CPU-only (`TheoryDispatch` / `apply_ir`); `--backend cuda` falls
-back to the CPU export path.
+Theory jobs use `TheoryDispatch` / `apply_ir` on CPU today. `--backend cuda` with
+`score_id=chi2_english_gp_v0` + decrypt soft-falls back to the CPU export path
+until fused `GpuCandidateExport::theory_*` lands
+(`has_fused_cuda_chi2_export("theory")`); non-χ² scores always use CPU.
 
 ### Compose recipes (Atbash∘Caesar / ComposeDriver)
 

@@ -20,14 +20,17 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `batch_artifact.hpp` | `BatchArtifact` | Done (`parcae.batch_artifact.v0`) |
 | `workspace_cipher.hpp` | `WorkspaceCipher` | Done (`workspace.v0` → `Index29`) |
 | `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere + compose recipes + opt-in beaufort/totient) |
-| `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (v0 families + extended `hill_2`/`hill_3`/CTAK/PTAK + `theory` URI; CPU-only for hill/autokey/theory) |
+| `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (v0 families + extended `hill_2`/`hill_3`/CTAK/PTAK + `theory` URI; hard CPU-only for hill/autokey) |
 | `hypothesis_bridge.hpp` | `HypothesisBridge` | Done (ingest + idempotent ids / provenance) |
 | `search_scheduler.hpp` | `SearchScheduler` | Done (`run_once` / `run_loop` + prior feedback) |
 | CLI `parcae-search-cycle` | tool `search_cycle` | Done (`--status` / run / `--omit-timing` / `--allow-extended-families` / `--allow-theory-uri` / AgentPolicy + JSON goldens) |
 
 `SearchJob` emits `allow_extended_families` / `allow_theory_uri` (default false).
-`is_cpu_export_only_family` covers hill / CTAK / PTAK / theory today; toolkit
-**1.1.0** lifts hill/autokey off that list (theory stays CPU-only) —
+`is_cpu_export_only_family` covers hill / CTAK / PTAK (hard CPU). `theory` is
+**not** hard CPU-only: with χ² + decrypt it is eligible for fused CUDA once
+`GpuCandidateExport::theory_*` lands; until then the scheduler soft-falls back
+to CPU (`has_fused_cuda_chi2_export("theory") == false`). Toolkit **1.1.0**
+lifts hill/autokey off the hard list —
 [`cuda-catalog-parity.md`](../../../docs/architecture/cuda-catalog-parity.md).
 Family ↔ catalog `transform_id` map:
 [`search-loop.md`](../../../docs/spec/search-loop.md).

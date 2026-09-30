@@ -538,7 +538,7 @@ private:
     export_candidates(std::span<const Index29> cipher, const SearchJob& job, const Context& ctx,
                       const SearchPrior& prior,
                       BatchRunner::Progress progress = BatchRunner::Progress{}) {
-        // Theory-URI / hill / autokey jobs are CPU-only (no fused CUDA χ² path yet).
+        // Hill / CTAK / PTAK stay hard CPU-only (`is_cpu_export_only_family`).
         if (job.backend() == Backend::Cpu ||
             SearchJob::is_cpu_export_only_family(job.family())) {
             return CpuCandidateExport::from_job(cipher, job, ctx, &prior, progress);
@@ -552,6 +552,12 @@ private:
         if (job.direction() != TransformDirection::Decrypt) {
             return Status::error(
                 "SearchScheduler: backend=cuda fused export supports decrypt only");
+        }
+
+        // Soft fallback: family allowed on CUDA policy-wise but fused twin not
+        // landed yet (today: `theory`). Do not hard-error; report CPU export.
+        if (!SearchJob::has_fused_cuda_chi2_export(job.family())) {
+            return CpuCandidateExport::from_job(cipher, job, ctx, &prior, progress);
         }
 
         StatusOr<ExpectedFrequencyTable> freqs = ctx.load_english_gp_expected();
