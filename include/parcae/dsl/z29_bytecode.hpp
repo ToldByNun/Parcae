@@ -73,6 +73,14 @@ public:
         AutokeyShift = 28,
     };
 
+    /// Dense `uint8` encoding used by `Z29BytecodeDevice` / fused CUDA hist.
+    [[nodiscard]] static constexpr std::uint8_t op_as_u8(Op op) noexcept {
+        return static_cast<std::uint8_t>(op);
+    }
+
+    /// Exclusive upper bound on `Op` numeric values (`AutokeyShift + 1`).
+    static constexpr std::uint8_t kOpCount = 29;
+
     struct Program {
         std::vector<Op> ops;
         std::vector<std::uint8_t> imm; ///< parallel to ops (Const value or Load slot)

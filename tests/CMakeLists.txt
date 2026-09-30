@@ -30,6 +30,7 @@ add_executable(parcae_tests
   dsl_ast_ingest_fuzz_test.cpp
   dsl_ir_applicator_test.cpp
   dsl_z29_bytecode_test.cpp
+  z29_bytecode_device_test.cpp
   dsl_emit_cpu_test.cpp
   dsl_matrix_ir_test.cpp
   dsl_emit_cuda_test.cpp
