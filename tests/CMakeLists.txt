@@ -90,6 +90,7 @@ add_executable(parcae_tests
   workspace_cipher_resolve_test.cpp
   gpu_candidate_export_test.cpp
   cpu_candidate_export_test.cpp
+  theory_explicit_params_generator_test.cpp
   cpu_gpu_export_parity_test.cpp
   compose_export_parity_test.cpp
   search_scheduler_test.cpp
