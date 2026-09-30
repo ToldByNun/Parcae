@@ -15,9 +15,17 @@
 #include "parcae/generate/beaufort_explicit_key_candidate_generator.hpp"
 #include "parcae/generate/caesar_candidate_generator.hpp"
 #include "parcae/generate/compose_recipe_candidate_generator.hpp"
+#include "parcae/generate/theory_explicit_params_candidate_generator.hpp"
 #include "parcae/generate/totient_offset_candidate_generator.hpp"
 #include "parcae/generate/transform_candidate.hpp"
 #include "parcae/generate/vigenere_explicit_key_candidate_generator.hpp"
+#include "parcae/dsl/theory_apply_ir.hpp"
+#include "parcae/dsl/theory_artifact.hpp"
+#include "parcae/dsl/theory_dispatch.hpp"
+#include "parcae/dsl/theory_ir.hpp"
+#include "parcae/dsl/theory_registry.hpp"
+#include "parcae/dsl/theory_uri.hpp"
+#include "parcae/dsl/z29_bytecode.hpp"
 #include "parcae/interrupt/policy.hpp"
 #include "parcae/math/totient_keystream.hpp"
 #include "parcae/score/chi2_english_gp.hpp"
@@ -37,6 +45,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -55,6 +64,7 @@
 #include "interrupt_device_view.hpp"
 #include "params_json.hpp"
 #include "parcae_cuda.hpp"
+#include "theory_chi2_batch.hpp"
 
 #include <cuda_runtime_api.h>
 #endif
@@ -778,8 +788,197 @@ public:
         return totient(cipher, freqs, starts.value(), k, direction, progress);
     }
 
+    // --- Theory (explicit params_list + theory_uri) -----------------------------
+
+    /// Top-k from precomputed χ² scores; materialize plaintext via host bytecode.
+    /// `scores.size()` MUST equal `params_list.size()`. Interrupt must be empty
+    /// (fused search contract); non-empty → error.
+    [[nodiscard]] static StatusOr<Result> theory_from_host_scores(
+        std::span<const Index29> cipher, const std::filesystem::path& theories_root,
+        std::string_view theory_uri_text, const std::vector<nlohmann::json>& params_list,
+        std::span<const double> scores, std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt, Backend backend = Backend::Cpu,
+        BatchRunner::Progress progress = BatchRunner::Progress{},
+        const InterruptPolicy& interrupt = InterruptPolicy::none()) {
+        prepare_progress(progress, cipher);
+        Status common = require_cipher_k(cipher, k);
+        if (!common.ok()) {
+            return common;
+        }
+        Status grid = require_theory_params_list(params_list);
+        if (!grid.ok()) {
+            return grid;
+        }
+        if (scores.size() != params_list.size()) {
+            return Status::error(
+                "GpuCandidateExport: theory scores length must match params_list size");
+        }
+        if (!interrupt.skip_indices().empty()) {
+            return Status::error(
+                "GpuCandidateExport::theory fused path requires empty InterruptPolicy");
+        }
+
+        StatusOr<TheoryPrepared> prepared =
+            prepare_theory(theories_root, theory_uri_text, direction);
+        if (!prepared.ok()) {
+            return prepared.status();
+        }
+
+        const std::string uri_str = prepared.value().uri_str;
+        StatusOr<std::vector<BatchHit>> hits = select_top_k(
+            scores, k, [&](std::size_t index) {
+                return TheoryExplicitParamsCandidateGenerator::make_candidate_id(uri_str, index);
+            });
+        if (!hits.ok()) {
+            return hits.status();
+        }
+
+        const TransformId tid = TransformId::unchecked(uri_str);
+        std::vector<Row> rows;
+        rows.reserve(hits.value().size());
+        std::vector<Index29> plain(cipher.size());
+        for (std::size_t rank = 0; rank < hits.value().size(); ++rank) {
+            const BatchHit& hit = hits.value()[rank];
+            const std::size_t index = hit.source_index();
+            const nlohmann::json& params = params_list[index];
+            Status applied = Z29Bytecode::apply_into_theory(
+                prepared.value().program, prepared.value().theory, params, cipher, plain,
+                interrupt);
+            if (!applied.ok()) {
+                return Status::error("GpuCandidateExport::theory materialize failed for index " +
+                                     std::to_string(index) + ": " + applied.message());
+            }
+            TransformCandidate candidate(hit.candidate_id(), tid, direction, params, plain);
+            rows.emplace_back(std::move(candidate), hit.score(), rank, hit.source_index());
+        }
+        emit_materialize(progress, rows.size(), scores.size());
+        return Result{std::move(rows), backend};
+    }
+
+    /// Fused CUDA χ² over `params_list` for one `theory_uri`, then top-k materialize.
+    /// Decrypt + empty interrupt only. Requires `PARCAE_BUILD_CUDA`.
+    [[nodiscard]] static StatusOr<Result> theory_explicit_params(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const std::filesystem::path& theories_root, std::string_view theory_uri_text,
+        const std::vector<nlohmann::json>& params_list, std::size_t k,
+        TransformDirection direction = TransformDirection::Decrypt,
+        BatchRunner::Progress progress = BatchRunner::Progress{},
+        const InterruptPolicy& interrupt = InterruptPolicy::none()) {
+        if (direction != TransformDirection::Decrypt) {
+            return Status::error(
+                "GpuCandidateExport::theory_explicit_params fused path supports decrypt only");
+        }
+        if (!interrupt.skip_indices().empty()) {
+            return Status::error(
+                "GpuCandidateExport::theory_explicit_params requires empty InterruptPolicy");
+        }
+#if !defined(PARCAE_HAS_CUDA)
+        (void)cipher;
+        (void)freqs;
+        (void)theories_root;
+        (void)theory_uri_text;
+        (void)params_list;
+        (void)k;
+        (void)progress;
+        return Status::error(
+            "GpuCandidateExport::theory_explicit_params requires CUDA (PARCAE_BUILD_CUDA=ON)");
+#else
+        prepare_progress(progress, cipher);
+        StatusOr<std::vector<double>> scores = fused_theory_scores(
+            cipher, freqs, theories_root, theory_uri_text, params_list, progress);
+        if (!scores.ok()) {
+            return scores.status();
+        }
+        return theory_from_host_scores(cipher, theories_root, theory_uri_text, params_list,
+                                       scores.value(), k, TransformDirection::Decrypt,
+                                       Backend::Cuda, progress, interrupt);
+#endif
+    }
+
 private:
     GpuCandidateExport() = delete;
+
+    struct TheoryPrepared {
+        TheoryIr theory;
+        Z29Bytecode::Program program;
+        std::string uri_str;
+
+        TheoryPrepared(TheoryIr theory_in, Z29Bytecode::Program program_in, std::string uri)
+            : theory(std::move(theory_in)), program(std::move(program_in)),
+              uri_str(std::move(uri)) {}
+    };
+
+    [[nodiscard]] static Status
+    require_theory_params_list(const std::vector<nlohmann::json>& params_list) {
+        if (params_list.empty()) {
+            return Status::error("GpuCandidateExport: theory params_list must be non-empty");
+        }
+#if defined(PARCAE_HAS_CUDA)
+        if (params_list.size() > TheoryChi2Batch::kMaxCandidates) {
+            return Status::error(
+                "GpuCandidateExport: theory params_list exceeds TheoryChi2Batch::kMaxCandidates");
+        }
+#else
+        if (params_list.size() > 16384) {
+            return Status::error("GpuCandidateExport: theory params_list exceeds 16384");
+        }
+#endif
+        for (std::size_t i = 0; i < params_list.size(); ++i) {
+            if (!params_list[i].is_object()) {
+                return Status::error(
+                    "GpuCandidateExport: theory params_list entries must be objects");
+            }
+        }
+        return Status::success();
+    }
+
+    [[nodiscard]] static StatusOr<TheoryPrepared>
+    prepare_theory(const std::filesystem::path& theories_root, std::string_view theory_uri_text,
+                   TransformDirection direction) {
+        StatusOr<TheoryUri> uri = TheoryUri::parse(theory_uri_text);
+        if (!uri.ok()) {
+            return uri.status();
+        }
+        StatusOr<TheoryIr> theory = TheoryDispatch::load_apply_ir(theories_root, uri.value());
+        if (!theory.ok()) {
+            return theory.status();
+        }
+        std::string cipher_var = "x";
+        {
+            StatusOr<TheoryArtifact> art =
+                TheoryRegistry::load(theories_root, uri.value().name(), uri.value().version());
+            if (art.ok() && art.value().paths().apply_ir().has_value()) {
+                const std::filesystem::path path =
+                    art.value().artifact_dir(theories_root) / *art.value().paths().apply_ir();
+                StatusOr<std::string> cv = TheoryApplyIr::load_cipher_var(path);
+                if (cv.ok()) {
+                    cipher_var = std::move(cv.value());
+                }
+            }
+        }
+        StatusOr<Z29Bytecode::Program> prog =
+            Z29Bytecode::compile_theory(theory.value(), direction, cipher_var);
+        if (!prog.ok()) {
+            return Status::error("GpuCandidateExport::theory bytecode compile failed: " +
+                                 prog.status().message());
+        }
+#if defined(PARCAE_HAS_CUDA)
+        if (prog.value().max_stack > TheoryChi2Batch::kMaxDeviceStack) {
+            return Status::error(
+                "GpuCandidateExport::theory program max_stack exceeds TheoryChi2Batch::kMaxDeviceStack");
+        }
+        if (prog.value().ops.size() > TheoryChi2Batch::kMaxProgramOps) {
+            return Status::error(
+                "GpuCandidateExport::theory program exceeds TheoryChi2Batch::kMaxProgramOps");
+        }
+        if (prog.value().slot_names.size() > TheoryChi2Batch::kMaxSlots) {
+            return Status::error(
+                "GpuCandidateExport::theory slot_count exceeds TheoryChi2Batch::kMaxSlots");
+        }
+#endif
+        return TheoryPrepared{std::move(theory.value()), std::move(prog.value()),
+                              uri.value().to_string()};
+    }
 
     static void emit_stage(BatchRunner::Progress& progress, std::string_view stage,
                            std::size_t done, std::size_t total) {
@@ -846,6 +1045,7 @@ private:
         if (!common.ok()) {
             return common;
         }
+
 
         std::vector<double> scores;
         std::vector<std::vector<Index29>> plains;
@@ -1395,6 +1595,101 @@ private:
                     scratch.value().T);
             },
             "GpuCandidateExport::totient sync", progress);
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const std::filesystem::path& theories_root, std::string_view theory_uri_text,
+        const std::vector<nlohmann::json>& params_list,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
+        Status ok = require_cuda_freqs(freqs);
+        if (!ok.ok()) {
+            return ok;
+        }
+        Status common = require_cipher_k(cipher, 1);
+        if (!common.ok()) {
+            return common;
+        }
+        Status grid = require_theory_params_list(params_list);
+        if (!grid.ok()) {
+            return grid;
+        }
+
+        StatusOr<TheoryPrepared> prepared =
+            prepare_theory(theories_root, theory_uri_text, TransformDirection::Decrypt);
+        if (!prepared.ok()) {
+            return prepared.status();
+        }
+
+        const Z29Bytecode::Program& prog = prepared.value().program;
+        const std::size_t C = params_list.size();
+        const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.slot_names.size());
+        const std::uint16_t max_stack = prog.max_stack == 0 ? 8 : prog.max_stack;
+        if (max_stack > TheoryChi2Batch::kMaxDeviceStack) {
+            return Status::error("GpuCandidateExport::theory max_stack exceeds device cap");
+        }
+
+        std::vector<std::uint8_t> ops;
+        ops.reserve(prog.ops.size());
+        for (Z29Bytecode::Op op : prog.ops) {
+            ops.push_back(Z29Bytecode::op_as_u8(op));
+        }
+        const std::vector<std::uint8_t>& imm = prog.imm;
+
+        std::vector<std::uint8_t> slots(C * slot_count, 0);
+        for (std::size_t c = 0; c < C; ++c) {
+            StatusOr<std::vector<Index29>> bound =
+                Z29Bytecode::bind_theory_slots(prog, prepared.value().theory, params_list[c]);
+            if (!bound.ok()) {
+                return bound.status();
+            }
+            if (bound.value().size() != slot_count) {
+                return Status::error("GpuCandidateExport::theory slot bind size mismatch");
+            }
+            for (std::uint16_t s = 0; s < slot_count; ++s) {
+                slots[c * slot_count + s] = bound.value()[s].value();
+            }
+        }
+
+        const auto host_in = to_bytes(cipher);
+        StatusOr<DeviceScratch> scratch = make_scratch(host_in, freqs, C);
+        if (!scratch.ok()) {
+            return scratch.status();
+        }
+
+        StatusOr<DeviceBuffer<std::uint8_t>> device_ops =
+            DeviceBuffer<std::uint8_t>::from_host(ops);
+        if (!device_ops.ok()) {
+            return device_ops.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_imm =
+            DeviceBuffer<std::uint8_t>::from_host(imm);
+        if (!device_imm.ok()) {
+            return device_imm.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_slots =
+            DeviceBuffer<std::uint8_t>::from_host(slots);
+        if (!device_slots.ok()) {
+            return device_slots.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_err =
+            DeviceBuffer<std::uint8_t>::allocate(C);
+        if (!device_err.ok()) {
+            return device_err.status();
+        }
+
+        return launch_sync_copy(
+            scratch.value(),
+            [&]() {
+                return TheoryChi2Batch::launch_async(
+                    scratch.value().in.data(), device_ops.value().data(),
+                    device_imm.value().data(), static_cast<std::uint32_t>(ops.size()),
+                    device_slots.value().data(), slot_count, prog.cipher_slot, prog.index_slot,
+                    prog.binds_index_i ? 1u : 0u, max_stack, scratch.value().probs.data(),
+                    scratch.value().counts.data(), scratch.value().scores.data(),
+                    device_err.value().data(), C, scratch.value().T);
+            },
+            "GpuCandidateExport::theory sync", progress);
     }
 #endif
 };
