@@ -43,6 +43,7 @@ private:
 | `dsl_exec_scope.hpp` | `DslExecScope` | Done (OuterControl / HotLoop + loop depth) |
 | `dsl_scope_analyzer.hpp` | `DslScopeAnalyzer` / `DslScopeMap` | Done (AST → scope map) |
 | `matrix_ir.hpp` | `MatrixIr` | Done (2×2 / 3×3 `Z29Expr`; det / mul_vec expand → host `Z29Matrix{2,3}` / device twins) |
+| `z29_bytecode.hpp` | `Z29Bytecode` | Done (HotLoop stack program + host eval; CUDA fused batch later) |
 | `param_ir.hpp` | `ParamIr` | Done |
 | `primitive_ir.hpp` | `PrimitiveIr` | Done |
 | `theory_ir.hpp` | `TheoryIr` | Done |
@@ -79,6 +80,7 @@ Tests: `[dsl][emit][select]` CPU/CUDA Select mux + `prefer_branch` conditional.
 Tests: `[dsl][scope]` DslExecScope + DslScopeAnalyzer OuterControl vs HotLoop.
 Tests: `[dsl][ingest][fuzz]` adversarial mutations + limit rejects (no crash).
 Tests: `[dsl][applicator]` IR → Index29 stream apply_into.
+Tests: `[dsl][bytecode]` Z29Bytecode encode + host eval parity vs DslIrApplicator.
 Tests: `[dsl][emit]` DslEmitCpu / DslEmitCuda source text.
 Tests: `[dsl][oracle][poly2]` exhaustive poly2 IR vs host Z29.
 Tests: `[dsl][verify]` / `[dsl][verify][gate]` DslVerifier exhaustive + fuzz +

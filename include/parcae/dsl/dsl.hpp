@@ -18,6 +18,7 @@
 ///   - DslDirectiveTable (#ignore DSL_FLAG → W010 / --allow-dsl-ignores)
 ///   - DslHostGlue / HostGlueIr (OuterControl for/while → E035)
 ///   - Z29Expr
+///   - Z29Bytecode (HotLoop stack program + host eval; CUDA batch later)
 ///   - ParamIr / PrimitiveIr / TheoryIr / ComposeIr
 ///   - DslIrApplicator
 ///   - DslEmitCpu / DslEmitCuda
@@ -76,6 +77,7 @@
 #include "parcae/dsl/theory_sweep.hpp"
 #include "parcae/dsl/theory_uri.hpp"
 #include "parcae/dsl/theory_validate.hpp"
+#include "parcae/dsl/z29_bytecode.hpp"
 #include "parcae/dsl/z29_expr.hpp"
 
 #endif // DSL_HPP
