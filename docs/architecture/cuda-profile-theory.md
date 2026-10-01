@@ -148,10 +148,12 @@ Also usable under ncu/nsys via `profile_theory_hist.ps1 -Exe …\parcae-bench.ex
 Raw:
 
 ```powershell
-nsys profile -t cuda,nvtx,osrt --stats=true --force-overwrite=true `
+nsys profile -t cuda,nvtx --stats=true --force-overwrite=true `
   -o docs/architecture/profiles/baseline/theory_export_chunk `
   -- <exe> <args...>
 ```
+
+(Windows Nsight Systems: use `cuda,nvtx` — `osrt` is not a valid `--trace` value.)
 
 ### What to record from the report
 
@@ -161,6 +163,7 @@ nsys profile -t cuda,nvtx,osrt --stats=true --force-overwrite=true `
 | `cudaMemcpy` H2D/D2H count & bytes | Program re-upload every chunk? |
 | Long CPU gaps | prepare / bind_slots / materialize / hyp write |
 | Kernel span names | `theory_chi2_hist_kernel`, finalize/patch |
+| NVTX ranges | Present on `GpuCandidateExport` / scheduler; microbench may omit export stages |
 
 **NVTX:** ranges such as `prepare_theory`, `bind_slots`, `h2d`, `hist_kernel`,
 `finalize`, `d2h`, `materialize`, `ingest` are pushed via `NvtxRange`
@@ -169,6 +172,10 @@ on the theory fused export / search-cycle path. Requires Toolkit
 `<nvtx3/nvToolsExt.h>` at compile time (`NvtxRange::available()`). If the header
 was missing, note “no NVTX” in the snapshot row and rely on CUDA API trace only.
 
+**ncu permission:** if ncu prints `ERR_NVGPUCTRPERM`, enable GPU performance
+counters for the user (or elevate) before kernel-counter baselines; cudaEvent +
+nsys remain valid without that permission.
+
 ---
 
 ## 3. Progress rule (every throughput milestone)
@@ -176,23 +183,29 @@ was missing, note “no NVTX” in the snapshot row and rely on CUDA API trace o
 After each meaningful change:
 
 1. Save **ncu** report (`.ncu-rep` or exported CSV/text) under
-   `docs/architecture/profiles/<tag>/`.
+   `docs/architecture/profiles/<tag>/` (when counters are permitted).
 2. Save **nsys** report (`.nsys-rep`) + one-line stats summary.
 3. Append a row to the progress table below (Ist Kernel SLO vs 90% Ziel).
 4. Do **not** mark done until Kernel SLO ≥ **0.90 × estimated_peak** for that
    theory shape, with peak documented (method + `(C,T)` + date + GPU).
 
+Repro: [`scripts/cuda/capture_theory_baseline.ps1`](../../scripts/cuda/capture_theory_baseline.ps1).
+Full write-up: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md).
+
 ### Progress log
 
-| Date | Tag | Path | Kernel | `(C,T)` | Kernel runes/s | Top stalls | nsys GPU% | Notes |
-|------|-----|------|--------|---------|----------------|------------|-----------|-------|
-| _(fill)_ | baseline | `profiles/baseline/` | `theory_chi2_hist_kernel` | | | | | pre-optimization |
+| Date | Tag | Path | Kernel | `(C,T)` | Kernel runes/s | Top stalls | nsys / ncu | Notes |
+|------|-----|------|--------|---------|----------------|------------|------------|-------|
+| 2026-10-01 | baseline | `profiles/baseline/` | `theory_chi2_hist_kernel` | 29×1M | **65.87B** cudaEvent | stall metrics n/a on sm_120 | ncu **155.7µs** @ T=262k; SM 74% DRAM 1% | vs Caesar twin **305B** cudaEvent; ncu duration **8.1×** Caesar |
+| 2026-10-01 | baseline | `profiles/baseline/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **304.97B** cudaEvent | stall n/a | ncu **19.1µs** @ T=262k; SM 68% DRAM 2.4% | same cipher as theory row |
+| 2026-10-01 | baseline | `profiles/baseline/` | catalog `F.affine` | 812×262k | **422.00B** cudaEvent | stall n/a | ncu **478µs**; SM 74% DRAM 0.15% | ~445B from ncu duration |
 
-Peak calibration rows (fill when microbench / specialized emit exists):
+Peak calibration rows (fill when specialized emit exists):
 
 | Theory shape | `estimated_peak` | 90% gate | Method | Date |
 |--------------|------------------|----------|--------|------|
-| _(e.g. bitmask_blend S2)_ | | | cudaEvent / ncu @ T≥2^20 | |
+| Caesar-as-bytecode (S0 interpreter) | TBD (interim ~66B fair) | TBD | cudaEvent @ T≥2^20 | 2026-10-01 |
+| bitmask_blend S2 (planned) | | | cudaEvent / ncu @ T≥2^20 | |
 
 ---
 

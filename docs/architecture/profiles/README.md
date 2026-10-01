@@ -3,7 +3,9 @@
 nsys / ncu outputs from
 [`cuda-profile-theory.md`](../cuda-profile-theory.md) land here.
 
-This directory’s contents are **gitignored** (large binary reports). Keep
-summaries in the playbook progress table; do not commit `.ncu-rep` / `.nsys-rep`.
+Binary reports (`.ncu-rep` / `.nsys-rep`) are **gitignored**. Text summaries and
+JSON digests under `baseline/` may be committed — see
+[`baseline/SUMMARY.md`](baseline/SUMMARY.md).
 
-Wrapper: [`scripts/cuda/profile_theory_hist.ps1`](../../../scripts/cuda/profile_theory_hist.ps1).
+Wrapper: [`scripts/cuda/profile_theory_hist.ps1`](../../../scripts/cuda/profile_theory_hist.ps1)  
+Capture: [`scripts/cuda/capture_theory_baseline.ps1`](../../../scripts/cuda/capture_theory_baseline.ps1).

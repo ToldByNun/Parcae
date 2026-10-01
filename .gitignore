@@ -123,6 +123,11 @@ scripts/research/falsify_nt_keystreams_lp2.py
 # Local nsys/ncu theory profiling reports (see docs/architecture/cuda-profile-theory.md)
 /docs/architecture/profiles/*
 !/docs/architecture/profiles/README.md
+!/docs/architecture/profiles/baseline/
+!/docs/architecture/profiles/baseline/SUMMARY.md
+!/docs/architecture/profiles/baseline/*.json
 *.ncu-rep
 *.nsys-rep
 *.nsys-rep.sqlite
+docs/architecture/profiles/baseline/*.sqlite
+docs/architecture/profiles/baseline/capture_log.txt

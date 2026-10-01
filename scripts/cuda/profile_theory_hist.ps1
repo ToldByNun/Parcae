@@ -5,7 +5,7 @@
 
 .DESCRIPTION
   Writes reports under -OutDir (default: docs/architecture/profiles/<Tag>).
-  Does not invent workloads — you pass -Exe and -ExeArgs (search-cycle, bench, tests).
+  Auto-discovers nsys/ncu under typical NVIDIA install paths when not on PATH.
 
   Metric definitions and acceptance rules:
     docs/architecture/cuda-profile-theory.md
@@ -28,18 +28,20 @@
 .PARAMETER Tag
   Basename prefix for report files.
 
+.PARAMETER NcuSet
+  ncu --set value (default: full). Use 'none' with -NcuMetrics for a custom list.
+
+.PARAMETER NcuMetrics
+  Optional comma-separated --metrics list (overrides --set when non-empty).
+
+.PARAMETER LaunchSkip
+  Skip this many matching kernel launches before collecting (default 4 = warmups).
+
+.PARAMETER LaunchCount
+  Number of matching launches to profile (default 1).
+
 .PARAMETER CheckToolsOnly
-  Verify nsys/ncu on PATH and exit 0/1; do not run a workload.
-
-.EXAMPLE
-  .\scripts\cuda\profile_theory_hist.ps1 -CheckToolsOnly
-
-.EXAMPLE
-  .\scripts\cuda\profile_theory_hist.ps1 -Mode both `
-    -Exe .\build-cuda\tools\Release\parcae-search-cycle.exe `
-    -ExeArgs '--workspace','ws','--job','job.json','--allow-theory-uri','--backend','cuda','--allow-cuda','--data-dir','data' `
-    -OutDir .\docs\architecture\profiles\baseline `
-    -Tag theory_hist
+  Verify nsys/ncu resolvable and exit 0/1; do not run a workload.
 #>
 [CmdletBinding()]
 param(
@@ -56,32 +58,63 @@ param(
 
     [string] $Tag = 'theory_hist',
 
+    [string] $NcuSet = 'full',
+
+    [string] $NcuMetrics = '',
+
+    [int] $LaunchSkip = 4,
+
+    [int] $LaunchCount = 1,
+
     [switch] $CheckToolsOnly
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Test-CommandOnPath {
-    param([Parameter(Mandatory = $true)][string] $Name)
-    return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+function Resolve-NvidiaTool {
+    param(
+        [Parameter(Mandatory = $true)][string] $Name,
+        [Parameter(Mandatory = $true)][string[]] $CandidateGlobs
+    )
+    $onPath = Get-Command $Name -ErrorAction SilentlyContinue
+    if ($onPath) {
+        return $onPath.Source
+    }
+    foreach ($glob in $CandidateGlobs) {
+        $hits = @(Get-Item -Path $glob -ErrorAction SilentlyContinue)
+        if ($hits.Count -gt 0) {
+            return $hits[0].FullName
+        }
+    }
+    return $null
 }
 
-function Require-Tool {
-    param([Parameter(Mandatory = $true)][string] $Name)
-    if (-not (Test-CommandOnPath $Name)) {
-        Write-Error "$Name not found on PATH. Install CUDA Nsight and ensure the Toolkit bin dir is on PATH."
+$nsysPath = Resolve-NvidiaTool -Name 'nsys' -CandidateGlobs @(
+    'C:\Program Files\NVIDIA Corporation\Nsight Systems *\target-windows-x64\nsys.exe',
+    "${env:CUDA_PATH}\bin\nsys.exe"
+)
+$ncuPath = Resolve-NvidiaTool -Name 'ncu' -CandidateGlobs @(
+    'C:\Program Files\NVIDIA Corporation\Nsight Compute *\ncu.bat',
+    'C:\Program Files\NVIDIA Corporation\Nsight Compute *\ncu.exe',
+    "${env:CUDA_PATH}\bin\ncu.exe"
+)
+
+function Require-Resolved {
+    param([string] $Label, [string] $Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        Write-Error "$Label not found on PATH or under Program Files\NVIDIA Corporation. Install Nsight and/or add it to PATH."
     }
 }
 
 $needNcu = ($Mode -eq 'ncu' -or $Mode -eq 'both')
 $needNsys = ($Mode -eq 'nsys' -or $Mode -eq 'both')
 
-if ($needNcu) { Require-Tool 'ncu' }
-if ($needNsys) { Require-Tool 'nsys' }
+if ($needNcu) { Require-Resolved 'ncu' $ncuPath }
+if ($needNsys) { Require-Resolved 'nsys' $nsysPath }
 
-Write-Host "nsys: $(if (Test-CommandOnPath 'nsys') { (Get-Command nsys).Source } else { 'missing' })"
-Write-Host "ncu:  $(if (Test-CommandOnPath 'ncu') { (Get-Command ncu).Source } else { 'missing' })"
+Write-Host "nsys: $(if ($nsysPath) { $nsysPath } else { 'missing' })"
+Write-Host "ncu:  $(if ($ncuPath) { $ncuPath } else { 'missing' })"
 
 if ($CheckToolsOnly) {
     Write-Host 'Tools OK.'
@@ -114,23 +147,38 @@ $nsysBase = Join-Path $OutDir "${Tag}_timeline"
 
 if ($needNcu) {
     Write-Host '=== ncu ==='
-    & ncu `
-        --set full `
-        --kernel-name-base demangled `
-        --kernel-name "regex:$KernelFilter" `
-        --export $ncuBase `
-        --force-overwrite `
-        -- $exeFull @ExeArgs
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "ncu exited with code $LASTEXITCODE"
+    $ncuArgs = @(
+        '--kernel-name-base', 'demangled',
+        '--kernel-name', "regex:$KernelFilter",
+        '--launch-skip', "$LaunchSkip",
+        '--launch-count', "$LaunchCount",
+        '--export', $ncuBase,
+        '--force-overwrite'
+    )
+    if (-not [string]::IsNullOrWhiteSpace($NcuMetrics)) {
+        $ncuArgs += @('--metrics', $NcuMetrics)
+    } elseif ($NcuSet -ne 'none') {
+        $ncuArgs += @('--set', $NcuSet)
+    }
+    $ncuArgs += @('--', $exeFull) + $ExeArgs
+    & $ncuPath @ncuArgs
+    $ncuCode = $LASTEXITCODE
+    $repPath = Get-ChildItem -Path $OutDir -Filter "$Tag.ncu-rep" -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($ncuCode -ne 0) {
+        if ($null -ne $repPath) {
+            Write-Warning "ncu exited $ncuCode but wrote $($repPath.Name) (app may have failed SLO)."
+        } else {
+            Write-Error "ncu exited with code $ncuCode"
+        }
     }
     Write-Host "ncu report: ${ncuBase}.ncu-rep (or tool default extension)"
 }
 
 if ($needNsys) {
     Write-Host '=== nsys ==='
-    & nsys profile `
-        -t cuda,nvtx,osrt `
+    & $nsysPath profile `
+        -t cuda,nvtx `
         --stats=true `
         --force-overwrite=true `
         -o $nsysBase `

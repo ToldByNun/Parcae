@@ -12,6 +12,7 @@
 #include "parcae/dsl/z29_bytecode.hpp"
 #include "parcae/dsl/z29_expr.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
+#include "parcae/search/nvtx_range.hpp"
 #include "parcae/transform/transform_direction.hpp"
 
 #include <cstddef>
@@ -401,6 +402,7 @@ private:
         }
 
         StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
+            NvtxRange nvtx_hist("hist_kernel");
             return TheoryChi2Batch::launch_async(
                 scratch.value().in.data(), scratch.value().ops.data(), scratch.value().imm.data(),
                 scratch.value().op_count, scratch.value().slots.data(), scratch.value().slot_count,
@@ -440,6 +442,7 @@ private:
         }
 
         StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
+            NvtxRange nvtx_hist("hist_kernel");
             return TheoryChi2Batch::launch_async(
                 scratch.value().in.data(), scratch.value().ops.data(), scratch.value().imm.data(),
                 scratch.value().op_count, scratch.value().slots.data(), scratch.value().slot_count,
@@ -494,6 +497,7 @@ private:
         }
 
         StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
+            NvtxRange nvtx_caesar("compare_caesar");
             return CaesarChi2Batch::launch_decrypt_async(
                 device_in.value().data(), device_shifts.value().data(), device_probs.value().data(),
                 device_counts.value().data(), device_scores.value().data(), C, T);
