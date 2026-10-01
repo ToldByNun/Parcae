@@ -117,3 +117,12 @@ scripts/research/falsify_nt_keystreams_lp2.py
 
 
 /research/lp2-all-pages-2026-09-28/
+/docs/theory-authoring
+/theories/new
+
+# Local nsys/ncu theory profiling reports (see docs/architecture/cuda-profile-theory.md)
+/docs/architecture/profiles/*
+!/docs/architecture/profiles/README.md
+*.ncu-rep
+*.nsys-rep
+*.nsys-rep.sqlite

@@ -17,7 +17,8 @@ portable across GPUs — re-run the tool on your card and recalibrate
 interpreter) is a separate path: expect ≫ CPU bytecode and ≫10⁶ runes/s on GPU
 for warm grids, but **not** catalog uchar4 peaks (F.atbash / T1 Caesar). Remeasure
 via `parcae-search-cycle --backend cuda` + `research/run.log` (`engine=parcae`,
-`export_backend=cuda`).
+`export_backend=cuda`). Kernel SLO vs campaign wall, nsys/ncu recipes, and the
+**≥90% estimated_peak** gate: [`cuda-profile-theory.md`](cuda-profile-theory.md).
 
 ## How to measure
 
@@ -99,3 +100,4 @@ Ceilings match `BenchTierSpec::estimated_peak`. Typical healthy runs sit around
 - DSL compile-time mirror (no CUDA): [`include/parcae/dsl/dsl_peak_sanity.hpp`](../../include/parcae/dsl/dsl_peak_sanity.hpp)
 - Kernels: [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (`hist_fast.hpp`, `*_chi2_batch.cu`)
 - Build notes: [cuda-build.md](cuda-build.md)
+- Theory profiling (nsys/ncu): [cuda-profile-theory.md](cuda-profile-theory.md)
