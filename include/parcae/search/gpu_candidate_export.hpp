@@ -32,6 +32,7 @@
 #include "parcae/score/expected_frequency_table.hpp"
 #include "parcae/score/score_order.hpp"
 #include "parcae/search/nvtx_range.hpp"
+#include "parcae/search/theory_export_cache.hpp"
 #include "parcae/tool/tool_backend.hpp"
 #include "parcae/transform/affine_transform.hpp"
 #include "parcae/transform/atbash_transform.hpp"
@@ -89,6 +90,11 @@
 /// When NVTX is available (`NvtxRange`), theory fused export also pushes
 /// timeline ranges: `prepare_theory`, `bind_slots`, `h2d`, `hist_kernel`,
 /// `finalize`, `d2h`, `materialize` (plus scheduler `ingest`).
+///
+/// Theory path: pass a long-lived `TheoryExportCache*` to amortize bytecode
+/// compile and (CUDA) device `ops`/`imm` uploads across chunks. `nullptr`
+/// still works (one-shot local cache). Prefer `theory_scores_only` when the
+/// caller only needs χ² scores (no top-k materialize).
 class GpuCandidateExport {
 public:
     static constexpr std::string_view score_id = "chi2_english_gp_v0";
@@ -804,7 +810,8 @@ public:
         std::span<const double> scores, std::size_t k,
         TransformDirection direction = TransformDirection::Decrypt, Backend backend = Backend::Cpu,
         BatchRunner::Progress progress = BatchRunner::Progress{},
-        const InterruptPolicy& interrupt = InterruptPolicy::none()) {
+        const InterruptPolicy& interrupt = InterruptPolicy::none(),
+        TheoryExportCache* cache = nullptr) {
         prepare_progress(progress, cipher);
         Status common = require_cipher_k(cipher, k);
         if (!common.ok()) {
@@ -823,22 +830,25 @@ public:
                 "GpuCandidateExport::theory fused path requires empty InterruptPolicy");
         }
 
-        StatusOr<TheoryPrepared> prepared =
-            prepare_theory(theories_root, theory_uri_text, direction);
+        TheoryExportCache local_cache;
+        TheoryExportCache& active = cache != nullptr ? *cache : local_cache;
+        StatusOr<const TheoryExportCache::Entry*> prepared =
+            prepare_theory(active, theories_root, theory_uri_text, direction);
         if (!prepared.ok()) {
             return prepared.status();
         }
+        const TheoryExportCache::Entry& entry = *prepared.value();
 
-        const std::string uri_str = prepared.value().uri_str;
         StatusOr<std::vector<BatchHit>> hits = select_top_k(
             scores, k, [&](std::size_t index) {
-                return TheoryExplicitParamsCandidateGenerator::make_candidate_id(uri_str, index);
+                return TheoryExplicitParamsCandidateGenerator::make_candidate_id(entry.uri_str(),
+                                                                                 index);
             });
         if (!hits.ok()) {
             return hits.status();
         }
 
-        const TransformId tid = TransformId::unchecked(uri_str);
+        const TransformId tid = TransformId::unchecked(entry.uri_str());
         std::vector<Row> rows;
         rows.reserve(hits.value().size());
         std::vector<Index29> plain(cipher.size());
@@ -849,8 +859,7 @@ public:
                 const std::size_t index = hit.source_index();
                 const nlohmann::json& params = params_list[index];
                 Status applied = Z29Bytecode::apply_into_theory(
-                    prepared.value().program, prepared.value().theory, params, cipher, plain,
-                    interrupt);
+                    entry.program(), entry.theory(), params, cipher, plain, interrupt);
                 if (!applied.ok()) {
                     return Status::error("GpuCandidateExport::theory materialize failed for index " +
                                          std::to_string(index) + ": " + applied.message());
@@ -865,13 +874,15 @@ public:
 
     /// Fused CUDA χ² over `params_list` for one `theory_uri`, then top-k materialize.
     /// Decrypt + empty interrupt only. Requires `PARCAE_BUILD_CUDA`.
+    /// Pass `cache` to reuse bytecode + device program buffers across chunks.
     [[nodiscard]] static StatusOr<Result> theory_explicit_params(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const std::filesystem::path& theories_root, std::string_view theory_uri_text,
         const std::vector<nlohmann::json>& params_list, std::size_t k,
         TransformDirection direction = TransformDirection::Decrypt,
         BatchRunner::Progress progress = BatchRunner::Progress{},
-        const InterruptPolicy& interrupt = InterruptPolicy::none()) {
+        const InterruptPolicy& interrupt = InterruptPolicy::none(),
+        TheoryExportCache* cache = nullptr) {
         if (direction != TransformDirection::Decrypt) {
             return Status::error(
                 "GpuCandidateExport::theory_explicit_params fused path supports decrypt only");
@@ -888,33 +899,63 @@ public:
         (void)params_list;
         (void)k;
         (void)progress;
+        (void)cache;
         return Status::error(
             "GpuCandidateExport::theory_explicit_params requires CUDA (PARCAE_BUILD_CUDA=ON)");
 #else
         prepare_progress(progress, cipher);
+        TheoryExportCache local_cache;
+        TheoryExportCache& active = cache != nullptr ? *cache : local_cache;
         StatusOr<std::vector<double>> scores = fused_theory_scores(
-            cipher, freqs, theories_root, theory_uri_text, params_list, progress);
+            cipher, freqs, theories_root, theory_uri_text, params_list, active, progress);
         if (!scores.ok()) {
             return scores.status();
         }
         return theory_from_host_scores(cipher, theories_root, theory_uri_text, params_list,
                                        scores.value(), k, TransformDirection::Decrypt,
-                                       Backend::Cuda, progress, interrupt);
+                                       Backend::Cuda, progress, interrupt, &active);
+#endif
+    }
+
+    /// Scores-only fused CUDA χ² (no top-k materialize). Same contracts as
+    /// `theory_explicit_params` (decrypt, empty interrupt, CUDA required).
+    [[nodiscard]] static StatusOr<std::vector<double>> theory_scores_only(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const std::filesystem::path& theories_root, std::string_view theory_uri_text,
+        const std::vector<nlohmann::json>& params_list,
+        TransformDirection direction = TransformDirection::Decrypt,
+        BatchRunner::Progress progress = BatchRunner::Progress{},
+        const InterruptPolicy& interrupt = InterruptPolicy::none(),
+        TheoryExportCache* cache = nullptr) {
+        if (direction != TransformDirection::Decrypt) {
+            return Status::error(
+                "GpuCandidateExport::theory_scores_only fused path supports decrypt only");
+        }
+        if (!interrupt.skip_indices().empty()) {
+            return Status::error(
+                "GpuCandidateExport::theory_scores_only requires empty InterruptPolicy");
+        }
+#if !defined(PARCAE_HAS_CUDA)
+        (void)cipher;
+        (void)freqs;
+        (void)theories_root;
+        (void)theory_uri_text;
+        (void)params_list;
+        (void)progress;
+        (void)cache;
+        return Status::error(
+            "GpuCandidateExport::theory_scores_only requires CUDA (PARCAE_BUILD_CUDA=ON)");
+#else
+        prepare_progress(progress, cipher);
+        TheoryExportCache local_cache;
+        TheoryExportCache& active = cache != nullptr ? *cache : local_cache;
+        return fused_theory_scores(cipher, freqs, theories_root, theory_uri_text, params_list,
+                                   active, progress);
 #endif
     }
 
 private:
     GpuCandidateExport() = delete;
-
-    struct TheoryPrepared {
-        TheoryIr theory;
-        Z29Bytecode::Program program;
-        std::string uri_str;
-
-        TheoryPrepared(TheoryIr theory_in, Z29Bytecode::Program program_in, std::string uri)
-            : theory(std::move(theory_in)), program(std::move(program_in)),
-              uri_str(std::move(uri)) {}
-    };
 
     [[nodiscard]] static Status
     require_theory_params_list(const std::vector<nlohmann::json>& params_list) {
@@ -940,53 +981,11 @@ private:
         return Status::success();
     }
 
-    [[nodiscard]] static StatusOr<TheoryPrepared>
-    prepare_theory(const std::filesystem::path& theories_root, std::string_view theory_uri_text,
-                   TransformDirection direction) {
+    [[nodiscard]] static StatusOr<const TheoryExportCache::Entry*>
+    prepare_theory(TheoryExportCache& cache, const std::filesystem::path& theories_root,
+                   std::string_view theory_uri_text, TransformDirection direction) {
         NvtxRange nvtx_prepare("prepare_theory");
-        StatusOr<TheoryUri> uri = TheoryUri::parse(theory_uri_text);
-        if (!uri.ok()) {
-            return uri.status();
-        }
-        StatusOr<TheoryIr> theory = TheoryDispatch::load_apply_ir(theories_root, uri.value());
-        if (!theory.ok()) {
-            return theory.status();
-        }
-        std::string cipher_var = "x";
-        {
-            StatusOr<TheoryArtifact> art =
-                TheoryRegistry::load(theories_root, uri.value().name(), uri.value().version());
-            if (art.ok() && art.value().paths().apply_ir().has_value()) {
-                const std::filesystem::path path =
-                    art.value().artifact_dir(theories_root) / *art.value().paths().apply_ir();
-                StatusOr<std::string> cv = TheoryApplyIr::load_cipher_var(path);
-                if (cv.ok()) {
-                    cipher_var = std::move(cv.value());
-                }
-            }
-        }
-        StatusOr<Z29Bytecode::Program> prog =
-            Z29Bytecode::compile_theory(theory.value(), direction, cipher_var);
-        if (!prog.ok()) {
-            return Status::error("GpuCandidateExport::theory bytecode compile failed: " +
-                                 prog.status().message());
-        }
-#if defined(PARCAE_HAS_CUDA)
-        if (prog.value().max_stack > TheoryChi2Batch::kMaxDeviceStack) {
-            return Status::error(
-                "GpuCandidateExport::theory program max_stack exceeds TheoryChi2Batch::kMaxDeviceStack");
-        }
-        if (prog.value().ops.size() > TheoryChi2Batch::kMaxProgramOps) {
-            return Status::error(
-                "GpuCandidateExport::theory program exceeds TheoryChi2Batch::kMaxProgramOps");
-        }
-        if (prog.value().slot_names.size() > TheoryChi2Batch::kMaxSlots) {
-            return Status::error(
-                "GpuCandidateExport::theory slot_count exceeds TheoryChi2Batch::kMaxSlots");
-        }
-#endif
-        return TheoryPrepared{std::move(theory.value()), std::move(prog.value()),
-                              uri.value().to_string()};
+        return cache.ensure(theories_root, theory_uri_text, direction);
     }
 
     static void emit_stage(BatchRunner::Progress& progress, std::string_view stage,
@@ -1612,7 +1611,7 @@ private:
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const std::filesystem::path& theories_root, std::string_view theory_uri_text,
-        const std::vector<nlohmann::json>& params_list,
+        const std::vector<nlohmann::json>& params_list, TheoryExportCache& cache,
         BatchRunner::Progress progress = BatchRunner::Progress{}) {
         Status ok = require_cuda_freqs(freqs);
         if (!ok.ok()) {
@@ -1627,13 +1626,14 @@ private:
             return grid;
         }
 
-        StatusOr<TheoryPrepared> prepared =
-            prepare_theory(theories_root, theory_uri_text, TransformDirection::Decrypt);
+        StatusOr<const TheoryExportCache::Entry*> prepared =
+            prepare_theory(cache, theories_root, theory_uri_text, TransformDirection::Decrypt);
         if (!prepared.ok()) {
             return prepared.status();
         }
+        const TheoryExportCache::Entry& entry = *prepared.value();
 
-        const Z29Bytecode::Program& prog = prepared.value().program;
+        const Z29Bytecode::Program& prog = entry.program();
         const std::size_t C = params_list.size();
         const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.slot_names.size());
         const std::uint16_t max_stack = prog.max_stack == 0 ? 8 : prog.max_stack;
@@ -1641,19 +1641,14 @@ private:
             return Status::error("GpuCandidateExport::theory max_stack exceeds device cap");
         }
 
-        std::vector<std::uint8_t> ops;
-        ops.reserve(prog.ops.size());
-        for (Z29Bytecode::Op op : prog.ops) {
-            ops.push_back(Z29Bytecode::op_as_u8(op));
-        }
-        const std::vector<std::uint8_t>& imm = prog.imm;
+        const std::vector<std::uint8_t>& ops = entry.ops_u8();
 
         std::vector<std::uint8_t> slots(C * slot_count, 0);
         {
             NvtxRange nvtx_bind("bind_slots");
             for (std::size_t c = 0; c < C; ++c) {
                 StatusOr<std::vector<Index29>> bound =
-                    Z29Bytecode::bind_theory_slots(prog, prepared.value().theory, params_list[c]);
+                    Z29Bytecode::bind_theory_slots(prog, entry.theory(), params_list[c]);
                 if (!bound.ok()) {
                     return bound.status();
                 }
@@ -1669,10 +1664,11 @@ private:
         const auto host_in = to_bytes(cipher);
         struct TheoryDevicePack {
             DeviceScratch scratch;
-            DeviceBuffer<std::uint8_t> ops;
-            DeviceBuffer<std::uint8_t> imm;
             DeviceBuffer<std::uint8_t> slots;
             DeviceBuffer<std::uint8_t> err;
+            // Non-owning views into TheoryExportCache device program buffers.
+            const std::uint8_t* ops = nullptr;
+            const std::uint8_t* imm = nullptr;
         };
         StatusOr<TheoryDevicePack> devices = [&]() -> StatusOr<TheoryDevicePack> {
             NvtxRange nvtx_h2d("h2d");
@@ -1680,15 +1676,9 @@ private:
             if (!scratch.ok()) {
                 return scratch.status();
             }
-            StatusOr<DeviceBuffer<std::uint8_t>> device_ops =
-                DeviceBuffer<std::uint8_t>::from_host(ops);
-            if (!device_ops.ok()) {
-                return device_ops.status();
-            }
-            StatusOr<DeviceBuffer<std::uint8_t>> device_imm =
-                DeviceBuffer<std::uint8_t>::from_host(imm);
-            if (!device_imm.ok()) {
-                return device_imm.status();
+            Status prog_up = cache.ensure_device_program();
+            if (!prog_up.ok()) {
+                return prog_up;
             }
             StatusOr<DeviceBuffer<std::uint8_t>> device_slots =
                 DeviceBuffer<std::uint8_t>::from_host(slots);
@@ -1702,10 +1692,10 @@ private:
             }
             TheoryDevicePack pack;
             pack.scratch = std::move(scratch.value());
-            pack.ops = std::move(device_ops.value());
-            pack.imm = std::move(device_imm.value());
             pack.slots = std::move(device_slots.value());
             pack.err = std::move(device_err.value());
+            pack.ops = cache.device_ops().data();
+            pack.imm = cache.device_imm().data();
             return pack;
         }();
         if (!devices.ok()) {
@@ -1716,12 +1706,12 @@ private:
             devices.value().scratch,
             [&]() {
                 return TheoryChi2Batch::launch_async(
-                    devices.value().scratch.in.data(), devices.value().ops.data(),
-                    devices.value().imm.data(), static_cast<std::uint32_t>(ops.size()),
-                    devices.value().slots.data(), slot_count, prog.cipher_slot, prog.index_slot,
-                    prog.binds_index_i ? 1u : 0u, max_stack, devices.value().scratch.probs.data(),
-                    devices.value().scratch.counts.data(), devices.value().scratch.scores.data(),
-                    devices.value().err.data(), C, devices.value().scratch.T);
+                    devices.value().scratch.in.data(), devices.value().ops, devices.value().imm,
+                    static_cast<std::uint32_t>(ops.size()), devices.value().slots.data(), slot_count,
+                    prog.cipher_slot, prog.index_slot, prog.binds_index_i ? 1u : 0u, max_stack,
+                    devices.value().scratch.probs.data(), devices.value().scratch.counts.data(),
+                    devices.value().scratch.scores.data(), devices.value().err.data(), C,
+                    devices.value().scratch.T);
             },
             "GpuCandidateExport::theory sync", progress);
     }

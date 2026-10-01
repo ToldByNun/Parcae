@@ -44,7 +44,8 @@ API time); once warm, kernel + `cudaEventSynchronize` matter. H2D memcpy total
 
 NVTX: `nvtx_sum` skipped on this capture (no NVTX payload in report — microbench
 path; export-path ranges live under `GpuCandidateExport` / scheduler). Re-run
-after host-cache work with `search_cycle` for `prepare_theory`…`ingest` ranges.
+with `search_cycle` + shared `TheoryExportCache` after host-amortize to confirm
+`ops`/`imm` upload once per URI (slots still per chunk).
 
 ## ncu (re-captured 2026-10-01 after GPU counter permission)
 

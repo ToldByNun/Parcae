@@ -19,7 +19,8 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `search_prior.hpp` | `SearchPrior` | Done (`parcae.search_prior.v0`) |
 | `batch_artifact.hpp` | `BatchArtifact` | Done (`parcae.batch_artifact.v0`) |
 | `workspace_cipher.hpp` | `WorkspaceCipher` | Done (`workspace.v0` → `Index29`) |
-| `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere + compose recipes + opt-in beaufort/totient + theory fused χ²) |
+| `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere + compose recipes + opt-in beaufort/totient + theory fused χ² / scores-only + `TheoryExportCache`) |
+| `theory_export_cache.hpp` | `TheoryExportCache` | Done — host bytecode + device `ops`/`imm` reuse across theory chunks |
 | `nvtx_range.hpp` | `NvtxRange` | Done — RAII NVTX for nsys (`prepare_theory`…`ingest`) |
 | `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (v0 families + extended `hill_2`/`hill_3`/CTAK/PTAK + `theory` URI; hard CPU-only for hill/autokey) |
 | `hypothesis_bridge.hpp` | `HypothesisBridge` | Done (ingest + idempotent ids / provenance) |
@@ -33,6 +34,9 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 `GpuCandidateExport::theory_explicit_params`. Toolkit **1.1.0**
 lifts hill/autokey off the hard list —
 [`cuda-catalog-parity.md`](../../../docs/architecture/cuda-catalog-parity.md).
+`SearchScheduler::run_loop` keeps a `TheoryExportCache` across iterations
+(override via `Options::theory_cache` / `LoopOptions::theory_cache`). Use
+`GpuCandidateExport::theory_scores_only` for score sweeps without materialize.
 Family ↔ catalog `transform_id` map:
 [`search-loop.md`](../../../docs/spec/search-loop.md).
 Grid-read / columnar / `variable_delay_autokey` are **not** search families.

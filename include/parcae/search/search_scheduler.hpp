@@ -10,6 +10,7 @@
 #include "parcae/hypothesis/hypothesis_record.hpp"
 #include "parcae/hypothesis/hypothesis_status.hpp"
 #include "parcae/hypothesis/workspace_paths.hpp"
+#include "parcae/interrupt/policy.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
 #include "parcae/search/batch_artifact.hpp"
 #include "parcae/search/cpu_candidate_export.hpp"
@@ -18,6 +19,7 @@
 #include "parcae/search/nvtx_range.hpp"
 #include "parcae/search/search_job.hpp"
 #include "parcae/search/search_prior.hpp"
+#include "parcae/search/theory_export_cache.hpp"
 #include "parcae/search/workspace_cipher.hpp"
 #include "parcae/tool/context.hpp"
 #include "parcae/tool/tool_backend.hpp"
@@ -64,6 +66,8 @@ public:
         SearchPrior::BuildOptions prior_build{};
         /// Optional observe-only progress sink (nullptr = silent). Digests unchanged.
         ConsoleProgressSink* progress = nullptr;
+        /// Optional theory bytecode / device-program cache (amortize across cycles).
+        TheoryExportCache* theory_cache = nullptr;
     };
 
     /// Budgets and stop policy for `run_loop` (`search-loop.md`).
@@ -95,6 +99,8 @@ public:
         SearchPrior::BuildOptions prior_build{};
         /// Optional observe-only progress sink (nullptr = silent). Digests unchanged.
         ConsoleProgressSink* progress = nullptr;
+        /// Optional theory cache shared across loop iterations (nullptr → local loop cache).
+        TheoryExportCache* theory_cache = nullptr;
     };
 
     /// One batch summary line inside the cycle result.
@@ -231,7 +237,8 @@ public:
         export_progress.rune_count = cipher.value().indices().size();
 
         StatusOr<CpuCandidateExport::Result> exported =
-            export_candidates(cipher.value().indices(), job, ctx, prior.value(), export_progress);
+            export_candidates(cipher.value().indices(), job, ctx, prior.value(), export_progress,
+                              options.theory_cache);
         if (!exported.ok()) {
             return exported.status();
         }
@@ -362,6 +369,10 @@ public:
             return result;
         }
 
+        TheoryExportCache loop_theory_cache;
+        TheoryExportCache* theory_cache =
+            options.theory_cache != nullptr ? options.theory_cache : &loop_theory_cache;
+
         for (std::size_t i = 0; i < options.max_iterations; ++i) {
             if (i > 0 && wall_exceeded()) {
                 result.stop_reason_ = std::string(stop_wall_budget);
@@ -378,6 +389,7 @@ public:
             once.omit_timing = options.omit_timing;
             once.prior_build = options.prior_build;
             once.progress = options.progress;
+            once.theory_cache = theory_cache;
             if (!options.batch_ids.empty()) {
                 once.batch_id = options.batch_ids[i];
             }
@@ -572,7 +584,8 @@ private:
     [[nodiscard]] static StatusOr<CpuCandidateExport::Result>
     export_candidates(std::span<const Index29> cipher, const SearchJob& job, const Context& ctx,
                       const SearchPrior& prior,
-                      BatchRunner::Progress progress = BatchRunner::Progress{}) {
+                      BatchRunner::Progress progress = BatchRunner::Progress{},
+                      TheoryExportCache* theory_cache = nullptr) {
         // Hill / CTAK / PTAK stay hard CPU-only (`is_cpu_export_only_family`).
         if (job.backend() == Backend::Cpu ||
             SearchJob::is_cpu_export_only_family(job.family())) {
@@ -601,7 +614,8 @@ private:
         }
 
         StatusOr<CpuCandidateExport::Result> fused =
-            export_cuda_fused(cipher, job, freqs.value(), ctx.data_root() / "theories", progress);
+            export_cuda_fused(cipher, job, freqs.value(), ctx.data_root() / "theories", progress,
+                              theory_cache);
         if (!fused.ok()) {
             return fused.status();
         }
@@ -619,7 +633,8 @@ private:
     export_cuda_fused(std::span<const Index29> cipher, const SearchJob& job,
                       const ExpectedFrequencyTable& freqs,
                       const std::filesystem::path& theories_root,
-                      BatchRunner::Progress progress = BatchRunner::Progress{}) {
+                      BatchRunner::Progress progress = BatchRunner::Progress{},
+                      TheoryExportCache* theory_cache = nullptr) {
         const std::string& family = job.family();
         if (family == "caesar") {
             return GpuCandidateExport::caesar(cipher, freqs, job.k(), job.direction(), progress);
@@ -714,7 +729,7 @@ private:
             }
             return GpuCandidateExport::theory_explicit_params(
                 cipher, freqs, theories_root, theory_uri, params_list, job.k(), job.direction(),
-                progress);
+                progress, InterruptPolicy::none(), theory_cache);
         }
         return Status::error("SearchScheduler: unsupported family for cuda export: " + family);
     }

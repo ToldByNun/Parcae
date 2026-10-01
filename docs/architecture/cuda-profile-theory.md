@@ -133,6 +133,8 @@ Also usable under ncu/nsys via `profile_theory_hist.ps1 -Exe …\parcae-bench.ex
 
 - Fraction of wall that is GPU kernel vs memcpy vs CPU gaps.
 - H2D traffic on program buffers (`ops`, `imm`, `slots`) vs cipher/probs.
+  After host-amortize, `ops`/`imm` should upload **once** per theory URI when a
+  shared `TheoryExportCache` is used; only `slots` re-upload per params chunk.
 - Cold process spawn vs warm reuse (campaign Python chunks).
 
 ### Command
@@ -199,6 +201,7 @@ Full write-up: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md).
 | 2026-10-01 | baseline | `profiles/baseline/` | `theory_chi2_hist_kernel` | 29×1M | **65.87B** cudaEvent | stall metrics n/a on sm_120 | ncu **155.7µs** @ T=262k; SM 74% DRAM 1% | vs Caesar twin **305B** cudaEvent; ncu duration **8.1×** Caesar |
 | 2026-10-01 | baseline | `profiles/baseline/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **304.97B** cudaEvent | stall n/a | ncu **19.1µs** @ T=262k; SM 68% DRAM 2.4% | same cipher as theory row |
 | 2026-10-01 | baseline | `profiles/baseline/` | catalog `F.affine` | 812×262k | **422.00B** cudaEvent | stall n/a | ncu **478µs**; SM 74% DRAM 0.15% | ~445B from ncu duration |
+| 2026-10-01 | host-amortize | (code) | — | — | — | — | tests `[search][export][theory]` | `TheoryExportCache`: host bytecode once/URI; device `ops`/`imm` reused; `theory_scores_only`; scheduler loop shares cache |
 
 Peak calibration rows (fill when specialized emit exists):
 
