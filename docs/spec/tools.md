@@ -391,6 +391,10 @@ parcae-bench --suite hardware [--backend cpu|cuda|both]
 parcae-bench --suite probe --probe-cmd <cmd>
              [--probe-tiers T1,T2,T3] [--probe-timeout-ms N]
              [--compare-builtin] [--json] [--omit-timing] [--data-dir <path>]
+parcae-bench --suite theory --allow-cuda
+             [--tokens N] [--candidates N] [--repeats N]
+             [--campaign-grid] [--no-compare-catalog]
+             [--json] [--omit-timing] [--data-dir <path>]
 parcae-bench --suite all [flags for each leg…]
 ```
 
@@ -398,7 +402,8 @@ Umbrella **benchmark & diagnostics** CLI (toolkit 0.9.0 target). Headers live
 under [`include/parcae/bench/`](../../include/parcae/bench/README.md). Canonical
 SLO constants: `BenchTierSpec`. External probe wire format:
 [`bench-probe.md`](bench-probe.md). Operator throughput notes:
-[`cuda-throughput.md`](../architecture/cuda-throughput.md).
+[`cuda-throughput.md`](../architecture/cuda-throughput.md). Theory fused-χ²
+microbench: [`cuda-profile-theory.md`](../architecture/cuda-profile-theory.md).
 
 | Suite | Purpose |
 |-------|---------|
@@ -406,6 +411,7 @@ SLO constants: `BenchTierSpec`. External probe wire format:
 | `accuracy` | Statistical validation (CPU always; CUDA planted/parity with `--allow-cuda`). |
 | `hardware` | CPU vs CUDA side-by-side for T1–T3; scaled CPU smoke by default (`--cpu-full` for full C/T/reps). CUDA skip → `skipped_not_built`; `--require-cuda` fails; `--allow-skip` OK. |
 | `probe` | Spawn external JSON probes (`--probe-cmd` with `{tier}`); timeout default 120000 ms. |
+| `theory` | Theory fused χ² **cudaEvent** microbench (`TheoryChi2Batch` Caesar bytecode + progressive + optional Caesar twin / campaign-like T). Kernel SLO only; peaks uncalibrated until theory `BenchTierSpec` rows. |
 | `all` | Order: accuracy → slo → hardware → probe. Probe runs **only** if `--probe-cmd` is set. SLO runs only with `--allow-cuda` when CUDA is usable. |
 
 Shared flags: `--json` → `parcae.tool_response.v0` (`tool: "bench"`);

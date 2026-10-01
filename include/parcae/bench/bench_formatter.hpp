@@ -71,6 +71,9 @@ public:
         emit_section(out, "PROBE", doc, [](const BenchReport::Row& r) {
             return r.suite() == BenchReport::Suite::Probe;
         });
+        emit_section(out, "THEORY FUSED CHI2", doc, [](const BenchReport::Row& r) {
+            return r.suite() == BenchReport::Suite::Theory;
+        });
 
         // Catch-all for rows that did not match a named section (e.g. suite=all extras).
         emit_section(out, "OTHER", doc, [&](const BenchReport::Row& r) {
@@ -81,7 +84,8 @@ public:
             const bool accuracy = r.suite() == BenchReport::Suite::Accuracy;
             const bool hardware = r.suite() == BenchReport::Suite::Hardware;
             const bool probe = r.suite() == BenchReport::Suite::Probe;
-            return !(slo_primary || family || compose || accuracy || hardware || probe);
+            const bool theory = r.suite() == BenchReport::Suite::Theory;
+            return !(slo_primary || family || compose || accuracy || hardware || probe || theory);
         });
 
         out << (doc.all_pass() ? "ALL ROWS PASS\n" : "ROWS FAILED\n");

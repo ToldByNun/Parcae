@@ -27,6 +27,10 @@ public:
             << "                    [--probe-tiers T1,T2,T3]\n"
             << "                    [--probe-timeout-ms N] [--compare-builtin]\n"
             << "                    [--json] [--omit-timing] [--data-dir <path>]\n"
+            << "       parcae-bench --suite theory --allow-cuda\n"
+            << "                    [--tokens N] [--candidates N] [--repeats N]\n"
+            << "                    [--campaign-grid] [--no-compare-catalog]\n"
+            << "                    [--json] [--omit-timing] [--data-dir <path>]\n"
             << "       parcae-bench --suite all [flags for each leg…]\n"
             << "\n"
             << "Benchmark & diagnostics umbrella (toolkit bench target).\n"
@@ -38,11 +42,17 @@ public:
             << "  --suite hardware      CPU vs CUDA T1–T3 compare (scaled CPU smoke by default)\n"
             << "  --suite probe         External JSON subprocess probes (see "
                "docs/spec/bench-probe.md)\n"
+            << "  --suite theory        Theory fused χ² cudaEvent microbench (bytecode vs Caesar)\n"
             << "  --suite all           accuracy → slo → hardware → probe (probe only if "
                "--probe-cmd)\n"
             << "  --extended            Also run F.* and C.* rows (with --suite slo)\n"
+            << "  --campaign-grid       Theory: also measure campaign-like T=262 C=16384 row\n"
+            << "  --no-compare-catalog  Theory: skip CaesarChi2Batch twin row\n"
+            << "  --tokens N            Theory: override stream length T (default fair T1)\n"
+            << "  --candidates N        Theory: override candidate count C where applicable\n"
+            << "  --repeats N           Theory: override timed inner-loop repetitions\n"
             << "  --backend MODE        hardware only: cpu|cuda|both (default both)\n"
-            << "  --allow-cuda          Required for slo; CUDA leg for accuracy/hardware\n"
+            << "  --allow-cuda          Required for slo/theory; CUDA leg for accuracy/hardware\n"
             << "  --require-cuda        hardware: fail if CUDA unavailable\n"
             << "  --allow-skip          hardware: OK when CUDA rows are skipped_not_built\n"
             << "  --cpu-full            hardware: full T1–T3 CPU C/T/reps (not smoke)\n"
@@ -68,10 +78,12 @@ public:
                  {"accuracy", true},
                  {"hardware", true},
                  {"probe", true},
+                 {"theory", true},
                  {"all", true},
              }},
             {"data_dir", std::string(data_dir)},
-            {"message", "parcae-bench ready: --status | --suite slo|accuracy|hardware|probe|all"},
+            {"message",
+             "parcae-bench ready: --status | --suite slo|accuracy|hardware|probe|theory|all"},
         };
     }
 

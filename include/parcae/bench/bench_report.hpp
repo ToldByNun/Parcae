@@ -22,6 +22,7 @@ public:
         Accuracy,
         Hardware,
         Probe,
+        Theory,
         All,
     };
 
@@ -236,6 +237,8 @@ public:
             return "hardware";
         case Suite::Probe:
             return "probe";
+        case Suite::Theory:
+            return "theory";
         case Suite::All:
             return "all";
         }

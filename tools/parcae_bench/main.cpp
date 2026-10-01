@@ -4,6 +4,7 @@
 #include "parcae/bench/bench_hardware_suite.hpp"
 #include "parcae/bench/bench_probe_runner.hpp"
 #include "parcae/bench/bench_slo_suite.hpp"
+#include "parcae/bench/bench_theory_suite.hpp"
 #include "parcae/core/version.hpp"
 #include "parcae/tool/tool_backend.hpp"
 
@@ -14,6 +15,7 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -38,7 +40,7 @@ constexpr std::string_view kTool = "bench";
 
 [[nodiscard]] bool is_known_suite(std::string_view suite) {
     return suite == "slo" || suite == "accuracy" || suite == "hardware" || suite == "probe" ||
-           suite == "all";
+           suite == "theory" || suite == "all";
 }
 
 [[nodiscard]] int emit_doc(bool json_mode, bool omit_timing,
@@ -135,6 +137,65 @@ constexpr std::string_view kTool = "bench";
     return BenchProbeRunner::run(cfg.value());
 }
 
+[[nodiscard]] StatusOr<std::size_t> parse_positive_size(std::string_view text, const char* flag) {
+    if (text.empty()) {
+        return Status::error(std::string(flag) + " requires a positive integer");
+    }
+    try {
+        const unsigned long long v = std::stoull(std::string(text));
+        if (v == 0) {
+            return Status::error(std::string(flag) + " must be > 0");
+        }
+        return static_cast<std::size_t>(v);
+    } catch (const std::exception&) {
+        return Status::error(std::string(flag) + " must be a positive integer");
+    }
+}
+
+[[nodiscard]] StatusOr<BenchReport::Document> run_theory(const Context& ctx,
+                                                         const std::vector<std::string>& args) {
+    if (!CliIo::has_flag(args, "--allow-cuda")) {
+        return Status::error("BenchTheorySuite requires --allow-cuda");
+    }
+    Status backend_ok = BackendUtil::ensure_usable(Backend::Cuda);
+    if (!backend_ok.ok()) {
+        return backend_ok;
+    }
+    StatusOr<ExpectedFrequencyTable> freqs = ctx.load_english_gp_expected();
+    if (!freqs.ok()) {
+        return freqs.status();
+    }
+    BenchTheorySuite::Options opts;
+    opts.set_campaign_grid(CliIo::has_flag(args, "--campaign-grid"));
+    opts.set_compare_catalog(!CliIo::has_flag(args, "--no-compare-catalog"));
+
+    const std::string tokens_raw = CliIo::optional_option(args, "--tokens");
+    if (!tokens_raw.empty()) {
+        StatusOr<std::size_t> tokens = parse_positive_size(tokens_raw, "--tokens");
+        if (!tokens.ok()) {
+            return tokens.status();
+        }
+        opts.set_tokens(tokens.value());
+    }
+    const std::string candidates_raw = CliIo::optional_option(args, "--candidates");
+    if (!candidates_raw.empty()) {
+        StatusOr<std::size_t> candidates = parse_positive_size(candidates_raw, "--candidates");
+        if (!candidates.ok()) {
+            return candidates.status();
+        }
+        opts.set_candidates(candidates.value());
+    }
+    const std::string repeats_raw = CliIo::optional_option(args, "--repeats");
+    if (!repeats_raw.empty()) {
+        StatusOr<std::size_t> repeats = parse_positive_size(repeats_raw, "--repeats");
+        if (!repeats.ok()) {
+            return repeats.status();
+        }
+        opts.set_repeats(repeats.value());
+    }
+    return BenchTheorySuite::run(freqs.value(), opts);
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -167,7 +228,9 @@ int main(int argc, char** argv) {
             CliIo::has_flag(args, "--allow-skip") || CliIo::has_flag(args, "--cpu-full") ||
             CliIo::has_flag(args, "--backend") || CliIo::has_flag(args, "--probe-cmd") ||
             CliIo::has_flag(args, "--probe-tiers") || CliIo::has_flag(args, "--probe-timeout-ms") ||
-            CliIo::has_flag(args, "--compare-builtin")) {
+            CliIo::has_flag(args, "--compare-builtin") || CliIo::has_flag(args, "--campaign-grid") ||
+            CliIo::has_flag(args, "--no-compare-catalog") || CliIo::has_flag(args, "--tokens") ||
+            CliIo::has_flag(args, "--candidates") || CliIo::has_flag(args, "--repeats")) {
             return fail(json_mode, std::nullopt, ToolErrorCode::Usage,
                         "--status does not take suite-run flags", CliIo::kExitUsage);
         }
@@ -184,6 +247,7 @@ int main(int argc, char** argv) {
                   << "  suites.accuracy: ready\n"
                   << "  suites.hardware: ready\n"
                   << "  suites.probe:    ready\n"
+                  << "  suites.theory:   ready\n"
                   << "  suites.all:      ready\n"
                   << "  data_dir:        " << result.at("data_dir").get<std::string>() << '\n'
                   << "  " << result.at("message").get<std::string>() << '\n';
@@ -193,7 +257,7 @@ int main(int argc, char** argv) {
     if (suite.empty() || !is_known_suite(suite)) {
         BenchCli::print_help();
         return fail(json_mode, std::nullopt, ToolErrorCode::Usage,
-                    "unknown or missing --suite (use slo|accuracy|hardware|probe|all)",
+                    "unknown or missing --suite (use slo|accuracy|hardware|probe|theory|all)",
                     CliIo::kExitUsage);
     }
 
@@ -249,6 +313,31 @@ int main(int argc, char** argv) {
                         doc.status().message(), usage ? CliIo::kExitUsage : CliIo::kExitFail);
         }
         return emit_doc(json_mode, omit_timing, std::string("probe"), doc.value());
+    }
+
+    if (suite == "theory") {
+        if (CliIo::has_flag(args, "--extended") || CliIo::has_flag(args, "--probe-cmd") ||
+            CliIo::has_flag(args, "--backend") || CliIo::has_flag(args, "--cpu-full")) {
+            return fail(json_mode, std::nullopt, ToolErrorCode::Usage,
+                        "theory does not take --extended/--probe-cmd/--backend/--cpu-full",
+                        CliIo::kExitUsage);
+        }
+        StatusOr<BenchReport::Document> doc = run_theory(ctx.value(), args);
+        if (!doc.ok()) {
+            const bool policy = doc.status().message().find("--allow-cuda") != std::string::npos ||
+                                doc.status().message().find("CUDA") != std::string::npos ||
+                                doc.status().message().find("cuda") != std::string::npos;
+            const bool usage = doc.status().message().find("--tokens") != std::string::npos ||
+                               doc.status().message().find("--candidates") != std::string::npos ||
+                               doc.status().message().find("--repeats") != std::string::npos;
+            return fail(json_mode, std::string("cuda"),
+                        usage                ? ToolErrorCode::Usage
+                        : policy             ? ToolErrorCode::Policy
+                                             : ToolErrorCode::Internal,
+                        doc.status().message(),
+                        (usage || policy) ? CliIo::kExitUsage : CliIo::kExitFail);
+        }
+        return emit_doc(json_mode, omit_timing, std::string("cuda"), doc.value());
     }
 
     if (suite == "all") {

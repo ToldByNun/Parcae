@@ -57,6 +57,16 @@ cmake --build build-cuda --config Release --target parcae-bench
 Pass rule: `BenchTierSpec::pass_tier` (SLO floor **and** ≥90% practical peak).
 Recalibrate peaks via [`cuda-throughput.md`](cuda-throughput.md).
 
+### Theory fused χ² microbench (local GPU)
+
+```bash
+parcae-bench --suite theory --allow-cuda --data-dir data
+parcae-bench --suite theory --allow-cuda --campaign-grid --json --data-dir data
+```
+
+Kernel-only cudaEvent (`BenchTimer`); rows `T.theory.*`. See
+[`cuda-profile-theory.md`](cuda-profile-theory.md).
+
 ### Hardware compare (CPU smoke + optional CUDA)
 
 ```bash

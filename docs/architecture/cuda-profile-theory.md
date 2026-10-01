@@ -21,9 +21,10 @@ campaign wall rates at short `T` to catalog `cudaEvent` peaks at `T≈2^20`.
 Catalog families use Kernel SLO via `parcae-bench --suite slo` and
 [`BenchTierSpec`](../../include/parcae/bench/bench_tier_spec.hpp). Theory search
 today reports Campaign wall in `research/run.log` (`engine=parcae`,
-`export_backend=cuda`). Until a theory `BenchTierSpec` row + microbench exist,
-derive Kernel SLO from **ncu** duration on `theory_chi2_hist_kernel` (and later
-specialized hist kernels) at fair `(C,T)`.
+`export_backend=cuda`). Until a theory `BenchTierSpec` row exists, derive Kernel SLO from
+`parcae-bench --suite theory --allow-cuda` (cudaEvent median-of-3 via
+`BenchTimer`) or from **ncu** duration on `theory_chi2_hist_kernel` at fair
+`(C,T)`. Campaign wall stays in `research/run.log`.
 
 Optional interim checkpoint **≥50B runes/s** (Kernel SLO) is allowed only when
 `estimated_peak ≫ 50B`. It never replaces the 90% peak gate.
@@ -111,11 +112,18 @@ ncu --set full --kernel-name-base demangled `
 ```
 
 Catalog compare (repeat with `--kernel-name regex:affine_chi2_hist_kernel` etc.,
-same workload launcher when available). Until a dedicated theory microbench
-exists, use:
+same workload launcher when available). Preferred Kernel SLO launcher:
 
-- `parcae-bench --suite slo --extended --allow-cuda` for catalog Kernel SLO numbers, and
-- `ncu` on `parcae-search-cycle` / Catch2 CUDA theory tests for `theory_chi2_hist_kernel`.
+```powershell
+.\build-cuda\tools\Release\parcae-bench.exe --suite theory --allow-cuda --data-dir data
+# short smoke:
+.\build-cuda\tools\Release\parcae-bench.exe --suite theory --allow-cuda --tokens 65536 --repeats 2 --data-dir data
+# campaign-like underfill row:
+.\build-cuda\tools\Release\parcae-bench.exe --suite theory --allow-cuda --campaign-grid --data-dir data
+```
+
+Also usable under ncu/nsys via `profile_theory_hist.ps1 -Exe …\parcae-bench.exe -ExeArgs …`.
+`parcae-bench --suite slo --extended --allow-cuda` remains the catalog Kernel SLO path.
 
 ---
 

@@ -35,12 +35,13 @@ private:
 | `bench_report.hpp` | `BenchReport` | Done — unified rows + JSON `--omit-timing` |
 | `bench_formatter.hpp` | `BenchFormatter` | Done — human tables (ConsoleDashboard vocab) |
 | `bench_slo_suite.hpp` | `BenchSloSuite` | Done — T1–T3 (+ optional F.*/C.*) via ThroughputTiers |
+| `bench_theory_suite.hpp` | `BenchTheorySuite` | Done — TheoryChi2Batch cudaEvent microbench vs Caesar twin |
 | `bench_accuracy_suite.hpp` | `BenchAccuracySuite` | Done — fixture_eval / chi2 / oracle / CUDA planted |
 | `bench_hardware_suite.hpp` | `BenchHardwareSuite` | Done — T1–T3 CPU vs CUDA; skip / require-cuda |
 | `bench_config.hpp` | `BenchConfig` | Done — probe cmd / tiers / timeout / compare |
 | `bench_probe_protocol.hpp` | `BenchProbeProtocol` | Done — probe_schema_version 1.0.0 parse |
 | `bench_probe_runner.hpp` | `BenchProbeRunner` | Done — `{tier}` spawn + timeout → report |
-| CLI `parcae-bench` | — | `--status`, `--suite slo\|accuracy\|hardware\|probe\|all` |
+| CLI `parcae-bench` | — | `--status`, `--suite slo\|accuracy\|hardware\|probe\|theory\|all` |
 
 ## Suites (`parcae-bench --suite …`)
 
@@ -50,6 +51,7 @@ private:
 | **accuracy** | Statistical checks (`A.fixture_eval`, `A.chi2_sanity`, `A.oracle_rank`; optional CUDA `A.fused_parity` / planted) | CPU always; CUDA extras need `--allow-cuda` |
 | **hardware** | Same T1–T3 IDs, CPU vs CUDA side-by-side; `gpu/cpu` in detail | CPU smoke scaled unless `--cpu-full`; CUDA: `--allow-cuda` / `--require-cuda` / `--allow-skip` |
 | **probe** | External tool JSON 1.0.0 via `--probe-cmd` (`{tier}` substituted) | Requires `--probe-cmd`; timeout default 120000 ms; see `bench-probe.md` |
+| **theory** | Theory fused χ² cudaEvent microbench (`TheoryChi2Batch` vs Caesar twin) | Requires `--allow-cuda` + device; optional `--campaign-grid` / `--tokens` |
 | **all** | accuracy → slo → hardware → probe | Probe only if `--probe-cmd`; SLO only with usable CUDA + `--allow-cuda` |
 
 Compat: `parcae-throughput-tiers` ≡ `--suite slo --extended --allow-cuda`.
@@ -73,6 +75,7 @@ deterministic OR-filter:
 | `[bench][report]` | yes | Report / `--omit-timing` |
 | `[bench][metric]` / `[bench][timer]` | no | Timing helpers |
 | `[bench][slo]` / `[bench][slo][cuda]` | no | Absolute SLO / GPU |
+| `[bench][theory]` / `[bench][theory][cuda]` | no | Theory fused χ² microbench |
 | `[bench][hardware]` | no | CPU vs CUDA compare |
 
 Full tag map + CI policy: [`docs/architecture/cuda-build.md`](../../../docs/architecture/cuda-build.md)
