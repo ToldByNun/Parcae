@@ -44,7 +44,8 @@ private:
 | `dsl_scope_analyzer.hpp` | `DslScopeAnalyzer` / `DslScopeMap` | Done (AST → scope map) |
 | `matrix_ir.hpp` | `MatrixIr` | Done (2×2 / 3×3 `Z29Expr`; det / mul_vec expand → host `Z29Matrix{2,3}` / device twins) |
 | `z29_bytecode.hpp` | `Z29Bytecode` | Done (HotLoop stack program + host eval; `op_as_u8` for device twin) |
-| `z29_bytecode_device.hpp` | `Z29BytecodeDevice` | Done (host/device `eval_at` twin; fused χ² batch later) |
+| `z29_bytecode_device.hpp` | `Z29BytecodeDevice` | Done (host/device `eval_at` twin) |
+| `theory_chi2_batch.hpp` | `TheoryChi2Batch` | Done (fused bytecode hist + χ²; wired via `GpuCandidateExport::theory_*`) |
 | `param_ir.hpp` | `ParamIr` | Done |
 | `primitive_ir.hpp` | `PrimitiveIr` | Done |
 | `theory_ir.hpp` | `TheoryIr` | Done |

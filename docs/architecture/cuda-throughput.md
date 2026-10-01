@@ -13,6 +13,12 @@ portable across GPUs — re-run the tool on your card and recalibrate
 `BenchTierSpec` peaks if `%peak` goes above 100. `ThroughputTiers` and
 `DslPeakSanity` delegate to that header (Catch2 `[bench][spec]` / `[dsl][peak]`).
 
+**Theory search export** (`family=theory` → `TheoryChi2Batch` / device bytecode
+interpreter) is a separate path: expect ≫ CPU bytecode and ≫10⁶ runes/s on GPU
+for warm grids, but **not** catalog uchar4 peaks (F.atbash / T1 Caesar). Remeasure
+via `parcae-search-cycle --backend cuda` + `research/run.log` (`engine=parcae`,
+`export_backend=cuda`).
+
 ## How to measure
 
 ```bash

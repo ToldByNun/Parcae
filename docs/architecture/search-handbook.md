@@ -409,10 +409,10 @@ Example `param_grid`:
 }
 ```
 
-Theory jobs use `TheoryDispatch` / `apply_ir` on CPU today. `--backend cuda` with
-`score_id=chi2_english_gp_v0` + decrypt soft-falls back to the CPU export path
-until fused `GpuCandidateExport::theory_*` lands
-(`has_fused_cuda_chi2_export("theory")`); non-χ² scores always use CPU.
+Theory jobs use fused `GpuCandidateExport::theory_explicit_params` when
+`--backend cuda`, `score_id=chi2_english_gp_v0`, and decrypt
+(`has_fused_cuda_chi2_export("theory")`). Host materialize uses `Z29Bytecode`.
+Non-χ² scores and encrypt always use the CPU export path.
 
 ### Compose recipes (Atbash∘Caesar / ComposeDriver)
 
@@ -516,6 +516,7 @@ Details: [`agent-tools.md`](../spec/agent-tools.md) § `search_cycle` vs
 | Catch2 search + CLI | `parcae_tests "[search]"` / `"[tool][search_cycle]"` |
 | Progress digest invariance | `parcae_tests "[tool][search_cycle][progress][determinism]"` |
 | Research campaign log | `parcae_tests "[hypothesis][campaign]"` |
+| Theory CPU↔CUDA top-k | `parcae_tests "[search][export][theory][parity]"` |
 | Scheduler subset | `parcae_tests "[search][scheduler]"` (see [`cuda-build.md`](cuda-build.md) § Catch2 tags) |
 | JSON goldens | `parcae_tests "[tool][golden][cli][search_cycle]"` |
 | AgentPolicy path | `parcae_tests "[tool][policy][cli][search_cycle]"` |

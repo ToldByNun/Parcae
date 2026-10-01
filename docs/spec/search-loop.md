@@ -366,7 +366,7 @@ score is not the fused χ² export below.
 | `backend=cpu` | Always `CpuCandidateExport` / `RankCandidates` + `ScoreRegistry` |
 | `backend=cuda` and `score_id == chi2_english_gp_v0` and family has fused export | Prefer fused `GpuCandidateExport` (χ² only) |
 | `backend=cuda` and `score_id != chi2_english_gp_v0` (e.g. `log_bigram_gp_v0`) | MUST fall back to the **CPU path**. MUST NOT hard-error solely because `backend=cuda` was requested with a non-χ² score. MUST NOT invent a fused bigram `GpuCandidateExport` unless a later spec revision adds one. |
-| `backend=cuda` and `family=theory` and `score_id == chi2_english_gp_v0` and decrypt | Prefer fused `GpuCandidateExport` theory path when `SearchJob::has_fused_cuda_chi2_export("theory")` is true. Until that export lands, MUST soft-fall back to **CPU** `CpuCandidateExport` (MUST NOT hard-error; artifact `backend` MUST report the path that ran). Encrypt / non-χ² scores follow the rows above. |
+| `backend=cuda` and `family=theory` and `score_id == chi2_english_gp_v0` and decrypt | MUST use fused `GpuCandidateExport::theory_explicit_params` (`SearchJob::has_fused_cuda_chi2_export("theory")` is true). Artifact `backend` MUST be `cuda`. Encrypt / non-χ² scores follow the rows above. |
 | Hard CPU-only families (`hill_2` / `hill_3` / CTAK / PTAK) | `is_cpu_export_only_family` — CPU regardless of `backend` |
 
 Batch artifact / wire `score_id` MUST remain the job’s requested id. When the
