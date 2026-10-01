@@ -4,6 +4,7 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/core/version.hpp"
+#include "parcae/core/index29.hpp"
 #include "parcae/dsl/dsl_ast_json_ingest.hpp"
 #include "parcae/dsl/dsl_build_ir.hpp"
 #include "parcae/dsl/dsl_catalog_builtins.hpp"
@@ -14,6 +15,7 @@
 #include "parcae/dsl/dsl_emit_cuda.hpp"
 #include "parcae/dsl/dsl_fuse.hpp"
 #include "parcae/dsl/dsl_host_glue.hpp"
+#include "parcae/dsl/dsl_optimize.hpp"
 #include "parcae/dsl/dsl_semantic_gate.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
 #include "parcae/dsl/dsl_verifier.hpp"
@@ -54,7 +56,7 @@
 #include <unistd.h>
 #endif
 
-/// End-to-end theory compile: ast_dump → ingest → gate → IR → verify → emit → artifact.
+/// End-to-end theory compile: ast_dump → ingest → gate → IR → Optimize → verify → emit → artifact.
 class DslCompile {
 public:
     class Options {
@@ -206,20 +208,81 @@ public:
         }
 
         const std::string completed = utc_now();
+        std::vector<TheoryIr> apply_theories;
+        apply_theories.reserve(unit.value().theories().size());
         for (const TheoryIr& theory : unit.value().theories()) {
-            // Re-verify primitives referenced by this theory are already done above.
-            StatusOr<std::string> cpu = DslEmitCpu::emit_theory_header(theory);
+            StatusOr<DslOptimize::TheoryResult> optimized =
+                DslOptimize::optimize_theory(theory, "x");
+            if (!optimized.ok()) {
+                return optimized.status();
+            }
+
+            // Verifier path: bind hoist temps and smoke-eval once (encrypt + decrypt).
+            {
+                Z29Expr::Env env;
+                for (const ParamIr& p : theory.params()) {
+                    // Mid-domain sample; inv(0) avoided when min>0 (affine a).
+                    const std::uint8_t mid =
+                        static_cast<std::uint8_t>((static_cast<unsigned>(p.min()) +
+                                                   static_cast<unsigned>(p.max())) /
+                                                  2u);
+                    env.emplace(p.name(), Index29{mid == 0 && p.max() > 0 ? std::uint8_t{1} : mid});
+                }
+                Status enc_bind =
+                    DslOptimize::bind_hoists(env, optimized.value().encrypt().hoists());
+                if (!enc_bind.ok()) {
+                    return enc_bind;
+                }
+                env["x"] = Index29{7};
+                // Keyed-stream position var (same convention as DslIrApplicator / emit).
+                if (env.find("i") == env.end()) {
+                    env["i"] = Index29{0};
+                }
+                StatusOr<Index29> enc_v = optimized.value().encrypt().expr()->eval(env);
+                if (!enc_v.ok()) {
+                    return enc_v.status();
+                }
+                // Fresh env for decrypt hoists (names may overlap __parcae_inv_N).
+                Z29Expr::Env denv;
+                for (const auto& kv : env) {
+                    if (kv.first.rfind("__parcae_inv_", 0) != 0) {
+                        denv.emplace(kv.first, kv.second);
+                    }
+                }
+                Status dec_bind =
+                    DslOptimize::bind_hoists(denv, optimized.value().decrypt().hoists());
+                if (!dec_bind.ok()) {
+                    return dec_bind;
+                }
+                StatusOr<Index29> dec_v = optimized.value().decrypt().expr()->eval(denv);
+                if (!dec_v.ok()) {
+                    return dec_v.status();
+                }
+            }
+
+            StatusOr<std::string> cpu = DslEmitCpu::emit_theory_header(
+                optimized.value().theory(), "x", optimized.value().encrypt().hoists(),
+                optimized.value().decrypt().hoists());
             if (!cpu.ok()) {
                 return cpu.status();
             }
-            StatusOr<std::string> cuda_h = DslEmitCuda::emit_theory_header(theory);
+            StatusOr<std::string> cuda_h =
+                DslEmitCuda::emit_theory_header(optimized.value().theory());
             if (!cuda_h.ok()) {
                 return cuda_h.status();
             }
-            StatusOr<std::string> cuda_cu = DslEmitCuda::emit_theory_cu(theory);
+            StatusOr<std::string> cuda_cu = DslEmitCuda::emit_theory_cu(
+                optimized.value().theory(), "x", optimized.value().encrypt().hoists(),
+                optimized.value().decrypt().hoists());
             if (!cuda_cu.ok()) {
                 return cuda_cu.status();
             }
+
+            StatusOr<TheoryIr> apply_theory = DslOptimize::theory_for_apply(optimized.value());
+            if (!apply_theory.ok()) {
+                return apply_theory.status();
+            }
+            apply_theories.push_back(apply_theory.value());
 
             TheoryArtifact::Paths paths;
             paths.set_cpu_reference(std::string("cpu_reference.hpp"));
@@ -297,7 +360,7 @@ public:
             if (!env_written.ok()) {
                 return env_written;
             }
-            Status ir_written = TheoryApplyIr::write(dir / "apply_ir.json", theory);
+            Status ir_written = TheoryApplyIr::write(dir / "apply_ir.json", apply_theory.value());
             if (!ir_written.ok()) {
                 return ir_written;
             }
@@ -313,7 +376,7 @@ public:
 
         // Compose theories: fuse / bench / emit against catalog builtins + module theories.
         std::vector<TheoryIr> catalog = DslCatalogBuiltins::all();
-        for (const TheoryIr& theory : unit.value().theories()) {
+        for (const TheoryIr& theory : apply_theories) {
             catalog.push_back(theory);
         }
         for (const ComposeIr& compose : unit.value().composes()) {

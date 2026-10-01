@@ -6,6 +6,7 @@
 #include "parcae/dsl/dsl_diag.hpp"
 #include "parcae/dsl/dsl_emit_cpu.hpp"
 #include "parcae/dsl/dsl_launch_plan.hpp"
+#include "parcae/dsl/dsl_optimize.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/matrix_ir.hpp"
 #include "parcae/dsl/param_ir.hpp"
@@ -101,8 +102,11 @@ public:
     }
 
     /// `.cu` body: anonymous-namespace `__global__` kernel + launch/apply_host.
-    [[nodiscard]] static StatusOr<std::string> emit_theory_cu(const TheoryIr& theory,
-                                                              std::string_view cipher_var = "x") {
+    /// Optional hoists emit `__parcae_inv_N` temps inside encrypt/decrypt branches.
+    [[nodiscard]] static StatusOr<std::string>
+    emit_theory_cu(const TheoryIr& theory, std::string_view cipher_var = "x",
+                   const std::vector<DslOptimize::Hoist>& encrypt_hoists = {},
+                   const std::vector<DslOptimize::Hoist>& decrypt_hoists = {}) {
         Status prep = prepare_theory(theory);
         if (!prep.ok()) {
             return prep;
@@ -115,6 +119,16 @@ public:
         StatusOr<std::string> dec = emit_expr(theory.decrypt_step(), cipher_var, "in[i]");
         if (!dec.ok()) {
             return dec.status();
+        }
+        StatusOr<std::string> enc_prelude =
+            emit_hoist_prelude_device(encrypt_hoists, cipher_var, "in[i]", "        ");
+        if (!enc_prelude.ok()) {
+            return enc_prelude.status();
+        }
+        StatusOr<std::string> dec_prelude =
+            emit_hoist_prelude_device(decrypt_hoists, cipher_var, "in[i]", "        ");
+        if (!dec_prelude.ok()) {
+            return dec_prelude.status();
         }
 
         const bool need_autokey =
@@ -154,8 +168,10 @@ public:
         out << "        return;\n";
         out << "    }\n";
         out << "    if (encrypt != 0u) {\n";
+        out << enc_prelude.value();
         out << "        out[i] = " << enc.value() << ";\n";
         out << "    } else {\n";
+        out << dec_prelude.value();
         out << "        out[i] = " << dec.value() << ";\n";
         out << "    }\n";
         out << "}\n\n";
@@ -388,6 +404,22 @@ private:
             }
         }
         return Status::success();
+    }
+
+    [[nodiscard]] static StatusOr<std::string>
+    emit_hoist_prelude_device(const std::vector<DslOptimize::Hoist>& hoists,
+                              std::string_view cipher_var, std::string_view cipher_cpp,
+                              std::string_view indent) {
+        std::ostringstream out;
+        for (const DslOptimize::Hoist& h : hoists) {
+            StatusOr<std::string> arg = emit_expr(h.inv_arg(), cipher_var, cipher_cpp);
+            if (!arg.ok()) {
+                return arg.status();
+            }
+            out << indent << "const std::uint8_t " << h.name() << " = Z29Device::inv("
+                << arg.value() << ");\n";
+        }
+        return out.str();
     }
 
     [[nodiscard]] static StatusOr<std::string>

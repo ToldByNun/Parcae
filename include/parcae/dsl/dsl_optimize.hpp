@@ -141,6 +141,65 @@ public:
         return TheoryResult{rebuilt.value(), enc.value(), dec.value()};
     }
 
+    /// Bind `__parcae_inv_N` temps into `env` by evaluating each hoist `inv_arg`.
+    /// Domain failure (`inv(0)`) → E040. Used by verifier / applicator smoke paths.
+    [[nodiscard]] static Status bind_hoists(Z29Expr::Env& env, const std::vector<Hoist>& hoists) {
+        for (const Hoist& h : hoists) {
+            if (!h.inv_arg()) {
+                return DslDiag::make(DslRuleId::E032_primitive_body,
+                                     "bind_hoists: null inv_arg for '" + h.name() + "'")
+                    .to_status();
+            }
+            if (env.find(h.name()) != env.end()) {
+                return DslDiag::make(DslRuleId::E032_primitive_body,
+                                     "bind_hoists: '" + h.name() + "' already bound")
+                    .to_status();
+            }
+            StatusOr<Index29> arg = h.inv_arg()->eval(env);
+            if (!arg.ok()) {
+                return arg.status();
+            }
+            StatusOr<Index29> inv = Z29::try_inv(arg.value());
+            if (!inv.ok()) {
+                return DslDiag::make(DslRuleId::E040_param_domain,
+                                     "bind_hoists: z29_inv(0) is undefined for '" + h.name() + "'")
+                    .to_status();
+            }
+            env.emplace(h.name(), inv.value());
+        }
+        return Status::success();
+    }
+
+    /// Replace hoist vars with `Inv(inv_arg)` so apply_ir / bytecode stay self-contained
+    /// (const-folds from `optimize` remain). Emit keeps the hoisted form.
+    [[nodiscard]] static StatusOr<Z29Expr::Ptr> reinstate_invs(const Result& optimized) {
+        Z29Expr::Ptr cur = optimized.expr();
+        for (const Hoist& h : optimized.hoists()) {
+            StatusOr<Z29Expr::Ptr> next =
+                substitute_var(cur, h.name(), Z29Expr::inv(h.inv_arg()));
+            if (!next.ok()) {
+                return next.status();
+            }
+            cur = std::move(next.value());
+        }
+        return cur;
+    }
+
+    /// TheoryIr for apply_ir / runtime: const-folded bodies with Inv reinstated.
+    [[nodiscard]] static StatusOr<TheoryIr> theory_for_apply(const TheoryResult& optimized) {
+        StatusOr<Z29Expr::Ptr> enc = reinstate_invs(optimized.encrypt());
+        if (!enc.ok()) {
+            return enc.status();
+        }
+        StatusOr<Z29Expr::Ptr> dec = reinstate_invs(optimized.decrypt());
+        if (!dec.ok()) {
+            return dec.status();
+        }
+        const TheoryIr& t = optimized.theory();
+        return TheoryIr::make(t.name(), t.family(), t.tier(), t.interrupt_mode(), t.params(),
+                              enc.value(), dec.value(), t.structural_claim());
+    }
+
     [[nodiscard]] static bool depends_on_var(const Z29Expr& expr, std::string_view var_name) {
         using Kind = Z29Expr::Kind;
         switch (expr.kind()) {
@@ -174,6 +233,77 @@ public:
 
 private:
     DslOptimize() = delete;
+
+    [[nodiscard]] static StatusOr<Z29Expr::Ptr>
+    substitute_var(const Z29Expr::Ptr& expr, std::string_view name, const Z29Expr::Ptr& replacement) {
+        if (!expr) {
+            return DslDiag::make(DslRuleId::E032_primitive_body, "substitute_var: null expr")
+                .to_status();
+        }
+        if (!replacement) {
+            return DslDiag::make(DslRuleId::E032_primitive_body, "substitute_var: null replacement")
+                .to_status();
+        }
+        using Kind = Z29Expr::Kind;
+        switch (expr->kind()) {
+        case Kind::Const:
+            return expr;
+        case Kind::Var:
+            if (expr->name() == name) {
+                return replacement;
+            }
+            return expr;
+        case Kind::Call: {
+            std::vector<Z29Expr::Ptr> args;
+            args.reserve(expr->args().size());
+            for (const Z29Expr::Ptr& a : expr->args()) {
+                StatusOr<Z29Expr::Ptr> sa = substitute_var(a, name, replacement);
+                if (!sa.ok()) {
+                    return sa.status();
+                }
+                args.push_back(std::move(sa.value()));
+            }
+            return Z29Expr::call(expr->name(), std::move(args));
+        }
+        case Kind::Select: {
+            StatusOr<Z29Expr::Ptr> c = substitute_var(expr->cond(), name, replacement);
+            if (!c.ok()) {
+                return c.status();
+            }
+            StatusOr<Z29Expr::Ptr> t = substitute_var(expr->if_true(), name, replacement);
+            if (!t.ok()) {
+                return t.status();
+            }
+            StatusOr<Z29Expr::Ptr> f = substitute_var(expr->if_false(), name, replacement);
+            if (!f.ok()) {
+                return f.status();
+            }
+            return Z29Expr::make_select(c.value(), t.value(), f.value());
+        }
+        default:
+            break;
+        }
+        if (Z29Expr::is_binary(expr->kind())) {
+            StatusOr<Z29Expr::Ptr> l = substitute_var(expr->left(), name, replacement);
+            if (!l.ok()) {
+                return l.status();
+            }
+            StatusOr<Z29Expr::Ptr> r = substitute_var(expr->right(), name, replacement);
+            if (!r.ok()) {
+                return r.status();
+            }
+            return Z29Expr::make_binary(expr->kind(), l.value(), r.value());
+        }
+        if (Z29Expr::is_unary(expr->kind())) {
+            StatusOr<Z29Expr::Ptr> a = substitute_var(expr->arg(), name, replacement);
+            if (!a.ok()) {
+                return a.status();
+            }
+            return Z29Expr::make_unary_kind(expr->kind(), a.value());
+        }
+        return DslDiag::make(DslRuleId::E032_primitive_body, "substitute_var: unknown kind")
+            .to_status();
+    }
 
     [[nodiscard]] static StatusOr<Z29Expr::Ptr> const_fold_rec(const Z29Expr& expr,
                                                                std::size_t& folds) {

@@ -66,7 +66,7 @@ Facts the implementation must close — not optional stretch goals.
 | CTAK | `CiphertextAutokeyKernel` + `DeepScoreBatch` autokey χ² exist — **not** in Backend/ComposeDriver |
 | PTAK / VDA / grids | CPU transforms only |
 | Search | `SearchJob::is_cpu_export_only_family` forces CPU for hill / CTAK / PTAK; `theory` uses fused CUDA χ² when `has_fused_cuda_chi2_export("theory")` |
-| `DslOptimize` | Library + `[dsl][optimize]` — **not** called from `DslCompile` |
+| `DslOptimize` | Library + hooked in `DslCompile` after BuildIr (`[dsl][compile][optimize]`) |
 | Pack D language | `dsl_spec_version` still **1.0.0**; no `z29_match`; no multi-error bag; no `parcae.corpus.load_page` |
 
 ---

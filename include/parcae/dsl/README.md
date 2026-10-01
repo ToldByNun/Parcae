@@ -56,7 +56,8 @@ private:
 | `dsl_verifier.hpp` | `DslVerifier` | Done (exhaustive ≤4 + fuzz + CPU↔CUDA mirror) |
 | `dsl_catalog_builtins.hpp` | `DslCatalogBuiltins` | Done (`identity`/`atbash`/`caesar`/`affine` + DSL-only `matrix_mix`/`autokey_lag`; **not** `TransformId` / decode `--transform-id`) |
 | `dsl_fuse.hpp` | `DslFuse` | Done (inline + emit + CPU bench; DSL-only leaves → fused emit) |
-| `dsl_optimize.hpp` | `DslOptimize` | Done (const-fold + Select dead-arm + `inv` hoist) |
+| `dsl_optimize.hpp` | `DslOptimize` | Done (const-fold + Select dead-arm + `inv` hoist; hooked in `DslCompile`) |
+| `dsl_compile.hpp` | `DslCompile` | Done (ast_dump → Optimize → emit/apply_ir) |
 | `dsl_launch_plan.hpp` | `DslLaunchPlan` | Done (1D / HistFast 2D twin grids) |
 | `dsl_peak_sanity.hpp` | `DslPeakSanity` | Done (ThroughputTiers peak / SLO) |
 | `theory_uri.hpp` | `TheoryUri` | Done (`parcae://theories/<name>@<ver>`) |
@@ -68,7 +69,7 @@ private:
 | `theory_apply_ir.hpp` | `TheoryApplyIr` | Done (`apply_ir.json` serialize) |
 | `theory_dispatch.hpp` | `TheoryDispatch` | Done (ApplyTransform hook) |
 | `dsl_build_ir.hpp` | `DslBuildIr` | Done (AST → PrimitiveIr / TheoryIr; HotLoop If → Select) |
-| `dsl_compile.hpp` | `DslCompile` | Done (ast_dump spawn → artifact) |
+| `dsl_compile.hpp` | `DslCompile` | Done (ast_dump → Optimize → emit → artifact) |
 | `dsl.hpp` | umbrella | Done |
 
 Tests: `[dsl][gate][forbidden]` covers dsl-ast-json.md always-forbidden kinds → stable `E031`/`E021`.

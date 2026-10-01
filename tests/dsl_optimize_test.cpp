@@ -122,6 +122,37 @@ TEST_CASE("DslOptimize optimize_theory rewrites affine decrypt", "[dsl][optimize
     REQUIRE(opt.value().theory().decrypt_step()->left()->name() == "__parcae_inv_0");
 }
 
+TEST_CASE("DslOptimize bind_hoists and theory_for_apply reinstate Inv", "[dsl][optimize]") {
+    const StatusOr<ParamIr> a = ParamIr::make("a", 1, 28);
+    const StatusOr<ParamIr> b = ParamIr::make("b", 0, 28);
+    REQUIRE(a.ok());
+    REQUIRE(b.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "dsl_affine_bind", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {a.value(), b.value()},
+        Z29Expr::add(Z29Expr::mul(Z29Expr::var("a"), x), Z29Expr::var("b")),
+        Z29Expr::mul(Z29Expr::inv(Z29Expr::var("a")), Z29Expr::sub(x, Z29Expr::var("b"))));
+    REQUIRE(theory.ok());
+
+    const StatusOr<DslOptimize::TheoryResult> opt =
+        DslOptimize::optimize_theory(theory.value(), "x");
+    REQUIRE(opt.ok());
+
+    Z29Expr::Env env{{"a", Index29{3}}, {"b", Index29{2}}, {"x", Index29{10}}};
+    REQUIRE(DslOptimize::bind_hoists(env, opt.value().decrypt().hoists()).ok());
+    REQUIRE(env.at("__parcae_inv_0") == Z29::inv(Index29{3}));
+    const Index29 expect = Z29::mul(Z29::inv(Index29{3}), Z29::sub(Index29{10}, Index29{2}));
+    REQUIRE(opt.value().decrypt().expr()->eval(env).value() == expect);
+
+    StatusOr<TheoryIr> apply = DslOptimize::theory_for_apply(opt.value());
+    REQUIRE(apply.ok());
+    REQUIRE(apply.value().decrypt_step()->kind() == Z29Expr::Kind::Mul);
+    REQUIRE(apply.value().decrypt_step()->left()->kind() == Z29Expr::Kind::Inv);
+    Z29Expr::Env plain{{"a", Index29{3}}, {"b", Index29{2}}, {"x", Index29{10}}};
+    REQUIRE(apply.value().decrypt_step()->eval(plain).value() == expect);
+}
+
 TEST_CASE("DslOptimize depends_on_var", "[dsl][optimize]") {
     const Z29Expr::Ptr expr = Z29Expr::add(Z29Expr::var("x"), Z29Expr::inv(Z29Expr::var("a")));
     REQUIRE(DslOptimize::depends_on_var(*expr, "x"));

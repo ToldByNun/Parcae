@@ -4,6 +4,7 @@
 #include <parcae/dsl/dsl_ast_json_ingest.hpp>
 #include <parcae/dsl/dsl_build_ir.hpp>
 #include <parcae/dsl/dsl_compile.hpp>
+#include <parcae/dsl/dsl_optimize.hpp>
 #include <parcae/dsl/dsl_semantic_gate.hpp>
 #include <parcae/dsl/dsl_spec_version.hpp>
 #include <parcae/dsl/theory_artifact.hpp>
@@ -29,11 +30,21 @@ namespace {
            "quadratic_polynomial_stream.py";
 }
 
+[[nodiscard]] std::filesystem::path fixture_affine_inv() {
+    return std::filesystem::path(PARCAE_DSL_FIXTURES_DIR) / "sources" / "affine_inv_stream.py";
+}
+
 [[nodiscard]] DslCompile::Options compile_options() {
     DslCompile::Options opt;
     (void)opt.set_python_exe(PARCAE_PYTHON_EXE);
     (void)opt.set_python_path(PARCAE_PYTHON_DIR);
     return opt;
+}
+
+[[nodiscard]] std::string read_text(const std::filesystem::path& path) {
+    std::ifstream in(path);
+    REQUIRE(in);
+    return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
 }
 
 } // namespace
@@ -110,6 +121,42 @@ TEST_CASE("DslBuildIr lowers poly2 primitive from ingested AST", "[dsl][compile]
     REQUIRE(result.value().artifacts().front().primitives().size() == 1);
     REQUIRE(result.value().artifacts().front().primitives().front() == "poly2_mod29");
     REQUIRE(result.value().artifacts().front().params().size() == 3);
+
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE("DslCompile hooks DslOptimize and emits inv hoist prelude",
+          "[dsl][compile][optimize]") {
+    REQUIRE(std::filesystem::is_regular_file(fixture_affine_inv()));
+    const auto root = std::filesystem::temp_directory_path() / "parcae_dsl_compile_optimize";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root, ec);
+
+    StatusOr<DslCompile::Result> result =
+        DslCompile::compile_file(fixture_affine_inv(), root, compile_options());
+    REQUIRE(result.ok());
+    REQUIRE(result.value().artifacts().size() == 1);
+    REQUIRE(result.value().artifacts().front().uri().to_string() ==
+            "parcae://theories/affine_inv_stream@1");
+
+    const std::filesystem::path cpu = root / "affine_inv_stream" / "1" / "cpu_reference.hpp";
+    const std::filesystem::path cu =
+        root / "affine_inv_stream" / "1" / "emitted" / "AffineInvStreamKernel.cu";
+    REQUIRE(std::filesystem::is_regular_file(cpu));
+    REQUIRE(std::filesystem::is_regular_file(cu));
+
+    const std::string cpu_text = read_text(cpu);
+    const std::string cu_text = read_text(cu);
+    REQUIRE(cpu_text.find("__parcae_inv_0") != std::string::npos);
+    REQUIRE(cpu_text.find("Z29::inv(") != std::string::npos);
+    REQUIRE(cu_text.find("__parcae_inv_0") != std::string::npos);
+    REQUIRE(cu_text.find("Z29Device::inv(") != std::string::npos);
+
+    // apply_ir reinstates Inv (no free __parcae_inv_N) so runtime bytecode stays self-contained.
+    const std::string apply_ir = read_text(root / "affine_inv_stream" / "1" / "apply_ir.json");
+    REQUIRE(apply_ir.find("__parcae_inv_") == std::string::npos);
+    REQUIRE(apply_ir.find("\"inv\"") != std::string::npos);
 
     std::filesystem::remove_all(root, ec);
 }

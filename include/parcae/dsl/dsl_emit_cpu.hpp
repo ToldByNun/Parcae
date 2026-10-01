@@ -4,6 +4,7 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
+#include "parcae/dsl/dsl_optimize.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/matrix_ir.hpp"
 #include "parcae/dsl/param_ir.hpp"
@@ -35,8 +36,12 @@ public:
     }
 
     /// Full header: `#ifndef …` + `class <Pascal>Transform` with encrypt/decrypt kernels.
+    /// Optional `encrypt_hoists` / `decrypt_hoists` emit `__parcae_inv_N` temps per branch
+    /// (from `DslOptimize::optimize_theory`).
     [[nodiscard]] static StatusOr<std::string>
-    emit_theory_header(const TheoryIr& theory, std::string_view cipher_var = "x") {
+    emit_theory_header(const TheoryIr& theory, std::string_view cipher_var = "x",
+                       const std::vector<DslOptimize::Hoist>& encrypt_hoists = {},
+                       const std::vector<DslOptimize::Hoist>& decrypt_hoists = {}) {
         if (theory.name().empty()) {
             return fail(DslRuleId::E032_primitive_body, "theory name must be non-empty");
         }
@@ -56,6 +61,18 @@ public:
                             "param '" + p.name() + "' is not a safe C++ identifier");
             }
         }
+        for (const DslOptimize::Hoist& h : encrypt_hoists) {
+            if (!is_safe_ident(h.name())) {
+                return fail(DslRuleId::E032_primitive_body,
+                            "hoist '" + h.name() + "' is not a safe C++ identifier");
+            }
+        }
+        for (const DslOptimize::Hoist& h : decrypt_hoists) {
+            if (!is_safe_ident(h.name())) {
+                return fail(DslRuleId::E032_primitive_body,
+                            "hoist '" + h.name() + "' is not a safe C++ identifier");
+            }
+        }
 
         StatusOr<std::string> enc = emit_expr(theory.encrypt_step(), cipher_var, "input[i]");
         if (!enc.ok()) {
@@ -64,6 +81,16 @@ public:
         StatusOr<std::string> dec = emit_expr(theory.decrypt_step(), cipher_var, "input[i]");
         if (!dec.ok()) {
             return dec.status();
+        }
+        StatusOr<std::string> enc_prelude =
+            emit_hoist_prelude(encrypt_hoists, cipher_var, "input[i]", "            ");
+        if (!enc_prelude.ok()) {
+            return enc_prelude.status();
+        }
+        StatusOr<std::string> dec_prelude =
+            emit_hoist_prelude(decrypt_hoists, cipher_var, "input[i]", "            ");
+        if (!dec_prelude.ok()) {
+            return dec_prelude.status();
         }
 
         const std::string class_name = to_pascal(theory.name()) + "Transform";
@@ -121,8 +148,10 @@ public:
         out << "                continue;\n";
         out << "            }\n";
         out << "            if (direction == TransformDirection::Encrypt) {\n";
+        out << enc_prelude.value();
         out << "                output[i] = " << enc.value() << ";\n";
         out << "            } else {\n";
+        out << dec_prelude.value();
         out << "                output[i] = " << dec.value() << ";\n";
         out << "            }\n";
         out << "        }\n";
@@ -335,6 +364,21 @@ private:
             }
         }
         return true;
+    }
+
+    [[nodiscard]] static StatusOr<std::string>
+    emit_hoist_prelude(const std::vector<DslOptimize::Hoist>& hoists, std::string_view cipher_var,
+                       std::string_view cipher_cpp, std::string_view indent) {
+        std::ostringstream out;
+        for (const DslOptimize::Hoist& h : hoists) {
+            StatusOr<std::string> arg = emit_expr(h.inv_arg(), cipher_var, cipher_cpp);
+            if (!arg.ok()) {
+                return arg.status();
+            }
+            out << indent << "const Index29 " << h.name() << " = Z29::inv(" << arg.value()
+                << ");\n";
+        }
+        return out.str();
     }
 
     [[nodiscard]] static std::string to_guard(std::string_view class_name) {
