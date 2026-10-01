@@ -45,7 +45,7 @@ private:
 | `matrix_ir.hpp` | `MatrixIr` | Done (2×2 / 3×3 `Z29Expr`; det / mul_vec expand → host `Z29Matrix{2,3}` / device twins) |
 | `z29_bytecode.hpp` | `Z29Bytecode` | Done (HotLoop stack program + host eval; `op_as_u8` for device twin) |
 | `z29_bytecode_device.hpp` | `Z29BytecodeDevice` | Done (host/device `eval_at` twin) |
-| `theory_chi2_batch.hpp` | `TheoryChi2Batch` | Done (fused bytecode hist + χ²; wired via `GpuCandidateExport::theory_*`) |
+| `theory_chi2_batch.hpp` | `TheoryChi2Batch` | Done (fused bytecode hist + χ²; S0 path via `TheoryHistChi2Launch`) |
 | `param_ir.hpp` | `ParamIr` | Done |
 | `primitive_ir.hpp` | `PrimitiveIr` | Done |
 | `theory_ir.hpp` | `TheoryIr` | Done |
@@ -53,6 +53,7 @@ private:
 | `dsl_ir_applicator.hpp` | `DslIrApplicator` | Done (CPU apply_into) |
 | `dsl_emit_cpu.hpp` | `DslEmitCpu` | Done (Transform-shaped; `Select` → `Z29::select` / branch; matmul/det/autokey) |
 | `dsl_emit_cuda.hpp` | `DslEmitCuda` | Done (Z29Device; matmul/det expand; autokey → AutokeyRingDevice) |
+| `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S3 strategy select + S0 emit skeleton; S1/S2/S3 emit TBD) |
 | `dsl_verifier.hpp` | `DslVerifier` | Done (exhaustive ≤4 + fuzz + CPU↔CUDA mirror) |
 | `dsl_catalog_builtins.hpp` | `DslCatalogBuiltins` | Done (`identity`/`atbash`/`caesar`/`affine` + DSL-only `matrix_mix`/`autokey_lag`; **not** `TransformId` / decode `--transform-id`) |
 | `dsl_fuse.hpp` | `DslFuse` | Done (inline + emit + CPU bench; DSL-only leaves → fused emit) |
@@ -91,6 +92,7 @@ CPU↔CUDA mirror; inv-domain + poly2 \(29^4\) hard gates.
 Tests: `[dsl][fuse]` / `[dsl][fuse][koan][parity]` / `[dsl][fuse][catalog]` DslFuse +
 catalog builtins (`matrix_mix` / `autokey_lag`) + Koan-1 vs ComposeTransform.
 Tests: `[dsl][examples][matrix]` `theories/examples/matrix_builtins_example.py` compile.
+Tests: `[dsl][emit][hist][chi2]` TheoryHistChi2Emit strategy select + S0 skeleton fallback.
 Tests: `[dsl][optimize]` DslOptimize const-fold + inv hoist.
 Tests: `[dsl][launch]` DslLaunchPlan vs HistFast / 1D twin formula.
 Tests: `[dsl][peak]` DslPeakSanity vs ThroughputTiers ceilings / SLO.

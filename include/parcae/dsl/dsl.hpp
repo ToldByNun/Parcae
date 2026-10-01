@@ -22,6 +22,7 @@
 ///   - ParamIr / PrimitiveIr / TheoryIr / ComposeIr
 ///   - DslIrApplicator
 ///   - DslEmitCpu / DslEmitCuda
+///   - TheoryHistChi2Emit (fused χ² hist strategy select + S0 skeleton)
 ///   - DslVerifier (exhaustive ≤4 + seeded fuzz + CPU↔CUDA mirror)
 ///   - DslFuse (inline + fused/staged emit + CPU bench gate)
 ///   - DslOptimize (const-fold + z29_inv hoist)
@@ -72,6 +73,7 @@
 #include "parcae/dsl/theory_artifact.hpp"
 #include "parcae/dsl/theory_dispatch.hpp"
 #include "parcae/dsl/theory_envelope_bridge.hpp"
+#include "parcae/dsl/theory_hist_chi2_emit.hpp"
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/theory_registry.hpp"
 #include "parcae/dsl/theory_sweep.hpp"

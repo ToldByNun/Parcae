@@ -30,6 +30,7 @@
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
 #include "theory_chi2_batch.hpp"
+#include "theory_hist_chi2_launch.hpp"
 #endif
 
 /// Theory fused-χ² cudaEvent microbench (`parcae-bench --suite theory`).
@@ -403,7 +404,7 @@ private:
 
         StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
             NvtxRange nvtx_hist("hist_kernel");
-            return TheoryChi2Batch::launch_async(
+            return TheoryHistChi2Launch::launch_async(
                 scratch.value().in.data(), scratch.value().ops.data(), scratch.value().imm.data(),
                 scratch.value().op_count, scratch.value().slots.data(), scratch.value().slot_count,
                 scratch.value().cipher_slot, scratch.value().index_slot,
@@ -443,7 +444,7 @@ private:
 
         StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
             NvtxRange nvtx_hist("hist_kernel");
-            return TheoryChi2Batch::launch_async(
+            return TheoryHistChi2Launch::launch_async(
                 scratch.value().in.data(), scratch.value().ops.data(), scratch.value().imm.data(),
                 scratch.value().op_count, scratch.value().slots.data(), scratch.value().slot_count,
                 scratch.value().cipher_slot, scratch.value().index_slot,

@@ -67,6 +67,7 @@
 #include "params_json.hpp"
 #include "parcae_cuda.hpp"
 #include "theory_chi2_batch.hpp"
+#include "theory_hist_chi2_launch.hpp"
 
 #include <cuda_runtime_api.h>
 #endif
@@ -1705,7 +1706,7 @@ private:
         return launch_sync_copy(
             devices.value().scratch,
             [&]() {
-                return TheoryChi2Batch::launch_async(
+                return TheoryHistChi2Launch::launch_async(
                     devices.value().scratch.in.data(), devices.value().ops, devices.value().imm,
                     static_cast<std::uint32_t>(ops.size()), devices.value().slots.data(), slot_count,
                     prog.cipher_slot, prog.index_slot, prog.binds_index_i ? 1u : 0u, max_stack,

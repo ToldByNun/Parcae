@@ -34,6 +34,7 @@ add_executable(parcae_tests
   dsl_emit_cpu_test.cpp
   dsl_matrix_ir_test.cpp
   dsl_emit_cuda_test.cpp
+  theory_hist_chi2_emit_test.cpp
   dsl_poly2_oracle_test.cpp
   dsl_verify_test.cpp
   dsl_fuse_test.cpp
