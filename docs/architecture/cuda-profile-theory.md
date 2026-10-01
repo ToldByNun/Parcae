@@ -163,9 +163,11 @@ nsys profile -t cuda,nvtx,osrt --stats=true --force-overwrite=true `
 | Kernel span names | `theory_chi2_hist_kernel`, finalize/patch |
 
 **NVTX:** ranges such as `prepare_theory`, `bind_slots`, `h2d`, `hist_kernel`,
-`finalize`, `d2h`, `materialize`, `ingest` make timelines sharp. If ranges are
-missing in the binary, note “no NVTX” in the snapshot row and rely on CUDA API
-trace only until ranges land.
+`finalize`, `d2h`, `materialize`, `ingest` are pushed via `NvtxRange`
+([`include/parcae/search/nvtx_range.hpp`](../../include/parcae/search/nvtx_range.hpp))
+on the theory fused export / search-cycle path. Requires Toolkit
+`<nvtx3/nvToolsExt.h>` at compile time (`NvtxRange::available()`). If the header
+was missing, note “no NVTX” in the snapshot row and rely on CUDA API trace only.
 
 ---
 

@@ -3,6 +3,7 @@
 #include "chi2_batch_score.hpp"
 #include "cuda_error.hpp"
 #include "hist_fast.hpp"
+#include "parcae/search/nvtx_range.hpp"
 #include "z29_bytecode_device.hpp"
 
 #include <cmath>
@@ -135,25 +136,31 @@ Status TheoryChi2Batch::launch_async(
         return prep;
     }
 
-    theory_chi2_hist_kernel<<<grid, HistFast::threads>>>(
-        device_in, device_ops, device_imm, op_count, device_slots, slot_count, cipher_slot,
-        index_slot, binds_index_i, max_stack, device_counts, device_lane_err, token_count);
-    Status hist = CudaError::to_status(cudaGetLastError(), "TheoryChi2Batch::hist");
-    if (!hist.ok()) {
-        return hist;
+    {
+        NvtxRange nvtx_hist("hist_kernel");
+        theory_chi2_hist_kernel<<<grid, HistFast::threads>>>(
+            device_in, device_ops, device_imm, op_count, device_slots, slot_count, cipher_slot,
+            index_slot, binds_index_i, max_stack, device_counts, device_lane_err, token_count);
+        Status hist = CudaError::to_status(cudaGetLastError(), "TheoryChi2Batch::hist");
+        if (!hist.ok()) {
+            return hist;
+        }
     }
 
-    Status finalized = Chi2BatchScore::finalize_async(device_counts, device_probabilities,
-                                                      device_scores, candidate_count, token_count);
-    if (!finalized.ok()) {
-        return finalized;
-    }
+    {
+        NvtxRange nvtx_finalize("finalize");
+        Status finalized = Chi2BatchScore::finalize_async(
+            device_counts, device_probabilities, device_scores, candidate_count, token_count);
+        if (!finalized.ok()) {
+            return finalized;
+        }
 
-    const int threads = 128;
-    const int blocks =
-        static_cast<int>((candidate_count + static_cast<std::size_t>(threads) - 1u) /
-                         static_cast<std::size_t>(threads));
-    theory_chi2_patch_inf_kernel<<<blocks, threads>>>(device_lane_err, device_scores,
-                                                      candidate_count);
-    return CudaError::to_status(cudaGetLastError(), "TheoryChi2Batch::patch_inf");
+        const int threads = 128;
+        const int blocks =
+            static_cast<int>((candidate_count + static_cast<std::size_t>(threads) - 1u) /
+                             static_cast<std::size_t>(threads));
+        theory_chi2_patch_inf_kernel<<<blocks, threads>>>(device_lane_err, device_scores,
+                                                          candidate_count);
+        return CudaError::to_status(cudaGetLastError(), "TheoryChi2Batch::patch_inf");
+    }
 }

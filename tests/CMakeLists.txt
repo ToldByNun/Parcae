@@ -99,6 +99,7 @@ add_executable(parcae_tests
   cpu_gpu_export_parity_test.cpp
   compose_export_parity_test.cpp
   search_scheduler_test.cpp
+  nvtx_range_test.cpp
   search_cycle_cli_test.cpp
   parity_test.cpp
   transform_property_test.cpp

@@ -15,6 +15,7 @@
 #include "parcae/search/cpu_candidate_export.hpp"
 #include "parcae/search/gpu_candidate_export.hpp"
 #include "parcae/search/hypothesis_bridge.hpp"
+#include "parcae/search/nvtx_range.hpp"
 #include "parcae/search/search_job.hpp"
 #include "parcae/search/search_prior.hpp"
 #include "parcae/search/workspace_cipher.hpp"
@@ -297,8 +298,10 @@ public:
         emit_stage(options.progress, "write", artifact.value().candidate_count(),
                    artifact.value().candidate_count(), cipher.value().indices().size());
 
-        StatusOr<HypothesisBridge::Result> ingested =
-            HypothesisBridge::ingest(data_root, artifact.value());
+        StatusOr<HypothesisBridge::Result> ingested = [&]() -> StatusOr<HypothesisBridge::Result> {
+            NvtxRange nvtx_ingest("ingest");
+            return HypothesisBridge::ingest(data_root, artifact.value());
+        }();
         if (!ingested.ok()) {
             return ingested.status();
         }

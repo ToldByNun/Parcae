@@ -19,7 +19,8 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `search_prior.hpp` | `SearchPrior` | Done (`parcae.search_prior.v0`) |
 | `batch_artifact.hpp` | `BatchArtifact` | Done (`parcae.batch_artifact.v0`) |
 | `workspace_cipher.hpp` | `WorkspaceCipher` | Done (`workspace.v0` → `Index29`) |
-| `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere + compose recipes + opt-in beaufort/totient) |
+| `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere + compose recipes + opt-in beaufort/totient + theory fused χ²) |
+| `nvtx_range.hpp` | `NvtxRange` | Done — RAII NVTX for nsys (`prepare_theory`…`ingest`) |
 | `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (v0 families + extended `hill_2`/`hill_3`/CTAK/PTAK + `theory` URI; hard CPU-only for hill/autokey) |
 | `hypothesis_bridge.hpp` | `HypothesisBridge` | Done (ingest + idempotent ids / provenance) |
 | `search_scheduler.hpp` | `SearchScheduler` | Done (`run_once` / `run_loop` + prior feedback) |
