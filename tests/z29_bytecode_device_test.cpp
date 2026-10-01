@@ -135,6 +135,18 @@ struct PackedProgram {
         packed.max_stack, out_byte, err_flag);
 }
 
+[[nodiscard]] bool device_eval_index_trusted(const PackedProgram& packed,
+                                             const std::vector<std::uint8_t>& stream, std::size_t i,
+                                             std::uint8_t* out_byte, std::uint8_t* err_flag) {
+    std::vector<std::uint8_t> slots = packed.slots;
+    std::vector<std::uint8_t> stack(Z29BytecodeDevice::kMaxDeviceStack, 0);
+    return Z29BytecodeDevice::eval_at_trusted(
+        packed.ops.data(), packed.imm.data(), static_cast<std::uint32_t>(packed.ops.size()),
+        slots.data(), static_cast<std::uint16_t>(slots.size()), packed.cipher_slot,
+        packed.index_slot, packed.binds_index_i, stream.data(), stream.size(), i, stack.data(),
+        packed.max_stack, out_byte, err_flag);
+}
+
 void require_stream_parity(const Z29Bytecode::Program& prog, const TheoryIr& theory,
                            const nlohmann::json& params, const std::vector<Index29>& cipher) {
     StatusOr<std::vector<Index29>> host_slots =
@@ -157,6 +169,12 @@ void require_stream_parity(const Z29Bytecode::Program& prog, const TheoryIr& the
         REQUIRE(device_eval_index(packed, stream, i, &out, &err));
         REQUIRE(err == Z29BytecodeDevice::kErrOk);
         REQUIRE(out == host.value().value());
+
+        std::uint8_t out_t = 0xFF;
+        std::uint8_t err_t = 0xFF;
+        REQUIRE(device_eval_index_trusted(packed, stream, i, &out_t, &err_t));
+        REQUIRE(err_t == Z29BytecodeDevice::kErrOk);
+        REQUIRE(out_t == host.value().value());
     }
 }
 
@@ -259,11 +277,23 @@ TEST_CASE("Z29BytecodeDevice domain errors set err_flag", "[cuda][bytecode][pari
         stream.data(), stream.size(), 0, stack.data(), 8, &out, &err));
     REQUIRE(err == Z29BytecodeDevice::kErrDomain);
 
+    err = 0;
+    REQUIRE_FALSE(Z29BytecodeDevice::eval_at_trusted(
+        ops.data(), imm.data(), static_cast<std::uint32_t>(ops.size()), slots.data(), 1, 0, 0, 0,
+        stream.data(), stream.size(), 0, stack.data(), 8, &out, &err));
+    REQUIRE(err == Z29BytecodeDevice::kErrDomain);
+
     // Inv(0): Const 0, Inv
     ops = {Z29BytecodeDevice::kOpConst, Z29BytecodeDevice::kOpInv};
     imm = {0, 0};
     err = 0;
     REQUIRE_FALSE(Z29BytecodeDevice::eval_at(
+        ops.data(), imm.data(), static_cast<std::uint32_t>(ops.size()), slots.data(), 1, 0, 0, 0,
+        stream.data(), stream.size(), 0, stack.data(), 8, &out, &err));
+    REQUIRE(err == Z29BytecodeDevice::kErrDomain);
+
+    err = 0;
+    REQUIRE_FALSE(Z29BytecodeDevice::eval_at_trusted(
         ops.data(), imm.data(), static_cast<std::uint32_t>(ops.size()), slots.data(), 1, 0, 0, 0,
         stream.data(), stream.size(), 0, stack.data(), 8, &out, &err));
     REQUIRE(err == Z29BytecodeDevice::kErrDomain);

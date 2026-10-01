@@ -9,15 +9,33 @@
 #include <cmath>
 #include <cuda_runtime_api.h>
 
-__global__ void theory_chi2_hist_kernel(const std::uint8_t* in, const std::uint8_t* ops,
-                                        const std::uint8_t* imm, std::uint32_t op_count,
-                                        const std::uint8_t* slots, std::uint16_t slot_count,
-                                        std::uint16_t cipher_slot, std::uint16_t index_slot,
-                                        std::uint8_t binds_index_i, std::uint16_t max_stack,
-                                        std::uint32_t* counts, std::uint8_t* lane_err,
+/// Stage HotLoop into shared when it fits; otherwise `__ldg` from global.
+/// Uses `eval_at_trusted` — host already validated caps in `launch_async`.
+__global__ void theory_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
+                                        const std::uint8_t* __restrict__ ops,
+                                        const std::uint8_t* __restrict__ imm, std::uint32_t op_count,
+                                        const std::uint8_t* __restrict__ slots,
+                                        std::uint16_t slot_count, std::uint16_t cipher_slot,
+                                        std::uint16_t index_slot, std::uint8_t binds_index_i,
+                                        std::uint16_t max_stack, std::uint32_t* __restrict__ counts,
+                                        std::uint8_t* __restrict__ lane_err,
                                         std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
-    HistFast::clear_private(priv);
+    __shared__ std::uint8_t sh_ops[TheoryChi2Batch::kSharedProgramOps];
+    __shared__ std::uint8_t sh_imm[TheoryChi2Batch::kSharedProgramOps];
+
+    const bool use_shared = op_count <= TheoryChi2Batch::kSharedProgramOps;
+    if (use_shared) {
+        for (std::uint32_t p = static_cast<std::uint32_t>(threadIdx.x); p < op_count;
+             p += static_cast<std::uint32_t>(blockDim.x)) {
+            sh_ops[p] = ops[p];
+            sh_imm[p] = imm[p];
+        }
+    }
+    HistFast::clear_private(priv); // syncthreads — also publishes sh_ops/sh_imm
+
+    const std::uint8_t* prog_ops = use_shared ? sh_ops : ops;
+    const std::uint8_t* prog_imm = use_shared ? sh_imm : imm;
 
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
@@ -37,9 +55,9 @@ __global__ void theory_chi2_hist_kernel(const std::uint8_t* in, const std::uint8
          t < token_count; t += stride) {
         std::uint8_t out_byte = 0;
         std::uint8_t err = 0;
-        const bool ok = Z29BytecodeDevice::eval_at(
-            ops, imm, op_count, local_slots, slot_count, cipher_slot, index_slot, binds_index_i, in,
-            token_count, t, stack, max_stack, &out_byte, &err);
+        const bool ok = Z29BytecodeDevice::eval_at_trusted(
+            prog_ops, prog_imm, op_count, local_slots, slot_count, cipher_slot, index_slot,
+            binds_index_i, in, token_count, t, stack, max_stack, &out_byte, &err);
         if (!ok) {
             lane_err[candidate] = 1u;
         } else {

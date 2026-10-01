@@ -19,6 +19,10 @@
 /// supplies a scratch stack of length `stack_cap` (`<= kMaxDeviceStack`).
 /// Domain errors (div0 / inv0 / …) and stack faults set `*err_flag != 0` and
 /// leave `*out_byte` undefined.
+///
+/// `eval_at` is the safe oracle (full checks). `eval_at_trusted` skips
+/// structural bounds checks after host validation (`TheoryChi2Batch` launch);
+/// domain errors (div0/inv0/…) remain.
 class Z29BytecodeDevice {
 public:
     static constexpr std::uint16_t kMaxDeviceStack = 64;
@@ -68,23 +72,58 @@ public:
             std::uint16_t index_slot, std::uint8_t binds_index_i, const std::uint8_t* stream,
             std::size_t stream_len, std::size_t i, std::uint8_t* stack, std::uint16_t stack_cap,
             std::uint8_t* out_byte, std::uint8_t* err_flag) noexcept {
-        if (err_flag == nullptr || out_byte == nullptr) {
-            return false;
-        }
-        *err_flag = kErrOk;
-        if (ops == nullptr || imm == nullptr || slots == nullptr || stack == nullptr ||
-            stream == nullptr || op_count == 0u || slot_count == 0u || stack_cap == 0u ||
-            stack_cap > kMaxDeviceStack || cipher_slot >= slot_count) {
-            *err_flag = kErrProgram;
-            return false;
-        }
-        if (binds_index_i != 0u && index_slot >= slot_count) {
-            *err_flag = kErrProgram;
-            return false;
-        }
-        if (i >= stream_len) {
-            *err_flag = kErrIndex;
-            return false;
+        return eval_impl</*Trusted=*/false>(ops, imm, op_count, slots, slot_count, cipher_slot,
+                                             index_slot, binds_index_i, stream, stream_len, i, stack,
+                                             stack_cap, out_byte, err_flag);
+    }
+
+    /// Hot-path twin: assumes host-validated program/slots/stack and `i < stream_len`.
+    /// Still reports domain errors. Prefer for `TheoryChi2Batch` after launch checks.
+    [[nodiscard]] PARCAE_BC_HD static bool
+    eval_at_trusted(const std::uint8_t* ops, const std::uint8_t* imm, std::uint32_t op_count,
+                    std::uint8_t* slots, std::uint16_t slot_count, std::uint16_t cipher_slot,
+                    std::uint16_t index_slot, std::uint8_t binds_index_i, const std::uint8_t* stream,
+                    std::size_t /*stream_len*/, std::size_t i, std::uint8_t* stack,
+                    std::uint16_t stack_cap, std::uint8_t* out_byte,
+                    std::uint8_t* err_flag) noexcept {
+        return eval_impl</*Trusted=*/true>(ops, imm, op_count, slots, slot_count, cipher_slot,
+                                            index_slot, binds_index_i, stream, /*stream_len=*/0, i,
+                                            stack, stack_cap, out_byte, err_flag);
+    }
+
+private:
+    Z29BytecodeDevice() = delete;
+
+    template <bool Trusted>
+    [[nodiscard]] PARCAE_BC_HD static bool
+    eval_impl(const std::uint8_t* ops, const std::uint8_t* imm, std::uint32_t op_count,
+              std::uint8_t* slots, std::uint16_t slot_count, std::uint16_t cipher_slot,
+              std::uint16_t index_slot, std::uint8_t binds_index_i, const std::uint8_t* stream,
+              std::size_t stream_len, std::size_t i, std::uint8_t* stack, std::uint16_t stack_cap,
+              std::uint8_t* out_byte, std::uint8_t* err_flag) noexcept {
+        if constexpr (!Trusted) {
+            if (err_flag == nullptr || out_byte == nullptr) {
+                return false;
+            }
+            *err_flag = kErrOk;
+            if (ops == nullptr || imm == nullptr || slots == nullptr || stack == nullptr ||
+                stream == nullptr || op_count == 0u || slot_count == 0u || stack_cap == 0u ||
+                stack_cap > kMaxDeviceStack || cipher_slot >= slot_count) {
+                *err_flag = kErrProgram;
+                return false;
+            }
+            if (binds_index_i != 0u && index_slot >= slot_count) {
+                *err_flag = kErrProgram;
+                return false;
+            }
+            if (i >= stream_len) {
+                *err_flag = kErrIndex;
+                return false;
+            }
+        } else {
+            *err_flag = kErrOk;
+            (void)slot_count;
+            (void)stream_len;
         }
 
         slots[cipher_slot] = stream[i];
@@ -93,37 +132,44 @@ public:
         }
 
         std::uint16_t sp = 0;
+#if defined(__CUDA_ARCH__)
+#pragma unroll 4
+#endif
         for (std::uint32_t pc = 0; pc < op_count; ++pc) {
             const std::uint8_t op = ops[pc];
             const std::uint8_t imm_b = imm[pc];
             switch (op) {
             case kOpConst: {
-                if (imm_b >= Z29Device::modulus) {
-                    *err_flag = kErrProgram;
-                    return false;
+                if constexpr (!Trusted) {
+                    if (imm_b >= Z29Device::modulus) {
+                        *err_flag = kErrProgram;
+                        return false;
+                    }
                 }
-                if (!push(stack, stack_cap, &sp, imm_b, err_flag)) {
+                if (!push<Trusted>(stack, stack_cap, &sp, imm_b, err_flag)) {
                     return false;
                 }
                 break;
             }
             case kOpLoad: {
-                if (imm_b >= slot_count) {
-                    *err_flag = kErrProgram;
-                    return false;
+                if constexpr (!Trusted) {
+                    if (imm_b >= slot_count) {
+                        *err_flag = kErrProgram;
+                        return false;
+                    }
                 }
-                if (!push(stack, stack_cap, &sp, slots[imm_b], err_flag)) {
+                if (!push<Trusted>(stack, stack_cap, &sp, slots[imm_b], err_flag)) {
                     return false;
                 }
                 break;
             }
             case kOpAutokeyShift: {
                 std::uint8_t lag = 0;
-                if (!pop(stack, &sp, &lag, err_flag)) {
+                if (!pop<Trusted>(stack, &sp, &lag, err_flag)) {
                     return false;
                 }
-                if (!push(stack, stack_cap, &sp,
-                          AutokeyRingDevice::shift(stream, i, lag), err_flag)) {
+                if (!push<Trusted>(stack, stack_cap, &sp, AutokeyRingDevice::shift(stream, i, lag),
+                                   err_flag)) {
                     return false;
                 }
                 break;
@@ -132,17 +178,18 @@ public:
                 std::uint8_t f = 0;
                 std::uint8_t t = 0;
                 std::uint8_t c = 0;
-                if (!pop(stack, &sp, &f, err_flag) || !pop(stack, &sp, &t, err_flag) ||
-                    !pop(stack, &sp, &c, err_flag)) {
+                if (!pop<Trusted>(stack, &sp, &f, err_flag) ||
+                    !pop<Trusted>(stack, &sp, &t, err_flag) ||
+                    !pop<Trusted>(stack, &sp, &c, err_flag)) {
                     return false;
                 }
-                if (!push(stack, stack_cap, &sp, Z29Device::select(c, t, f), err_flag)) {
+                if (!push<Trusted>(stack, stack_cap, &sp, Z29Device::select(c, t, f), err_flag)) {
                     return false;
                 }
                 break;
             }
             default: {
-                if (!eval_op(op, stack, stack_cap, &sp, err_flag)) {
+                if (!eval_op<Trusted>(op, stack, stack_cap, &sp, err_flag)) {
                     return false;
                 }
                 break;
@@ -157,32 +204,41 @@ public:
         return true;
     }
 
-private:
-    Z29BytecodeDevice() = delete;
-
+    template <bool Trusted>
     [[nodiscard]] PARCAE_BC_HD static bool push(std::uint8_t* stack, std::uint16_t stack_cap,
                                                 std::uint16_t* sp, std::uint8_t value,
                                                 std::uint8_t* err_flag) noexcept {
-        if (*sp >= stack_cap) {
-            *err_flag = kErrStack;
-            return false;
+        if constexpr (!Trusted) {
+            if (*sp >= stack_cap) {
+                *err_flag = kErrStack;
+                return false;
+            }
+        } else {
+            (void)stack_cap;
+            (void)err_flag;
         }
         stack[*sp] = value;
         ++(*sp);
         return true;
     }
 
+    template <bool Trusted>
     [[nodiscard]] PARCAE_BC_HD static bool pop(std::uint8_t* stack, std::uint16_t* sp,
                                                std::uint8_t* out, std::uint8_t* err_flag) noexcept {
-        if (*sp == 0u) {
-            *err_flag = kErrStack;
-            return false;
+        if constexpr (!Trusted) {
+            if (*sp == 0u) {
+                *err_flag = kErrStack;
+                return false;
+            }
+        } else {
+            (void)err_flag;
         }
         --(*sp);
         *out = stack[*sp];
         return true;
     }
 
+    template <bool Trusted>
     [[nodiscard]] PARCAE_BC_HD static bool eval_op(std::uint8_t op, std::uint8_t* stack,
                                                    std::uint16_t stack_cap, std::uint16_t* sp,
                                                    std::uint8_t* err_flag) noexcept {
@@ -209,7 +265,7 @@ private:
         case kOpBoolOr: {
             std::uint8_t b = 0;
             std::uint8_t a = 0;
-            if (!pop(stack, sp, &b, err_flag) || !pop(stack, sp, &a, err_flag)) {
+            if (!pop<Trusted>(stack, sp, &b, err_flag) || !pop<Trusted>(stack, sp, &a, err_flag)) {
                 return false;
             }
             std::uint8_t r = 0;
@@ -266,7 +322,7 @@ private:
             } else {
                 r = Z29Device::bool_or(a, b);
             }
-            return push(stack, stack_cap, sp, r, err_flag);
+            return push<Trusted>(stack, stack_cap, sp, r, err_flag);
         }
         case kOpNeg:
         case kOpInv:
@@ -274,7 +330,7 @@ private:
         case kOpBitNot:
         case kOpBoolNot: {
             std::uint8_t a = 0;
-            if (!pop(stack, sp, &a, err_flag)) {
+            if (!pop<Trusted>(stack, sp, &a, err_flag)) {
                 return false;
             }
             std::uint8_t r = 0;
@@ -291,7 +347,7 @@ private:
             } else {
                 r = Z29Device::bool_not(a);
             }
-            return push(stack, stack_cap, sp, r, err_flag);
+            return push<Trusted>(stack, stack_cap, sp, r, err_flag);
         }
         default:
             *err_flag = kErrProgram;

@@ -14,6 +14,10 @@
 /// path matches `FamilyChi2Batch` (hist on device → `Chi2BatchScore::finalize`).
 /// Domain errors set `device_lane_err[c]=1` and patch `device_scores[c]` to +inf
 /// after finalize so Top-k never retains broken lanes.
+///
+/// Kernel stages `ops`/`imm` into block shared memory when
+/// `op_count <= kSharedProgramOps`, then evaluates via
+/// `Z29BytecodeDevice::eval_at_trusted` (structural checks done in `launch_async`).
 class TheoryChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;
@@ -22,6 +26,9 @@ public:
     static constexpr std::uint16_t kMaxDeviceStack = 64;
     static constexpr std::uint16_t kMaxSlots = 64;
     static constexpr std::uint32_t kMaxProgramOps = 4096;
+    /// Ops fitting in block shared mem together with HistFast private bins.
+    /// Larger programs fall back to global `__ldg` loads (still trusted eval).
+    static constexpr std::uint32_t kSharedProgramOps = 256;
 
     /// Launch hist + χ² finalize + inf-patch (async on default stream).
     /// `device_lane_err` must hold `candidate_count` bytes (cleared here).

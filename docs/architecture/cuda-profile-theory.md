@@ -202,12 +202,13 @@ Full write-up: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md).
 | 2026-10-01 | baseline | `profiles/baseline/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **304.97B** cudaEvent | stall n/a | ncu **19.1µs** @ T=262k; SM 68% DRAM 2.4% | same cipher as theory row |
 | 2026-10-01 | baseline | `profiles/baseline/` | catalog `F.affine` | 812×262k | **422.00B** cudaEvent | stall n/a | ncu **478µs**; SM 74% DRAM 0.15% | ~445B from ncu duration |
 | 2026-10-01 | host-amortize | (code) | — | — | — | — | tests `[search][export][theory]` | `TheoryExportCache`: host bytecode once/URI; device `ops`/`imm` reused; `theory_scores_only`; scheduler loop shares cache |
+| 2026-10-01 | interpreter-qw | (code) | `theory_chi2_hist_kernel` | 29×1M | **69.30B** cudaEvent | — | ncu ~157µs @ T=262k (≈baseline) | shared `ops`/`imm` (≤256) + `eval_at_trusted`; +~5% vs 65.87B baseline; Caesar twin 414B |
 
 Peak calibration rows (fill when specialized emit exists):
 
 | Theory shape | `estimated_peak` | 90% gate | Method | Date |
 |--------------|------------------|----------|--------|------|
-| Caesar-as-bytecode (S0 interpreter) | TBD (interim ~66B fair) | TBD | cudaEvent @ T≥2^20 | 2026-10-01 |
+| Caesar-as-bytecode (S0 interpreter) | TBD (interim **~69B** fair after shared+trusted) | TBD | cudaEvent @ T≥2^20 | 2026-10-01 |
 | bitmask_blend S2 (planned) | | | cudaEvent / ncu @ T≥2^20 | |
 
 ---
