@@ -92,7 +92,7 @@ CPU↔CUDA mirror; inv-domain + poly2 \(29^4\) hard gates.
 Tests: `[dsl][fuse]` / `[dsl][fuse][koan][parity]` / `[dsl][fuse][catalog]` DslFuse +
 catalog builtins (`matrix_mix` / `autokey_lag`) + Koan-1 vs ComposeTransform.
 Tests: `[dsl][examples][matrix]` `theories/examples/matrix_builtins_example.py` compile.
-Tests: `[dsl][emit][hist][chi2]` strategy select + S1/S2 emit; `[cuda][golden]` bytecode χ² == specialized.
+Tests: `[dsl][emit][hist][chi2]` strategy select + S1/S2 emit; `[cuda][golden]` bytecode χ² == specialized; `[cuda][theory][edge]` top-k / Autokey→S0 / Div0 +inf / interrupt reject.
 Tests: `[dsl][optimize]` DslOptimize const-fold + inv hoist.
 Tests: `[dsl][launch]` DslLaunchPlan vs HistFast / 1D twin formula.
 Tests: `[dsl][peak]` DslPeakSanity vs ThroughputTiers ceilings / SLO.
