@@ -51,7 +51,7 @@ tools/
 Parcae/Parcae/                 # Visual Studio app + CUDA twins
   main.cpp
   cuda/                        # device twins (see cuda-roadmap.md)
-    emitted/                   # generated DSL twins (gitignored except README)
+    emitted/                   # STREAM twins only (gitignored except README)
 
 data/
   profiles/      gematria, separators, score tables

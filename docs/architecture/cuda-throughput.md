@@ -59,6 +59,8 @@ log: [`cuda-profile-theory.md`](cuda-profile-theory.md). Post-emit snapshot:
 
 Operator handbook: [`search-handbook.md`](search-handbook.md) § Theory URI.
 Emit API: [`theory_hist_chi2_emit.hpp`](../../include/parcae/dsl/theory_hist_chi2_emit.hpp).
+Contract / Done: [`theory-hist-transpile.md`](theory-hist-transpile.md).
+Artifact stream vs hist paths: [`theory-artifact.md`](../spec/theory-artifact.md).
 
 ## How to measure
 

@@ -4,12 +4,23 @@
 **Schema id:** `parcae.theory_artifact.v0`  
 **URI scheme:** `parcae://theories/<name>@<version>`  
 **Related:** [dsl.md](dsl.md) (`dsl_spec_version`), [transforms.md](transforms.md),
-[tools.md](tools.md)
+[tools.md](tools.md),
+[theory-hist-transpile.md](../architecture/theory-hist-transpile.md)
+(stream twin vs fused hist Kernel SLO)
 
 Compiled theories are **versioned, inspectable artifacts** under
 `data/theories/`. They are the only form that validate/sweep/runtime dispatch
 **MUST** treat as verified output of `parcae-compile`. Raw `.py` sources are
 inputs, not runnable registry entries.
+
+**Two CUDA products** may appear under one artifact URI — do **not** conflate them.
+Throughput Done (≥90% shape peak) is defined on the **fused hist** product, not
+the stream twin. See [theory-hist-transpile.md](../architecture/theory-hist-transpile.md).
+
+| Product | Manifest paths (today / planned) | Producer | Consumer | Role |
+|---------|----------------------------------|----------|----------|------|
+| **Stream twin** | `paths.cuda_header` / `paths.cuda_source` under `emitted/` | `DslEmitCuda` @ compile | Transform / apply / smoke | Bit-identity 1D device apply |
+| **Fused hist** | `paths.hist_*` under `hist/` (optional until writers land) | `TheoryHistChi2Emit` (+ future cubin tool) | Search `GpuCandidateExport` / module load | Fused decrypt+χ² Kernel SLO |
 
 ---
 
@@ -23,9 +34,13 @@ data/theories/
       cpu_reference.*          # optional emitted CPU applicator / Transform text
       envelope.json            # optional TransformEnvelope bridge
       apply_ir.json            # optional TheoryApplyIr for TheoryDispatch
-      emitted/                 # optional CUDA/C++ twin sources
-        *.hpp
-        *.cu
+      emitted/                 # optional STREAM twin sources (DslEmitCuda)
+        *Kernel.hpp
+        *Kernel.cu
+      hist/                    # optional FUSED-HIST search products (TheoryHistChi2Emit)
+        hist_plan.json         # strategy + plans (S1/S2/…); see below
+        *.hpp / *.cu           # optional specialized hist sources
+        *.cubin / *.fatbin     # optional offline/NVRTC module bytes
       verify_report.json       # optional machine-readable gate log
 ```
 
@@ -35,6 +50,8 @@ data/theories/
 | `version` | Positive integer; MUST match URI `@<version>` and directory name |
 | Encoding | UTF-8; JSON objects; LF preferred |
 | Paths inside manifest | Relative to the artifact directory; MUST NOT escape via `..` |
+| `emitted/` vs `hist/` | **MUST NOT** mix roles: stream kernels stay under `emitted/`; fused-χ² hist under `hist/` |
+| Missing `hist/` | Allowed — search MAY classify/emit at runtime and soft-fallback S0 ([theory-hist-transpile.md](../architecture/theory-hist-transpile.md)) |
 
 Runtime trees under `data/theories/` **SHOULD** be gitignored except committed
 golden/example artifacts explicitly allow-listed by the project.
@@ -105,8 +122,13 @@ File: `data/theories/<name>/<version>/manifest.json`
     "cuda_source": "emitted/QuadraticPolynomialStreamKernel.cu",
     "envelope_template": "envelope.json",
     "apply_ir": "apply_ir.json",
-    "verify_report": "verify_report.json"
+    "verify_report": "verify_report.json",
+    "hist_plan": null,
+    "hist_header": null,
+    "hist_source": null,
+    "hist_module": null
   },
+  "hist": null,
   "sweep": null,
   "interrupts": {
     "mode": "policy_method"
@@ -142,6 +164,97 @@ File: `data/theories/<name>/<version>/manifest.json`
 | `structural_claim` | **Required** in manifest when `tier` is `B` or `C` (non-empty string) |
 | `sweep` | `null` or a sweep config object (see below) |
 | `interrupts` | Documents interrupt mode: `policy_method` \| `none_by_design` \| `elementwise_default` |
+| `hist` | `null` or fused-hist summary object (see § `hist` below); independent of stream `emitted/` |
+
+### `paths` — stream twin vs fused hist
+
+Existing keys (stream / apply product):
+
+| Key | Product | Meaning |
+|-----|---------|---------|
+| `cpu_reference` | CPU apply text | Optional host Transform / applicator source |
+| `cuda_header` | **Stream twin** | Façade header under `emitted/` (`DslEmitCuda`) |
+| `cuda_source` | **Stream twin** | Kernel `.cu` under `emitted/` |
+| `envelope_template` | Envelope bridge | See § Envelope bridge |
+| `apply_ir` | CPU/CUDA IR apply | `apply_ir.json` for `TheoryDispatch` |
+| `verify_report` | Verify log | Optional |
+
+Additive keys for **fused hist** (search χ²). Writers **MAY** omit them or set
+`null` until hist persistence ships. Loaders **MUST** treat missing keys as
+absent (forward-compatible with older manifests):
+
+| Key | Product | Meaning |
+|-----|---------|---------|
+| `hist_plan` | Fused hist | Relative path to `hist/hist_plan.json` (strategy + plans) |
+| `hist_header` | Fused hist | Optional specialized hist façade `.hpp` under `hist/` |
+| `hist_source` | Fused hist | Optional specialized hist `.cu` under `hist/` |
+| `hist_module` | Fused hist | Optional `.cubin` / `.fatbin` (or documented module blob) under `hist/` |
+
+Rules:
+
+- `paths.cuda_*` **MUST NOT** point into `hist/`; `paths.hist_*` **MUST NOT** point into `emitted/`.
+- Presence of stream `cuda_source` does **not** imply a specialized search hist kernel exists.
+- Presence of `hist_plan` without `hist_module` is valid: search MAY use in-lib twins (S1/S2) keyed by the plan, or soft-fallback S0.
+- Kernel SLO Done is never inferred from stream-twin build success alone.
+
+### `hist` (optional top-level summary)
+
+When non-null, a compact digest of the fused-hist classify/emit result for tools
+and humans (full detail lives in `hist_plan.json` when present):
+
+```json
+{
+  "intended_strategy": "S3_scalar_inline",
+  "emitted_strategy": "S0_bytecode",
+  "specialized": false,
+  "reason": "skeleton: S3 classified but emit not implemented; fallback S0",
+  "shape_peak_tier": "T.theory.caesar_bytecode"
+}
+```
+
+| Field | Rule |
+|-------|------|
+| `intended_strategy` | Classify result string (e.g. `S0_bytecode`, `S1_lut29`, `S2_linear`, `S3_scalar_inline`, …) |
+| `emitted_strategy` | Strategy search will prefer if specialized; else soft-fallback id (often `S0_bytecode`) |
+| `specialized` | `true` only when a specialized hist launch path is available for this artifact (in-lib plan and/or module) |
+| `reason` | Non-empty diagnostic when `specialized` is false or intended ≠ emitted |
+| `shape_peak_tier` | Optional `BenchTierSpec` id for PRIMARY ≥90% gate of the **emitted** strategy |
+
+`parcae-compile` **SHOULD** eventually write `hist` + `paths.hist_plan` when
+`TheoryHistChi2Emit` runs at compile time. Until then, `hist: null` is the
+shipping default; search still classifies at runtime via `TheoryExportCache`.
+
+### `hist/hist_plan.json` (`parcae.theory_hist_plan.v0`)
+
+When `paths.hist_plan` is set, the file **MUST** be JSON:
+
+```json
+{
+  "schema": "parcae.theory_hist_plan.v0",
+  "theory_uri": "parcae://theories/quadratic_polynomial_stream@1",
+  "intended_strategy": "S3_scalar_inline",
+  "emitted_strategy": "S0_bytecode",
+  "specialized": false,
+  "cipher_var": "x",
+  "reason": "…",
+  "s1_lut": null,
+  "s2_linear": null,
+  "s3": null,
+  "s4_autokey": null
+}
+```
+
+| Field | Rule |
+|-------|------|
+| `schema` | MUST be `parcae.theory_hist_plan.v0` |
+| `theory_uri` | MUST equal manifest `uri` |
+| `intended_strategy` / `emitted_strategy` / `specialized` / `reason` | Same semantics as top-level `hist` |
+| `cipher_var` | HotLoop cipher binding name (default `"x"`) |
+| `s1_lut` | `null` or `{ "param_names": ["…"] }` matching `TheoryHistChi2Emit::S1LutPlan` |
+| `s2_linear` | `null` or `{ "b0_name", "b1_name", "cipher_minus_ks": bool }` |
+| `s3` / `s4_autokey` | `null` until those strategies persist plans |
+
+Plan files are **search/hist** metadata — not a substitute for `apply_ir.json`.
 
 ### `verification`
 
@@ -245,10 +358,11 @@ Header: `include/parcae/dsl/theory_envelope_bridge.hpp` (`TheoryEnvelopeBridge`)
 
 | Tool | Obligation |
 |------|------------|
-| `parcae-compile` | Write manifest with verification passed; embed versions; hard fail on gate failure |
-| `parcae-validate` | Re-check gates and/or manifest integrity; enforce `dsl_spec_version` |
+| `parcae-compile` | Write manifest with verification passed; embed versions; hard fail on gate failure; emit **stream** twins under `emitted/` when CUDA emit succeeds; **SHOULD** (when wired) also write `hist` / `paths.hist_*` without failing compile if only hist soft-falls to S0 |
+| `parcae-validate` | Re-check gates and/or manifest integrity; enforce `dsl_spec_version`; if `paths.hist_*` set, check path safety + `hist_plan.json` schema when present |
 | `parcae-sweep` | Read sweep metadata; reject stale spec; never invent solved-corpus defaults |
 | `parcae-catalog --theories` | List URIs + `stale_spec` |
+| Search (`parcae-search-cycle`) | Prefer artifact hist plan/module when present; else runtime `TheoryHistChi2Emit`; soft-fallback S0; Kernel SLO Done per [theory-hist-transpile.md](../architecture/theory-hist-transpile.md) |
 
 Agent-facing CLIs **SHOULD** emit `parcae.tool_response.v0` on success and
 failure ([tools.md](tools.md), [agent-tools.md](agent-tools.md)).
@@ -260,3 +374,5 @@ failure ([tools.md](tools.md), [agent-tools.md](agent-tools.md)).
 - Storing ciphertext or locked fixture payloads inside theory artifacts
 - Treating stub-package execution as verification
 - Mutating `data/fixtures/` from theory tools
+- Treating stream-twin (`emitted/*Kernel.cu`) throughput as theory search Kernel SLO Done
+- Requiring `hist_module` for S1/S2 while in-lib twins + `hist_plan` suffice

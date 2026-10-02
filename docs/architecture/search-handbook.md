@@ -416,7 +416,8 @@ the CPU export path.
 
 **Dispatch (CUDA χ² decrypt):** `TheoryHistChi2Emit` selects a hist strategy at
 cache fill; export **prefers specialized** kernels and soft-falls back to the
-bytecode interpreter:
+bytecode interpreter. This is the **fused hist** product — not the stream twin
+under `emitted/` ([theory-artifact.md](../spec/theory-artifact.md)):
 
 | Strategy | When | Device path |
 |----------|------|-------------|

@@ -140,6 +140,9 @@ Compile still emits CPU/CUDA transform text + bytecode. Separately,
 failure soft-falls back to S0 with `export_backend=cuda` unchanged. Soft-fallback
 still requires the **S0** fair Kernel SLO ≥90% Spec peak. Normative rules:
 [`theory-hist-transpile.md`](../../../docs/architecture/theory-hist-transpile.md).
+Artifact **stream** (`emitted/`, `paths.cuda_*`) vs **fused hist** (`hist/`,
+`paths.hist_*`):
+[`theory-artifact.md`](../../../docs/spec/theory-artifact.md).
 Peaks / suite: `BenchTierSpec` `T.theory.*` via `parcae-bench --suite theory`.
 
 ## Status

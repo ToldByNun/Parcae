@@ -209,6 +209,20 @@ in scope analysis + semantic/divergence gates **before** fuse.
 Catalog-only tools **MUST** fail clearly on theory URIs (no silent no-op).
 See [theory-artifact.md](../spec/theory-artifact.md) § Envelope bridge.
 
+### Stream twin vs fused hist (artifact products)
+
+`parcae-compile` may emit **two** CUDA-related products for one URI — keep them
+separate ([theory-artifact.md](../spec/theory-artifact.md),
+[theory-hist-transpile.md](theory-hist-transpile.md)):
+
+| Product | On-disk | Header / emit | Used for |
+|---------|---------|---------------|----------|
+| **Stream twin** | `emitted/*Kernel.{hpp,cu}` (`paths.cuda_*`) | `DslEmitCuda` | Bit-identity apply / smoke |
+| **Fused hist** | `hist/` (`paths.hist_*`, optional `hist` manifest object) | `TheoryHistChi2Emit` | Search fused χ² Kernel SLO |
+
+Shipping default: stream twins written; `hist` / `paths.hist_*` often null;
+search classifies at runtime. Stream-twin success ≠ hist Kernel SLO Done.
+
 ---
 
 ## Module map (implemented)
@@ -235,12 +249,15 @@ tools/
   parcae-compile / parcae-validate / parcae-sweep / parcae-catalog
 
 Parcae/Parcae/cuda/
-  emitted/                  # generated twins (gitignored except README)
+  emitted/                  # STREAM twins only (gitignored except README)
   dsl_smoke_caesar_kernel.* # golden [cuda][dsl][smoke] twin
+  theory_hist_chi2_s{1,2}.* # in-lib fused-hist twins (search)
 
 python/parcae/dsl/          # stubs + ast_dump (not the compiler)
 theories/examples/          # authoring sources (new_math, full_lifecycle)
-data/theories/              # compiled artifacts
+data/theories/<name>/<ver>/ # compiled artifacts
+  emitted/                  # optional stream twin sources
+  hist/                     # optional fused-hist plan/sources/module
 ```
 
 ### C++ style (HARD)

@@ -13,6 +13,7 @@ theory DSL compiles into that stack.
 | [cuda-throughput.md](cuda-throughput.md) | Fused χ² ceilings (`BenchTierSpec`); catalog + theory S0/S1/S2; Kernel SLO vs campaign wall |
 | [cuda-profile-theory.md](cuda-profile-theory.md) | Theory / search-export nsys+ncu playbook; wall vs cudaEvent; 90% peak gate |
 | [theory-hist-transpile.md](theory-hist-transpile.md) | **Normative** theory fused-χ² strategies S0–S5; **all** incl. S0 ≥90% shape peak; wall ≠ Done |
+| [theory-artifact.md](../spec/theory-artifact.md) | Artifact layout: stream `emitted/` vs fused-hist `hist/` + `paths.hist_*` / `hist_plan.v0` |
 | [cuda-score-reduction.md](cuda-score-reduction.md) | Score FP / histogram reduction associativity for CUDA twins |
 | [cuda-roadmap.md](cuda-roadmap.md) | **Frozen** CUDA commit roadmap (VS layout) |
 | [agent-tooling.md](agent-tooling.md) | **Frozen** CMD-agent plan (`parcae-agent`) |

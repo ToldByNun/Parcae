@@ -111,10 +111,23 @@ Rules:
 
 | Product | Producer | Consumer | Role |
 |---------|----------|----------|------|
-| **Stream twin** | `DslEmitCuda` @ `parcae-compile` | Transform / apply | Bit-identity device apply |
+| **Stream twin** | `DslEmitCuda` @ `parcae-compile` | Transform / apply | Bit-identity 1D device apply |
 | **Fused hist** | `TheoryHistChi2Emit` (+ future artifact/module) | `GpuCandidateExport` / `TheoryExportCache` | Search χ² Kernel SLO |
 
-Today `parcae-compile` persists stream `emitted/*Kernel.{hpp,cu}`. Hist specialization for search is largely **runtime classify + in-lib S1/S2**; EmitBundle hist source text is not the search launch path yet. Future hist artifact fields are specified in follow-on docs (`theory-artifact` hist paths) — this contract only requires that Kernel SLO Done stay tied to **hist** strategies above, not stream-twin throughput.
+Normative artifact layout and manifest fields:
+[`theory-artifact.md`](../spec/theory-artifact.md) § Directory layout / § `paths` /
+§ `hist` / § `hist/hist_plan.json`.
+
+| On disk (under `data/theories/<name>/<ver>/`) | Product |
+|-----------------------------------------------|---------|
+| `emitted/*Kernel.{hpp,cu}` via `paths.cuda_*` | Stream twin only |
+| `hist/hist_plan.json`, optional `hist/*.{cu,cubin}` via `paths.hist_*` | Fused hist (optional until writers land) |
+
+**Shipping today:** compile persists **stream** twins. Search hist is mostly
+**runtime** classify + in-lib S1/S2 (`TheoryExportCache` keeps plans; EmitBundle
+hist source text is not the launch path). `hist: null` / missing `paths.hist_*`
+is valid. Kernel SLO Done stays tied to **hist strategies** in this contract —
+never to stream-twin throughput alone.
 
 ---
 
@@ -195,6 +208,6 @@ Declare the theory-hist transpile throughput workstream complete only when **all
 | [`cuda-profile-theory.md`](cuda-profile-theory.md) | nsys/ncu recipes; progress log |
 | [`python-transpiler.md`](python-transpiler.md) | DSL compile + hist strategy summary |
 | [`search-handbook.md`](search-handbook.md) | Operator theory URI + CUDA flags |
-| [`theory-artifact.md`](../spec/theory-artifact.md) | Artifact layout (stream paths today; hist fields follow-on) |
+| [`theory-artifact.md`](../spec/theory-artifact.md) | Artifact layout: stream `emitted/` vs fused-hist `hist/` + manifest fields |
 | [`include/parcae/dsl/README.md`](../../include/parcae/dsl/README.md) | Header map |
 | [`include/parcae/bench/bench_tier_spec.hpp`](../../include/parcae/bench/bench_tier_spec.hpp) | Single source of peak / `pass_tier` |

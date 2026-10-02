@@ -32,7 +32,7 @@ with [`docs/research/`](../research/README.md) (including confidence demotions).
 
 - [x] [dsl.md](dsl.md) — language subset, `z29_matmul`/`det`/`autokey_shift`, compose leaves, verify gates
 - [x] [dsl-ast-json.md](dsl-ast-json.md) — `parcae.dsl_ast_json.v0`, ingest limits, node whitelist
-- [x] [theory-artifact.md](theory-artifact.md) — `parcae.theory_artifact.v0`, URIs, stale-spec reject
+- [x] [theory-artifact.md](theory-artifact.md) — `parcae.theory_artifact.v0`, URIs, stale-spec reject; stream `emitted/` vs fused-hist `hist/` + `paths.hist_*` / `hist_plan.v0`
 
 ### Index / process
 
