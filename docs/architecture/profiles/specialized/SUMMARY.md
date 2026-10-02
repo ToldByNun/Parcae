@@ -1,37 +1,42 @@
 # Theory CUDA post–specialized emit (2026-10-02, RTX 5070 Ti)
 
 Captured with [`scripts/cuda/capture_theory_specialized.ps1`](../../../scripts/cuda/capture_theory_specialized.ps1)
-after S1 LUT-29 / S2 linear emit + `BenchTierSpec` theory rows (commit 13).
+after S1 LUT-29 / S2 linear emit + `BenchTierSpec` theory rows.
 
 **Hardware:** NVIDIA GeForce RTX 5070 Ti (sm_120)  
 **Toolkit / tools:** CUDA 13.x, Nsight Systems / Compute (same plate as baseline)  
 **Metric (primary):** `BenchTimer` cudaEvent median-of-3, setup excluded  
 **Compare-to:** [`profiles/baseline/SUMMARY.md`](../baseline/SUMMARY.md) (2026-10-01)
 
+**Spec peak model (normative):** physical DRAM roofline **896B** runes/s
+(@ 1 B cipher/rune). Done = ≥90% ≈ **806.4B**. See
+[`BenchTierSpec`](../../../../include/parcae/bench/bench_tier_spec.hpp). Older
+provisional peaks (75B / 392B / 473B / 350B) in this capture’s JSON are
+**obsolete** — reinterpret `%` against 896B below; measured runes/s unchanged.
+
 ## cudaEvent Kernel SLO (fair T)
 
 Source: `theory_fair.json` — `T=1048576`, reps=8, `--campaign-grid`.
 
-| Row | C | T | reps | runes/s | % peak (Spec) | Gate | Notes |
-|-----|---|---|------|---------|---------------|------|-------|
-| `T.theory.caesar_bytecode` (S0) | 29 | 1048576 | 8 | **60.53B** | 80.7% of 75B | **fail** | Interpreter; ≈baseline 65.87B (GPU noise) |
-| `T.theory.compare_caesar` | 29 | 1048576 | 8 | **383.21B** | 97.8% of 392B | **pass** | Catalog twin; `checkpoint_50B=hit` |
-| `T.theory.s1_lut29` (S1) | 29 | 1048576 | 8 | **395.58B** | 83.6% of 473B | **fail** | Specialized LUT; `checkpoint_50B=hit` |
-| `T.theory.progressive` (S2) | 9 | 1048576 | 8 | **187.93B** | 53.7% of 350B | **fail** | Linear uchar4; `checkpoint_50B=hit` |
+| Row | C | T | reps | runes/s | % of 896B | Gate | Notes |
+|-----|---|---|------|---------|-----------|------|-------|
+| `T.theory.caesar_bytecode` (S0) | 29 | 1048576 | 8 | **60.53B** | **6.8%** | **fail** | Interpreter; ≈baseline 65.87B (GPU noise) |
+| `T.theory.compare_caesar` | 29 | 1048576 | 8 | **383.21B** | **42.8%** | **fail** | Catalog twin; `checkpoint_50B=hit` |
+| `T.theory.s1_lut29` (S1) | 29 | 1048576 | 8 | **395.58B** | **44.1%** | **fail** | Specialized LUT; `checkpoint_50B=hit` |
+| `T.theory.progressive` (S2) | 9 | 1048576 | 8 | **187.93B** | **21.0%** | **fail** | Linear uchar4; C=9 underfill vs Spec C=841 |
 | `T.theory.caesar_campaign` | 16384 | 262 | 8 | **27.67B** | — | pass | `underfill_not_slo_gate` |
 
 **vs baseline (same fair grid):**
 
 | Shape | Baseline (2026-10-01) | Specialized (2026-10-02) | Delta |
 |-------|----------------------|--------------------------|-------|
-| S0 Caesar bytecode | 65.87B | 60.53B | ~noise / quiet-GPU variance |
-| Caesar twin | 304.97B | 383.21B | twin variance; not a theory change |
+| S0 Caesar bytecode | 65.87B (~7.4% of 896B) | 60.53B (~6.8%) | ~noise / quiet-GPU variance |
+| Caesar twin | 304.97B (~34.0%) | 383.21B (~42.8%) | twin variance; not a theory change |
 | Progressive / S2 | **29.71B** (bytecode) | **187.93B** (S2 linear) | **~6.3×** kernel SLO |
-| S1 LUT (new row) | — | **395.58B** | ≈ Caesar twin; ~**6.5×** vs baseline S0 |
+| S1 LUT (new row) | — | **395.58B** (~44.1%) | ≈ Caesar twin; ~**6.5×** vs baseline S0 |
 
-Provisional Spec peaks (S1=473B Affine-class, S2=350B plan) are **not yet remesaured** —
-90% gate fails on S1/S2 until commit-16 remesaure recalibrates `estimated_peak`.
-S1 already clears the optional **50B** interim checkpoint.
+All specialized shapes clear the optional **50B** interim checkpoint; none are
+near the DRAM roof (ncu DRAM SoL still a few %).
 
 ## nsys timeline (`theory_specialized_timeline.nsys-rep`)
 
@@ -60,20 +65,22 @@ Reports: `s0_hist.ncu-rep`, `s1_lut.ncu-rep`, `s2_linear.ncu-rep`, `caesar_hist.
 | `caesar_chi2_histogram_decrypt_kernel` | **20.51 µs** | 63.1 | 2.79 | ~370B |
 
 **Ratio (ncu duration @ same C=29, T=262k):** S0 / S1 ≈ **7.5×**; S1 / Caesar ≈ **1.05×**
-(specialized LUT ≈ catalog Caesar hist).
+(specialized LUT ≈ catalog Caesar hist). DRAM SoL ~1–5% ⇒ still compute-bound
+(shared-hist atomics), not at the 896B roof.
 
 Baseline S0 ncu was **155.7 µs** @ same T — specialized capture S0 **160.9 µs** (noise).
 
-## Acceptance
+## Acceptance (vs DRAM roof)
 
-| Shape | Spec peak | 90% gate | Measured fair | Status |
-|-------|-----------|----------|---------------|--------|
-| S0 | 75B | 67.5B | 60.53B | **below** (interpreter ceiling ~69B interim) |
-| S1 | 473B provisional | 425.7B | 395.58B | **below** Spec; remesaure peak downward or tune further |
-| S2 | 350B provisional | 315B | 187.93B | **below** Spec; remesaure / C-grid caveat (C=9 vs Spec 841) |
+| Shape | Spec peak | 90% gate | Measured fair | % of 896B | Status |
+|-------|-----------|----------|---------------|-----------|--------|
+| S0 | **896B** | **806.4B** | 60.53B | **6.8%** | **not Done** — interpreter |
+| S1 | **896B** | **806.4B** | 395.58B | **44.1%** | **not Done** — need hist climb |
+| S2 | **896B** | **806.4B** | 187.93B @ C=9 | **21.0%** | **not Done** — hist + fair C |
+| Caesar twin | **896B** | **806.4B** | 383.21B | **42.8%** | reference; same hist bottleneck |
 
-Done gate remains **≥90% estimated_peak** after peaks are calibrated on this plate
-(commit 16 remesaure). This snapshot is the required post-emit compare to baseline.
+Done gate = **≥90% of physical DRAM roofline**. Do **not** lower Spec to quiet
+medians. This snapshot is the post-emit compare to baseline under the roof model.
 
 ## Artifacts (local / gitignored binaries)
 

@@ -12,24 +12,35 @@ Captured with
 **Toolkit / tools:** CUDA 13.3, Nsight Systems 2026.1.3, Nsight Compute 2026.2.1  
 **Metric (primary):** `BenchTimer` cudaEvent median-of-3, setup excluded  
 
-## Spec peak (practical ceiling)
+## Spec peak (physical DRAM roofline)
 
-`estimated_peak` is the **best fair quiet-GPU** cudaEvent for this shape — the
-limit we aim at. `%peak` **must stay ≤100**; if a quiet run goes above, **raise**
-the Spec peak. Do not lower it to make noisy runs look like 90%.
+`estimated_peak` = **physical DRAM roofline**, not a measured quiet max:
+
+```text
+896e9 B/s GDDR7 / 1 B cipher/rune = 896B runes/s
+Done (≥90%) ≈ 806.4B
+```
+
+Canonical: [`BenchTierSpec`](../../../../include/parcae/bench/bench_tier_spec.hpp) /
+[`cuda-throughput.md`](../../cuda-throughput.md). Historical quiet S0 medians
+(~69–75B) are **progress**, not the Spec ceiling.
 
 | Spec id | Peak | 90% Done gate | Notes |
 |---------|------|---------------|-------|
-| `T.theory.caesar_bytecode` | **75B** | **67.5B** | Quiet climb max ~75B |
+| `T.theory.caesar_bytecode` | **896B** | **806.4B** | Same roof as catalog fused hist |
 
 ## Climb progress
 
-| Tag | Fair S0 cudaEvent | Notes |
-|-----|-------------------|-------|
-| s0-climb baseline | **59.44B** | pre-pass-1 |
-| **s0-climb-p1** | **~69–75B** | tiles/trusted/residency — hits ceiling band |
-| **s0-climb-p2** | no net win | uchar4 / 32-tok / launch_bounds regressed |
-| **s0-peak** | keep **75B** | >100% would mean stale/low Spec — raise, don’t cut for noise |
+Measured cudaEvent values unchanged; **% of 896B** reinterpreted.
+
+| Tag | Fair S0 cudaEvent | % of 896B | Notes |
+|-----|-------------------|-----------|-------|
+| s0-climb baseline | **59.44B** | **~6.6%** | pre-pass-1 |
+| **s0-climb-p1** | **~69–75B** | **~7.7–8.4%** | tiles/trusted/residency — interpreter plateau |
+| **s0-climb-p2** | no net win | — | uchar4 / 32-tok / launch_bounds regressed |
+| **dram-roof** | Spec → **896B** | — | peak = physics; S0 still **not Done** |
+
+Caesar twin on the same capture: **406.62B** ≈ **45.4%** of 896B (reference only).
 
 ## Artifacts (local / gitignored binaries)
 

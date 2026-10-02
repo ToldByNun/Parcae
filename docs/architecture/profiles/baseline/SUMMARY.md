@@ -7,22 +7,27 @@ and [`scripts/cuda/profile_theory_hist.ps1`](../../../scripts/cuda/profile_theor
 **Toolkit / tools:** CUDA 13.3, Nsight Systems 2026.1.3, Nsight Compute 2026.2.1  
 **Metric (primary):** `BenchTimer` cudaEvent median-of-3, setup excluded  
 
+**Spec peak model (normative, reinterpreted):** physical DRAM roofline **896B**
+runes/s (@ 1 B cipher/rune). Done = ≥90% ≈ **806.4B**. Historical catalog %
+figures below that cited 392B/473B/550B peaks are **obsolete** — same measured
+runes/s, new denominator.
+
 ## cudaEvent Kernel SLO
 
 Source: `theory_fair.json`, `catalog_slo_extended.json` (this directory).
 
-| Row | C | T | reps | runes/s | Notes |
-|-----|---|---|------|---------|-------|
-| `T.theory.caesar_bytecode` | 29 | 1048576 | 8 | **65.87B** | TheoryChi2Batch interpreter |
-| `T.theory.compare_caesar` | 29 | 1048576 | 8 | **304.97B** | CaesarChi2Batch twin, same cipher |
-| `T.theory.progressive` | 9 | 1048576 | 8 | **29.71B** | keyed stream bytecode |
-| `T.theory.caesar_campaign` | 16384 | 262 | 8 | **24.14B** | underfill / not SLO gate |
-| Catalog `T1` Caesar | 29 | 1048576 | 64 | **347.08B** | 88.5% of 392B peak |
-| Catalog `F.affine` | 812 | (tier) | | **422.00B** | 89.2% of 473B peak |
-| Catalog `F.atbash` | | | | **478.44B** | 87.0% of 550B peak |
+| Row | C | T | reps | runes/s | % of 896B | Notes |
+|-----|---|---|------|---------|-----------|-------|
+| `T.theory.caesar_bytecode` | 29 | 1048576 | 8 | **65.87B** | **7.4%** | TheoryChi2Batch interpreter |
+| `T.theory.compare_caesar` | 29 | 1048576 | 8 | **304.97B** | **34.0%** | CaesarChi2Batch twin, same cipher |
+| `T.theory.progressive` | 9 | 1048576 | 8 | **29.71B** | **3.3%** | keyed stream bytecode |
+| `T.theory.caesar_campaign` | 16384 | 262 | 8 | **24.14B** | — | underfill / not SLO gate |
+| Catalog `T1` Caesar | 29 | 1048576 | 64 | **347.08B** | **38.7%** | was “88.5% of 392B” under old Spec |
+| Catalog `F.affine` | 812 | (tier) | | **422.00B** | **47.1%** | was “89.2% of 473B” |
+| Catalog `F.atbash` | | | | **478.44B** | **53.4%** | was “87.0% of 550B”; closest specialized |
 
 **Gap:** fair Theory Caesar bytecode ≈ **4.6×** slower than Caesar twin at same `(C,T)`
-(65.87B / 304.97B). Twin is still below catalog T1 on this quiet-GPU run (variance).
+(65.87B / 304.97B). Twin is still far below the DRAM roof on this quiet-GPU run.
 
 ## nsys timeline (`theory_export_timeline.nsys-rep`)
 
@@ -70,10 +75,12 @@ usable baseline counters until a Blackwell-valid stall set is known.
 
 Affine ncu process exit code was 1 because `parcae-bench --suite slo --extended`
 failed `C.koan1_fused` on that run — the `.ncu-rep` for affine still wrote OK.
+
 ## Acceptance reminder
 
-Done gate remains **≥90% estimated_peak** once theory peaks are calibrated.
-Current bytecode ~66B at fair T is an interim datapoint, not done.
+Done gate = **≥90% of physical DRAM roofline (896B)**. Current bytecode ~66B
+(~7.4%) and catalog Atbash ~478B (~53%) are interim datapoints — compute-bound
+(DRAM SoL ~0–3%), **not Done**.
 
 ## Artifacts (local / gitignored binaries)
 
