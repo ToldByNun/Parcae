@@ -12,13 +12,24 @@
 #define PARCAE_D
 #endif
 
-/// Fast Z/29 decrypt helpers + warp-privatized shared histogram.
+/// Fast Z/29 decrypt helpers + fused-χ² histogram primitives.
+///
+/// Two hist accumulation paths (same final global counts when used correctly):
+/// - **Warp-private** (`clear_private` / `add_private` / `flush_private`): shared
+///   bins per warp with per-rune `atomicAdd` — legacy; compute-bound on sm_120.
+/// - **Thread-local** (`clear_local` / `add_local` / `flush_local`): each thread
+///   owns a padded 29-bin row in shared memory; `++` without atomics, one reduce
+///   flush to global — intended climb path toward DRAM roofline.
 class HistFast {
 public:
     static constexpr int alphabet = 29;
     static constexpr int threads = 256;
     static constexpr int warps = threads / 32; // 8
-    static constexpr int priv_stride = 32;     // bins padded to 32
+    static constexpr int priv_stride = 32;     // bins padded to 32 (warp path)
+    /// Padded stride for per-thread local rows (bank-friendly; ≥ alphabet).
+    static constexpr int local_stride = 32;
+    /// `__shared__ uint32_t stage[local_shared_uints]` for the local path.
+    static constexpr int local_shared_uints = threads * local_stride; // 8192
     static constexpr int max_tiles = 1024;
 
     /// Grid.y for uchar4-first hist kernels: one tile covers `threads` packs.
@@ -53,6 +64,8 @@ public:
     }
 
 #if defined(__CUDACC__)
+    // --- Warp-private shared hist (legacy) -----------------------------------
+
     /// `priv` must be `warps * priv_stride` uint32 in shared memory.
     PARCAE_D static void clear_private(std::uint32_t* priv) {
         const int warp = threadIdx.x >> 5;
@@ -77,6 +90,59 @@ public:
             }
             atomicAdd(&global_row[threadIdx.x], sum);
         }
+    }
+
+    // --- Thread-local shared hist (climb path) --------------------------------
+
+    /// Zero this thread's local row. `stage` size = `local_shared_uints`.
+    /// No cross-thread sync required before `add_local` (disjoint rows).
+    PARCAE_D static void clear_local(std::uint32_t* stage) {
+#pragma unroll
+        for (int i = 0; i < alphabet; ++i) {
+            stage[threadIdx.x * local_stride + i] = 0u;
+        }
+    }
+
+    /// Increment bin `y` (must be `< alphabet`) in this thread's row — no atomics.
+    PARCAE_D static void add_local(std::uint32_t* stage, std::uint8_t y) {
+        stage[threadIdx.x * local_stride + static_cast<int>(y)] += 1u;
+    }
+
+    /// Reduce all thread rows into `global_row[0..alphabet)` via one atomic per bin.
+    /// Callers must not race other threads still in `add_local` on the same stage.
+    PARCAE_D static void flush_local(std::uint32_t* stage, std::uint32_t* global_row) {
+        __syncthreads();
+        if (threadIdx.x < alphabet) {
+            std::uint32_t sum = 0u;
+            const int bin = threadIdx.x;
+#pragma unroll 8
+            for (int t = 0; t < threads; ++t) {
+                sum += stage[t * local_stride + bin];
+            }
+            atomicAdd(&global_row[bin], sum);
+        }
+    }
+
+    /// Register-backed clear (optional; use when shared stage is only for flush).
+    PARCAE_D static void clear_local_regs(std::uint32_t bins[alphabet]) {
+#pragma unroll
+        for (int i = 0; i < alphabet; ++i) {
+            bins[i] = 0u;
+        }
+    }
+
+    PARCAE_D static void add_local_regs(std::uint32_t bins[alphabet], std::uint8_t y) {
+        bins[static_cast<int>(y)] += 1u;
+    }
+
+    /// Copy register bins into `stage`, then `flush_local`.
+    PARCAE_D static void flush_local_regs(std::uint32_t bins[alphabet], std::uint32_t* stage,
+                                          std::uint32_t* global_row) {
+#pragma unroll
+        for (int i = 0; i < alphabet; ++i) {
+            stage[threadIdx.x * local_stride + i] = bins[i];
+        }
+        flush_local(stage, global_row);
     }
 #endif
 

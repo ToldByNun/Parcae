@@ -119,6 +119,12 @@
     <ClInclude Include="cuda\chi2_english_gp_score.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\hist_fast.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="cuda\hist_fast_parity.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cuda\parcae_cuda_stub.cu">
@@ -182,6 +188,9 @@
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\chi2_english_gp_score.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\hist_fast_parity.cu">
       <Filter>cuda</Filter>
     </CudaCompile>
   </ItemGroup>

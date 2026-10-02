@@ -31,6 +31,7 @@ set(PARCAE_CUDA_SOURCES
   theory_chi2_batch.cu
   theory_hist_chi2_s1.cu
   theory_hist_chi2_s2.cu
+  hist_fast_parity.cu
   deep_score_batch.cu
   ciphertext_autokey_kernel.cu
   z29_matrix_device_ops.cu
