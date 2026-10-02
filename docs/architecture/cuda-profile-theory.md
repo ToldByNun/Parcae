@@ -230,6 +230,7 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-02 | **hist_local_caesar_regs** | `profiles/hist_local_caesar/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **18.90B** T1 / **19.32B** compare_caesar | stall n/a | ncu **1375.9µs** @ T=262k; SM **14.5%** DRAM **12.7%** | prod path: `add_local_regs` + `flush_regs_via_warp` (~1KiB shared); **~2.1%** of 896B; worse fair than 32KiB attempt and ~**20×** down vs ~400B twin (still grid.y=1024 over-tile) |
 | 2026-10-03 | **hist_local_caesar_fat** | `profiles/hist_local_caesar/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **34.76B** T1 | stall n/a | ncu **813.0µs** @ T=262k; SM **3.77%** DRAM **8.42%**; grid **(29,32,1)** | `tiles_for` cap **32**; **~3.88%** of 896B; still ≪ twin |
 | 2026-10-03 | **hist_local_caesar_revert** | `profiles/hist_local_caesar/` | `caesar_chi2_histogram_decrypt_kernel` | — | — | — | — | **prod restored to warp-private**; local/regs not shipped; see SUMMARY progression A→C |
+| 2026-10-03 | **hist_warp_match** | `profiles/hist_local_caesar/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **113.8B** T1 | — | — | `add_private_match`; **12.7%** of 896B; **LOSE** vs ~356B; **F.\* not wired** |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 

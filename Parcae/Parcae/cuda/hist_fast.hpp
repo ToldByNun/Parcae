@@ -15,14 +15,12 @@
 /// Fast Z/29 decrypt helpers + fused-χ² histogram primitives.
 ///
 /// Hist accumulation paths (same final global counts when used correctly):
-/// - **Warp-private** (`clear_private` / `add_private` / `flush_private`): shared
-///   bins per warp with per-rune `atomicAdd` — legacy; compute-bound on sm_120.
-/// - **Register-local + warp dump** (`clear_local_regs` / `add_local_regs` /
-///   `flush_regs_via_warp`): `++` in registers during the hot loop, then ≤29
-///   atomics into small warp-private shared + `flush_private`. **Preferred**
-///   production climb path (keeps shared ≈1 KiB, occupancy-friendly).
-/// - **Shared-row local** (`clear_local` / `add_local` / `flush_local`): 32 KiB
-///   stage; correct but occupancy-hostile on sm_120 — keep for parity tests.
+/// - **Warp-private** (`add_private`): per-rune `atomicAdd` into warp shared —
+///   production baseline (~350–480B fair on 5070 Ti).
+/// - **Warp-match** (`add_private_match`): `__match_any_sync` aggregates equal
+///   lanes so each unique bin issues one atomic per warp step — climb candidate.
+/// - **Register-local / 32 KiB shared-local**: correct but **regressed** under
+///   current tiling (see `profiles/hist_local_caesar/`) — parity / research only.
 class HistFast {
 public:
     static constexpr int alphabet = 29;
@@ -81,6 +79,19 @@ public:
 
     PARCAE_D static void add_private(std::uint32_t* priv, std::uint8_t y) {
         atomicAdd(&priv[(threadIdx.x >> 5) * priv_stride + y], 1u);
+    }
+
+    /// Warp-aggregated add: lanes with the same `y` contribute one `atomicAdd`
+    /// of `__popc(match)` from the leader lane (`__match_any_sync`, sm_70+).
+    PARCAE_D static void add_private_match(std::uint32_t* priv, std::uint8_t y) {
+        const unsigned full = 0xffffffffu;
+        const unsigned mask = __match_any_sync(full, static_cast<unsigned>(y));
+        const int lane = threadIdx.x & 31;
+        const int leader = __ffs(static_cast<int>(mask)) - 1;
+        if (lane == leader) {
+            atomicAdd(&priv[(threadIdx.x >> 5) * priv_stride + static_cast<int>(y)],
+                      static_cast<std::uint32_t>(__popc(mask)));
+        }
     }
 
     PARCAE_D static void flush_private(std::uint32_t* priv, std::uint32_t* global_row) {

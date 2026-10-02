@@ -10,8 +10,9 @@
 ///
 /// Does **not** materialize `out[C*T]`. Counts are `uint32` (T ≤ 4M).
 /// Prefer `launch_decrypt_async` for search sweeps (vec4 + warp-private hist).
-/// Thread-local HistFast climb experiments: see `profiles/hist_local_caesar/`
-/// (not production — regressed vs warp-private under current tiling).
+/// Climb experiments (local regs / 32KiB / warp-match): see
+/// `profiles/hist_local_caesar/` — none beat production yet; F.* stays on
+/// `add_private` until a path ≥ fair T1 baseline.
 class CaesarChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;
