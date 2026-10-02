@@ -22,7 +22,7 @@
 ///   - ParamIr / PrimitiveIr / TheoryIr / ComposeIr
 ///   - DslIrApplicator
 ///   - DslEmitCpu / DslEmitCuda
-///   - TheoryHistChi2Emit (fused χ² hist strategy select + S2 linear uchar4 emit)
+///   - TheoryHistChi2Emit (fused χ² hist: S1 LUT-29 + S2 linear uchar4 emit)
 ///   - DslVerifier (exhaustive ≤4 + seeded fuzz + CPU↔CUDA mirror)
 ///   - DslFuse (inline + fused/staged emit + CPU bench gate)
 ///   - DslOptimize (const-fold + z29_inv hoist)

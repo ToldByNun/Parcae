@@ -5,6 +5,7 @@
 #include "parcae/dsl/theory_hist_chi2_emit.hpp"
 
 #include "theory_chi2_batch.hpp"
+#include "theory_hist_chi2_s1.hpp"
 #include "theory_hist_chi2_s2.hpp"
 
 #include <cstddef>
@@ -13,9 +14,9 @@
 
 /// Runtime launch façade for theory fused χ² hist.
 ///
-/// S0: `TheoryChi2Batch` bytecode. S2 linear: `TheoryHistChi2S2` uchar4 twin
-/// (`launch_s2_linear_async`). `GpuCandidateExport` prefers specialized when
-/// emit/registry says so; otherwise bytecode.
+/// S0: `TheoryChi2Batch` bytecode. S1: `TheoryHistChi2S1` LUT-29 twin.
+/// S2 linear: `TheoryHistChi2S2` uchar4 twin. `GpuCandidateExport` prefers
+/// specialized when emit/registry says so; otherwise bytecode.
 ///
 /// Caps and ABI match `TheoryChi2Batch`. No C++ namespaces.
 class TheoryHistChi2Launch {
@@ -28,7 +29,7 @@ public:
     static constexpr std::uint32_t kMaxProgramOps = TheoryChi2Batch::kMaxProgramOps;
 
     /// True when a specialized hist twin is loaded for `theory_id`.
-    /// S2 linear uses the shared `TheoryHistChi2S2` twin (not per-id NVRTC yet).
+    /// S1/S2 use shared in-lib twins (not per-id NVRTC yet).
     [[nodiscard]] static bool has_specialized(std::string_view /*theory_id*/) noexcept {
         return false;
     }
@@ -67,6 +68,17 @@ public:
                             cipher_slot, index_slot, binds_index_i, max_stack, device_probabilities,
                             device_counts, device_scores, device_lane_err, candidate_count,
                             token_count);
+    }
+
+    /// S1 LUT-29 twin. `device_luts` is row-major `C × 29`.
+    [[nodiscard]] static Status
+    launch_s1_lut_async(const std::uint8_t* device_in, const std::uint8_t* device_luts,
+                        const double* device_probabilities, std::uint32_t* device_counts,
+                        double* device_scores, std::size_t candidate_count,
+                        std::size_t token_count) {
+        return TheoryHistChi2S1::launch_lut_async(device_in, device_luts, device_probabilities,
+                                                  device_counts, device_scores, candidate_count,
+                                                  token_count);
     }
 
     /// S2 linear uchar4 twin (`b0 + b1·(t mod 29)`). Same χ² finalize ABI as FamilyChi2.

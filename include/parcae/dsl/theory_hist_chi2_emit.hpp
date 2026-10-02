@@ -4,6 +4,7 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/dsl/dsl_diag.hpp"
+#include "parcae/dsl/dsl_emit_cuda.hpp"
 #include "parcae/dsl/dsl_launch_plan.hpp"
 #include "parcae/dsl/dsl_optimize.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
@@ -24,9 +25,9 @@
 
 /// AOT fused-χ² hist emit for theory search (docs: theory CUDA throughput climb).
 ///
-/// S2: bitmask_blend-shaped `x ± g(i; params)` — currently emits uchar4 fused hist
-/// when `g` matches progressive linear `b0 + b1·i` (runtime twin: `TheoryHistChi2S2`).
-/// S1/S3 source emit TBD; non-matching specialized shapes soft-fallback to S0.
+/// S1: f(x)-only decrypt → LUT-29 + uchar4 hist (runtime twin: `TheoryHistChi2S1`).
+/// S2: bitmask_blend-shaped `x ± g(i; params)` — linear `b0 + b1·i`
+/// (runtime twin: `TheoryHistChi2S2`). S3 source emit TBD; non-matching shapes soft-fallback S0.
 ///
 /// No C++ namespaces. Emitted CUDA uses file-scope `__global__` names —
 /// never anonymous `namespace {}`.
@@ -48,6 +49,22 @@ public:
         S2Uchar4Inline,
         /// Inline scalar hist (no interpreter); not uchar4-packable.
         S3ScalarInline,
+    };
+
+    /// S1 plan: params in `TheoryIr::params()` order; LUT rows are `C × 29`.
+    class S1LutPlan {
+    public:
+        explicit S1LutPlan(std::vector<std::string> param_names)
+            : param_names_(std::move(param_names)) {}
+
+        [[nodiscard]] const std::vector<std::string>& param_names() const noexcept {
+            return param_names_;
+        }
+
+        [[nodiscard]] std::size_t param_count() const noexcept { return param_names_.size(); }
+
+    private:
+        std::vector<std::string> param_names_;
     };
 
     /// Linear keystream plan: `ks = b0 + b1·(t mod 29)` (param names from the expr).
@@ -93,11 +110,12 @@ public:
     public:
         EmitBundle(Strategy intended, Strategy emitted, bool specialized, std::string reason,
                    std::string header_text, std::string cu_text, std::string kernel_symbol,
+                   std::optional<S1LutPlan> s1_lut = std::nullopt,
                    std::optional<S2LinearPlan> s2_linear = std::nullopt)
             : intended_(intended), emitted_(emitted), specialized_(specialized),
               reason_(std::move(reason)), header_text_(std::move(header_text)),
               cu_text_(std::move(cu_text)), kernel_symbol_(std::move(kernel_symbol)),
-              s2_linear_(std::move(s2_linear)) {}
+              s1_lut_(std::move(s1_lut)), s2_linear_(std::move(s2_linear)) {}
 
         [[nodiscard]] Strategy intended_strategy() const noexcept { return intended_; }
 
@@ -113,6 +131,8 @@ public:
 
         [[nodiscard]] const std::string& kernel_symbol() const noexcept { return kernel_symbol_; }
 
+        [[nodiscard]] const std::optional<S1LutPlan>& s1_lut() const noexcept { return s1_lut_; }
+
         [[nodiscard]] const std::optional<S2LinearPlan>& s2_linear() const noexcept {
             return s2_linear_;
         }
@@ -125,6 +145,7 @@ public:
         std::string header_text_;
         std::string cu_text_;
         std::string kernel_symbol_;
+        std::optional<S1LutPlan> s1_lut_;
         std::optional<S2LinearPlan> s2_linear_;
     };
 
@@ -240,10 +261,10 @@ public:
     }
 
     /// Emit fused-hist sources for decrypt search path.
-    /// S2 linear (`b0+b1·i`) → specialized uchar4 bundle; else soft S0 fallback.
+    /// S1 f(x)-only → LUT-29; S2 linear (`b0+b1·i`) → uchar4; else soft S0 fallback.
     [[nodiscard]] static StatusOr<EmitBundle>
     emit_decrypt_hist(const TheoryIr& theory, std::string_view cipher_var = "x",
-                      const std::vector<DslOptimize::Hoist>& /*decrypt_hoists*/ = {}) {
+                      const std::vector<DslOptimize::Hoist>& decrypt_hoists = {}) {
         if (theory.name().empty()) {
             return DslDiag::make(DslRuleId::E032_primitive_body,
                                  "TheoryHistChi2Emit: theory name must be non-empty")
@@ -253,6 +274,24 @@ public:
         if (sel.strategy() == Strategy::S0Bytecode) {
             return EmitBundle{Strategy::S0Bytecode, Strategy::S0Bytecode, false, sel.reason(), "",
                               "", ""};
+        }
+
+        if (sel.strategy() == Strategy::S1Lut29) {
+            if (!decrypt_hoists.empty()) {
+                return EmitBundle{Strategy::S1Lut29, Strategy::S0Bytecode, false,
+                                  std::string("S1 classified but decrypt hoists not yet wired; "
+                                              "fallback S0 (") +
+                                      sel.reason() + ")",
+                                  "", "", ""};
+            }
+            StatusOr<EmitBundle> bundle = emit_s1_lut_sources(theory, cipher_var, sel.reason());
+            if (!bundle.ok()) {
+                return EmitBundle{Strategy::S1Lut29, Strategy::S0Bytecode, false,
+                                  std::string("S1 emit failed: ") + bundle.status().message() +
+                                      "; fallback S0 (" + sel.reason() + ")",
+                                  "", "", ""};
+            }
+            return bundle;
         }
 
         if (sel.strategy() == Strategy::S2Uchar4Inline) {
@@ -271,7 +310,7 @@ public:
                               "", "", ""};
         }
 
-        // S1 / S3 emit not implemented yet — soft S0 fallback (export stays correct).
+        // S3 emit not implemented yet — soft S0 fallback (export stays correct).
         return EmitBundle{sel.strategy(), Strategy::S0Bytecode, false,
                           std::string("skeleton: ") + strategy_str(sel.strategy()) +
                               " classified but emit not implemented; fallback S0 (" + sel.reason() +
@@ -524,7 +563,147 @@ private:
 
         return EmitBundle{Strategy::S2Uchar4Inline, Strategy::S2Uchar4Inline, true,
                           std::string("S2 linear uchar4 emit: ") + select_reason, hdr.str(),
-                          cu.str(), kern, plan};
+                          cu.str(), kern, std::nullopt, plan};
+    }
+
+    [[nodiscard]] static StatusOr<EmitBundle>
+    emit_s1_lut_sources(const TheoryIr& theory, std::string_view cipher_var,
+                        const std::string& select_reason) {
+        StatusOr<std::string> f_cpp =
+            DslEmitCuda::emit_expr(theory.decrypt_step(), cipher_var, "x");
+        if (!f_cpp.ok()) {
+            return f_cpp.status();
+        }
+
+        std::vector<std::string> param_names;
+        param_names.reserve(theory.params().size());
+        for (const ParamIr& p : theory.params()) {
+            param_names.push_back(p.name());
+        }
+        const S1LutPlan plan{param_names};
+        const std::size_t P = plan.param_count();
+        const std::string& id = theory.name();
+        const std::string kern = id + "_s1_hist_kernel";
+        const std::string guard = "PARCAE_EMIT_" + id + "_S1_HIST_HPP";
+        const std::string cls = to_pascal(id) + "S1Hist";
+
+        std::ostringstream hdr;
+        hdr << "// Generated by TheoryHistChi2Emit (S1 LUT-29) — do not hand-edit.\n";
+        hdr << "#ifndef " << guard << "\n";
+        hdr << "#define " << guard << "\n\n";
+        hdr << "#include \"parcae/core/status.hpp\"\n\n";
+        hdr << "#include <cstddef>\n";
+        hdr << "#include <cstdint>\n\n";
+        hdr << "/// S1 LUT-29 fused χ² hist for `" << id << "` (f(x)-only).\n";
+        hdr << "/// Runtime twin: TheoryHistChi2S1::launch_lut_async (host-filled C×29 LUTs).\n";
+        hdr << "class " << cls << " {\n";
+        hdr << "public:\n";
+        hdr << "    static constexpr std::size_t alphabet_size = 29;\n";
+        hdr << "    static constexpr std::size_t param_count = " << P << ";\n";
+        hdr << "    /// `device_params` is row-major C×" << P
+            << " (may be null when param_count==0).\n";
+        hdr << "    [[nodiscard]] static Status launch_async(\n";
+        hdr << "        const std::uint8_t* device_in, const std::uint8_t* device_params,\n";
+        hdr << "        const double* device_probabilities, std::uint32_t* device_counts,\n";
+        hdr << "        double* device_scores, std::size_t candidate_count, "
+               "std::size_t token_count);\n";
+        hdr << "private:\n";
+        hdr << "    " << cls << "() = delete;\n";
+        hdr << "};\n\n";
+        hdr << "#endif // " << guard << "\n";
+
+        std::ostringstream cu;
+        cu << "// Generated by TheoryHistChi2Emit (S1 LUT-29) — do not hand-edit.\n";
+        cu << "// File-scope kernel (no anonymous namespace). Prefer linking "
+              "TheoryHistChi2S1 for search.\n";
+        cu << "#include \"" << cls << ".hpp\"\n\n";
+        cu << "#include \"chi2_batch_score.hpp\"\n";
+        cu << "#include \"cuda_error.hpp\"\n";
+        cu << "#include \"hist_fast.hpp\"\n";
+        cu << "#include \"z29_device.hpp\"\n\n";
+        cu << "#include <cuda_runtime_api.h>\n\n";
+        cu << "__global__ void " << kern << "(const std::uint8_t* in, const std::uint8_t* params,\n";
+        cu << "    std::uint32_t* counts, std::size_t token_count) {\n";
+        cu << "    __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];\n";
+        cu << "    __shared__ std::uint8_t lut[HistFast::alphabet];\n";
+        cu << "    HistFast::clear_private(priv);\n";
+        cu << "    const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);\n";
+        cu << "    const std::size_t tile = static_cast<std::size_t>(blockIdx.y);\n";
+        cu << "    const std::size_t tiles = static_cast<std::size_t>(gridDim.y);\n";
+        if (P > 0) {
+            cu << "    const std::uint8_t* prow =\n";
+            cu << "        params + candidate * static_cast<std::size_t>(" << cls
+               << "::param_count);\n";
+            for (std::size_t i = 0; i < P; ++i) {
+                cu << "    const std::uint8_t " << param_names[i] << " = prow[" << i << "];\n";
+            }
+        }
+        cu << "    if (threadIdx.x < HistFast::alphabet) {\n";
+        cu << "        const std::uint8_t x = static_cast<std::uint8_t>(threadIdx.x);\n";
+        cu << "        lut[threadIdx.x] = " << f_cpp.value() << ";\n";
+        cu << "    }\n";
+        cu << "    __syncthreads();\n";
+        cu << "    const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;\n";
+        cu << "    const std::size_t n4 = token_count / 4u;\n";
+        cu << "    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);\n";
+        cu << "    for (std::size_t i = tile * static_cast<std::size_t>(blockDim.x) +\n";
+        cu << "                         static_cast<std::size_t>(threadIdx.x);\n";
+        cu << "         i < n4; i += stride) {\n";
+        cu << "        const uchar4 v = in4[i];\n";
+        cu << "        HistFast::add_private(priv, lut[v.x]);\n";
+        cu << "        HistFast::add_private(priv, lut[v.y]);\n";
+        cu << "        HistFast::add_private(priv, lut[v.z]);\n";
+        cu << "        HistFast::add_private(priv, lut[v.w]);\n";
+        cu << "    }\n";
+        cu << "    for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +\n";
+        cu << "                         static_cast<std::size_t>(threadIdx.x);\n";
+        cu << "         t < token_count; t += stride) {\n";
+        cu << "        HistFast::add_private(priv, lut[in[t]]);\n";
+        cu << "    }\n";
+        cu << "    HistFast::flush_private(\n";
+        cu << "        priv, counts + candidate * static_cast<std::size_t>(HistFast::alphabet));\n";
+        cu << "}\n\n";
+        cu << "Status " << cls << "::launch_async(\n";
+        cu << "    const std::uint8_t* device_in, const std::uint8_t* device_params,\n";
+        cu << "    const double* device_probabilities, std::uint32_t* device_counts,\n";
+        cu << "    double* device_scores, std::size_t candidate_count, "
+              "std::size_t token_count) {\n";
+        cu << "    if (device_in == nullptr || device_probabilities == nullptr ||\n";
+        cu << "        device_counts == nullptr || device_scores == nullptr) {\n";
+        cu << "        return Status::error(\"" << cls << ": null\");\n";
+        cu << "    }\n";
+        if (P > 0) {
+            cu << "    if (device_params == nullptr) {\n";
+            cu << "        return Status::error(\"" << cls << ": null params\");\n";
+            cu << "    }\n";
+        } else {
+            cu << "    (void)device_params;\n";
+        }
+        cu << "    const std::size_t hist_bytes =\n";
+        cu << "        candidate_count * alphabet_size * sizeof(std::uint32_t);\n";
+        cu << "    Status cleared = CudaError::to_status(\n";
+        cu << "        cudaMemsetAsync(device_counts, 0, hist_bytes, 0), \"" << cls
+           << " clear\");\n";
+        cu << "    if (!cleared.ok()) {\n";
+        cu << "        return cleared;\n";
+        cu << "    }\n";
+        cu << "    const dim3 grid(static_cast<unsigned>(candidate_count),\n";
+        cu << "                    static_cast<unsigned>(HistFast::tiles_for(token_count)));\n";
+        cu << "    " << kern << "<<<grid, HistFast::threads>>>(\n";
+        cu << "        device_in, device_params, device_counts, token_count);\n";
+        cu << "    Status hist = CudaError::to_status(cudaGetLastError(), \"" << cls
+           << " hist\");\n";
+        cu << "    if (!hist.ok()) {\n";
+        cu << "        return hist;\n";
+        cu << "    }\n";
+        cu << "    return Chi2BatchScore::finalize_async(device_counts, device_probabilities,\n";
+        cu << "                                          device_scores, candidate_count, "
+              "token_count);\n";
+        cu << "}\n";
+
+        return EmitBundle{Strategy::S1Lut29, Strategy::S1Lut29, true,
+                          std::string("S1 LUT-29 emit: ") + select_reason, hdr.str(), cu.str(),
+                          kern, plan, std::nullopt};
     }
 
     [[nodiscard]] static std::string to_pascal(std::string_view snake) {
