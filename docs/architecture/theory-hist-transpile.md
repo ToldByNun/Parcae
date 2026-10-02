@@ -43,7 +43,7 @@ done(strategy) ⇔  fair_kernel_runes_per_s >= 0.90 * BenchTierSpec.estimated_pe
 
 Two parallel workstreams (implementation roadmap, not doc names):
 
-1. **S0 climb** — tune `TheoryChi2Batch` (and remesaure Spec peak honestly) until `T.theory.caesar_bytecode` **pass_tier**.
+1. **S0 climb** — tune `TheoryChi2Batch` (and remesaure Spec peak honestly) until `T.theory.caesar_bytecode` **pass_tier**. Repro: [`capture_s0_climb_baseline.ps1`](../../scripts/cuda/capture_s0_climb_baseline.ps1) + [`profiles/s0-climb/SUMMARY.md`](profiles/s0-climb/SUMMARY.md).
 2. **Specialize-away** — S3/S4/S5 (+ artifact/module) so customs leave S0 for higher absolute runes/s, without dropping the S0 gate.
 
 ---

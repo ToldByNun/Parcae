@@ -129,6 +129,10 @@ scripts/research/falsify_nt_keystreams_lp2.py
 !/docs/architecture/profiles/specialized/
 !/docs/architecture/profiles/specialized/SUMMARY.md
 !/docs/architecture/profiles/specialized/*.json
+!/docs/architecture/profiles/s0-climb/
+!/docs/architecture/profiles/s0-climb/SUMMARY.md
+!/docs/architecture/profiles/s0-climb/*.json
+!/docs/architecture/profiles/s0-climb/nsys_kern_sum.txt
 *.ncu-rep
 *.nsys-rep
 *.nsys-rep.sqlite
@@ -136,3 +140,5 @@ docs/architecture/profiles/baseline/*.sqlite
 docs/architecture/profiles/baseline/capture_log.txt
 docs/architecture/profiles/specialized/*.sqlite
 docs/architecture/profiles/specialized/capture_log.txt
+docs/architecture/profiles/s0-climb/*.sqlite
+docs/architecture/profiles/s0-climb/capture_log.txt

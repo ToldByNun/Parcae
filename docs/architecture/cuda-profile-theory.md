@@ -197,8 +197,12 @@ After each meaningful change:
 
 Repro baseline: [`scripts/cuda/capture_theory_baseline.ps1`](../../scripts/cuda/capture_theory_baseline.ps1).  
 Repro specialized: [`scripts/cuda/capture_theory_specialized.ps1`](../../scripts/cuda/capture_theory_specialized.ps1).  
+**S0 climb baseline (S0 vs Caesar twin only):**
+[`scripts/cuda/capture_s0_climb_baseline.ps1`](../../scripts/cuda/capture_s0_climb_baseline.ps1) →
+[`profiles/s0-climb/`](profiles/s0-climb/).  
 Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
-[`profiles/specialized/SUMMARY.md`](profiles/specialized/SUMMARY.md).
+[`profiles/specialized/SUMMARY.md`](profiles/specialized/SUMMARY.md),
+[`profiles/s0-climb/SUMMARY.md`](profiles/s0-climb/SUMMARY.md).
 
 ### Progress log
 
@@ -214,12 +218,14 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-02 | specialized | `profiles/specialized/` | `theory_hist_chi2_s2_linear_kernel` | 9×1M | **187.93B** cudaEvent | stall n/a | ncu **12.0µs** @ T=262k; SM 63% DRAM 4.9% | **~6.3×** vs baseline progressive 29.71B; remesaure → Spec **200B** |
 | 2026-10-02 | remesaure | `lp2-vigenere-lag-allpages` | campaign wall `vigenere_lag_stream` S0 | 140×page T | **~1.65e5** wall mean | — | 53/55 pages `WORKERS=8` | **0.00022%** of 75B shape peak; Kernel SLO gate unchanged |
 | 2026-10-02 | specialized | `profiles/specialized/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **383.21B** cudaEvent | stall n/a | ncu **20.5µs** @ T=262k; SM 63% DRAM 2.8% | twin on same capture; S1 ncu duration ≈ Caesar |
+| 2026-10-02 | **s0-climb** | `profiles/s0-climb/` | `theory_chi2_hist_kernel` | 29×1M | **59.44B** cudaEvent | stall n/a | ncu **157.4µs** @ T=262k; SM 58% DRAM 0.9% | **79%** of 75B peak — climb baseline; vs twin **406.6B** (6.8×) |
+| 2026-10-02 | **s0-climb** | `profiles/s0-climb/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **406.62B** cudaEvent | stall n/a | ncu **19.6µs** @ T=262k; SM 66% DRAM 2.6% | reference twin on same fair JSON capture |
 
 Peak calibration rows (`BenchTierSpec` remesaured on RTX 5070 Ti 2026-10-02):
 
 | Theory shape | Spec id | `estimated_peak` | 90% gate | Fair cudaEvent (2026-10-02) | Status |
 |--------------|---------|------------------|----------|------------------------------|--------|
-| Caesar-as-bytecode (S0 interpreter) | `T.theory.caesar_bytecode` | **75B** | **67.5B** | **~56–69B** | remesaure keep; underfill variance |
+| Caesar-as-bytecode (S0 interpreter) | `T.theory.caesar_bytecode` | **75B** | **67.5B** | **59.4B** (s0-climb 2026-10-02) | **fail** @ 79%; climb baseline captured |
 | S1 LUT-29 (caesar/affine-shaped) | `T.theory.s1_lut29` | **420B** (remesaured) | **378B** | **~396B** (94%) | pass band after remesaure |
 | bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **200B** (remesaured @ C=9) | **180B** | **~188B** (94%) | pass band after remesaure |
 
