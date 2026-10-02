@@ -19,12 +19,9 @@ campaign wall rates at short `T` to catalog `cudaEvent` peaks at `T≈2^20`.
 | **Campaign wall** | `C × T / wall` over `SearchScheduler::run_loop` (see `research/run.log`) | Host prepare/bind, H2D, kernel, D2H, materialize, ingest, Python spawn | Ops / ETA only — **not** the 90% gate |
 
 Catalog families use Kernel SLO via `parcae-bench --suite slo` and
-[`BenchTierSpec`](../../include/parcae/bench/bench_tier_spec.hpp). Theory search
-today reports Campaign wall in `research/run.log` (`engine=parcae`,
-`export_backend=cuda`). Until a theory `BenchTierSpec` row exists, derive Kernel SLO from
-`parcae-bench --suite theory --allow-cuda` (cudaEvent median-of-3 via
-`BenchTimer`) or from **ncu** duration on `theory_chi2_hist_kernel` at fair
-`(C,T)`. Campaign wall stays in `research/run.log`.
+[`BenchTierSpec`](../../include/parcae/bench/bench_tier_spec.hpp). Theory Kernel
+SLO uses `parcae-bench --suite theory --allow-cuda` (`T.theory.*` Spec rows +
+≥90% peak gate at fair T). Campaign wall stays in `research/run.log`.
 
 Optional interim checkpoint **≥50B runes/s** (Kernel SLO) is allowed only when
 `estimated_peak ≫ 50B`. It never replaces the 90% peak gate.
@@ -58,13 +55,16 @@ Side-by-side catalog kernels at the **same** `(C,T)`:
 
 | Kernel (mangled name may vary; filter prefix) | Twin |
 |-----------------------------------------------|------|
-| `theory_chi2_hist_kernel` | Theory bytecode hist ([`theory_chi2_batch.cu`](../../Parcae/Parcae/cuda/theory_chi2_batch.cu)) |
+| `theory_chi2_hist_kernel` | Theory S0 bytecode hist ([`theory_chi2_batch.cu`](../../Parcae/Parcae/cuda/theory_chi2_batch.cu)) |
+| `theory_hist_chi2_s1_lut_kernel` | Theory S1 LUT-29 ([`theory_hist_chi2_s1.cu`](../../Parcae/Parcae/cuda/theory_hist_chi2_s1.cu)) |
+| `theory_hist_chi2_s2_linear_kernel` | Theory S2 linear ([`theory_hist_chi2_s2.cu`](../../Parcae/Parcae/cuda/theory_hist_chi2_s2.cu)) |
 | `caesar` / `atbash_caesar_chi2_hist_kernel` | T1 / compose path |
 | `affine_chi2_hist_kernel` | F.affine |
 | `atbash_chi2_hist_kernel` | F.atbash |
 
-When a specialized theory hist lands, add its `__global__` name to the filter
-list and keep the bytecode kernel as the regression baseline.
+Post–specialized capture (vs commit-4 baseline):
+[`scripts/cuda/capture_theory_specialized.ps1`](../../scripts/cuda/capture_theory_specialized.ps1)
+→ [`profiles/specialized/`](profiles/specialized/).
 
 ---
 
@@ -191,8 +191,10 @@ After each meaningful change:
 4. Do **not** mark done until Kernel SLO ≥ **0.90 × estimated_peak** for that
    theory shape, with peak documented (method + `(C,T)` + date + GPU).
 
-Repro: [`scripts/cuda/capture_theory_baseline.ps1`](../../scripts/cuda/capture_theory_baseline.ps1).
-Full write-up: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md).
+Repro baseline: [`scripts/cuda/capture_theory_baseline.ps1`](../../scripts/cuda/capture_theory_baseline.ps1).  
+Repro specialized: [`scripts/cuda/capture_theory_specialized.ps1`](../../scripts/cuda/capture_theory_specialized.ps1).  
+Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
+[`profiles/specialized/SUMMARY.md`](profiles/specialized/SUMMARY.md).
 
 ### Progress log
 
@@ -203,19 +205,25 @@ Full write-up: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md).
 | 2026-10-01 | baseline | `profiles/baseline/` | catalog `F.affine` | 812×262k | **422.00B** cudaEvent | stall n/a | ncu **478µs**; SM 74% DRAM 0.15% | ~445B from ncu duration |
 | 2026-10-01 | host-amortize | (code) | — | — | — | — | tests `[search][export][theory]` | `TheoryExportCache`: host bytecode once/URI; device `ops`/`imm` reused; `theory_scores_only`; scheduler loop shares cache |
 | 2026-10-01 | interpreter-qw | (code) | `theory_chi2_hist_kernel` | 29×1M | **69.30B** cudaEvent | — | ncu ~157µs @ T=262k (≈baseline) | shared `ops`/`imm` (≤256) + `eval_at_trusted`; +~5% vs 65.87B baseline; Caesar twin 414B |
+| 2026-10-02 | specialized | `profiles/specialized/` | `theory_chi2_hist_kernel` (S0) | 29×1M | **60.53B** cudaEvent | stall n/a | ncu **160.9µs** @ T=262k; SM 57% DRAM 2.6% | vs baseline 65.87B (noise); still ~7.5× slower than S1 ncu |
+| 2026-10-02 | specialized | `profiles/specialized/` | `theory_hist_chi2_s1_lut_kernel` | 29×1M | **395.58B** cudaEvent | stall n/a | ncu **21.5µs** @ T=262k; SM 60% DRAM 2.8% | ≈ Caesar twin; **83.6%** of provisional 473B peak; `checkpoint_50B=hit` |
+| 2026-10-02 | specialized | `profiles/specialized/` | `theory_hist_chi2_s2_linear_kernel` | 9×1M | **187.93B** cudaEvent | stall n/a | ncu **12.0µs** @ T=262k; SM 63% DRAM 4.9% | **~6.3×** vs baseline progressive bytecode 29.71B; 53.7% of provisional 350B |
+| 2026-10-02 | specialized | `profiles/specialized/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **383.21B** cudaEvent | stall n/a | ncu **20.5µs** @ T=262k; SM 63% DRAM 2.8% | twin on same capture; S1 ncu duration ≈ Caesar |
 
 Peak calibration rows (`BenchTierSpec` provisional on RTX 5070 Ti; remesaure before claiming done):
 
-| Theory shape | Spec id | `estimated_peak` | 90% gate | Method | Date |
-|--------------|---------|------------------|----------|--------|------|
-| Caesar-as-bytecode (S0 interpreter) | `T.theory.caesar_bytecode` | **75B** (interim ~69B fair rounded up) | **67.5B** | cudaEvent @ T≥2^20 | 2026-10-01 |
-| S1 LUT-29 (caesar/affine-shaped) | `T.theory.s1_lut29` | **473B** (Affine-class until remesaure) | **425.7B** | cudaEvent / ncu @ T≥2^20 | provisional |
-| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **350B** (plan provisional) | **315B** | cudaEvent / ncu @ T≥2^20 | provisional |
+| Theory shape | Spec id | `estimated_peak` | 90% gate | Fair cudaEvent (2026-10-02) | Status |
+|--------------|---------|------------------|----------|------------------------------|--------|
+| Caesar-as-bytecode (S0 interpreter) | `T.theory.caesar_bytecode` | **75B** | **67.5B** | **60.53B** (80.7%) | below gate; interim ~69B ceiling |
+| S1 LUT-29 (caesar/affine-shaped) | `T.theory.s1_lut29` | **473B** (Affine-class until remesaure) | **425.7B** | **395.58B** (83.6%) | below Spec; remesaure peak |
+| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **350B** (plan provisional) | **315B** | **187.93B** (53.7%, C=9) | below Spec; remesaure / C caveat |
 
 `BenchTheorySuite` (`parcae-bench --suite theory`) gates fair rows with
 `BenchTierSpec::pass_tier` (≥90% peak + `slo_min`). Short T is
 `underfill_not_slo_gate`. When peak ≥100B, row detail annotates
 `checkpoint_50B=hit|miss` (never replaces the 90% gate).
+
+Full specialized write-up: [`profiles/specialized/SUMMARY.md`](profiles/specialized/SUMMARY.md).
 
 ---
 

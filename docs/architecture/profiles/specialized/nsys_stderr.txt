@@ -1,0 +1,3 @@
+WARNING: CPU context switches trace requires administrative privileges, disabling.
+WARNING: CPU sampling requires administrative privileges, disabling.
+[libprotobuf ERROR C:\dvs\p4\build\sw\devtools\Agora\Rel\CUDA13.3\Imports\Source\ProtoBuf\protobuf-3_21_1\src\google\protobuf\wire_format_lite.cc:618] String field 'Agent.StatsReportExecutionInfo.output' contains invalid UTF-8 data when parsing a protocol buffer. Use the 'bytes' type if you intend to send raw bytes. 

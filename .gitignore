@@ -126,8 +126,13 @@ scripts/research/falsify_nt_keystreams_lp2.py
 !/docs/architecture/profiles/baseline/
 !/docs/architecture/profiles/baseline/SUMMARY.md
 !/docs/architecture/profiles/baseline/*.json
+!/docs/architecture/profiles/specialized/
+!/docs/architecture/profiles/specialized/SUMMARY.md
+!/docs/architecture/profiles/specialized/*.json
 *.ncu-rep
 *.nsys-rep
 *.nsys-rep.sqlite
 docs/architecture/profiles/baseline/*.sqlite
 docs/architecture/profiles/baseline/capture_log.txt
+docs/architecture/profiles/specialized/*.sqlite
+docs/architecture/profiles/specialized/capture_log.txt
