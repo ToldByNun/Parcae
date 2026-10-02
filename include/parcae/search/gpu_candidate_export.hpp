@@ -77,6 +77,8 @@
 /// Scores-only fused χ² → D2H scores → host `BatchOrdering` → apply transform
 /// **only** for retained lanes (search-loop.md). Caesar uses `CaesarChi2Batch`;
 /// atbash / atbash_caesar / affine / vigenere use `FamilyChi2Batch`.
+/// Theory: prefers `TheoryHistChi2Emit` S1/S2 specialized twins when present,
+/// soft-fallback S0 bytecode via `TheoryHistChi2Launch`; `export_backend=cuda`.
 /// Family `compose`: Atbash∘Caesar grid reuses fused export; arbitrary recipes
 /// score via `ComposeDriver` apply + host χ² (top-k only).
 /// Vigenère is **explicit keys or a bounded synthetic grid only** — never an
@@ -1609,31 +1611,20 @@ private:
             "GpuCandidateExport::totient sync", progress);
     }
 
-    [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores(
+    [[nodiscard]] static std::optional<std::uint16_t>
+    find_slot_index(const Z29Bytecode::Program& prog, std::string_view name) {
+        for (std::uint16_t i = 0; i < static_cast<std::uint16_t>(prog.slot_names.size()); ++i) {
+            if (prog.slot_names[static_cast<std::size_t>(i)] == name) {
+                return i;
+            }
+        }
+        return std::nullopt;
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s0(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
-        const std::filesystem::path& theories_root, std::string_view theory_uri_text,
-        const std::vector<nlohmann::json>& params_list, TheoryExportCache& cache,
-        BatchRunner::Progress progress = BatchRunner::Progress{}) {
-        Status ok = require_cuda_freqs(freqs);
-        if (!ok.ok()) {
-            return ok;
-        }
-        Status common = require_cipher_k(cipher, 1);
-        if (!common.ok()) {
-            return common;
-        }
-        Status grid = require_theory_params_list(params_list);
-        if (!grid.ok()) {
-            return grid;
-        }
-
-        StatusOr<const TheoryExportCache::Entry*> prepared =
-            prepare_theory(cache, theories_root, theory_uri_text, TransformDirection::Decrypt);
-        if (!prepared.ok()) {
-            return prepared.status();
-        }
-        const TheoryExportCache::Entry& entry = *prepared.value();
-
+        const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
+        TheoryExportCache& cache, BatchRunner::Progress progress) {
         const Z29Bytecode::Program& prog = entry.program();
         const std::size_t C = params_list.size();
         const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.slot_names.size());
@@ -1667,7 +1658,6 @@ private:
             DeviceScratch scratch;
             DeviceBuffer<std::uint8_t> slots;
             DeviceBuffer<std::uint8_t> err;
-            // Non-owning views into TheoryExportCache device program buffers.
             const std::uint8_t* ops = nullptr;
             const std::uint8_t* imm = nullptr;
         };
@@ -1703,10 +1693,11 @@ private:
             return devices.status();
         }
 
+        cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S0Bytecode);
         return launch_sync_copy(
             devices.value().scratch,
             [&]() {
-                return TheoryHistChi2Launch::launch_async(
+                return TheoryHistChi2Launch::launch_bytecode_async(
                     devices.value().scratch.in.data(), devices.value().ops, devices.value().imm,
                     static_cast<std::uint32_t>(ops.size()), devices.value().slots.data(), slot_count,
                     prog.cipher_slot, prog.index_slot, prog.binds_index_i ? 1u : 0u, max_stack,
@@ -1714,7 +1705,178 @@ private:
                     devices.value().scratch.scores.data(), devices.value().err.data(), C,
                     devices.value().scratch.T);
             },
-            "GpuCandidateExport::theory sync", progress);
+            "GpuCandidateExport::theory S0 sync", progress);
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s1(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
+        BatchRunner::Progress progress) {
+        NvtxRange nvtx_s1("specialized_s1");
+        const Z29Bytecode::Program& prog = entry.program();
+        const std::size_t C = params_list.size();
+        const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.slot_names.size());
+
+        std::vector<std::uint8_t> host_luts(C * TheoryHistChi2Launch::alphabet_size, 0);
+        {
+            NvtxRange nvtx_lut("build_luts");
+            for (std::size_t c = 0; c < C; ++c) {
+                StatusOr<std::vector<Index29>> bound =
+                    Z29Bytecode::bind_theory_slots(prog, entry.theory(), params_list[c]);
+                if (!bound.ok()) {
+                    return bound.status();
+                }
+                if (bound.value().size() != slot_count) {
+                    return Status::error("GpuCandidateExport::theory S1 slot bind size mismatch");
+                }
+                std::vector<Index29> slots = bound.value();
+                for (std::uint8_t sym = 0; sym < TheoryHistChi2Launch::alphabet_size; ++sym) {
+                    const std::vector<Index29> one{Index29{sym}};
+                    StatusOr<Index29> out = Z29Bytecode::eval_at(
+                        prog, std::span<Index29>(slots), std::span<const Index29>(one), 0);
+                    if (!out.ok()) {
+                        return out.status();
+                    }
+                    host_luts[c * TheoryHistChi2Launch::alphabet_size + sym] =
+                        out.value().value();
+                }
+            }
+        }
+
+        const auto host_in = to_bytes(cipher);
+        StatusOr<DeviceScratch> scratch = make_scratch(host_in, freqs, C);
+        if (!scratch.ok()) {
+            return scratch.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_luts =
+            DeviceBuffer<std::uint8_t>::from_host(host_luts);
+        if (!device_luts.ok()) {
+            return device_luts.status();
+        }
+
+        return launch_sync_copy(
+            scratch.value(),
+            [&]() {
+                return TheoryHistChi2Launch::launch_s1_lut_async(
+                    scratch.value().in.data(), device_luts.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, scratch.value().T);
+            },
+            "GpuCandidateExport::theory S1 sync", progress);
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s2(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
+        BatchRunner::Progress progress) {
+        NvtxRange nvtx_s2("specialized_s2");
+        if (!entry.hist_plan().s2_linear().has_value()) {
+            return Status::error("GpuCandidateExport::theory S2 missing linear plan");
+        }
+        const TheoryHistChi2Emit::S2LinearPlan& plan = *entry.hist_plan().s2_linear();
+        const Z29Bytecode::Program& prog = entry.program();
+        const std::optional<std::uint16_t> ib0 = find_slot_index(prog, plan.b0_name());
+        const std::optional<std::uint16_t> ib1 = find_slot_index(prog, plan.b1_name());
+        if (!ib0.has_value() || !ib1.has_value()) {
+            return Status::error("GpuCandidateExport::theory S2 b0/b1 slots not found");
+        }
+
+        const std::size_t C = params_list.size();
+        const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.slot_names.size());
+        std::vector<std::uint8_t> host_b0(C, 0);
+        std::vector<std::uint8_t> host_b1(C, 0);
+        {
+            NvtxRange nvtx_bind("bind_slots_s2");
+            for (std::size_t c = 0; c < C; ++c) {
+                StatusOr<std::vector<Index29>> bound =
+                    Z29Bytecode::bind_theory_slots(prog, entry.theory(), params_list[c]);
+                if (!bound.ok()) {
+                    return bound.status();
+                }
+                if (bound.value().size() != slot_count) {
+                    return Status::error("GpuCandidateExport::theory S2 slot bind size mismatch");
+                }
+                host_b0[c] = bound.value()[*ib0].value();
+                host_b1[c] = bound.value()[*ib1].value();
+            }
+        }
+
+        const auto host_in = to_bytes(cipher);
+        StatusOr<DeviceScratch> scratch = make_scratch(host_in, freqs, C);
+        if (!scratch.ok()) {
+            return scratch.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_b0 =
+            DeviceBuffer<std::uint8_t>::from_host(host_b0);
+        if (!device_b0.ok()) {
+            return device_b0.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_b1 =
+            DeviceBuffer<std::uint8_t>::from_host(host_b1);
+        if (!device_b1.ok()) {
+            return device_b1.status();
+        }
+
+        return launch_sync_copy(
+            scratch.value(),
+            [&]() {
+                return TheoryHistChi2Launch::launch_s2_linear_async(
+                    scratch.value().in.data(), device_b0.value().data(), device_b1.value().data(),
+                    scratch.value().probs.data(), scratch.value().counts.data(),
+                    scratch.value().scores.data(), C, scratch.value().T, plan.cipher_minus_ks());
+            },
+            "GpuCandidateExport::theory S2 sync", progress);
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const std::filesystem::path& theories_root, std::string_view theory_uri_text,
+        const std::vector<nlohmann::json>& params_list, TheoryExportCache& cache,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
+        Status ok = require_cuda_freqs(freqs);
+        if (!ok.ok()) {
+            return ok;
+        }
+        Status common = require_cipher_k(cipher, 1);
+        if (!common.ok()) {
+            return common;
+        }
+        Status grid = require_theory_params_list(params_list);
+        if (!grid.ok()) {
+            return grid;
+        }
+
+        StatusOr<const TheoryExportCache::Entry*> prepared =
+            prepare_theory(cache, theories_root, theory_uri_text, TransformDirection::Decrypt);
+        if (!prepared.ok()) {
+            return prepared.status();
+        }
+        const TheoryExportCache::Entry& entry = *prepared.value();
+        const TheoryExportCache::HistPlan& hist = entry.hist_plan();
+
+        // Prefer specialized hist when emit produced S1/S2; soft-fallback to S0 on failure.
+        if (hist.specialized() &&
+            hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29 && hist.s1_lut()) {
+            StatusOr<std::vector<double>> s1 =
+                fused_theory_scores_s1(cipher, freqs, entry, params_list, progress);
+            if (s1.ok()) {
+                cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S1Lut29);
+                return s1;
+            }
+            // Soft fallback S0 (domain / bind issues in LUT fill).
+        }
+        if (hist.specialized() &&
+            hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::S2Uchar4Inline &&
+            hist.s2_linear()) {
+            StatusOr<std::vector<double>> s2 =
+                fused_theory_scores_s2(cipher, freqs, entry, params_list, progress);
+            if (s2.ok()) {
+                cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
+                return s2;
+            }
+        }
+
+        return fused_theory_scores_s0(cipher, freqs, entry, params_list, cache, progress);
     }
 #endif
 };

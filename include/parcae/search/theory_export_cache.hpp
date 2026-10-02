@@ -6,6 +6,7 @@
 #include "parcae/dsl/theory_apply_ir.hpp"
 #include "parcae/dsl/theory_artifact.hpp"
 #include "parcae/dsl/theory_dispatch.hpp"
+#include "parcae/dsl/theory_hist_chi2_emit.hpp"
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/theory_registry.hpp"
 #include "parcae/dsl/theory_uri.hpp"
@@ -34,13 +35,50 @@
 /// cycles to amortize prepare + H2D program traffic.
 class TheoryExportCache {
 public:
+    /// Cached `TheoryHistChi2Emit` decision (sources discarded; plans kept).
+    class HistPlan {
+    public:
+        HistPlan() = default;
+
+        HistPlan(TheoryHistChi2Emit::Strategy emitted, bool specialized,
+                 std::optional<TheoryHistChi2Emit::S1LutPlan> s1,
+                 std::optional<TheoryHistChi2Emit::S2LinearPlan> s2, std::string cipher_var)
+            : emitted_(emitted), specialized_(specialized), s1_(std::move(s1)),
+              s2_(std::move(s2)), cipher_var_(std::move(cipher_var)) {}
+
+        [[nodiscard]] TheoryHistChi2Emit::Strategy emitted_strategy() const noexcept {
+            return emitted_;
+        }
+
+        [[nodiscard]] bool specialized() const noexcept { return specialized_; }
+
+        [[nodiscard]] const std::optional<TheoryHistChi2Emit::S1LutPlan>& s1_lut() const noexcept {
+            return s1_;
+        }
+
+        [[nodiscard]] const std::optional<TheoryHistChi2Emit::S2LinearPlan>&
+        s2_linear() const noexcept {
+            return s2_;
+        }
+
+        [[nodiscard]] const std::string& cipher_var() const noexcept { return cipher_var_; }
+
+    private:
+        TheoryHistChi2Emit::Strategy emitted_ = TheoryHistChi2Emit::Strategy::S0Bytecode;
+        bool specialized_ = false;
+        std::optional<TheoryHistChi2Emit::S1LutPlan> s1_;
+        std::optional<TheoryHistChi2Emit::S2LinearPlan> s2_;
+        std::string cipher_var_ = "x";
+    };
+
     /// Prepared host theory + bytecode for one (root, uri, direction) key.
     class Entry {
     public:
         Entry(TheoryIr theory_in, Z29Bytecode::Program program_in, std::string uri,
-              std::vector<std::uint8_t> ops_u8_in)
+              std::vector<std::uint8_t> ops_u8_in, HistPlan hist_plan_in)
             : theory_(std::move(theory_in)), program_(std::move(program_in)),
-              uri_str_(std::move(uri)), ops_u8_(std::move(ops_u8_in)) {}
+              uri_str_(std::move(uri)), ops_u8_(std::move(ops_u8_in)),
+              hist_plan_(std::move(hist_plan_in)) {}
 
         [[nodiscard]] const TheoryIr& theory() const noexcept { return theory_; }
 
@@ -52,11 +90,14 @@ public:
 
         [[nodiscard]] const std::vector<std::uint8_t>& imm() const noexcept { return program_.imm; }
 
+        [[nodiscard]] const HistPlan& hist_plan() const noexcept { return hist_plan_; }
+
     private:
         TheoryIr theory_;
         Z29Bytecode::Program program_;
         std::string uri_str_;
         std::vector<std::uint8_t> ops_u8_;
+        HistPlan hist_plan_;
     };
 
     TheoryExportCache() = default;
@@ -135,6 +176,7 @@ public:
         entry_.reset();
         root_key_.clear();
         uri_key_.clear();
+        last_hist_launch_ = TheoryHistChi2Emit::Strategy::S0Bytecode;
 #if defined(PARCAE_HAS_CUDA)
         device_ready_ = false;
         device_ops_.reset();
@@ -151,6 +193,15 @@ public:
     [[nodiscard]] std::size_t device_upload_count() const noexcept { return device_uploads_; }
 
     [[nodiscard]] std::size_t device_hit_count() const noexcept { return device_hits_; }
+
+    /// Strategy used by the most recent `GpuCandidateExport` fused launch on this cache.
+    [[nodiscard]] TheoryHistChi2Emit::Strategy last_hist_launch() const noexcept {
+        return last_hist_launch_;
+    }
+
+    void note_hist_launch(TheoryHistChi2Emit::Strategy strategy) noexcept {
+        last_hist_launch_ = strategy;
+    }
 
 private:
     [[nodiscard]] static StatusOr<Entry> compile_entry(const std::filesystem::path& theories_root,
@@ -202,8 +253,26 @@ private:
         for (Z29Bytecode::Op op : prog.value().ops) {
             ops_u8.push_back(Z29Bytecode::op_as_u8(op));
         }
+
+        HistPlan hist_plan;
+        if (direction == TransformDirection::Decrypt) {
+            StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+                TheoryHistChi2Emit::emit_decrypt_hist(theory.value(), cipher_var);
+            if (bundle.ok() && bundle.value().specialized()) {
+                hist_plan = HistPlan{bundle.value().emitted_strategy(), true,
+                                     bundle.value().s1_lut(), bundle.value().s2_linear(),
+                                     cipher_var};
+            } else {
+                hist_plan = HistPlan{TheoryHistChi2Emit::Strategy::S0Bytecode, false, std::nullopt,
+                                     std::nullopt, cipher_var};
+            }
+        } else {
+            hist_plan = HistPlan{TheoryHistChi2Emit::Strategy::S0Bytecode, false, std::nullopt,
+                                 std::nullopt, cipher_var};
+        }
+
         return Entry{std::move(theory.value()), std::move(prog.value()), uri.value().to_string(),
-                     std::move(ops_u8)};
+                     std::move(ops_u8), std::move(hist_plan)};
     }
 
     std::optional<Entry> entry_;
@@ -215,6 +284,7 @@ private:
     std::size_t host_hits_ = 0;
     std::size_t device_uploads_ = 0;
     std::size_t device_hits_ = 0;
+    TheoryHistChi2Emit::Strategy last_hist_launch_ = TheoryHistChi2Emit::Strategy::S0Bytecode;
 
 #if defined(PARCAE_HAS_CUDA)
     bool device_ready_ = false;
