@@ -61,12 +61,14 @@ Short theory suite + `--campaign-grid`. Digest: `nsys_kern_sum.txt`.
 NVTX (same capture): `:hist_kernel` ~51% of NVTX time; `:compare_caesar` ~13%.
 Cold-process `cudaMalloc` still dominates CUDA API wall in this micro-run.
 
-## Climb checklist (next code changes)
+## Climb progress
 
-1. Re-run this script after each S0 kernel change; append
-   [`cuda-profile-theory.md`](../../cuda-profile-theory.md) progress row.
-2. Target fair cudaEvent **≥67.5B** (90% of 75B); twin row stays sanity reference.
-3. Do not treat short-`T` ncu/nsys underfill rows as the SLO gate.
+| Tag | Fair S0 cudaEvent | % of 75B | Notes |
+|-----|-------------------|----------|-------|
+| s0-climb baseline | **59.44B** | 79% | pre-pass-1 |
+| **s0-climb-p1** | **~69–75B** | **92–100%** | tiles ~16 tok/thread; shared slots; trusted no-index split; `__ldg` cipher — **pass_tier** |
+
+Pass 2 (vec-friendly ops / launch config) is optional headroom; gate already green.
 
 ## Artifacts (local / gitignored binaries)
 

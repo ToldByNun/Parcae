@@ -9,8 +9,8 @@
 #include <cmath>
 #include <cuda_runtime_api.h>
 
-/// Stage HotLoop into shared when it fits; otherwise `__ldg` from global.
-/// Uses `eval_at_trusted` — host already validated caps in `launch_async`.
+/// Stage HotLoop + candidate slots into shared; trusted eval after host caps.
+/// Grid.y targets ~16 tokens/thread (interpreter residency vs catalog packs).
 __global__ void theory_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
                                         const std::uint8_t* __restrict__ ops,
                                         const std::uint8_t* __restrict__ imm, std::uint32_t op_count,
@@ -23,6 +23,7 @@ __global__ void theory_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     __shared__ std::uint8_t sh_ops[TheoryChi2Batch::kSharedProgramOps];
     __shared__ std::uint8_t sh_imm[TheoryChi2Batch::kSharedProgramOps];
+    __shared__ std::uint8_t sh_slots[TheoryChi2Batch::kMaxSlots];
 
     const bool use_shared = op_count <= TheoryChi2Batch::kSharedProgramOps;
     if (use_shared) {
@@ -32,36 +33,61 @@ __global__ void theory_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
             sh_imm[p] = imm[p];
         }
     }
-    HistFast::clear_private(priv); // syncthreads — also publishes sh_ops/sh_imm
+
+    const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
+    const std::uint8_t* row = slots + candidate * static_cast<std::size_t>(slot_count);
+    for (std::uint16_t s = static_cast<std::uint16_t>(threadIdx.x); s < slot_count;
+         s = static_cast<std::uint16_t>(s + static_cast<std::uint16_t>(blockDim.x))) {
+        sh_slots[s] = row[s];
+    }
+    HistFast::clear_private(priv); // syncthreads — publishes sh_ops/sh_imm/sh_slots
 
     const std::uint8_t* prog_ops = use_shared ? sh_ops : ops;
     const std::uint8_t* prog_imm = use_shared ? sh_imm : imm;
 
-    const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
 
+    // Private mutable slot row (cipher/index overwritten per token).
     std::uint8_t local_slots[TheoryChi2Batch::kMaxSlots];
-    const std::uint8_t* row = slots + candidate * static_cast<std::size_t>(slot_count);
+#pragma unroll 8
     for (std::uint16_t s = 0; s < slot_count; ++s) {
-        local_slots[s] = row[s];
+        local_slots[s] = sh_slots[s];
     }
 
     std::uint8_t stack[Z29BytecodeDevice::kMaxDeviceStack];
 
-    for (std::size_t t =
-             tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
-         t < token_count; t += stride) {
-        std::uint8_t out_byte = 0;
-        std::uint8_t err = 0;
-        const bool ok = Z29BytecodeDevice::eval_at_trusted(
-            prog_ops, prog_imm, op_count, local_slots, slot_count, cipher_slot, index_slot,
-            binds_index_i, in, token_count, t, stack, max_stack, &out_byte, &err);
-        if (!ok) {
-            lane_err[candidate] = 1u;
-        } else {
-            HistFast::add_private(priv, out_byte);
+    // Prefer the no-index path: Caesar-as-bytecode and most S0 HotLoops.
+    if (binds_index_i == 0u) {
+        for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
+                             static_cast<std::size_t>(threadIdx.x);
+             t < token_count; t += stride) {
+            std::uint8_t out_byte = 0;
+            std::uint8_t err = 0;
+            const bool ok = Z29BytecodeDevice::eval_at_trusted(
+                prog_ops, prog_imm, op_count, local_slots, slot_count, cipher_slot, index_slot,
+                /*binds_index_i=*/0u, in, token_count, t, stack, max_stack, &out_byte, &err);
+            if (!ok) {
+                lane_err[candidate] = 1u;
+            } else {
+                HistFast::add_private(priv, out_byte);
+            }
+        }
+    } else {
+        for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
+                             static_cast<std::size_t>(threadIdx.x);
+             t < token_count; t += stride) {
+            std::uint8_t out_byte = 0;
+            std::uint8_t err = 0;
+            const bool ok = Z29BytecodeDevice::eval_at_trusted(
+                prog_ops, prog_imm, op_count, local_slots, slot_count, cipher_slot, index_slot,
+                /*binds_index_i=*/1u, in, token_count, t, stack, max_stack, &out_byte, &err);
+            if (!ok) {
+                lane_err[candidate] = 1u;
+            } else {
+                HistFast::add_private(priv, out_byte);
+            }
         }
     }
 
@@ -83,10 +109,14 @@ __global__ void theory_chi2_patch_inf_kernel(const std::uint8_t* lane_err, doubl
 }
 
 int TheoryChi2Batch::tiles_for(std::size_t token_count) {
-    // Scalar token loop: tile by thread coverage (not uchar4 packs).
+    // Interpreter is latency-heavy: keep fewer tiles than uchar4 catalog kernels so
+    // each thread walks many tokens and amortizes shared program + hist flush.
+    // Target ~16 tokens/thread (4× pack density of HistFast::tiles_for).
+    constexpr std::size_t kTokensPerThread = 16u;
+    const std::size_t covered =
+        static_cast<std::size_t>(HistFast::threads) * kTokensPerThread;
     const int by_work =
-        static_cast<int>((token_count + static_cast<std::size_t>(HistFast::threads) - 1u) /
-                         static_cast<std::size_t>(HistFast::threads));
+        static_cast<int>((token_count + covered - 1u) / covered);
     if (by_work < 1) {
         return 1;
     }

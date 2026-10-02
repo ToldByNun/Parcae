@@ -39,7 +39,7 @@ done(strategy) ⇔  fair_kernel_runes_per_s >= 0.90 * BenchTierSpec.estimated_pe
 |-----------|-------------------|------------------|
 | Soft-fallback S0 after S1/S2/S3 emit or module load fail | Must match CPU/bytecode oracle | PRIMARY still requires **S0 shape peak ≥90%** via fair suite |
 | Theory classified hard-S0 (autokey / prefer_branch / caps) today | Oracle parity | Same — S0 fair row must pass; specialize-away is a separate climb |
-| Fair S0 today ~56B vs Spec 75B (~74%) | OK | **Not Done** until climb and/or honest peak remesaure |
+| Fair S0 today ~69–75B vs Spec 75B (≥90%) | OK | **pass_tier** after climb pass 1 (tiles/trusted/residency) |
 
 Two parallel workstreams (implementation roadmap, not doc names):
 
@@ -78,7 +78,7 @@ Classify decrypt HotLoop via `TheoryHistChi2Emit::select_strategy` / emit. Prefe
 
 | Strategy | Classify | Emit specialized sources | In-lib / module launch | Fair ≥90% |
 |----------|----------|--------------------------|------------------------|-----------|
-| S0 | yes | n/a (bytecode) | yes (`TheoryChi2Batch`) | **fail today** (~74% of 75B) — climb required |
+| S0 | yes | n/a (bytecode) | yes (`TheoryChi2Batch`) | **pass** after climb pass 1 (~92–100% of 75B) |
 | S1 | yes | yes | yes | **pass** (~94% of 420B) |
 | S2 | yes (linear match) | yes when `match_s2_linear` | yes | **pass** (~92% of 200B) |
 | S3 | yes | **stub → soft S0** | no | blocked on S0 until emit+runtime |

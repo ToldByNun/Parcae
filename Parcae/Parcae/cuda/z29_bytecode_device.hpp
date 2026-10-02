@@ -79,13 +79,17 @@ public:
 
     /// Hot-path twin: assumes host-validated program/slots/stack and `i < stream_len`.
     /// Still reports domain errors. Prefer for `TheoryChi2Batch` after launch checks.
-    [[nodiscard]] PARCAE_BC_HD static bool
-    eval_at_trusted(const std::uint8_t* ops, const std::uint8_t* imm, std::uint32_t op_count,
-                    std::uint8_t* slots, std::uint16_t slot_count, std::uint16_t cipher_slot,
-                    std::uint16_t index_slot, std::uint8_t binds_index_i, const std::uint8_t* stream,
-                    std::size_t /*stream_len*/, std::size_t i, std::uint8_t* stack,
-                    std::uint16_t stack_cap, std::uint8_t* out_byte,
-                    std::uint8_t* err_flag) noexcept {
+    [[nodiscard]] PARCAE_BC_HD
+#if defined(__CUDACC__)
+        __forceinline__
+#endif
+        static bool
+        eval_at_trusted(const std::uint8_t* ops, const std::uint8_t* imm, std::uint32_t op_count,
+                        std::uint8_t* slots, std::uint16_t slot_count, std::uint16_t cipher_slot,
+                        std::uint16_t index_slot, std::uint8_t binds_index_i,
+                        const std::uint8_t* stream, std::size_t /*stream_len*/, std::size_t i,
+                        std::uint8_t* stack, std::uint16_t stack_cap, std::uint8_t* out_byte,
+                        std::uint8_t* err_flag) noexcept {
         return eval_impl</*Trusted=*/true>(ops, imm, op_count, slots, slot_count, cipher_slot,
                                             index_slot, binds_index_i, stream, /*stream_len=*/0, i,
                                             stack, stack_cap, out_byte, err_flag);
@@ -126,7 +130,12 @@ private:
             (void)stream_len;
         }
 
-        slots[cipher_slot] = stream[i];
+        slots[cipher_slot] =
+#if defined(__CUDA_ARCH__)
+            __ldg(stream + i);
+#else
+            stream[i];
+#endif
         if (binds_index_i != 0u) {
             slots[index_slot] = static_cast<std::uint8_t>(i % Z29Device::modulus);
         }

@@ -220,12 +220,13 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-02 | specialized | `profiles/specialized/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **383.21B** cudaEvent | stall n/a | ncu **20.5µs** @ T=262k; SM 63% DRAM 2.8% | twin on same capture; S1 ncu duration ≈ Caesar |
 | 2026-10-02 | **s0-climb** | `profiles/s0-climb/` | `theory_chi2_hist_kernel` | 29×1M | **59.44B** cudaEvent | stall n/a | ncu **157.4µs** @ T=262k; SM 58% DRAM 0.9% | **79%** of 75B peak — climb baseline; vs twin **406.6B** (6.8×) |
 | 2026-10-02 | **s0-climb** | `profiles/s0-climb/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **406.62B** cudaEvent | stall n/a | ncu **19.6µs** @ T=262k; SM 66% DRAM 2.6% | reference twin on same fair JSON capture |
+| 2026-10-02 | **s0-climb-p1** | (code) | `theory_chi2_hist_kernel` | 29×1M | **~69–75B** cudaEvent | — | fair suite **pass** (~92–100% of 75B) | tiles ~16 tok/thread; shared slots; trusted split; `__ldg` cipher |
 
 Peak calibration rows (`BenchTierSpec` remesaured on RTX 5070 Ti 2026-10-02):
 
 | Theory shape | Spec id | `estimated_peak` | 90% gate | Fair cudaEvent (2026-10-02) | Status |
 |--------------|---------|------------------|----------|------------------------------|--------|
-| Caesar-as-bytecode (S0 interpreter) | `T.theory.caesar_bytecode` | **75B** | **67.5B** | **59.4B** (s0-climb 2026-10-02) | **fail** @ 79%; climb baseline captured |
+| Caesar-as-bytecode (S0 interpreter) | `T.theory.caesar_bytecode` | **75B** | **67.5B** | **~69–75B** (s0-climb-p1) | **pass** after tiles/trusted/residency |
 | S1 LUT-29 (caesar/affine-shaped) | `T.theory.s1_lut29` | **420B** (remesaured) | **378B** | **~396B** (94%) | pass band after remesaure |
 | bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **200B** (remesaured @ C=9) | **180B** | **~188B** (94%) | pass band after remesaure |
 
