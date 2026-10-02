@@ -14,12 +14,15 @@
 
 /// Fast Z/29 decrypt helpers + fused-χ² histogram primitives.
 ///
-/// Two hist accumulation paths (same final global counts when used correctly):
+/// Hist accumulation paths (same final global counts when used correctly):
 /// - **Warp-private** (`clear_private` / `add_private` / `flush_private`): shared
 ///   bins per warp with per-rune `atomicAdd` — legacy; compute-bound on sm_120.
-/// - **Thread-local** (`clear_local` / `add_local` / `flush_local`): each thread
-///   owns a padded 29-bin row in shared memory; `++` without atomics, one reduce
-///   flush to global — intended climb path toward DRAM roofline.
+/// - **Register-local + warp dump** (`clear_local_regs` / `add_local_regs` /
+///   `flush_regs_via_warp`): `++` in registers during the hot loop, then ≤29
+///   atomics into small warp-private shared + `flush_private`. **Preferred**
+///   production climb path (keeps shared ≈1 KiB, occupancy-friendly).
+/// - **Shared-row local** (`clear_local` / `add_local` / `flush_local`): 32 KiB
+///   stage; correct but occupancy-hostile on sm_120 — keep for parity tests.
 class HistFast {
 public:
     static constexpr int alphabet = 29;
@@ -123,7 +126,7 @@ public:
         }
     }
 
-    /// Register-backed clear (optional; use when shared stage is only for flush).
+    /// Register-backed clear (hot-loop climb path).
     PARCAE_D static void clear_local_regs(std::uint32_t bins[alphabet]) {
 #pragma unroll
         for (int i = 0; i < alphabet; ++i) {
@@ -135,7 +138,30 @@ public:
         bins[static_cast<int>(y)] += 1u;
     }
 
-    /// Copy register bins into `stage`, then `flush_local`.
+    /// Deposit register bins into warp-private shared (≤29 atomics / thread).
+    /// `priv` must already be cleared (`clear_private`).
+    PARCAE_D static void deposit_local_regs(const std::uint32_t bins[alphabet],
+                                            std::uint32_t* priv) {
+        const int warp = threadIdx.x >> 5;
+#pragma unroll
+        for (int i = 0; i < alphabet; ++i) {
+            const std::uint32_t v = bins[i];
+            if (v != 0u) {
+                atomicAdd(&priv[warp * priv_stride + i], v);
+            }
+        }
+    }
+
+    /// Preferred flush after register accumulation: clear warp priv → deposit →
+    /// flush_private. Shared footprint stays `warps * priv_stride` (~1 KiB).
+    PARCAE_D static void flush_regs_via_warp(std::uint32_t bins[alphabet], std::uint32_t* priv,
+                                             std::uint32_t* global_row) {
+        clear_private(priv);
+        deposit_local_regs(bins, priv);
+        flush_private(priv, global_row);
+    }
+
+    /// Copy register bins into `stage`, then `flush_local` (32 KiB path).
     PARCAE_D static void flush_local_regs(std::uint32_t bins[alphabet], std::uint32_t* stage,
                                           std::uint32_t* global_row) {
 #pragma unroll

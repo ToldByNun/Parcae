@@ -5,6 +5,11 @@
 
 #include <cuda_runtime_api.h>
 
+// Production path: warp-private hist (`add_private`). Register-local /
+// 32 KiB shared-local experiments under profiles/hist_local_caesar/ regressed
+// fair T1 from ~400B to ~19–49B under current tiling — keep HistFast local
+// APIs for a later retile/design, do not ship them here yet.
+
 __global__ void caesar_chi2_histogram_decrypt_kernel(const std::uint8_t* in,
                                                      const std::uint8_t* shifts,
                                                      std::uint32_t* counts,

@@ -9,7 +9,9 @@
 /// Device-resident Caesar decrypt sweep + χ² histogram/finalize.
 ///
 /// Does **not** materialize `out[C*T]`. Counts are `uint32` (T ≤ 4M).
-/// Prefer `launch_decrypt_async` for search sweeps (vec4 + local hist).
+/// Prefer `launch_decrypt_async` for search sweeps (vec4 + warp-private hist).
+/// Thread-local HistFast climb experiments: see `profiles/hist_local_caesar/`
+/// (not production — regressed vs warp-private under current tiling).
 class CaesarChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;

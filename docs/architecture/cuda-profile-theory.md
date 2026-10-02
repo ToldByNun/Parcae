@@ -204,7 +204,8 @@ Repro specialized: [`scripts/cuda/capture_theory_specialized.ps1`](../../scripts
 [`profiles/s0-climb/`](profiles/s0-climb/).  
 Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 [`profiles/specialized/SUMMARY.md`](profiles/specialized/SUMMARY.md),
-[`profiles/s0-climb/SUMMARY.md`](profiles/s0-climb/SUMMARY.md).
+[`profiles/s0-climb/SUMMARY.md`](profiles/s0-climb/SUMMARY.md),
+[`profiles/hist_local_caesar/SUMMARY.md`](profiles/hist_local_caesar/SUMMARY.md).
 
 ### Progress log
 
@@ -225,6 +226,10 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-02 | **s0-climb-p1** | (code) | `theory_chi2_hist_kernel` | 29×1M | **~69–75B** cudaEvent | — | fair ~7–8% of 896B | tiles ~16 tok/thread; shared slots; trusted split; `__ldg` cipher |
 | 2026-10-02 | **s0-climb-p2** | (code) | `theory_chi2_hist_kernel` | 29×1M | **~67–71B** cudaEvent | — | no net win vs p1 | tried uchar4 packs / 32-tok / launch_bounds — all **regressed** (compute-bound); keep p1 launch |
 | 2026-10-02 | **dram-roof** | `BenchTierSpec` | all fused-hist shapes | — | — | — | Spec peak → **896B** (448B T3) | peak = physical GDDR7 / bytes/rune; **not** measured quiet max |
+| 2026-10-02 | **hist_local_caesar** | `profiles/hist_local_caesar/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **48.77B** T1 / **51.70B** compare_caesar | stall n/a | ncu **563.9µs** @ T=262k; SM **25%** DRAM **0.24%** | HistFast `*_local` / `flush_local` **abandoned** — 32KiB shared; **~5.4%** of 896B; ~**8×** down vs prior ~383–407B |
+| 2026-10-02 | **hist_local_caesar_regs** | `profiles/hist_local_caesar/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **18.90B** T1 / **19.32B** compare_caesar | stall n/a | ncu **1375.9µs** @ T=262k; SM **14.5%** DRAM **12.7%** | prod path: `add_local_regs` + `flush_regs_via_warp` (~1KiB shared); **~2.1%** of 896B; worse fair than 32KiB attempt and ~**20×** down vs ~400B twin (still grid.y=1024 over-tile) |
+| 2026-10-03 | **hist_local_caesar_fat** | `profiles/hist_local_caesar/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **34.76B** T1 | stall n/a | ncu **813.0µs** @ T=262k; SM **3.77%** DRAM **8.42%**; grid **(29,32,1)** | `tiles_for` cap **32**; **~3.88%** of 896B; still ≪ twin |
+| 2026-10-03 | **hist_local_caesar_revert** | `profiles/hist_local_caesar/` | `caesar_chi2_histogram_decrypt_kernel` | — | — | — | — | **prod restored to warp-private**; local/regs not shipped; see SUMMARY progression A→C |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 

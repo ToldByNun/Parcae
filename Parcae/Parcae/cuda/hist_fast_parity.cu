@@ -80,8 +80,10 @@ __global__ void hist_caesar_warp_kernel(const std::uint8_t* in, std::uint8_t shi
 
 __global__ void hist_caesar_local_kernel(const std::uint8_t* in, std::uint8_t shift,
                                          std::uint32_t* counts, std::size_t token_count) {
-    __shared__ std::uint32_t stage[HistFast::local_shared_uints];
-    HistFast::clear_local(stage);
+    // Matches CaesarChi2Batch production path: register bins → warp dump.
+    __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
+    std::uint32_t bins[HistFast::alphabet];
+    HistFast::clear_local_regs(bins);
 
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t base = (tile * static_cast<std::size_t>(HistFast::threads) +
@@ -89,16 +91,16 @@ __global__ void hist_caesar_local_kernel(const std::uint8_t* in, std::uint8_t sh
                              4u;
     if (base + 3u < token_count) {
         const uchar4 v = *reinterpret_cast<const uchar4*>(in + base);
-        HistFast::add_local(stage, HistFast::dec_caesar(v.x, shift));
-        HistFast::add_local(stage, HistFast::dec_caesar(v.y, shift));
-        HistFast::add_local(stage, HistFast::dec_caesar(v.z, shift));
-        HistFast::add_local(stage, HistFast::dec_caesar(v.w, shift));
+        HistFast::add_local_regs(bins, HistFast::dec_caesar(v.x, shift));
+        HistFast::add_local_regs(bins, HistFast::dec_caesar(v.y, shift));
+        HistFast::add_local_regs(bins, HistFast::dec_caesar(v.z, shift));
+        HistFast::add_local_regs(bins, HistFast::dec_caesar(v.w, shift));
     } else {
         for (std::size_t t = base; t < token_count && t < base + 4u; ++t) {
-            HistFast::add_local(stage, HistFast::dec_caesar(in[t], shift));
+            HistFast::add_local_regs(bins, HistFast::dec_caesar(in[t], shift));
         }
     }
-    HistFast::flush_local(stage, counts);
+    HistFast::flush_regs_via_warp(bins, priv, counts);
 }
 
 class HistFastParityLaunch {
