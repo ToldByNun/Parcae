@@ -231,6 +231,8 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-03 | **hist_local_caesar_fat** | `profiles/hist_local_caesar/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **34.76B** T1 | stall n/a | ncu **813.0µs** @ T=262k; SM **3.77%** DRAM **8.42%**; grid **(29,32,1)** | `tiles_for` cap **32**; **~3.88%** of 896B; still ≪ twin |
 | 2026-10-03 | **hist_local_caesar_revert** | `profiles/hist_local_caesar/` | `caesar_chi2_histogram_decrypt_kernel` | — | — | — | — | **prod restored to warp-private**; local/regs not shipped; see SUMMARY progression A→C |
 | 2026-10-03 | **hist_warp_match** | `profiles/hist_local_caesar/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **113.8B** T1 | — | — | `add_private_match`; **12.7%** of 896B; **LOSE** vs ~356B; **F.\* not wired** |
+| 2026-10-03 | **hist_local_s1** | `profiles/hist_local_caesar/` | `theory_hist_chi2_s1_lut_kernel` | 29×1M | **36.06B** fair S1 | — | — | regs + fat≤32; **~4%** of 896B; **LOSE** vs ~396B; **reverted** to warp-private (confirm **397.37B**) |
+| 2026-10-03 | **hist_local_s2** | `profiles/hist_local_caesar/` | `theory_hist_chi2_s2_linear_kernel` | **841**×1M | **30.30B** local / **245.58B** warp | — | — | regs + fat≤32; **~3.4%** of 896B; **LOSE** vs warp@841 (**~27%**); **reverted**; suite default C→**841** |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 
@@ -238,7 +240,7 @@ Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 |--------------|---------|------------------|----------|------------------------------|--------|
 | Caesar-as-bytecode (S0 interpreter) | `T.theory.caesar_bytecode` | **896B** | **806.4B** | ~69–75B (~8%) | **not Done** — compute-bound |
 | S1 LUT-29 (caesar/affine-shaped) | `T.theory.s1_lut29` | **896B** | **806.4B** | ~396–404B (~44%) | **not Done** — need DRAM SoL |
-| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **896B** | **806.4B** | ~188–189B (~21% @ C=9) | **not Done** |
+| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **896B** | **806.4B** | **245.58B** (~27% @ C=841 warp); hist_local **30.30B** LOSE | **not Done** |
 
 `BenchTheorySuite` (`parcae-bench --suite theory`) gates fair rows with
 `BenchTierSpec::pass_tier` (≥90% peak + `slo_min`). Short T is

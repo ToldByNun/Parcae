@@ -144,7 +144,11 @@ public:
         }
         doc.add_row(std::move(s1.value()));
 
-        const std::size_t prog_C = options.candidates() == 0 ? 9u : options.candidates();
+        // Fair S2 grid uses Spec C=841 (29²); override via options.candidates().
+        // (Historical default C=9 was a microbench underfill, not the SLO grid.)
+        const std::size_t prog_C =
+            options.candidates() == 0 ? BenchTierSpec::theory_s2_linear.candidates
+                                      : options.candidates();
         const std::size_t prog_reps = options.repeats() == 0 ? 4u : options.repeats();
         StatusOr<BenchReport::Row> progressive = run_progressive_s2(
             freqs, prog_C, fair_T, prog_reps, BenchTierSpec::theory_progressive_id,
