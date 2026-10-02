@@ -13,12 +13,51 @@ portable across GPUs — re-run the tool on your card and recalibrate
 `BenchTierSpec` peaks if `%peak` goes above 100. `ThroughputTiers` and
 `DslPeakSanity` delegate to that header (Catch2 `[bench][spec]` / `[dsl][peak]`).
 
-**Theory search export** (`family=theory` → `TheoryChi2Batch` / specialized hist)
-is a separate path. Spec rows `T.theory.*` (S0 bytecode 75B, S1 LUT-29 473B,
-S2 linear 350B provisional) live in `BenchTierSpec`; fair gate via
-`parcae-bench --suite theory`. Remeasure via `parcae-search-cycle --backend cuda`
-+ `research/run.log`. Kernel SLO vs campaign wall, nsys/ncu recipes, and the
-**≥90% estimated_peak** gate: [`cuda-profile-theory.md`](cuda-profile-theory.md).
+**Theory search export** (`family=theory`) is a **separate** fused-χ² path from
+catalog T1/F.* rows — same `BenchTimer` metric, different kernels and Spec ids.
+
+### Path (transpiler → search)
+
+```text
+TheoryIr decrypt HotLoop
+  → TheoryHistChi2Emit (S1 LUT-29 / S2 linear uchar4 / else S0)
+  → TheoryExportCache HistPlan
+  → GpuCandidateExport prefers specialized launch; soft-fallback S0 bytecode
+  → export_backend=cuda
+```
+
+| Strategy | Spec id | Kernel | Provisional peak (5070 Ti) |
+|----------|---------|--------|----------------------------|
+| S0 bytecode interpreter | `T.theory.caesar_bytecode` | `theory_chi2_hist_kernel` | 75B |
+| S1 LUT-29 (`f(x)`-only) | `T.theory.s1_lut29` | `theory_hist_chi2_s1_lut_kernel` | 473B |
+| S2 linear uchar4 | `T.theory.s2_linear` / `T.theory.progressive` | `theory_hist_chi2_s2_linear_kernel` | 350B |
+
+Fair gate: `parcae-bench --suite theory --allow-cuda` → `BenchTierSpec::pass_tier`
+(≥90% peak + `slo_min` at `T≥2^20`). Short T is measurement-only
+(`underfill_not_slo_gate`).
+
+### Kernel SLO vs campaign wall
+
+| Metric | Tool / log | Includes | Gate? |
+|--------|------------|----------|-------|
+| **Kernel SLO** | `parcae-bench --suite theory` (cudaEvent) | Device hist/finalize only | **Yes** — ≥90% shape peak |
+| **Campaign wall** | `parcae-search-cycle` → `research/run.log` | Host prepare/bind, H2D, kernel, D2H, materialize, ingest | **No** — ops / ETA only |
+
+Do **not** compare campaign wall at short page `T` to catalog or theory cudaEvent
+peaks at `T≈2^20`. Playbook + progress log:
+[`cuda-profile-theory.md`](cuda-profile-theory.md). Post-emit snapshot:
+[`profiles/specialized/SUMMARY.md`](profiles/specialized/SUMMARY.md).
+
+### Theory plateaus (provisional)
+
+| Tier | Workload | Ceiling (runes/s) | SLO floor | Notes |
+|------|----------|-------------------|-----------|-------|
+| T.theory.caesar_bytecode | S0 interpreter (Caesar-as-bytecode) | 75B | ≥15B | Soft-fallback for unmatched shapes |
+| T.theory.s1_lut29 | S1 LUT-29 | 473B | ≥15B | Affine-class until remesaure |
+| T.theory.s2_linear | S2 progressive / bitmask linear | 350B | ≥15B | Plan provisional; suite often uses C=9 |
+
+Operator handbook: [`search-handbook.md`](search-handbook.md) § Theory URI.
+Emit API: [`theory_hist_chi2_emit.hpp`](../../include/parcae/dsl/theory_hist_chi2_emit.hpp).
 
 ## How to measure
 
@@ -98,6 +137,9 @@ Ceilings match `BenchTierSpec::estimated_peak`. Typical healthy runs sit around
 - Agent deny-list: [`docs/spec/agent-tools.md`](../spec/agent-tools.md) (`parcae-bench` / `parcae-throughput-tiers`)
 - Implementation (runner): [`include/parcae/run/throughput_tiers.hpp`](../../include/parcae/run/throughput_tiers.hpp)
 - DSL compile-time mirror (no CUDA): [`include/parcae/dsl/dsl_peak_sanity.hpp`](../../include/parcae/dsl/dsl_peak_sanity.hpp)
-- Kernels: [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (`hist_fast.hpp`, `*_chi2_batch.cu`)
+- Theory hist emit: [`include/parcae/dsl/theory_hist_chi2_emit.hpp`](../../include/parcae/dsl/theory_hist_chi2_emit.hpp)
+- Kernels: [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (`hist_fast.hpp`, `*_chi2_batch.cu`, `theory_hist_chi2_s{1,2}.*`)
 - Build notes: [cuda-build.md](cuda-build.md)
 - Theory profiling (nsys/ncu): [cuda-profile-theory.md](cuda-profile-theory.md)
+- Operator handbook (theory URI + dispatch): [search-handbook.md](search-handbook.md)
+- Transpiler + HistChi2 strategies: [python-transpiler.md](python-transpiler.md)

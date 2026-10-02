@@ -46,6 +46,10 @@ private:
 | `z29_bytecode.hpp` | `Z29Bytecode` | Done (HotLoop stack program + host eval; `op_as_u8` for device twin) |
 | `z29_bytecode_device.hpp` | `Z29BytecodeDevice` | Done (host/device `eval_at` twin) |
 | `theory_chi2_batch.hpp` | `TheoryChi2Batch` | Done (fused bytecode hist + χ²; S0 path via `TheoryHistChi2Launch`) |
+| `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S3 select; S1 LUT-29 + S2 linear uchar4 emit + goldens; S3 TBD) |
+| `theory_hist_chi2_launch.hpp` | `TheoryHistChi2Launch` | Done (CUDA façade: S0 bytecode / S1 LUT / S2 linear async) — under `Parcae/Parcae/cuda/` |
+| `theory_hist_chi2_s1.hpp` | `TheoryHistChi2S1` | Done (LUT-29 twin) — under `Parcae/Parcae/cuda/` |
+| `theory_hist_chi2_s2.hpp` | `TheoryHistChi2S2` | Done (linear uchar4 twin) — under `Parcae/Parcae/cuda/` |
 | `param_ir.hpp` | `ParamIr` | Done |
 | `primitive_ir.hpp` | `PrimitiveIr` | Done |
 | `theory_ir.hpp` | `TheoryIr` | Done |
@@ -53,7 +57,6 @@ private:
 | `dsl_ir_applicator.hpp` | `DslIrApplicator` | Done (CPU apply_into) |
 | `dsl_emit_cpu.hpp` | `DslEmitCpu` | Done (Transform-shaped; `Select` → `Z29::select` / branch; matmul/det/autokey) |
 | `dsl_emit_cuda.hpp` | `DslEmitCuda` | Done (Z29Device; matmul/det expand; autokey → AutokeyRingDevice) |
-| `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S3 select; S1 LUT-29 + S2 linear uchar4 emit + goldens; S3 TBD) |
 | `dsl_verifier.hpp` | `DslVerifier` | Done (exhaustive ≤4 + fuzz + CPU↔CUDA mirror) |
 | `dsl_catalog_builtins.hpp` | `DslCatalogBuiltins` | Done (`identity`/`atbash`/`caesar`/`affine` + DSL-only `matrix_mix`/`autokey_lag`; **not** `TransformId` / decode `--transform-id`) |
 | `dsl_fuse.hpp` | `DslFuse` | Done (inline + emit + CPU bench; DSL-only leaves → fused emit) |
@@ -95,7 +98,7 @@ Tests: `[dsl][examples][matrix]` `theories/examples/matrix_builtins_example.py` 
 Tests: `[dsl][emit][hist][chi2]` strategy select + S1/S2 emit; `[cuda][golden]` bytecode χ² == specialized; `[cuda][theory][edge]` top-k / Autokey→S0 / Div0 +inf / interrupt reject.
 Tests: `[dsl][optimize]` DslOptimize const-fold + inv hoist.
 Tests: `[dsl][launch]` DslLaunchPlan vs HistFast / 1D twin formula.
-Tests: `[dsl][peak]` DslPeakSanity vs ThroughputTiers ceilings / SLO.
+Tests: `[dsl][peak]` DslPeakSanity vs `BenchTierSpec` ceilings / SLO (incl. `T.theory.*`).
 Tests: `[dsl][artifact]` TheoryArtifact writer stamps `dsl_spec_version` + store/load.
 Tests: `[dsl][registry]` TheoryRegistry load rejects stale MAJOR; list marks `stale_spec`
 (+ `CatalogEntry::to_json` for `parcae-catalog --theories`).
@@ -114,7 +117,26 @@ Authoring examples (also CI via `scripts/check-dsl-examples.sh`):
 `param_select_example.py` (Param → Select / **W011**);
 `ignore_divergent_example.py` denied without `--allow-dsl-ignores` (**E031**).
 Handbook: [python-transpiler.md](../../../docs/architecture/python-transpiler.md)
-§ Execution scopes.
+§ Execution scopes. Theory fused-χ² search path (S1/S2 prefer, S0 soft-fallback;
+Kernel SLO vs campaign wall):
+[cuda-throughput.md](../../../docs/architecture/cuda-throughput.md) § Theory,
+[search-handbook.md](../../../docs/architecture/search-handbook.md) § Theory URI,
+[cuda-profile-theory.md](../../../docs/architecture/cuda-profile-theory.md).
+
+## Theory fused χ² (search export)
+
+Compile still emits CPU/CUDA transform text + bytecode. Separately,
+`TheoryHistChi2Emit` classifies the decrypt HotLoop for **search** fused χ²:
+
+| Strategy | Shape | Runtime |
+|----------|-------|---------|
+| S1 | `f(x; params)` only | `TheoryHistChi2S1` LUT-29 |
+| S2 | `x ± (b0 + b1·i)` | `TheoryHistChi2S2` linear uchar4 |
+| S0 | unmatched / Autokey / soft-fallback | `TheoryChi2Batch` bytecode interpreter |
+
+`GpuCandidateExport` prefers S1/S2 when the cached `HistPlan` matches; launch
+failure soft-falls back to S0 with `export_backend=cuda` unchanged. Peaks /
+≥90% gate: `BenchTierSpec` `T.theory.*` via `parcae-bench --suite theory`.
 
 ## Status
 

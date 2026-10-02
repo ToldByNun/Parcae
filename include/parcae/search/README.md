@@ -31,12 +31,20 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 `is_cpu_export_only_family` covers hill / CTAK / PTAK (hard CPU). `theory` is
 **not** hard CPU-only: with χ² + decrypt,
 `has_fused_cuda_chi2_export("theory")` is true and the scheduler calls
-`GpuCandidateExport::theory_explicit_params`. Toolkit **1.1.0**
-lifts hill/autokey off the hard list —
+`GpuCandidateExport::theory_explicit_params`. Dispatch prefers
+`TheoryHistChi2Emit` **S1/S2** specialized hist when the cached plan matches;
+soft-fallback **S0** bytecode via `TheoryHistChi2Launch` / `TheoryChi2Batch`
+(`export_backend=cuda`). Toolkit **1.1.0** lifts hill/autokey off the hard list —
 [`cuda-catalog-parity.md`](../../../docs/architecture/cuda-catalog-parity.md).
 `SearchScheduler::run_loop` keeps a `TheoryExportCache` across iterations
 (override via `Options::theory_cache` / `LoopOptions::theory_cache`). Use
 `GpuCandidateExport::theory_scores_only` for score sweeps without materialize.
+
+**Throughput:** Kernel SLO = `parcae-bench --suite theory` (`T.theory.*`, ≥90%
+peak @ fair T). Campaign wall = `research/run.log` cells/s — ops only, not the
+gate. Details: [`cuda-throughput.md`](../../../docs/architecture/cuda-throughput.md),
+[`cuda-profile-theory.md`](../../../docs/architecture/cuda-profile-theory.md),
+[`search-handbook.md`](../../../docs/architecture/search-handbook.md) § Theory URI.
 Family ↔ catalog `transform_id` map:
 [`search-loop.md`](../../../docs/spec/search-loop.md).
 Grid-read / columnar / `variable_delay_autokey` are **not** search families.

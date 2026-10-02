@@ -314,6 +314,28 @@ Emitted kernels **reuse** patterns documented in [cuda-abi.md](cuda-abi.md) and
 Host-materialized buffers (totient shifts, permutation tables) stay host-side —
 same rule as today’s totient twin.
 
+### Theory fused χ² for search (`TheoryHistChi2Emit`)
+
+Search export does **not** rely on interpreter-only throughput anymore for
+matching shapes. After `DslOptimize` / IR build, `TheoryHistChi2Emit` selects:
+
+| Strategy | Match | Device twin |
+|----------|-------|-------------|
+| **S1** `S1Lut29` | Decrypt `f(x; params)` only | `TheoryHistChi2S1` |
+| **S2** `S2Uchar4Inline` | `x ± (b0 + b1·i)` / bitmask_blend-shaped | `TheoryHistChi2S2` |
+| **S0** `S0Bytecode` | Default + soft-fallback | `TheoryChi2Batch` |
+| **S3** `S3ScalarInline` | Planned scalar inline | TBD |
+
+`TheoryExportCache` stores the `HistPlan`; `GpuCandidateExport::theory_*`
+prefers specialized launches and soft-falls back to S0 on failure
+(`export_backend=cuda`). Throughput expectations and Kernel SLO vs campaign
+wall: [cuda-throughput.md](cuda-throughput.md) § Theory,
+[cuda-profile-theory.md](cuda-profile-theory.md),
+[search-handbook.md](search-handbook.md) § Theory URI.
+
+Headers: `theory_hist_chi2_emit.hpp` (DSL),
+`theory_hist_chi2_{launch,s1,s2}.*` under `Parcae/Parcae/cuda/`.
+
 ---
 
 ## Ingest hardening

@@ -65,8 +65,9 @@ parcae-bench --suite theory --allow-cuda --campaign-grid --json --data-dir data
 ```
 
 Kernel-only cudaEvent (`BenchTimer`); rows `T.theory.*` gated by
-`BenchTierSpec` (≥90% peak @ fair T). See
-[`cuda-profile-theory.md`](cuda-profile-theory.md).
+`BenchTierSpec` (≥90% peak @ fair T). S0 bytecode / S1 LUT / S2 linear + Caesar
+twin. See [`cuda-profile-theory.md`](cuda-profile-theory.md) and
+[`cuda-throughput.md`](cuda-throughput.md) § Theory (Kernel SLO ≠ campaign wall).
 
 ### Hardware compare (CPU smoke + optional CUDA)
 

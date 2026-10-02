@@ -37,7 +37,7 @@ theory.py  →  parcae-compile (multi-diag + DslOptimize + z29_match)
 | Agent git | User owns commits, annotated tags, and release pushes; agent may code and test only |
 | Twin scope | All toolkit **1.0** catalog transforms: `hill_2`, `hill_3`, `ciphertext_autokey`, `plaintext_autokey`, `variable_delay_autokey`, `spiral_read`, `boustrophedon_read`, `diagonal_read`, `columnar_transposition` — plus existing CudaFamily stages remain |
 | ComposeDriver | Host-orchestrated stage launches; new families as stages; nested compose still unsupported |
-| Search export | `hill_2` / `hill_3` / `ciphertext_autokey` / `plaintext_autokey` remain `is_cpu_export_only_family`; **`theory` fused χ² landed** via `GpuCandidateExport::theory_explicit_params` + `TheoryChi2Batch` (`has_fused_cuda_chi2_export("theory")`) |
+| Search export | `hill_2` / `hill_3` / `ciphertext_autokey` / `plaintext_autokey` remain `is_cpu_export_only_family`; **`theory` fused χ²** via `GpuCandidateExport::theory_explicit_params` — prefers `TheoryHistChi2Emit` **S1/S2** specialized hist, soft-fallback **S0** `TheoryChi2Batch` (`has_fused_cuda_chi2_export("theory")`) |
 | Search families | VDA / spiral / columnar / boustrophedon / diagonal remain decode/compose catalog — **not** new `SearchJob.family` values in this cut |
 | Fused χ² | Decrypt + `chi2_english_gp_v0` only (same contract as today’s fused export) |
 | `dsl_spec_version` | MINOR bump to **`1.1.0`** with Pack D; MAJOR stays **1**; artifacts stamped `1.0.0` remain loadable |
@@ -65,7 +65,7 @@ Facts the implementation must close — not optional stretch goals.
 | Hill / matrix on GPU | `Z29Matrix{2,3}Device` + `Z29MatrixDeviceOps` only — no stream Hill twin |
 | CTAK | `CiphertextAutokeyKernel` + `DeepScoreBatch` autokey χ² exist — **not** in Backend/ComposeDriver |
 | PTAK / VDA / grids | CPU transforms only |
-| Search | `SearchJob::is_cpu_export_only_family` forces CPU for hill / CTAK / PTAK; `theory` uses fused CUDA χ² when `has_fused_cuda_chi2_export("theory")` |
+| Search | `SearchJob::is_cpu_export_only_family` forces CPU for hill / CTAK / PTAK; `theory` uses fused CUDA χ² (S1/S2 prefer, S0 soft-fallback) when `has_fused_cuda_chi2_export("theory")` |
 | `DslOptimize` | Library + hooked in `DslCompile` after BuildIr (`[dsl][compile][optimize]`) |
 | Pack D language | `dsl_spec_version` still **1.0.0**; no `z29_match`; no multi-error bag; no `parcae.corpus.load_page` |
 
@@ -117,10 +117,13 @@ Declare toolkit **1.1.0** complete when **all required** boxes below are green
 - [ ] PTAK CUDA export path with CPU top-k ordering parity
 - [x] `SearchJob::is_cpu_export_only_family` no longer includes hill / CTAK / PTAK
       (`theory` not hard CPU-only; `has_fused_cuda_chi2_export("theory")` true with
-      `GpuCandidateExport::theory_explicit_params` + `TheoryChi2Batch`)
+      `GpuCandidateExport::theory_explicit_params` — S1/S2 specialized prefer +
+      S0 `TheoryChi2Batch` soft-fallback)
 - [ ] `SearchScheduler::export_cuda_fused` accepts the new families under
       `allow_extended_families`
 - [x] Catch2 `[search][export][theory][parity]` CPU↔CUDA theory top-k on fixed grids
+- [x] Catch2 `[cuda][theory][edge]` specialized vs bytecode top-k + Autokey→S0 /
+      Div0 +inf / interrupt reject
 - [ ] Catch2 `[search][export][parity]` (or sibling tags) CPU↔CUDA top-k on fixed grids
       for hill / CTAK / PTAK
 - [ ] Specs updated: [`search-loop.md`](../spec/search-loop.md),
@@ -158,8 +161,9 @@ Declare toolkit **1.1.0** complete when **all required** boxes below are green
 - Agent creating/pushing annotated tags or GitHub release assets
 - Treating toolkit **1.1.0** as a `dsl_spec_version` **MAJOR** bump
 - “phase*” naming anywhere in files, tags, or CI
-- Theory fused χ² uchar4 vectorization / catalog-peak SLO parity (interpreter path)
-
+- Claiming theory Kernel SLO **done** until remesaured peaks pass ≥90% gate
+  ([`cuda-profile-theory.md`](cuda-profile-theory.md); S1/S2 specialized emit
+  already landed — peaks still provisional)
 ---
 
 ## Document history

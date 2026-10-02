@@ -411,8 +411,45 @@ Example `param_grid`:
 
 Theory jobs use fused `GpuCandidateExport::theory_explicit_params` when
 `--backend cuda`, `score_id=chi2_english_gp_v0`, and decrypt
-(`has_fused_cuda_chi2_export("theory")`). Host materialize uses `Z29Bytecode`.
-Non-χ² scores and encrypt always use the CPU export path.
+(`has_fused_cuda_chi2_export("theory")`). Non-χ² scores and encrypt always use
+the CPU export path.
+
+**Dispatch (CUDA χ² decrypt):** `TheoryHistChi2Emit` selects a hist strategy at
+cache fill; export **prefers specialized** kernels and soft-falls back to the
+bytecode interpreter:
+
+| Strategy | When | Device path |
+|----------|------|-------------|
+| **S1** LUT-29 | Decrypt is `f(x; params)` only (caesar/affine-shaped) | `theory_hist_chi2_s1_lut_kernel` |
+| **S2** linear uchar4 | `x ± (b0 + b1·i)` / bitmask_blend-shaped | `theory_hist_chi2_s2_linear_kernel` |
+| **S0** bytecode | Everything else (autokey, unmatched HotLoops) — also soft-fallback if S1/S2 launch fails | `theory_chi2_hist_kernel` via `TheoryChi2Batch` |
+
+Host materialize still uses `Z29Bytecode`. `export_backend=cuda` stays set for
+S0/S1/S2. Edgecases (Div0 → `+inf`, empty interrupt reject, Autokey → S0):
+Catch2 `[cuda][theory][edge]`.
+
+```bash
+# Prefer CUDA for theory χ² (specialized when emit matches)
+parcae-search-cycle \
+  --workspace my-ws \
+  --job path/to/theory_job.json \
+  --allow-theory-uri \
+  --backend cuda \
+  --allow-cuda \
+  --json \
+  --data-dir data
+```
+
+**Two metrics — do not mix** (see [`cuda-profile-theory.md`](cuda-profile-theory.md)):
+
+| Metric | How | Use for |
+|--------|-----|---------|
+| **Kernel SLO** | `parcae-bench --suite theory --allow-cuda` (`T.theory.*` / ≥90% `BenchTierSpec` peak @ `T≥2^20`) | Pass/fail vs shape peak |
+| **Campaign wall** | `research/run.log` cells/s over `SearchScheduler::run_loop` | Ops / ETA only — **not** the 90% gate |
+
+Provisional peaks / post-emit nsys+ncu:
+[`cuda-throughput.md`](cuda-throughput.md) § Theory,
+[`profiles/specialized/SUMMARY.md`](profiles/specialized/SUMMARY.md).
 
 ### Compose recipes (Atbash∘Caesar / ComposeDriver)
 
@@ -517,6 +554,8 @@ Details: [`agent-tools.md`](../spec/agent-tools.md) § `search_cycle` vs
 | Progress digest invariance | `parcae_tests "[tool][search_cycle][progress][determinism]"` |
 | Research campaign log | `parcae_tests "[hypothesis][campaign]"` |
 | Theory CPU↔CUDA top-k | `parcae_tests "[search][export][theory][parity]"` |
+| Theory specialized edgecases | `parcae_tests "[cuda][theory][edge]"` |
+| Theory Kernel SLO microbench | `parcae-bench --suite theory --allow-cuda` (local GPU; deny-listed for agents) |
 | Scheduler subset | `parcae_tests "[search][scheduler]"` (see [`cuda-build.md`](cuda-build.md) § Catch2 tags) |
 | JSON goldens | `parcae_tests "[tool][golden][cli][search_cycle]"` |
 | AgentPolicy path | `parcae_tests "[tool][policy][cli][search_cycle]"` |
@@ -547,3 +586,6 @@ Headers / tags: [`include/parcae/search/README.md`](../../include/parcae/search/
 | [`agent-tooling.md`](agent-tooling.md) | Agent plan freeze — points here for closed-loop ownership |
 | [`agent-tools.md`](../spec/agent-tools.md) | Allow/deny + envelope |
 | [`cuda-score-reduction.md`](cuda-score-reduction.md) | CUDA top-k score contract |
+| [`cuda-throughput.md`](cuda-throughput.md) | Catalog + theory Kernel SLO ceilings (`T.theory.*`) |
+| [`cuda-profile-theory.md`](cuda-profile-theory.md) | Theory nsys/ncu; Kernel SLO vs campaign wall |
+| [`python-transpiler.md`](python-transpiler.md) | DSL compile + `TheoryHistChi2Emit` strategies |
