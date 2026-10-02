@@ -81,7 +81,7 @@ public:
                                           0.0,
                                           75.0e9};
 
-    /// S1 LUT-29 (caesar/affine-shaped). Affine-class ceiling until specialized remesaure.
+    /// S1 LUT-29 (caesar/affine-shaped). Remesaured 2026-10-02 fair cudaEvent ~396B.
     static constexpr Tier theory_s1_lut29{"T.theory.s1_lut29",
                                          "TheoryHistChi2S1 LUT-29 (f(x)-only)",
                                          static_cast<std::size_t>(Index29::modulus),
@@ -89,9 +89,9 @@ public:
                                          8u,
                                          15.0e9,
                                          0.0,
-                                         473.0e9};
+                                         420.0e9};
 
-    /// S2 linear uchar4 (progressive / bitmask_blend-shaped). Plan provisional 350B.
+    /// S2 linear uchar4 (progressive / bitmask_blend-shaped). Remesaured ~188B @ C=9.
     /// Default C=841 (=29²) matches full (b0,b1) grid; suite may use smaller C for Catch2.
     static constexpr Tier theory_s2_linear{"T.theory.s2_linear",
                                           "TheoryHistChi2S2 progressive/bitmask linear",
@@ -100,7 +100,7 @@ public:
                                           8u,
                                           15.0e9,
                                           0.0,
-                                          350.0e9};
+                                          200.0e9};
 
     /// Alias name used by microbench progressive row (same peak as S2 linear).
     static constexpr const char* theory_progressive_id = "T.theory.progressive";

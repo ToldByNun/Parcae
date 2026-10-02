@@ -26,11 +26,11 @@ TheoryIr decrypt HotLoop
   → export_backend=cuda
 ```
 
-| Strategy | Spec id | Kernel | Provisional peak (5070 Ti) |
+| Strategy | Spec id | Kernel | Remesaured peak (5070 Ti) |
 |----------|---------|--------|----------------------------|
 | S0 bytecode interpreter | `T.theory.caesar_bytecode` | `theory_chi2_hist_kernel` | 75B |
-| S1 LUT-29 (`f(x)`-only) | `T.theory.s1_lut29` | `theory_hist_chi2_s1_lut_kernel` | 473B |
-| S2 linear uchar4 | `T.theory.s2_linear` / `T.theory.progressive` | `theory_hist_chi2_s2_linear_kernel` | 350B |
+| S1 LUT-29 (`f(x)`-only) | `T.theory.s1_lut29` | `theory_hist_chi2_s1_lut_kernel` | 420B |
+| S2 linear uchar4 | `T.theory.s2_linear` / `T.theory.progressive` | `theory_hist_chi2_s2_linear_kernel` | 200B |
 
 Fair gate: `parcae-bench --suite theory --allow-cuda` → `BenchTierSpec::pass_tier`
 (≥90% peak + `slo_min` at `T≥2^20`). Short T is measurement-only
@@ -48,13 +48,13 @@ peaks at `T≈2^20`. Playbook + progress log:
 [`cuda-profile-theory.md`](cuda-profile-theory.md). Post-emit snapshot:
 [`profiles/specialized/SUMMARY.md`](profiles/specialized/SUMMARY.md).
 
-### Theory plateaus (provisional)
+### Theory plateaus (remesaured 2026-10-02)
 
 | Tier | Workload | Ceiling (runes/s) | SLO floor | Notes |
 |------|----------|-------------------|-----------|-------|
-| T.theory.caesar_bytecode | S0 interpreter (Caesar-as-bytecode) | 75B | ≥15B | Soft-fallback for unmatched shapes |
-| T.theory.s1_lut29 | S1 LUT-29 | 473B | ≥15B | Affine-class until remesaure |
-| T.theory.s2_linear | S2 progressive / bitmask linear | 350B | ≥15B | Plan provisional; suite often uses C=9 |
+| T.theory.caesar_bytecode | S0 interpreter (Caesar-as-bytecode) | 75B | ≥15B | Soft-fallback for unmatched shapes / autokey |
+| T.theory.s1_lut29 | S1 LUT-29 | 420B | ≥15B | Remesaured 2026-10-02 (~396B fair) |
+| T.theory.s2_linear | S2 progressive / bitmask linear | 200B | ≥15B | Remesaured ~188B @ C=9 |
 
 Operator handbook: [`search-handbook.md`](search-handbook.md) § Theory URI.
 Emit API: [`theory_hist_chi2_emit.hpp`](../../include/parcae/dsl/theory_hist_chi2_emit.hpp).

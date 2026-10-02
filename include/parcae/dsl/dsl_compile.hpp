@@ -15,6 +15,7 @@
 #include "parcae/dsl/dsl_emit_cuda.hpp"
 #include "parcae/dsl/dsl_fuse.hpp"
 #include "parcae/dsl/dsl_host_glue.hpp"
+#include "parcae/dsl/dsl_ir_applicator.hpp"
 #include "parcae/dsl/dsl_optimize.hpp"
 #include "parcae/dsl/dsl_semantic_gate.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
@@ -25,6 +26,7 @@
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/theory_registry.hpp"
 
+#include <array>
 #include <cctype>
 #include <chrono>
 #include <cstdio>
@@ -233,18 +235,24 @@ public:
                 if (!enc_bind.ok()) {
                     return enc_bind;
                 }
-                env["x"] = Index29{7};
                 // Keyed-stream position var (same convention as DslIrApplicator / emit).
                 if (env.find("i") == env.end()) {
                     env["i"] = Index29{0};
                 }
-                StatusOr<Index29> enc_v = optimized.value().encrypt().expr()->eval(env);
-                if (!enc_v.ok()) {
-                    return enc_v.status();
+                // Smoke via applicator so z29_autokey_shift lowers against a tiny stream.
+                // apply_into owns the cipher_var binding — do not pre-bind "x".
+                Z29Expr::Env enc_params = env;
+                enc_params.erase("x");
+                const std::array<Index29, 1> smoke_in{Index29{7}};
+                std::array<Index29, 1> smoke_out{};
+                Status enc_st = DslIrApplicator::apply_into(
+                    optimized.value().encrypt().expr(), "x", enc_params, smoke_in, smoke_out);
+                if (!enc_st.ok()) {
+                    return enc_st;
                 }
                 // Fresh env for decrypt hoists (names may overlap __parcae_inv_N).
                 Z29Expr::Env denv;
-                for (const auto& kv : env) {
+                for (const auto& kv : enc_params) {
                     if (kv.first.rfind("__parcae_inv_", 0) != 0) {
                         denv.emplace(kv.first, kv.second);
                     }
@@ -254,9 +262,10 @@ public:
                 if (!dec_bind.ok()) {
                     return dec_bind;
                 }
-                StatusOr<Index29> dec_v = optimized.value().decrypt().expr()->eval(denv);
-                if (!dec_v.ok()) {
-                    return dec_v.status();
+                Status dec_st = DslIrApplicator::apply_into(
+                    optimized.value().decrypt().expr(), "x", denv, smoke_in, smoke_out);
+                if (!dec_st.ok()) {
+                    return dec_st;
                 }
             }
 
