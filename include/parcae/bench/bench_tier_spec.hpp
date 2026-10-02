@@ -68,7 +68,64 @@ public:
     static constexpr Tier t3{"T3",  "Caesar bigram+dict validation", 512u, 262144u, 8u, 1.0e9, 0.0,
                              55.0e9};
 
+    // --- Theory fused-χ² shapes (RTX 5070 Ti provisional; see cuda-profile-theory.md) ---
+
+    /// S0 interpreter: Caesar-as-bytecode. Peak from post–shared/trusted cudaEvent (~69B)
+    /// rounded up. Fair gate: T≥2^20.
+    static constexpr Tier theory_s0_caesar{"T.theory.caesar_bytecode",
+                                          "TheoryChi2Batch Caesar bytecode (S0)",
+                                          static_cast<std::size_t>(Index29::modulus),
+                                          1048576u,
+                                          8u,
+                                          15.0e9,
+                                          0.0,
+                                          75.0e9};
+
+    /// S1 LUT-29 (caesar/affine-shaped). Affine-class ceiling until specialized remesaure.
+    static constexpr Tier theory_s1_lut29{"T.theory.s1_lut29",
+                                         "TheoryHistChi2S1 LUT-29 (f(x)-only)",
+                                         static_cast<std::size_t>(Index29::modulus),
+                                         1048576u,
+                                         8u,
+                                         15.0e9,
+                                         0.0,
+                                         473.0e9};
+
+    /// S2 linear uchar4 (progressive / bitmask_blend-shaped). Plan provisional 350B.
+    /// Default C=841 (=29²) matches full (b0,b1) grid; suite may use smaller C for Catch2.
+    static constexpr Tier theory_s2_linear{"T.theory.s2_linear",
+                                          "TheoryHistChi2S2 progressive/bitmask linear",
+                                          841u,
+                                          1048576u,
+                                          8u,
+                                          15.0e9,
+                                          0.0,
+                                          350.0e9};
+
+    /// Alias name used by microbench progressive row (same peak as S2 linear).
+    static constexpr const char* theory_progressive_id = "T.theory.progressive";
+
     static constexpr std::size_t primary_tier_count = 3;
+
+    /// Optional interim checkpoint when `estimated_peak ≫ 50B` (never replaces 90% gate).
+    static constexpr double checkpoint_50B_rps = 50.0e9;
+    /// Treat peak as ≫ 50B when at least 2× the checkpoint (plan: Peak ≫ 50B).
+    static constexpr double checkpoint_50B_peak_min = 100.0e9;
+
+    [[nodiscard]] static constexpr bool checkpoint_50B_applicable(double peak) noexcept {
+        return peak >= checkpoint_50B_peak_min;
+    }
+
+    [[nodiscard]] static constexpr bool checkpoint_50B_hit(double rps, double peak) noexcept {
+        return checkpoint_50B_applicable(peak) && rps >= checkpoint_50B_rps;
+    }
+
+    /// Fair Kernel-SLO token floor (T≥2^20). Shorter T → underfill, not a fail gate.
+    [[nodiscard]] static constexpr std::size_t fair_gate_tokens() noexcept { return t1.tokens; }
+
+    [[nodiscard]] static constexpr bool is_fair_gate_tokens(std::size_t tokens) noexcept {
+        return tokens >= fair_gate_tokens();
+    }
 
     /// Ordered T1, T2, T3 for suite iteration. Out-of-range → T1.
     [[nodiscard]] static constexpr const Tier& tier_at(std::size_t index) noexcept {
@@ -131,10 +188,20 @@ public:
         if (tier == "C.koan1_stages") {
             return 322.0e9;
         }
+        if (tier == "T.theory.caesar_bytecode" || tier == "T.theory.s0") {
+            return theory_s0_caesar.estimated_peak;
+        }
+        if (tier == "T.theory.s1_lut29" || tier == "T.theory.s1") {
+            return theory_s1_lut29.estimated_peak;
+        }
+        if (tier == "T.theory.s2_linear" || tier == "T.theory.progressive" ||
+            tier == "T.theory.s2") {
+            return theory_s2_linear.estimated_peak;
+        }
         return 0.0;
     }
 
-    /// SLO floors (runes/s). Extended F/C rows keep historical floors.
+    /// SLO floors (runes/s). Extended F/C/T.theory rows keep historical floors.
     [[nodiscard]] static constexpr double slo_floor(std::string_view tier) noexcept {
         if (tier == "T1") {
             return t1.slo_min;
@@ -146,13 +213,31 @@ public:
             return t3.slo_min;
         }
         if (tier == "F.atbash" || tier == "F.affine" || tier == "C.koan1_fused" ||
-            tier == "C.koan1_stages") {
+            tier == "C.koan1_stages" || tier == "T.theory.caesar_bytecode" ||
+            tier == "T.theory.s0" || tier == "T.theory.s1_lut29" || tier == "T.theory.s1" ||
+            tier == "T.theory.s2_linear" || tier == "T.theory.progressive" ||
+            tier == "T.theory.s2") {
             return 15.0e9;
         }
         if (tier == "F.vigenere" || tier == "F.beaufort" || tier == "F.totient") {
             return 3.0e9;
         }
         return 0.0;
+    }
+
+    /// Look up a theory-shape Tier by id (nullptr if unknown).
+    [[nodiscard]] static constexpr const Tier* find_theory(std::string_view id) noexcept {
+        if (id == std::string_view{theory_s0_caesar.id} || id == "T.theory.s0") {
+            return &theory_s0_caesar;
+        }
+        if (id == std::string_view{theory_s1_lut29.id} || id == "T.theory.s1") {
+            return &theory_s1_lut29;
+        }
+        if (id == std::string_view{theory_s2_linear.id} || id == "T.theory.s2" ||
+            id == std::string_view{theory_progressive_id}) {
+            return &theory_s2_linear;
+        }
+        return nullptr;
     }
 
     [[nodiscard]] static constexpr bool known_tier(std::string_view tier) noexcept {

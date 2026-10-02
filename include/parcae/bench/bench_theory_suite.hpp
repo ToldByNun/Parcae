@@ -5,6 +5,7 @@
 #include "parcae/bench/bench_report.hpp"
 #include "parcae/bench/bench_tier_spec.hpp"
 #include "parcae/bench/bench_timer.hpp"
+#include "parcae/core/index29.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/dsl/param_ir.hpp"
@@ -31,16 +32,19 @@
 #include "device_buffer.hpp"
 #include "theory_chi2_batch.hpp"
 #include "theory_hist_chi2_launch.hpp"
+#include "theory_hist_chi2_s1.hpp"
+#include "theory_hist_chi2_s2.hpp"
 #endif
 
 /// Theory fused-χ² cudaEvent microbench (`parcae-bench --suite theory`).
 ///
 /// Times **kernel only** via `BenchTimer` (4 warmups + median-of-3 cudaEvent;
-/// H2D / host prepare excluded). Side-by-side Caesar twin uses the same
-/// `(C,T,reps)` and cipher. Peaks are uncalibrated until `BenchTierSpec`
-/// theory rows land — rows pass when measurement succeeds (`peak_uncalibrated`
-/// in detail). Acceptance gate remains ≥90% `estimated_peak` once calibrated
-/// (see `docs/architecture/cuda-profile-theory.md`).
+/// H2D / host prepare excluded). Peaks / SLO floors live in `BenchTierSpec`
+/// theory rows (`T.theory.*`). **PRIMARY gate** at fair `T≥2^20`:
+/// `pass_tier` → measured ≥ **90%** `estimated_peak` (and ≥ `slo_min`).
+/// Shorter T is underfill (measurement-only pass). Optional `checkpoint_50B`
+/// annotation when peak ≫ 50B — never replaces the 90% gate.
+/// See `docs/architecture/cuda-profile-theory.md`.
 class BenchTheorySuite {
 public:
     class Options {
@@ -84,13 +88,15 @@ public:
     [[nodiscard]] static BenchReport::Row
     make_measured_row(std::string name, std::string workload, double runes_per_sec,
                       double keys_per_sec, double wall_seconds, bool pass, std::size_t candidates,
-                      std::size_t tokens, std::size_t repeats, std::string detail = {}) {
+                      std::size_t tokens, std::size_t repeats, std::string detail = {},
+                      double estimated_peak = 0.0, double slo_min = 0.0,
+                      double slo_max = 0.0) {
         return BenchReport::Row::make(
             std::move(name), std::move(workload), BenchReport::Suite::Theory,
             BenchReport::Backend::Cuda,
             pass ? BenchReport::RowStatus::Pass : BenchReport::RowStatus::Fail, runes_per_sec,
-            keys_per_sec, wall_seconds, /*target_min=*/0.0, /*target_max=*/0.0,
-            /*estimated_peak=*/0.0, candidates, tokens, repeats, std::move(detail));
+            keys_per_sec, wall_seconds, slo_min, slo_max, estimated_peak, candidates, tokens,
+            repeats, std::move(detail));
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Document> run(const ExpectedFrequencyTable& freqs) {
@@ -112,9 +118,9 @@ public:
             options.candidates() == 0 ? BenchTierSpec::t1.candidates : options.candidates();
         const std::size_t fair_reps = options.repeats() == 0 ? 8u : options.repeats();
 
-        StatusOr<BenchReport::Row> caesar_bc =
-            run_caesar_bytecode(freqs, fair_C, fair_T, fair_reps, "T.theory.caesar_bytecode",
-                                "TheoryChi2Batch Caesar bytecode", "peak_uncalibrated");
+        StatusOr<BenchReport::Row> caesar_bc = run_caesar_bytecode(
+            freqs, fair_C, fair_T, fair_reps, BenchTierSpec::theory_s0_caesar.id,
+            BenchTierSpec::theory_s0_caesar.workload, &BenchTierSpec::theory_s0_caesar);
         if (!caesar_bc.ok()) {
             return caesar_bc.status();
         }
@@ -123,18 +129,26 @@ public:
         if (options.compare_catalog()) {
             StatusOr<BenchReport::Row> caesar_twin =
                 run_caesar_catalog(freqs, fair_C, fair_T, fair_reps, "T.theory.compare_caesar",
-                                   "CaesarChi2Batch twin (same C/T)", "catalog_compare");
+                                   "CaesarChi2Batch twin (same C/T)", &BenchTierSpec::t1);
             if (!caesar_twin.ok()) {
                 return caesar_twin.status();
             }
             doc.add_row(std::move(caesar_twin.value()));
         }
 
+        StatusOr<BenchReport::Row> s1 = run_caesar_s1(
+            freqs, fair_C, fair_T, fair_reps, BenchTierSpec::theory_s1_lut29.id,
+            BenchTierSpec::theory_s1_lut29.workload, &BenchTierSpec::theory_s1_lut29);
+        if (!s1.ok()) {
+            return s1.status();
+        }
+        doc.add_row(std::move(s1.value()));
+
         const std::size_t prog_C = options.candidates() == 0 ? 9u : options.candidates();
         const std::size_t prog_reps = options.repeats() == 0 ? 4u : options.repeats();
-        StatusOr<BenchReport::Row> progressive =
-            run_progressive(freqs, prog_C, fair_T, prog_reps, "T.theory.progressive",
-                            "TheoryChi2Batch keyed stream (b0+b1*i)", "peak_uncalibrated");
+        StatusOr<BenchReport::Row> progressive = run_progressive_s2(
+            freqs, prog_C, fair_T, prog_reps, BenchTierSpec::theory_progressive_id,
+            "TheoryHistChi2S2 keyed stream (b0+b1*i)", &BenchTierSpec::theory_s2_linear);
         if (!progressive.ok()) {
             return progressive.status();
         }
@@ -146,7 +160,7 @@ public:
             const std::size_t camp_reps = options.repeats() == 0 ? 32u : options.repeats();
             StatusOr<BenchReport::Row> campaign = run_caesar_bytecode(
                 freqs, camp_C, camp_T, camp_reps, "T.theory.caesar_campaign",
-                "TheoryChi2Batch Caesar @ campaign-like T", "underfill_not_slo_gate");
+                "TheoryChi2Batch Caesar @ campaign-like T", /*tier=*/nullptr);
             if (!campaign.ok()) {
                 return campaign.status();
             }
@@ -194,6 +208,39 @@ private:
         std::uint8_t binds_index_i = 0;
         std::uint16_t max_stack = 0;
     };
+
+    [[nodiscard]] static std::string
+    annotate_detail(std::string detail, double rps, double peak, std::size_t tokens) {
+        if (!BenchTierSpec::is_fair_gate_tokens(tokens)) {
+            if (!detail.empty()) {
+                detail += ";";
+            }
+            detail += "underfill_not_slo_gate";
+            return detail;
+        }
+        if (peak > 0.0) {
+            if (!detail.empty()) {
+                detail += ";";
+            }
+            detail += "pct_peak=" + std::to_string(BenchTierSpec::percent_peak(rps, peak));
+            if (BenchTierSpec::checkpoint_50B_applicable(peak)) {
+                detail += BenchTierSpec::checkpoint_50B_hit(rps, peak) ? ";checkpoint_50B=hit"
+                                                                        : ";checkpoint_50B=miss";
+            }
+        }
+        return detail;
+    }
+
+    [[nodiscard]] static bool gate_pass(double rps, std::size_t tokens, double slo_min,
+                                        double peak) noexcept {
+        if (rps <= 0.0) {
+            return false;
+        }
+        if (!BenchTierSpec::is_fair_gate_tokens(tokens) || peak <= 0.0) {
+            return true;
+        }
+        return BenchTierSpec::pass_tier(rps, slo_min, peak);
+    }
 
     [[nodiscard]] static std::vector<std::uint8_t> random_stream(std::size_t n,
                                                                  std::uint32_t seed) {
@@ -353,11 +400,18 @@ private:
 
     [[nodiscard]] static BenchReport::Row
     row_from_sample(std::string name, std::string workload, const BenchMetric::Sample& sample,
-                    std::size_t C, std::size_t T, std::size_t reps, std::string detail) {
-        const bool pass = sample.runes_per_sec() > 0.0;
-        return make_measured_row(std::move(name), std::move(workload), sample.runes_per_sec(),
-                                 sample.keys_per_sec(), sample.wall_seconds(), pass, C, T, reps,
-                                 std::move(detail));
+                    std::size_t C, std::size_t T, std::size_t reps, const BenchTierSpec::Tier* tier,
+                    std::string detail_prefix = {}) {
+        const double peak = tier != nullptr ? tier->estimated_peak : 0.0;
+        const double slo_min = tier != nullptr ? tier->slo_min : 0.0;
+        const double slo_max = tier != nullptr ? tier->slo_max : 0.0;
+        const double rps = sample.runes_per_sec();
+        std::string detail =
+            annotate_detail(std::move(detail_prefix), rps, peak, T);
+        const bool pass = gate_pass(rps, T, slo_min, peak);
+        return make_measured_row(std::move(name), std::move(workload), rps, sample.keys_per_sec(),
+                                 sample.wall_seconds(), pass, C, T, reps, std::move(detail), peak,
+                                 slo_min, slo_max);
     }
 
     [[nodiscard]] static std::vector<nlohmann::json> caesar_params(std::size_t C) {
@@ -382,7 +436,7 @@ private:
     [[nodiscard]] static StatusOr<BenchReport::Row>
     run_caesar_bytecode(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
                         std::size_t reps, std::string name, std::string workload,
-                        std::string detail) {
+                        const BenchTierSpec::Tier* tier) {
         StatusOr<TheoryIr> theory = make_caesar_theory();
         if (!theory.ok()) {
             return theory.status();
@@ -404,7 +458,7 @@ private:
 
         StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
             NvtxRange nvtx_hist("hist_kernel");
-            return TheoryHistChi2Launch::launch_async(
+            return TheoryHistChi2Launch::launch_bytecode_async(
                 scratch.value().in.data(), scratch.value().ops.data(), scratch.value().imm.data(),
                 scratch.value().op_count, scratch.value().slots.data(), scratch.value().slot_count,
                 scratch.value().cipher_slot, scratch.value().index_slot,
@@ -416,13 +470,14 @@ private:
             return sample.status();
         }
         return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
-                               std::move(detail));
+                               tier, tier == nullptr ? "" : "S0_bytecode");
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Row>
-    run_progressive(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
-                    std::size_t reps, std::string name, std::string workload, std::string detail) {
-        StatusOr<TheoryIr> theory = make_progressive_theory();
+    run_caesar_s1(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
+                  std::size_t reps, std::string name, std::string workload,
+                  const BenchTierSpec::Tier* tier) {
+        StatusOr<TheoryIr> theory = make_caesar_theory();
         if (!theory.ok()) {
             return theory.status();
         }
@@ -431,38 +486,127 @@ private:
         if (!prog.ok()) {
             return prog.status();
         }
-        StatusOr<PackedProgram> packed =
-            pack_grid(prog.value(), theory.value(), progressive_params(C));
-        if (!packed.ok()) {
-            return packed.status();
+        const auto params = caesar_params(C);
+        // Host LUT fill is setup (excluded from cudaEvent window).
+        std::vector<std::uint8_t> host_luts(C * TheoryHistChi2S1::alphabet_size, 0);
+        for (std::size_t c = 0; c < C; ++c) {
+            StatusOr<std::vector<Index29>> bound =
+                Z29Bytecode::bind_theory_slots(prog.value(), theory.value(), params[c]);
+            if (!bound.ok()) {
+                return bound.status();
+            }
+            std::vector<Index29> slots = bound.value();
+            for (std::uint8_t sym = 0; sym < TheoryHistChi2S1::alphabet_size; ++sym) {
+                const std::vector<Index29> one{Index29{sym}};
+                StatusOr<Index29> out = Z29Bytecode::eval_at(
+                    prog.value(), std::span<Index29>(slots), std::span<const Index29>(one), 0);
+                if (!out.ok()) {
+                    return out.status();
+                }
+                host_luts[c * TheoryHistChi2S1::alphabet_size + sym] = out.value().value();
+            }
         }
-        const auto host_in = random_stream(T, 0xA11Au);
-        StatusOr<Scratch> scratch = make_scratch(host_in, freqs, packed.value());
-        if (!scratch.ok()) {
-            return scratch.status();
+
+        const auto host_in = random_stream(T, 0x71EFu);
+        StatusOr<DeviceBuffer<std::uint8_t>> device_in =
+            DeviceBuffer<std::uint8_t>::from_host(host_in);
+        if (!device_in.ok()) {
+            return device_in.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_luts =
+            DeviceBuffer<std::uint8_t>::from_host(host_luts);
+        if (!device_luts.ok()) {
+            return device_luts.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
+            std::span<const double>(freqs.probabilities().data(), freqs.probabilities().size()));
+        if (!device_probs.ok()) {
+            return device_probs.status();
+        }
+        StatusOr<DeviceBuffer<std::uint32_t>> device_counts =
+            DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2S1::alphabet_size);
+        if (!device_counts.ok()) {
+            return device_counts.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_scores = DeviceBuffer<double>::allocate(C);
+        if (!device_scores.ok()) {
+            return device_scores.status();
         }
 
         StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
-            NvtxRange nvtx_hist("hist_kernel");
-            return TheoryHistChi2Launch::launch_async(
-                scratch.value().in.data(), scratch.value().ops.data(), scratch.value().imm.data(),
-                scratch.value().op_count, scratch.value().slots.data(), scratch.value().slot_count,
-                scratch.value().cipher_slot, scratch.value().index_slot,
-                scratch.value().binds_index_i, scratch.value().max_stack,
-                scratch.value().probs.data(), scratch.value().counts.data(),
-                scratch.value().scores.data(), scratch.value().lane_err.data(), C, T);
+            NvtxRange nvtx_s1("hist_s1_lut");
+            return TheoryHistChi2Launch::launch_s1_lut_async(
+                device_in.value().data(), device_luts.value().data(), device_probs.value().data(),
+                device_counts.value().data(), device_scores.value().data(), C, T);
         });
         if (!sample.ok()) {
             return sample.status();
         }
         return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
-                               std::move(detail));
+                               tier, "S1_lut29");
+    }
+
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    run_progressive_s2(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
+                       std::size_t reps, std::string name, std::string workload,
+                       const BenchTierSpec::Tier* tier) {
+        const auto params = progressive_params(C);
+        std::vector<std::uint8_t> host_b0(C);
+        std::vector<std::uint8_t> host_b1(C);
+        for (std::size_t c = 0; c < C; ++c) {
+            host_b0[c] = static_cast<std::uint8_t>(params[c].at("b0").get<int>());
+            host_b1[c] = static_cast<std::uint8_t>(params[c].at("b1").get<int>());
+        }
+
+        const auto host_in = random_stream(T, 0xA11Au);
+        StatusOr<DeviceBuffer<std::uint8_t>> device_in =
+            DeviceBuffer<std::uint8_t>::from_host(host_in);
+        if (!device_in.ok()) {
+            return device_in.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_b0 =
+            DeviceBuffer<std::uint8_t>::from_host(host_b0);
+        if (!device_b0.ok()) {
+            return device_b0.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_b1 =
+            DeviceBuffer<std::uint8_t>::from_host(host_b1);
+        if (!device_b1.ok()) {
+            return device_b1.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
+            std::span<const double>(freqs.probabilities().data(), freqs.probabilities().size()));
+        if (!device_probs.ok()) {
+            return device_probs.status();
+        }
+        StatusOr<DeviceBuffer<std::uint32_t>> device_counts =
+            DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2S2::alphabet_size);
+        if (!device_counts.ok()) {
+            return device_counts.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_scores = DeviceBuffer<double>::allocate(C);
+        if (!device_scores.ok()) {
+            return device_scores.status();
+        }
+
+        StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
+            NvtxRange nvtx_s2("hist_s2_linear");
+            return TheoryHistChi2Launch::launch_s2_linear_async(
+                device_in.value().data(), device_b0.value().data(), device_b1.value().data(),
+                device_probs.value().data(), device_counts.value().data(),
+                device_scores.value().data(), C, T, /*cipher_minus_ks=*/true);
+        });
+        if (!sample.ok()) {
+            return sample.status();
+        }
+        return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
+                               tier, "S2_linear");
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Row>
     run_caesar_catalog(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
                        std::size_t reps, std::string name, std::string workload,
-                       std::string detail) {
+                       const BenchTierSpec::Tier* tier) {
         if (C > CaesarChi2Batch::kMaxCandidates) {
             return Status::error("BenchTheorySuite: C exceeds CaesarChi2Batch cap");
         }
@@ -507,7 +651,7 @@ private:
             return sample.status();
         }
         return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
-                               std::move(detail));
+                               tier, "catalog_compare");
     }
 #endif
 };

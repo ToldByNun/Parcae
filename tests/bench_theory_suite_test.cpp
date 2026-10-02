@@ -34,7 +34,8 @@ TEST_CASE("BenchTheorySuite Options defaults", "[bench][theory]") {
 
 TEST_CASE("BenchTheorySuite make_measured_row derives rates", "[bench][theory]") {
     const BenchReport::Row row = BenchTheorySuite::make_measured_row(
-        "T.theory.caesar_bytecode", "test", 512.0, 32.0, 0.25, true, 4, 16, 2, "peak_uncalibrated");
+        "T.theory.caesar_bytecode", "test", 512.0, 32.0, 0.25, true, 4, 16, 2, "S0_bytecode",
+        BenchTierSpec::theory_s0_caesar.estimated_peak, BenchTierSpec::theory_s0_caesar.slo_min);
     REQUIRE(row.name() == "T.theory.caesar_bytecode");
     REQUIRE(row.suite() == BenchReport::Suite::Theory);
     REQUIRE(row.backend() == BenchReport::Backend::Cuda);
@@ -42,8 +43,8 @@ TEST_CASE("BenchTheorySuite make_measured_row derives rates", "[bench][theory]")
     REQUIRE(row.runes_per_sec() == 512.0);
     REQUIRE(row.keys_per_sec() == 32.0);
     REQUIRE(row.wall_seconds() == 0.25);
-    REQUIRE(row.estimated_peak() == 0.0);
-    REQUIRE(row.detail() == "peak_uncalibrated");
+    REQUIRE(row.estimated_peak() == BenchTierSpec::theory_s0_caesar.estimated_peak);
+    REQUIRE(row.detail() == "S0_bytecode");
 }
 
 #if !defined(PARCAE_HAS_CUDA)
@@ -74,14 +75,23 @@ TEST_CASE("BenchTheorySuite run fair microbench on CUDA", "[bench][theory][cuda]
     StatusOr<BenchReport::Document> doc = BenchTheorySuite::run(freqs.value(), opts);
     REQUIRE(doc.ok());
     REQUIRE(doc.value().suite() == BenchReport::Suite::Theory);
-    REQUIRE(doc.value().rows().size() == 3u);
+    REQUIRE(doc.value().rows().size() == 4u);
     REQUIRE(doc.value().rows()[0].name() == "T.theory.caesar_bytecode");
     REQUIRE(doc.value().rows()[1].name() == "T.theory.compare_caesar");
-    REQUIRE(doc.value().rows()[2].name() == "T.theory.progressive");
+    REQUIRE(doc.value().rows()[2].name() == "T.theory.s1_lut29");
+    REQUIRE(doc.value().rows()[3].name() == "T.theory.progressive");
     REQUIRE(doc.value().rows()[0].tokens() == 4096u);
     REQUIRE(doc.value().rows()[0].candidates() == BenchTierSpec::t1.candidates);
+    REQUIRE(doc.value().rows()[0].estimated_peak() ==
+            BenchTierSpec::theory_s0_caesar.estimated_peak);
+    REQUIRE(doc.value().rows()[2].estimated_peak() ==
+            BenchTierSpec::theory_s1_lut29.estimated_peak);
+    REQUIRE(doc.value().rows()[3].estimated_peak() ==
+            BenchTierSpec::theory_s2_linear.estimated_peak);
+    REQUIRE(doc.value().rows()[0].detail().find("underfill_not_slo_gate") != std::string::npos);
     REQUIRE(doc.value().rows()[0].runes_per_sec() > 0.0);
     REQUIRE(doc.value().rows()[1].runes_per_sec() > 0.0);
+    REQUIRE(doc.value().rows()[2].runes_per_sec() > 0.0);
     REQUIRE(doc.value().all_pass());
 }
 
@@ -97,11 +107,13 @@ TEST_CASE("BenchTheorySuite campaign grid adds underfill row", "[bench][theory][
     opts.set_compare_catalog(false);
     StatusOr<BenchReport::Document> doc = BenchTheorySuite::run(freqs.value(), opts);
     REQUIRE(doc.ok());
-    REQUIRE(doc.value().rows().size() == 3u);
+    REQUIRE(doc.value().rows().size() == 4u);
     REQUIRE(doc.value().rows()[0].name() == "T.theory.caesar_bytecode");
-    REQUIRE(doc.value().rows()[1].name() == "T.theory.progressive");
-    REQUIRE(doc.value().rows()[2].name() == "T.theory.caesar_campaign");
-    REQUIRE(doc.value().rows()[2].candidates() == 16384u);
-    REQUIRE(doc.value().rows()[2].tokens() == 262u);
+    REQUIRE(doc.value().rows()[1].name() == "T.theory.s1_lut29");
+    REQUIRE(doc.value().rows()[2].name() == "T.theory.progressive");
+    REQUIRE(doc.value().rows()[3].name() == "T.theory.caesar_campaign");
+    REQUIRE(doc.value().rows()[3].candidates() == 16384u);
+    REQUIRE(doc.value().rows()[3].tokens() == 262u);
+    REQUIRE(doc.value().rows()[3].detail().find("underfill_not_slo_gate") != std::string::npos);
 }
 #endif

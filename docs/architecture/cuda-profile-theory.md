@@ -204,13 +204,18 @@ Full write-up: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md).
 | 2026-10-01 | host-amortize | (code) | — | — | — | — | tests `[search][export][theory]` | `TheoryExportCache`: host bytecode once/URI; device `ops`/`imm` reused; `theory_scores_only`; scheduler loop shares cache |
 | 2026-10-01 | interpreter-qw | (code) | `theory_chi2_hist_kernel` | 29×1M | **69.30B** cudaEvent | — | ncu ~157µs @ T=262k (≈baseline) | shared `ops`/`imm` (≤256) + `eval_at_trusted`; +~5% vs 65.87B baseline; Caesar twin 414B |
 
-Peak calibration rows (fill when specialized emit exists):
+Peak calibration rows (`BenchTierSpec` provisional on RTX 5070 Ti; remesaure before claiming done):
 
-| Theory shape | `estimated_peak` | 90% gate | Method | Date |
-|--------------|------------------|----------|--------|------|
-| Caesar-as-bytecode (S0 interpreter) | TBD (interim **~69B** fair after shared+trusted) | TBD | cudaEvent @ T≥2^20 | 2026-10-01 |
-| S1 LUT-29 (caesar/affine) | emit + `TheoryHistChi2S1` twin | golden: bytecode χ² == S1 χ² | cudaEvent / ncu @ T≥2^20 | |
-| bitmask_blend / progressive S2 linear | emit + `TheoryHistChi2S2` twin | golden: bytecode χ² == S2 χ² (3×3 grid) | cudaEvent / ncu @ T≥2^20 | |
+| Theory shape | Spec id | `estimated_peak` | 90% gate | Method | Date |
+|--------------|---------|------------------|----------|--------|------|
+| Caesar-as-bytecode (S0 interpreter) | `T.theory.caesar_bytecode` | **75B** (interim ~69B fair rounded up) | **67.5B** | cudaEvent @ T≥2^20 | 2026-10-01 |
+| S1 LUT-29 (caesar/affine-shaped) | `T.theory.s1_lut29` | **473B** (Affine-class until remesaure) | **425.7B** | cudaEvent / ncu @ T≥2^20 | provisional |
+| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **350B** (plan provisional) | **315B** | cudaEvent / ncu @ T≥2^20 | provisional |
+
+`BenchTheorySuite` (`parcae-bench --suite theory`) gates fair rows with
+`BenchTierSpec::pass_tier` (≥90% peak + `slo_min`). Short T is
+`underfill_not_slo_gate`. When peak ≥100B, row detail annotates
+`checkpoint_50B=hit|miss` (never replaces the 90% gate).
 
 ---
 

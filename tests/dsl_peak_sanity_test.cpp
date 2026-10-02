@@ -103,6 +103,24 @@ TEST_CASE("DslPeakSanity suggest_tier for DSL theory names", "[dsl][peak]") {
     REQUIRE(atb.ok());
     REQUIRE(DslPeakSanity::suggest_tier(atb.value()) == "F.atbash");
 
+    const StatusOr<TheoryIr> caesar =
+        TheoryIr::make("bench_theory_caesar", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+                       TheoryIr::InterruptMode::ElementwiseDefault, {});
+    REQUIRE(caesar.ok());
+    REQUIRE(DslPeakSanity::suggest_tier(caesar.value()) == "T.theory.s1_lut29");
+
+    const StatusOr<TheoryIr> progressive =
+        TheoryIr::make("progressive_key", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+                       TheoryIr::InterruptMode::ElementwiseDefault, {});
+    REQUIRE(progressive.ok());
+    REQUIRE(DslPeakSanity::suggest_tier(progressive.value()) == "T.theory.s2_linear");
+
+    const StatusOr<TheoryIr> autokey =
+        TheoryIr::make("autokey_v1", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+                       TheoryIr::InterruptMode::ElementwiseDefault, {});
+    REQUIRE(autokey.ok());
+    REQUIRE(DslPeakSanity::suggest_tier(autokey.value()) == "T.theory.caesar_bytecode");
+
     const StatusOr<TheoryIr> other =
         TheoryIr::make("poly2_stream", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
                        TheoryIr::InterruptMode::ElementwiseDefault, {});
@@ -118,8 +136,10 @@ TEST_CASE("DslPeakSanity verdict_str", "[dsl][peak]") {
 
 #if defined(PARCAE_HAS_CUDA)
 TEST_CASE("DslPeakSanity and ThroughputTiers both follow BenchTierSpec", "[dsl][peak][cuda]") {
-    for (const char* tier : {"T1", "T2", "T3", "F.atbash", "F.affine", "F.vigenere", "F.beaufort",
-                             "F.totient", "C.koan1_fused", "C.koan1_stages"}) {
+    for (const char* tier :
+         {"T1", "T2", "T3", "F.atbash", "F.affine", "F.vigenere", "F.beaufort", "F.totient",
+          "C.koan1_fused", "C.koan1_stages", "T.theory.caesar_bytecode", "T.theory.s1_lut29",
+          "T.theory.s2_linear", "T.theory.progressive"}) {
         REQUIRE(DslPeakSanity::estimated_peak(tier) == BenchTierSpec::estimated_peak(tier));
         REQUIRE(ThroughputTiers::estimated_peak(tier) == BenchTierSpec::estimated_peak(tier));
         REQUIRE(DslPeakSanity::estimated_peak(tier) == ThroughputTiers::estimated_peak(tier));

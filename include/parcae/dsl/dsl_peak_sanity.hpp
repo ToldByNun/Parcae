@@ -187,7 +187,14 @@ public:
             return "F.totient";
         }
         if (n.find("caesar") != std::string::npos) {
-            return "T1";
+            return "T.theory.s1_lut29";
+        }
+        if (n.find("progressive") != std::string::npos ||
+            n.find("bitmask") != std::string::npos || n.find("blend") != std::string::npos) {
+            return "T.theory.s2_linear";
+        }
+        if (n.find("autokey") != std::string::npos) {
+            return "T.theory.caesar_bytecode";
         }
         return {};
     }

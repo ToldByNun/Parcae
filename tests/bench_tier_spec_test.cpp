@@ -85,3 +85,33 @@ TEST_CASE("BenchTierSpec primary reps match wired ThroughputTiers contract", "[b
     REQUIRE(BenchTierSpec::t2.candidates == 4096u);
     REQUIRE(BenchTierSpec::t3.candidates == 512u);
 }
+
+TEST_CASE("BenchTierSpec theory rows and fair-gate helpers", "[bench][spec]") {
+    REQUIRE(std::string_view(BenchTierSpec::theory_s0_caesar.id) == "T.theory.caesar_bytecode");
+    REQUIRE(BenchTierSpec::theory_s0_caesar.estimated_peak == 75.0e9);
+    REQUIRE(BenchTierSpec::theory_s1_lut29.estimated_peak == 473.0e9);
+    REQUIRE(BenchTierSpec::theory_s2_linear.estimated_peak == 350.0e9);
+    REQUIRE(BenchTierSpec::theory_s0_caesar.tokens == BenchTierSpec::fair_gate_tokens());
+    REQUIRE(BenchTierSpec::is_fair_gate_tokens(1048576u));
+    REQUIRE_FALSE(BenchTierSpec::is_fair_gate_tokens(4096u));
+
+    REQUIRE(BenchTierSpec::find_theory("T.theory.s0") == &BenchTierSpec::theory_s0_caesar);
+    REQUIRE(BenchTierSpec::find_theory("T.theory.s1") == &BenchTierSpec::theory_s1_lut29);
+    REQUIRE(BenchTierSpec::find_theory("T.theory.progressive") == &BenchTierSpec::theory_s2_linear);
+    REQUIRE(BenchTierSpec::find_theory("nope") == nullptr);
+
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.caesar_bytecode") == 75.0e9);
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s1_lut29") == 473.0e9);
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s2_linear") == 350.0e9);
+    REQUIRE(BenchTierSpec::slo_floor("T.theory.s1_lut29") == 15.0e9);
+
+    REQUIRE_FALSE(BenchTierSpec::checkpoint_50B_applicable(75.0e9));
+    REQUIRE(BenchTierSpec::checkpoint_50B_applicable(473.0e9));
+    REQUIRE(BenchTierSpec::checkpoint_50B_hit(55.0e9, 473.0e9));
+    REQUIRE_FALSE(BenchTierSpec::checkpoint_50B_hit(40.0e9, 473.0e9));
+
+    const double peak = BenchTierSpec::theory_s1_lut29.estimated_peak;
+    const double slo = BenchTierSpec::theory_s1_lut29.slo_min;
+    REQUIRE(BenchTierSpec::pass_tier(0.91 * peak, slo, peak));
+    REQUIRE_FALSE(BenchTierSpec::pass_tier(0.80 * peak, slo, peak));
+}

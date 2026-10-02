@@ -51,7 +51,7 @@ private:
 | **accuracy** | Statistical checks (`A.fixture_eval`, `A.chi2_sanity`, `A.oracle_rank`; optional CUDA `A.fused_parity` / planted) | CPU always; CUDA extras need `--allow-cuda` |
 | **hardware** | Same T1–T3 IDs, CPU vs CUDA side-by-side; `gpu/cpu` in detail | CPU smoke scaled unless `--cpu-full`; CUDA: `--allow-cuda` / `--require-cuda` / `--allow-skip` |
 | **probe** | External tool JSON 1.0.0 via `--probe-cmd` (`{tier}` substituted) | Requires `--probe-cmd`; timeout default 120000 ms; see `bench-probe.md` |
-| **theory** | Theory fused χ² cudaEvent microbench (`TheoryChi2Batch` vs Caesar twin) | Requires `--allow-cuda` + device; optional `--campaign-grid` / `--tokens` |
+| **theory** | Theory fused χ² cudaEvent (`S0` bytecode, `S1` LUT-29, `S2` linear + Caesar twin) vs `BenchTierSpec` `T.theory.*` (≥90% peak @ T≥2^20) | Requires `--allow-cuda` + device; optional `--campaign-grid` / `--tokens` |
 | **all** | accuracy → slo → hardware → probe | Probe only if `--probe-cmd`; SLO only with usable CUDA + `--allow-cuda` |
 
 Compat: `parcae-throughput-tiers` ≡ `--suite slo --extended --allow-cuda`.
