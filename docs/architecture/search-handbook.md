@@ -440,11 +440,12 @@ parcae-search-cycle \
   --data-dir data
 ```
 
-**Two metrics — do not mix** (see [`cuda-profile-theory.md`](cuda-profile-theory.md)):
+**Two metrics — do not mix** (see [`cuda-profile-theory.md`](cuda-profile-theory.md);
+Done rules: [`theory-hist-transpile.md`](theory-hist-transpile.md)):
 
 | Metric | How | Use for |
 |--------|-----|---------|
-| **Kernel SLO** | `parcae-bench --suite theory --allow-cuda` (`T.theory.*` / ≥90% `BenchTierSpec` peak @ `T≥2^20`) | Pass/fail vs shape peak |
+| **Kernel SLO** | `parcae-bench --suite theory --allow-cuda` (`T.theory.*` / ≥90% `BenchTierSpec` peak @ `T≥2^20`) | Pass/fail vs shape peak (**incl. S0**) |
 | **Campaign wall** | `research/run.log` cells/s over `SearchScheduler::run_loop` | Ops / ETA only — **not** the 90% gate |
 
 Provisional peaks / post-emit nsys+ncu:
@@ -588,4 +589,5 @@ Headers / tags: [`include/parcae/search/README.md`](../../include/parcae/search/
 | [`cuda-score-reduction.md`](cuda-score-reduction.md) | CUDA top-k score contract |
 | [`cuda-throughput.md`](cuda-throughput.md) | Catalog + theory Kernel SLO ceilings (`T.theory.*`) |
 | [`cuda-profile-theory.md`](cuda-profile-theory.md) | Theory nsys/ncu; Kernel SLO vs campaign wall |
+| [`theory-hist-transpile.md`](theory-hist-transpile.md) | S0–S5 hist strategies; all ≥90% shape peak (incl. S0) |
 | [`python-transpiler.md`](python-transpiler.md) | DSL compile + `TheoryHistChi2Emit` strategies |

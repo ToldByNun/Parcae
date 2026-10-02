@@ -3,7 +3,11 @@
 **Status:** operator playbook for theory fused-χ² / search-export throughput  
 **Hardware reference:** RTX 5070 Ti (sm_120) — same plate as [`cuda-throughput.md`](cuda-throughput.md)  
 **Canonical catalog metric:** `BenchTimer` — 4 warmups + **median-of-3** `cudaEvent`, setup excluded  
-**Theory acceptance (PRIMARY):** measured ≥ **90%** of the theory-shape `estimated_peak` (peak must be documented before claiming done)  
+**Theory acceptance (PRIMARY):** measured ≥ **90%** of the theory-shape
+`estimated_peak` — **every** strategy that runs, **including S0 bytecode**.
+Soft-fallback to S0 does not waive the S0 peak gate. Normative contract:
+[`theory-hist-transpile.md`](theory-hist-transpile.md).
+  
 **Wrapper:** [`scripts/cuda/profile_theory_hist.ps1`](../../scripts/cuda/profile_theory_hist.ps1)
 
 Use this doc before and after every theory-throughput change. Do **not** compare

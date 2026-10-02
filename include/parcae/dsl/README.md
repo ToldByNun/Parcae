@@ -118,7 +118,8 @@ Authoring examples (also CI via `scripts/check-dsl-examples.sh`):
 `ignore_divergent_example.py` denied without `--allow-dsl-ignores` (**E031**).
 Handbook: [python-transpiler.md](../../../docs/architecture/python-transpiler.md)
 § Execution scopes. Theory fused-χ² search path (S1/S2 prefer, S0 soft-fallback;
-Kernel SLO vs campaign wall):
+**S0–S5 all ≥90% shape peak**):
+[theory-hist-transpile.md](../../../docs/architecture/theory-hist-transpile.md),
 [cuda-throughput.md](../../../docs/architecture/cuda-throughput.md) § Theory,
 [search-handbook.md](../../../docs/architecture/search-handbook.md) § Theory URI,
 [cuda-profile-theory.md](../../../docs/architecture/cuda-profile-theory.md).
@@ -133,10 +134,13 @@ Compile still emits CPU/CUDA transform text + bytecode. Separately,
 | S1 | `f(x; params)` only | `TheoryHistChi2S1` LUT-29 |
 | S2 | `x ± (b0 + b1·i)` | `TheoryHistChi2S2` linear uchar4 |
 | S0 | unmatched / Autokey / soft-fallback | `TheoryChi2Batch` bytecode interpreter |
+| S3–S5 | planned (expr inline / autokey ring / poly) | see contract |
 
 `GpuCandidateExport` prefers S1/S2 when the cached `HistPlan` matches; launch
-failure soft-falls back to S0 with `export_backend=cuda` unchanged. Peaks /
-≥90% gate: `BenchTierSpec` `T.theory.*` via `parcae-bench --suite theory`.
+failure soft-falls back to S0 with `export_backend=cuda` unchanged. Soft-fallback
+still requires the **S0** fair Kernel SLO ≥90% Spec peak. Normative rules:
+[`theory-hist-transpile.md`](../../../docs/architecture/theory-hist-transpile.md).
+Peaks / suite: `BenchTierSpec` `T.theory.*` via `parcae-bench --suite theory`.
 
 ## Status
 

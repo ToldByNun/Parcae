@@ -328,8 +328,14 @@ matching shapes. After `DslOptimize` / IR build, `TheoryHistChi2Emit` selects:
 
 `TheoryExportCache` stores the `HistPlan`; `GpuCandidateExport::theory_*`
 prefers specialized launches and soft-falls back to S0 on failure
-(`export_backend=cuda`). Throughput expectations and Kernel SLO vs campaign
-wall: [cuda-throughput.md](cuda-throughput.md) § Theory,
+(`export_backend=cuda`). Soft-fallback does **not** waive the S0 ≥90% shape-peak
+gate.
+
+**Normative contract (S0–S5, PRIMARY gate, edgecases, style):**
+[theory-hist-transpile.md](theory-hist-transpile.md).
+
+Throughput tables and Kernel SLO vs campaign wall:
+[cuda-throughput.md](cuda-throughput.md) § Theory,
 [cuda-profile-theory.md](cuda-profile-theory.md),
 [search-handbook.md](search-handbook.md) § Theory URI.
 

@@ -12,6 +12,7 @@ theory DSL compiles into that stack.
 | [cuda-build.md](cuda-build.md) | Local CUDA Toolkit / CMake notes; CI stays CPU-default |
 | [cuda-throughput.md](cuda-throughput.md) | Fused χ² ceilings (`BenchTierSpec`); catalog + theory S0/S1/S2; Kernel SLO vs campaign wall |
 | [cuda-profile-theory.md](cuda-profile-theory.md) | Theory / search-export nsys+ncu playbook; wall vs cudaEvent; 90% peak gate |
+| [theory-hist-transpile.md](theory-hist-transpile.md) | **Normative** theory fused-χ² strategies S0–S5; **all** incl. S0 ≥90% shape peak; wall ≠ Done |
 | [cuda-score-reduction.md](cuda-score-reduction.md) | Score FP / histogram reduction associativity for CUDA twins |
 | [cuda-roadmap.md](cuda-roadmap.md) | **Frozen** CUDA commit roadmap (VS layout) |
 | [agent-tooling.md](agent-tooling.md) | **Frozen** CMD-agent plan (`parcae-agent`) |

@@ -44,8 +44,9 @@ Fair gate: `parcae-bench --suite theory --allow-cuda` → `BenchTierSpec::pass_t
 | **Campaign wall** | `parcae-search-cycle` → `research/run.log` | Host prepare/bind, H2D, kernel, D2H, materialize, ingest | **No** — ops / ETA only |
 
 Do **not** compare campaign wall at short page `T` to catalog or theory cudaEvent
-peaks at `T≈2^20`. Playbook + progress log:
-[`cuda-profile-theory.md`](cuda-profile-theory.md). Post-emit snapshot:
+peaks at `T≈2^20`. Normative Done rules (S0–S5, S0 soft-fallback still ≥90% S0
+peak): [`theory-hist-transpile.md`](theory-hist-transpile.md). Playbook + progress
+log: [`cuda-profile-theory.md`](cuda-profile-theory.md). Post-emit snapshot:
 [`profiles/specialized/SUMMARY.md`](profiles/specialized/SUMMARY.md).
 
 ### Theory plateaus (remesaured 2026-10-02)
@@ -141,5 +142,6 @@ Ceilings match `BenchTierSpec::estimated_peak`. Typical healthy runs sit around
 - Kernels: [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (`hist_fast.hpp`, `*_chi2_batch.cu`, `theory_hist_chi2_s{1,2}.*`)
 - Build notes: [cuda-build.md](cuda-build.md)
 - Theory profiling (nsys/ncu): [cuda-profile-theory.md](cuda-profile-theory.md)
+- Theory hist transpile contract (S0–S5 ≥90% shape peak): [theory-hist-transpile.md](theory-hist-transpile.md)
 - Operator handbook (theory URI + dispatch): [search-handbook.md](search-handbook.md)
 - Transpiler + HistChi2 strategies: [python-transpiler.md](python-transpiler.md)
