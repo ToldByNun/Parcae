@@ -5,6 +5,7 @@
 #include "parcae/dsl/theory_hist_chi2_emit.hpp"
 
 #include "theory_chi2_batch.hpp"
+#include "theory_hist_chi2_s2.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -12,9 +13,9 @@
 
 /// Runtime launch façade for theory fused χ² hist.
 ///
-/// Skeleton: always delegates to `TheoryChi2Batch` (S0 bytecode). When
-/// `TheoryHistChi2Emit` grows specialized kernels, this class prefers them
-/// via `has_specialized` / strategy — `GpuCandidateExport` will call here.
+/// S0: `TheoryChi2Batch` bytecode. S2 linear: `TheoryHistChi2S2` uchar4 twin
+/// (`launch_s2_linear_async`). `GpuCandidateExport` prefers specialized when
+/// emit/registry says so; otherwise bytecode.
 ///
 /// Caps and ABI match `TheoryChi2Batch`. No C++ namespaces.
 class TheoryHistChi2Launch {
@@ -26,7 +27,8 @@ public:
     static constexpr std::uint16_t kMaxSlots = TheoryChi2Batch::kMaxSlots;
     static constexpr std::uint32_t kMaxProgramOps = TheoryChi2Batch::kMaxProgramOps;
 
-    /// True when a specialized hist twin is loaded for `theory_id` (skeleton: always false).
+    /// True when a specialized hist twin is loaded for `theory_id`.
+    /// S2 linear uses the shared `TheoryHistChi2S2` twin (not per-id NVRTC yet).
     [[nodiscard]] static bool has_specialized(std::string_view /*theory_id*/) noexcept {
         return false;
     }
@@ -38,7 +40,7 @@ public:
                                     : TheoryHistChi2Emit::Strategy::S0Bytecode;
     }
 
-    /// Fused hist + χ² finalize + inf-patch (async). Skeleton path = bytecode.
+    /// Fused hist + χ² finalize + inf-patch (async). Default path = bytecode.
     [[nodiscard]] static Status
     launch_async(const std::uint8_t* device_in, const std::uint8_t* device_ops,
                  const std::uint8_t* device_imm, std::uint32_t op_count,
@@ -53,7 +55,7 @@ public:
             device_scores, device_lane_err, candidate_count, token_count);
     }
 
-    /// Same as `launch_async` — explicit S0 entry for call sites that already chose bytecode.
+    /// Explicit S0 entry for call sites that already chose bytecode.
     [[nodiscard]] static Status launch_bytecode_async(
         const std::uint8_t* device_in, const std::uint8_t* device_ops,
         const std::uint8_t* device_imm, std::uint32_t op_count, const std::uint8_t* device_slots,
@@ -65,6 +67,17 @@ public:
                             cipher_slot, index_slot, binds_index_i, max_stack, device_probabilities,
                             device_counts, device_scores, device_lane_err, candidate_count,
                             token_count);
+    }
+
+    /// S2 linear uchar4 twin (`b0 + b1·(t mod 29)`). Same χ² finalize ABI as FamilyChi2.
+    [[nodiscard]] static Status launch_s2_linear_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_b0,
+        const std::uint8_t* device_b1, const double* device_probabilities,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count, bool cipher_minus_ks) {
+        return TheoryHistChi2S2::launch_linear_async(
+            device_in, device_b0, device_b1, device_probabilities, device_counts, device_scores,
+            candidate_count, token_count, cipher_minus_ks);
     }
 
 private:

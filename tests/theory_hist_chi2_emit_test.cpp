@@ -5,6 +5,7 @@
 #include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/z29_expr.hpp>
 
+#include <optional>
 #include <string>
 
 namespace {
@@ -68,6 +69,24 @@ namespace {
     return theory.value();
 }
 
+[[nodiscard]] TheoryIr make_nonlinear_s2_theory() {
+    // x - (b0 + b1*i*i) — classified S2 (±g(i)) but not linear b0+b1*i.
+    const StatusOr<ParamIr> b0 = ParamIr::make("b0", 0, 28);
+    const StatusOr<ParamIr> b1 = ParamIr::make("b1", 0, 28);
+    REQUIRE(b0.ok());
+    REQUIRE(b1.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr i = Z29Expr::var("i");
+    const Z29Expr::Ptr s = Z29Expr::add(
+        Z29Expr::var("b0"), Z29Expr::mul(Z29Expr::var("b1"), Z29Expr::mul(i, i)));
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "emit_quad_stream", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign, {b0.value(), b1.value()}, Z29Expr::add(x, s),
+        Z29Expr::sub(x, s), std::string("S2 shape, non-linear g."));
+    REQUIRE(theory.ok());
+    return theory.value();
+}
+
 } // namespace
 
 TEST_CASE("TheoryHistChi2Emit selects S1 for caesar-shaped decrypt",
@@ -98,35 +117,220 @@ TEST_CASE("TheoryHistChi2Emit forces S0 for autokey", "[dsl][emit][hist][chi2]")
     REQUIRE_FALSE(sel.is_specialized());
 }
 
-TEST_CASE("TheoryHistChi2Emit skeleton emit falls back to S0", "[dsl][emit][hist][chi2]") {
+TEST_CASE("TheoryHistChi2Emit S2 linear progressive emits uchar4 sources",
+          "[dsl][emit][hist][chi2]") {
     const TheoryIr theory = make_progressive_theory();
+    std::optional<TheoryHistChi2Emit::S2LinearPlan> plan =
+        TheoryHistChi2Emit::match_s2_linear(theory);
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->b0_name() == "b0");
+    REQUIRE(plan->b1_name() == "b1");
+    REQUIRE(plan->cipher_minus_ks());
+
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().intended_strategy() == TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
+    REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().s2_linear().has_value());
+    REQUIRE(bundle.value().kernel_symbol() == "emit_progressive_s2_hist_kernel");
+    REQUIRE(bundle.value().cu_text().find("uchar4") != std::string::npos);
+    REQUIRE(bundle.value().cu_text().find("emit_progressive_s2_hist_kernel") != std::string::npos);
+    REQUIRE(bundle.value().cu_text().find("namespace {") == std::string::npos);
+    REQUIRE(bundle.value().header_text().find("TheoryHistChi2S2") != std::string::npos);
+
+    StatusOr<DslLaunchPlan::Plan> launch = TheoryHistChi2Emit::hist_launch_plan(29, 1024);
+    REQUIRE(launch.ok());
+    REQUIRE(launch.value().kind() == DslLaunchPlan::Kind::HistChi2_2D);
+    REQUIRE(launch.value().grid_x() == 29);
+}
+
+TEST_CASE("TheoryHistChi2Emit S2 non-linear keystream falls back to S0",
+          "[dsl][emit][hist][chi2]") {
+    const TheoryIr theory = make_nonlinear_s2_theory();
+    REQUIRE(TheoryHistChi2Emit::select_strategy(theory).strategy() ==
+            TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
+    REQUIRE_FALSE(TheoryHistChi2Emit::match_s2_linear(theory).has_value());
+
     StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
         TheoryHistChi2Emit::emit_decrypt_hist(theory);
     REQUIRE(bundle.ok());
     REQUIRE(bundle.value().intended_strategy() == TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
     REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
     REQUIRE_FALSE(bundle.value().specialized());
-    REQUIRE(bundle.value().header_text().empty());
-    REQUIRE(bundle.value().cu_text().empty());
-    REQUIRE(bundle.value().reason().find("skeleton") != std::string::npos);
+    REQUIRE(bundle.value().reason().find("not linear") != std::string::npos);
+}
 
-    StatusOr<DslLaunchPlan::Plan> plan = TheoryHistChi2Emit::hist_launch_plan(29, 1024);
-    REQUIRE(plan.ok());
-    REQUIRE(plan.value().kind() == DslLaunchPlan::Kind::HistChi2_2D);
-    REQUIRE(plan.value().grid_x() == 29);
+TEST_CASE("TheoryHistChi2Emit S1 still soft-falls back to S0", "[dsl][emit][hist][chi2]") {
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(make_caesar_theory());
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().intended_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29);
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+    REQUIRE_FALSE(bundle.value().specialized());
+    REQUIRE(bundle.value().reason().find("skeleton") != std::string::npos);
 }
 
 #if defined(PARCAE_HAS_CUDA)
 
+#include "parcae/core/index29.hpp"
+#include "parcae/dsl/z29_bytecode.hpp"
+#include "parcae/score/expected_frequency_loader.hpp"
+#include "parcae/transform/transform_direction.hpp"
+
+#include "cuda_error.hpp"
+#include "device_buffer.hpp"
 #include "parcae_cuda.hpp"
 #include "theory_hist_chi2_launch.hpp"
 
-TEST_CASE("TheoryHistChi2Launch façade has no specialized twins yet",
+#include <cstdint>
+#include <nlohmann/json.hpp>
+#include <span>
+#include <vector>
+
+#ifndef PARCAE_TEST_DATA_DIR
+#error "PARCAE_TEST_DATA_DIR must be defined"
+#endif
+
+namespace {
+
+[[nodiscard]] std::vector<std::uint8_t> to_bytes(const std::vector<Index29>& indices) {
+    std::vector<std::uint8_t> out(indices.size());
+    for (std::size_t i = 0; i < indices.size(); ++i) {
+        out[i] = indices[i].value();
+    }
+    return out;
+}
+
+} // namespace
+
+TEST_CASE("TheoryHistChi2Emit S2 effective_strategy is specialized",
           "[dsl][emit][hist][chi2][cuda]") {
-    REQUIRE_FALSE(TheoryHistChi2Launch::has_specialized("emit_progressive"));
     REQUIRE(TheoryHistChi2Launch::effective_strategy(
                 TheoryHistChi2Emit::emit_decrypt_hist(make_progressive_theory()).value()) ==
-            TheoryHistChi2Emit::Strategy::S0Bytecode);
+            TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
+}
+
+TEST_CASE("TheoryHistChi2 S2 linear golden: bytecode χ² == specialized χ²",
+          "[dsl][emit][hist][chi2][cuda][golden]") {
+    REQUIRE(ParcaeCuda::available());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const TheoryIr theory = make_progressive_theory();
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().s2_linear().has_value());
+    REQUIRE(bundle.value().s2_linear()->cipher_minus_ks());
+
+    const StatusOr<Z29Bytecode::Program> prog =
+        Z29Bytecode::compile_theory(theory, TransformDirection::Decrypt);
+    REQUIRE(prog.ok());
+    REQUIRE(prog.value().binds_index_i);
+
+    std::vector<Index29> cipher;
+    for (std::uint8_t i = 0; i < 48; ++i) {
+        cipher.push_back(Index29{static_cast<std::uint8_t>((i * 5u + 2u) % 29u)});
+    }
+    const std::vector<std::uint8_t> host_in = to_bytes(cipher);
+
+    // Fixed 3×3 grid (b0,b1 ∈ {0,1,2}) — same shape as TheoryChi2Batch progressive golden.
+    std::vector<nlohmann::json> params_list;
+    std::vector<std::uint8_t> host_b0;
+    std::vector<std::uint8_t> host_b1;
+    for (int b0 = 0; b0 < 3; ++b0) {
+        for (int b1 = 0; b1 < 3; ++b1) {
+            params_list.push_back(nlohmann::json{{"b0", b0}, {"b1", b1}});
+            host_b0.push_back(static_cast<std::uint8_t>(b0));
+            host_b1.push_back(static_cast<std::uint8_t>(b1));
+        }
+    }
+    const std::size_t C = params_list.size();
+
+    // Pack bytecode slots.
+    const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.value().slot_names.size());
+    std::vector<std::uint8_t> ops;
+    ops.reserve(prog.value().ops.size());
+    for (Z29Bytecode::Op op : prog.value().ops) {
+        ops.push_back(Z29Bytecode::op_as_u8(op));
+    }
+    std::vector<std::uint8_t> slots(C * slot_count, 0);
+    for (std::size_t c = 0; c < C; ++c) {
+        StatusOr<std::vector<Index29>> bound =
+            Z29Bytecode::bind_theory_slots(prog.value(), theory, params_list[c]);
+        REQUIRE(bound.ok());
+        for (std::uint16_t s = 0; s < slot_count; ++s) {
+            slots[c * slot_count + s] = bound.value()[s].value();
+        }
+    }
+
+    StatusOr<DeviceBuffer<std::uint8_t>> device_in = DeviceBuffer<std::uint8_t>::from_host(host_in);
+    REQUIRE(device_in.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_ops = DeviceBuffer<std::uint8_t>::from_host(ops);
+    REQUIRE(device_ops.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_imm =
+        DeviceBuffer<std::uint8_t>::from_host(prog.value().imm);
+    REQUIRE(device_imm.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_slots =
+        DeviceBuffer<std::uint8_t>::from_host(slots);
+    REQUIRE(device_slots.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_b0 =
+        DeviceBuffer<std::uint8_t>::from_host(host_b0);
+    REQUIRE(device_b0.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_b1 =
+        DeviceBuffer<std::uint8_t>::from_host(host_b1);
+    REQUIRE(device_b1.ok());
+    StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
+        std::span<const double>(freqs.value().probabilities().data(),
+                                freqs.value().probabilities().size()));
+    REQUIRE(device_probs.ok());
+    StatusOr<DeviceBuffer<std::uint32_t>> device_counts_bc =
+        DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2Launch::alphabet_size);
+    REQUIRE(device_counts_bc.ok());
+    StatusOr<DeviceBuffer<std::uint32_t>> device_counts_s2 =
+        DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2Launch::alphabet_size);
+    REQUIRE(device_counts_s2.ok());
+    StatusOr<DeviceBuffer<double>> device_scores_bc = DeviceBuffer<double>::allocate(C);
+    REQUIRE(device_scores_bc.ok());
+    StatusOr<DeviceBuffer<double>> device_scores_s2 = DeviceBuffer<double>::allocate(C);
+    REQUIRE(device_scores_s2.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_err = DeviceBuffer<std::uint8_t>::allocate(C);
+    REQUIRE(device_err.ok());
+
+    const std::uint16_t max_stack =
+        prog.value().max_stack == 0 ? 8 : prog.value().max_stack;
+
+    REQUIRE(TheoryHistChi2Launch::launch_bytecode_async(
+                device_in.value().data(), device_ops.value().data(), device_imm.value().data(),
+                static_cast<std::uint32_t>(ops.size()), device_slots.value().data(), slot_count,
+                prog.value().cipher_slot, prog.value().index_slot,
+                prog.value().binds_index_i ? 1u : 0u, max_stack, device_probs.value().data(),
+                device_counts_bc.value().data(), device_scores_bc.value().data(),
+                device_err.value().data(), C, host_in.size())
+                .ok());
+    REQUIRE(CudaError::to_status(cudaDeviceSynchronize(), "S2 golden bytecode sync").ok());
+
+    REQUIRE(TheoryHistChi2Launch::launch_s2_linear_async(
+                device_in.value().data(), device_b0.value().data(), device_b1.value().data(),
+                device_probs.value().data(), device_counts_s2.value().data(),
+                device_scores_s2.value().data(), C, host_in.size(),
+                /*cipher_minus_ks=*/true)
+                .ok());
+    REQUIRE(CudaError::to_status(cudaDeviceSynchronize(), "S2 golden specialized sync").ok());
+
+    std::vector<double> scores_bc(C, 0.0);
+    std::vector<double> scores_s2(C, 0.0);
+    REQUIRE(device_scores_bc.value().copy_to_host(scores_bc).ok());
+    REQUIRE(device_scores_s2.value().copy_to_host(scores_s2).ok());
+    REQUIRE(scores_bc.size() == scores_s2.size());
+    for (std::size_t c = 0; c < C; ++c) {
+        REQUIRE(scores_bc[c] == scores_s2[c]);
+    }
 }
 
 #endif

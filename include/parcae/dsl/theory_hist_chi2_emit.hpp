@@ -12,8 +12,11 @@
 #include "parcae/dsl/z29_expr.hpp"
 #include "parcae/transform/transform_direction.hpp"
 
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -21,11 +24,11 @@
 
 /// AOT fused-χ² hist emit for theory search (docs: theory CUDA throughput climb).
 ///
-/// Skeleton (this commit): strategy selection + caps + S0 bytecode fallback.
-/// S1/S2/S3 source emit arrives in follow-up commits; `emit_decrypt_hist` always
-/// returns an S0 bundle until specialized emitters land.
+/// S2: bitmask_blend-shaped `x ± g(i; params)` — currently emits uchar4 fused hist
+/// when `g` matches progressive linear `b0 + b1·i` (runtime twin: `TheoryHistChi2S2`).
+/// S1/S3 source emit TBD; non-matching specialized shapes soft-fallback to S0.
 ///
-/// No C++ namespaces. Emitted CUDA (later) uses file-scope `__global__` names —
+/// No C++ namespaces. Emitted CUDA uses file-scope `__global__` names —
 /// never anonymous `namespace {}`.
 class TheoryHistChi2Emit {
 public:
@@ -45,6 +48,26 @@ public:
         S2Uchar4Inline,
         /// Inline scalar hist (no interpreter); not uchar4-packable.
         S3ScalarInline,
+    };
+
+    /// Linear keystream plan: `ks = b0 + b1·(t mod 29)` (param names from the expr).
+    class S2LinearPlan {
+    public:
+        S2LinearPlan(std::string b0_name, std::string b1_name, bool cipher_minus_ks)
+            : b0_name_(std::move(b0_name)), b1_name_(std::move(b1_name)),
+              cipher_minus_ks_(cipher_minus_ks) {}
+
+        [[nodiscard]] const std::string& b0_name() const noexcept { return b0_name_; }
+
+        [[nodiscard]] const std::string& b1_name() const noexcept { return b1_name_; }
+
+        /// `true` → `HistFast::dec_sub(x, ks)`; `false` → `HistFast::enc_caesar(x, ks)`.
+        [[nodiscard]] bool cipher_minus_ks() const noexcept { return cipher_minus_ks_; }
+
+    private:
+        std::string b0_name_;
+        std::string b1_name_;
+        bool cipher_minus_ks_ = true;
     };
 
     class Selection {
@@ -69,10 +92,12 @@ public:
     class EmitBundle {
     public:
         EmitBundle(Strategy intended, Strategy emitted, bool specialized, std::string reason,
-                   std::string header_text, std::string cu_text, std::string kernel_symbol)
+                   std::string header_text, std::string cu_text, std::string kernel_symbol,
+                   std::optional<S2LinearPlan> s2_linear = std::nullopt)
             : intended_(intended), emitted_(emitted), specialized_(specialized),
               reason_(std::move(reason)), header_text_(std::move(header_text)),
-              cu_text_(std::move(cu_text)), kernel_symbol_(std::move(kernel_symbol)) {}
+              cu_text_(std::move(cu_text)), kernel_symbol_(std::move(kernel_symbol)),
+              s2_linear_(std::move(s2_linear)) {}
 
         [[nodiscard]] Strategy intended_strategy() const noexcept { return intended_; }
 
@@ -88,6 +113,10 @@ public:
 
         [[nodiscard]] const std::string& kernel_symbol() const noexcept { return kernel_symbol_; }
 
+        [[nodiscard]] const std::optional<S2LinearPlan>& s2_linear() const noexcept {
+            return s2_linear_;
+        }
+
     private:
         Strategy intended_ = Strategy::S0Bytecode;
         Strategy emitted_ = Strategy::S0Bytecode;
@@ -96,6 +125,7 @@ public:
         std::string header_text_;
         std::string cu_text_;
         std::string kernel_symbol_;
+        std::optional<S2LinearPlan> s2_linear_;
     };
 
     [[nodiscard]] static const char* strategy_str(Strategy s) noexcept {
@@ -164,9 +194,53 @@ public:
                          "decrypt uses i but is not simple ± keystream — S3 scalar candidate"};
     }
 
+    /// Match progressive / bitmask_blend-linear decrypt: `x ± (b0 + b1·i)`.
+    [[nodiscard]] static std::optional<S2LinearPlan>
+    match_s2_linear(const TheoryIr& theory, std::string_view cipher_var = "x") {
+        if (!theory.decrypt_step()) {
+            return std::nullopt;
+        }
+        const Z29Expr& dec = *theory.decrypt_step();
+        using Kind = Z29Expr::Kind;
+        if (dec.kind() != Kind::Add && dec.kind() != Kind::Sub) {
+            return std::nullopt;
+        }
+        const Z29Expr& l = *dec.left();
+        const Z29Expr& r = *dec.right();
+        const bool l_cipher = l.kind() == Kind::Var && l.name() == cipher_var;
+        const bool r_cipher = r.kind() == Kind::Var && r.name() == cipher_var;
+        if (l_cipher == r_cipher) {
+            return std::nullopt;
+        }
+        if (l_cipher && DslOptimize::depends_on_var(r, cipher_var)) {
+            return std::nullopt;
+        }
+        if (r_cipher && DslOptimize::depends_on_var(l, cipher_var)) {
+            return std::nullopt;
+        }
+
+        const Z29Expr& ks = l_cipher ? r : l;
+        std::optional<std::pair<std::string, std::string>> names = match_linear_b0_b1_i(ks);
+        if (!names) {
+            return std::nullopt;
+        }
+
+        // Decrypt root Sub(x, ks) or Add(x, ks) only (cipher on the left).
+        // Add(ks, x) is commutative → treat as enc_caesar; Sub(ks, x) is not linear S2.
+        if (r_cipher && dec.kind() == Kind::Sub) {
+            return std::nullopt;
+        }
+        const bool cipher_minus_ks = (dec.kind() == Kind::Sub) && l_cipher;
+        const bool cipher_plus_ks =
+            (dec.kind() == Kind::Add) && (l_cipher || r_cipher);
+        if (!cipher_minus_ks && !cipher_plus_ks) {
+            return std::nullopt;
+        }
+        return S2LinearPlan{names->first, names->second, cipher_minus_ks};
+    }
+
     /// Emit fused-hist sources for decrypt search path.
-    /// Skeleton: always returns S0 (empty sources); `intended_strategy` reports the
-    /// classified target for later specialized emitters.
+    /// S2 linear (`b0+b1·i`) → specialized uchar4 bundle; else soft S0 fallback.
     [[nodiscard]] static StatusOr<EmitBundle>
     emit_decrypt_hist(const TheoryIr& theory, std::string_view cipher_var = "x",
                       const std::vector<DslOptimize::Hoist>& /*decrypt_hoists*/ = {}) {
@@ -180,7 +254,24 @@ public:
             return EmitBundle{Strategy::S0Bytecode, Strategy::S0Bytecode, false, sel.reason(), "",
                               "", ""};
         }
-        // Specialized emit not implemented yet — soft S0 fallback (export stays correct).
+
+        if (sel.strategy() == Strategy::S2Uchar4Inline) {
+            std::optional<S2LinearPlan> plan = match_s2_linear(theory, cipher_var);
+            if (plan) {
+                StatusOr<EmitBundle> bundle = emit_s2_linear_sources(theory, *plan, sel.reason());
+                if (!bundle.ok()) {
+                    return bundle.status();
+                }
+                return bundle;
+            }
+            return EmitBundle{Strategy::S2Uchar4Inline, Strategy::S0Bytecode, false,
+                              std::string("S2 classified but keystream is not linear b0+b1*i; "
+                                          "fallback S0 (") +
+                                  sel.reason() + ")",
+                              "", "", ""};
+        }
+
+        // S1 / S3 emit not implemented yet — soft S0 fallback (export stays correct).
         return EmitBundle{sel.strategy(), Strategy::S0Bytecode, false,
                           std::string("skeleton: ") + strategy_str(sel.strategy()) +
                               " classified but emit not implemented; fallback S0 (" + sel.reason() +
@@ -269,6 +360,189 @@ private:
             return DslOptimize::depends_on_var(l, "i");
         }
         return false;
+    }
+
+    /// Match `b0 + b1*i` / `b1*i + b0` (Mul operands either order). Returns `{b0,b1}`.
+    [[nodiscard]] static std::optional<std::pair<std::string, std::string>>
+    match_linear_b0_b1_i(const Z29Expr& ks) {
+        using Kind = Z29Expr::Kind;
+        if (ks.kind() != Kind::Add) {
+            return std::nullopt;
+        }
+        const Z29Expr& a = *ks.left();
+        const Z29Expr& b = *ks.right();
+
+        auto match_mul_b1_i = [](const Z29Expr& e) -> std::optional<std::string> {
+            if (e.kind() != Kind::Mul) {
+                return std::nullopt;
+            }
+            const Z29Expr& ml = *e.left();
+            const Z29Expr& mr = *e.right();
+            const bool l_i = ml.kind() == Kind::Var && ml.name() == "i";
+            const bool r_i = mr.kind() == Kind::Var && mr.name() == "i";
+            if (l_i && mr.kind() == Kind::Var && mr.name() != "i") {
+                return mr.name();
+            }
+            if (r_i && ml.kind() == Kind::Var && ml.name() != "i") {
+                return ml.name();
+            }
+            return std::nullopt;
+        };
+
+        if (a.kind() == Kind::Var) {
+            std::optional<std::string> b1 = match_mul_b1_i(b);
+            if (b1 && *b1 != a.name()) {
+                return std::make_pair(a.name(), *b1);
+            }
+        }
+        if (b.kind() == Kind::Var) {
+            std::optional<std::string> b1 = match_mul_b1_i(a);
+            if (b1 && *b1 != b.name()) {
+                return std::make_pair(b.name(), *b1);
+            }
+        }
+        return std::nullopt;
+    }
+
+    [[nodiscard]] static StatusOr<EmitBundle>
+    emit_s2_linear_sources(const TheoryIr& theory, const S2LinearPlan& plan,
+                           const std::string& select_reason) {
+        const std::string& id = theory.name();
+        const std::string kern = id + "_s2_hist_kernel";
+        const std::string guard = "PARCAE_EMIT_" + id + "_S2_HIST_HPP";
+
+        std::ostringstream hdr;
+        hdr << "// Generated by TheoryHistChi2Emit (S2 linear uchar4) — do not hand-edit.\n";
+        hdr << "#ifndef " << guard << "\n";
+        hdr << "#define " << guard << "\n\n";
+        hdr << "#include \"parcae/core/status.hpp\"\n\n";
+        hdr << "#include <cstddef>\n";
+        hdr << "#include <cstdint>\n\n";
+        hdr << "/// S2 uchar4 fused χ² hist for `" << id << "` "
+            << "(ks = " << plan.b0_name() << " + " << plan.b1_name() << "·i).\n";
+        hdr << "/// Runtime twin: TheoryHistChi2S2::launch_linear_async "
+            << "(cipher_minus_ks=" << (plan.cipher_minus_ks() ? "true" : "false") << ").\n";
+        hdr << "class " << to_pascal(id) << "S2Hist {\n";
+        hdr << "public:\n";
+        hdr << "    static constexpr std::size_t alphabet_size = 29;\n";
+        hdr << "    [[nodiscard]] static Status launch_linear_async(\n";
+        hdr << "        const std::uint8_t* device_in, const std::uint8_t* device_"
+            << plan.b0_name() << ",\n";
+        hdr << "        const std::uint8_t* device_" << plan.b1_name()
+            << ", const double* device_probabilities,\n";
+        hdr << "        std::uint32_t* device_counts, double* device_scores, "
+               "std::size_t candidate_count,\n";
+        hdr << "        std::size_t token_count);\n";
+        hdr << "private:\n";
+        hdr << "    " << to_pascal(id) << "S2Hist() = delete;\n";
+        hdr << "};\n\n";
+        hdr << "#endif // " << guard << "\n";
+
+        std::ostringstream cu;
+        cu << "// Generated by TheoryHistChi2Emit (S2 linear uchar4) — do not hand-edit.\n";
+        cu << "// File-scope kernel (no anonymous namespace). Prefer linking "
+              "TheoryHistChi2S2 for search.\n";
+        cu << "#include \"" << to_pascal(id) << "S2Hist.hpp\"\n\n";
+        cu << "#include \"chi2_batch_score.hpp\"\n";
+        cu << "#include \"cuda_error.hpp\"\n";
+        cu << "#include \"hist_fast.hpp\"\n";
+        cu << "#include \"z29_device.hpp\"\n\n";
+        cu << "#include <cuda_runtime_api.h>\n\n";
+        cu << "__global__ void " << kern << "(const std::uint8_t* in, const std::uint8_t* b0,\n";
+        cu << "    const std::uint8_t* b1, std::uint32_t* counts, std::size_t token_count,\n";
+        cu << "    std::uint8_t cipher_minus_ks) {\n";
+        cu << "    __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];\n";
+        cu << "    HistFast::clear_private(priv);\n";
+        cu << "    const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);\n";
+        cu << "    const std::size_t tile = static_cast<std::size_t>(blockIdx.y);\n";
+        cu << "    const std::size_t tiles = static_cast<std::size_t>(gridDim.y);\n";
+        cu << "    const std::uint8_t pb0 = b0[candidate];\n";
+        cu << "    const std::uint8_t pb1 = b1[candidate];\n";
+        cu << "    const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;\n";
+        cu << "    const std::size_t n4 = token_count / 4u;\n";
+        cu << "    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);\n";
+        cu << "    auto ks_at = [&](std::size_t t) -> std::uint8_t {\n";
+        cu << "        const std::uint8_t im = static_cast<std::uint8_t>(\n";
+        cu << "            t % static_cast<std::size_t>(Z29Device::modulus));\n";
+        cu << "        return Z29Device::add(pb0, Z29Device::mul(pb1, im));\n";
+        cu << "    };\n";
+        cu << "    auto out_byte = [&](std::uint8_t x, std::uint8_t ks) -> std::uint8_t {\n";
+        cu << "        return cipher_minus_ks != 0u ? HistFast::dec_sub(x, ks)\n";
+        cu << "                                    : HistFast::enc_caesar(x, ks);\n";
+        cu << "    };\n";
+        cu << "    for (std::size_t i = tile * static_cast<std::size_t>(blockDim.x) +\n";
+        cu << "                         static_cast<std::size_t>(threadIdx.x);\n";
+        cu << "         i < n4; i += stride) {\n";
+        cu << "        const uchar4 v = in4[i];\n";
+        cu << "        const std::size_t t0 = i * 4u;\n";
+        cu << "        HistFast::add_private(priv, out_byte(v.x, ks_at(t0)));\n";
+        cu << "        HistFast::add_private(priv, out_byte(v.y, ks_at(t0 + 1u)));\n";
+        cu << "        HistFast::add_private(priv, out_byte(v.z, ks_at(t0 + 2u)));\n";
+        cu << "        HistFast::add_private(priv, out_byte(v.w, ks_at(t0 + 3u)));\n";
+        cu << "    }\n";
+        cu << "    for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +\n";
+        cu << "                         static_cast<std::size_t>(threadIdx.x);\n";
+        cu << "         t < token_count; t += stride) {\n";
+        cu << "        HistFast::add_private(priv, out_byte(in[t], ks_at(t)));\n";
+        cu << "    }\n";
+        cu << "    HistFast::flush_private(\n";
+        cu << "        priv, counts + candidate * static_cast<std::size_t>(HistFast::alphabet));\n";
+        cu << "}\n\n";
+        cu << "Status " << to_pascal(id) << "S2Hist::launch_linear_async(\n";
+        cu << "    const std::uint8_t* device_in, const std::uint8_t* device_b0,\n";
+        cu << "    const std::uint8_t* device_b1, const double* device_probabilities,\n";
+        cu << "    std::uint32_t* device_counts, double* device_scores, "
+              "std::size_t candidate_count,\n";
+        cu << "    std::size_t token_count) {\n";
+        cu << "    if (device_in == nullptr || device_b0 == nullptr || device_b1 == nullptr ||\n";
+        cu << "        device_probabilities == nullptr || device_counts == nullptr ||\n";
+        cu << "        device_scores == nullptr) {\n";
+        cu << "        return Status::error(\"" << to_pascal(id) << "S2Hist: null\");\n";
+        cu << "    }\n";
+        cu << "    const std::size_t hist_bytes =\n";
+        cu << "        candidate_count * alphabet_size * sizeof(std::uint32_t);\n";
+        cu << "    Status cleared = CudaError::to_status(\n";
+        cu << "        cudaMemsetAsync(device_counts, 0, hist_bytes, 0), \"" << to_pascal(id)
+           << "S2Hist clear\");\n";
+        cu << "    if (!cleared.ok()) {\n";
+        cu << "        return cleared;\n";
+        cu << "    }\n";
+        cu << "    const dim3 grid(static_cast<unsigned>(candidate_count),\n";
+        cu << "                    static_cast<unsigned>(HistFast::tiles_for(token_count)));\n";
+        cu << "    " << kern << "<<<grid, HistFast::threads>>>(\n";
+        cu << "        device_in, device_b0, device_b1, device_counts, token_count,\n";
+        cu << "        " << (plan.cipher_minus_ks() ? "1u" : "0u") << ");\n";
+        cu << "    Status hist = CudaError::to_status(cudaGetLastError(), \"" << to_pascal(id)
+           << "S2Hist hist\");\n";
+        cu << "    if (!hist.ok()) {\n";
+        cu << "        return hist;\n";
+        cu << "    }\n";
+        cu << "    return Chi2BatchScore::finalize_async(device_counts, device_probabilities,\n";
+        cu << "                                          device_scores, candidate_count, "
+              "token_count);\n";
+        cu << "}\n";
+
+        return EmitBundle{Strategy::S2Uchar4Inline, Strategy::S2Uchar4Inline, true,
+                          std::string("S2 linear uchar4 emit: ") + select_reason, hdr.str(),
+                          cu.str(), kern, plan};
+    }
+
+    [[nodiscard]] static std::string to_pascal(std::string_view snake) {
+        std::string out;
+        bool upper = true;
+        for (char ch : snake) {
+            if (ch == '_') {
+                upper = true;
+                continue;
+            }
+            if (upper) {
+                out.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(ch))));
+                upper = false;
+            } else {
+                out.push_back(ch);
+            }
+        }
+        return out;
     }
 };
 

@@ -17,6 +17,10 @@ function(parcae_add_cli name)
       "${CMAKE_SOURCE_DIR}/Parcae/Parcae/cuda"
     )
   endif()
+  # MSVC COFF section limit (C1128) on large TU CLI mains that pull DSL/CUDA.
+  if(MSVC)
+    target_compile_options(${name} PRIVATE /bigobj)
+  endif()
   parcae_set_project_warnings(${name})
 endfunction()
 

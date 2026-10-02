@@ -195,9 +195,10 @@ endif()
 
 parcae_set_project_warnings(parcae_tests)
 
-# MSVC: allow parallel CL.EXE writers to the same .pdb (Debug).
+# MSVC: allow parallel CL.EXE writers to the same .pdb (Debug);
+# /bigobj for large TUs (C1128 section limit).
 if(MSVC)
-  target_compile_options(parcae_tests PRIVATE /FS)
+  target_compile_options(parcae_tests PRIVATE /FS /bigobj)
 endif()
 
 catch_discover_tests(parcae_tests)

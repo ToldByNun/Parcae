@@ -209,7 +209,7 @@ Peak calibration rows (fill when specialized emit exists):
 | Theory shape | `estimated_peak` | 90% gate | Method | Date |
 |--------------|------------------|----------|--------|------|
 | Caesar-as-bytecode (S0 interpreter) | TBD (interim **~69B** fair after shared+trusted) | TBD | cudaEvent @ T≥2^20 | 2026-10-01 |
-| bitmask_blend S2 (planned) | | | cudaEvent / ncu @ T≥2^20 | |
+| bitmask_blend / progressive S2 linear | emit + `TheoryHistChi2S2` twin | golden: bytecode χ² == S2 χ² (3×3 grid) | cudaEvent / ncu @ T≥2^20 | |
 
 ---
 

@@ -53,7 +53,7 @@ private:
 | `dsl_ir_applicator.hpp` | `DslIrApplicator` | Done (CPU apply_into) |
 | `dsl_emit_cpu.hpp` | `DslEmitCpu` | Done (Transform-shaped; `Select` → `Z29::select` / branch; matmul/det/autokey) |
 | `dsl_emit_cuda.hpp` | `DslEmitCuda` | Done (Z29Device; matmul/det expand; autokey → AutokeyRingDevice) |
-| `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S3 strategy select + S0 emit skeleton; S1/S2/S3 emit TBD) |
+| `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S3 select; S2 linear `b0+b1·i` uchar4 emit + golden; S1/S3 TBD) |
 | `dsl_verifier.hpp` | `DslVerifier` | Done (exhaustive ≤4 + fuzz + CPU↔CUDA mirror) |
 | `dsl_catalog_builtins.hpp` | `DslCatalogBuiltins` | Done (`identity`/`atbash`/`caesar`/`affine` + DSL-only `matrix_mix`/`autokey_lag`; **not** `TransformId` / decode `--transform-id`) |
 | `dsl_fuse.hpp` | `DslFuse` | Done (inline + emit + CPU bench; DSL-only leaves → fused emit) |
@@ -92,7 +92,7 @@ CPU↔CUDA mirror; inv-domain + poly2 \(29^4\) hard gates.
 Tests: `[dsl][fuse]` / `[dsl][fuse][koan][parity]` / `[dsl][fuse][catalog]` DslFuse +
 catalog builtins (`matrix_mix` / `autokey_lag`) + Koan-1 vs ComposeTransform.
 Tests: `[dsl][examples][matrix]` `theories/examples/matrix_builtins_example.py` compile.
-Tests: `[dsl][emit][hist][chi2]` TheoryHistChi2Emit strategy select + S0 skeleton fallback.
+Tests: `[dsl][emit][hist][chi2]` strategy select + S2 linear emit; `[cuda][golden]` bytecode χ² == S2 specialized.
 Tests: `[dsl][optimize]` DslOptimize const-fold + inv hoist.
 Tests: `[dsl][launch]` DslLaunchPlan vs HistFast / 1D twin formula.
 Tests: `[dsl][peak]` DslPeakSanity vs ThroughputTiers ceilings / SLO.
