@@ -4,9 +4,10 @@
 **Hardware reference:** RTX 5070 Ti (sm_120) — same plate as [`cuda-throughput.md`](cuda-throughput.md)  
 **Canonical catalog metric:** `BenchTimer` — 4 warmups + **median-of-3** `cudaEvent`, setup excluded  
 **Theory acceptance (PRIMARY):** measured ≥ **90%** of the theory-shape
-`estimated_peak` — **every** strategy that runs, **including S0 bytecode**.
-Soft-fallback to S0 does not waive the S0 peak gate. Normative contract:
-[`theory-hist-transpile.md`](theory-hist-transpile.md).
+`estimated_peak` — **physical DRAM roofline** (**896B** @ 1 B cipher/rune on
+RTX 5070 Ti), **not** a measured quiet max. Applies to **every** strategy that
+runs, **including S0 bytecode**. Soft-fallback to S0 does not waive the S0 peak
+gate. Normative contract: [`theory-hist-transpile.md`](theory-hist-transpile.md).
   
 **Wrapper:** [`scripts/cuda/profile_theory_hist.ps1`](../../scripts/cuda/profile_theory_hist.ps1)
 
@@ -193,7 +194,8 @@ After each meaningful change:
 2. Save **nsys** report (`.nsys-rep`) + one-line stats summary.
 3. Append a row to the progress table below (Ist Kernel SLO vs 90% Ziel).
 4. Do **not** mark done until Kernel SLO ≥ **0.90 × estimated_peak** for that
-   theory shape, with peak documented (method + `(C,T)` + date + GPU).
+   theory shape. Peak = DRAM roof (`BenchTierSpec::dram_roofline_hist_peak`),
+   documented with BW assumption + bytes/rune + date + GPU.
 
 Repro baseline: [`scripts/cuda/capture_theory_baseline.ps1`](../../scripts/cuda/capture_theory_baseline.ps1).  
 Repro specialized: [`scripts/cuda/capture_theory_specialized.ps1`](../../scripts/cuda/capture_theory_specialized.ps1).  
@@ -214,21 +216,23 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-01 | host-amortize | (code) | — | — | — | — | tests `[search][export][theory]` | `TheoryExportCache`: host bytecode once/URI; device `ops`/`imm` reused; `theory_scores_only`; scheduler loop shares cache |
 | 2026-10-01 | interpreter-qw | (code) | `theory_chi2_hist_kernel` | 29×1M | **69.30B** cudaEvent | — | ncu ~157µs @ T=262k (≈baseline) | shared `ops`/`imm` (≤256) + `eval_at_trusted`; +~5% vs 65.87B baseline; Caesar twin 414B |
 | 2026-10-02 | specialized | `profiles/specialized/` | `theory_chi2_hist_kernel` (S0) | 29×1M | **60.53B** cudaEvent | stall n/a | ncu **160.9µs** @ T=262k; SM 57% DRAM 2.6% | vs baseline 65.87B (noise); still ~7.5× slower than S1 ncu |
-| 2026-10-02 | specialized | `profiles/specialized/` | `theory_hist_chi2_s1_lut_kernel` | 29×1M | **395.58B** cudaEvent | stall n/a | ncu **21.5µs** @ T=262k; SM 60% DRAM 2.8% | ≈ Caesar twin; remesaure → Spec **420B** (~94% gate) |
-| 2026-10-02 | specialized | `profiles/specialized/` | `theory_hist_chi2_s2_linear_kernel` | 9×1M | **187.93B** cudaEvent | stall n/a | ncu **12.0µs** @ T=262k; SM 63% DRAM 4.9% | **~6.3×** vs baseline progressive 29.71B; remesaure → Spec **200B** |
-| 2026-10-02 | remesaure | `lp2-vigenere-lag-allpages` | campaign wall `vigenere_lag_stream` S0 | 140×page T | **~1.65e5** wall mean | — | 53/55 pages `WORKERS=8` | **0.00022%** of 75B shape peak; Kernel SLO gate unchanged |
+| 2026-10-02 | specialized | `profiles/specialized/` | `theory_hist_chi2_s1_lut_kernel` | 29×1M | **395.58B** cudaEvent | stall n/a | ncu **21.5µs** @ T=262k; SM 60% DRAM 2.8% | ≈ Caesar twin; **~44%** of 896B DRAM roof |
+| 2026-10-02 | specialized | `profiles/specialized/` | `theory_hist_chi2_s2_linear_kernel` | 9×1M | **187.93B** cudaEvent | stall n/a | ncu **12.0µs** @ T=262k; SM 63% DRAM 4.9% | **~6.3×** vs baseline progressive 29.71B; **~21%** of 896B roof @ C=9 |
+| 2026-10-02 | remesaure | `lp2-vigenere-lag-allpages` | campaign wall `vigenere_lag_stream` S0 | 140×page T | **~1.65e5** wall mean | — | 53/55 pages `WORKERS=8` | wall only; Kernel SLO gate unchanged (896B roof) |
 | 2026-10-02 | specialized | `profiles/specialized/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **383.21B** cudaEvent | stall n/a | ncu **20.5µs** @ T=262k; SM 63% DRAM 2.8% | twin on same capture; S1 ncu duration ≈ Caesar |
-| 2026-10-02 | **s0-climb** | `profiles/s0-climb/` | `theory_chi2_hist_kernel` | 29×1M | **59.44B** cudaEvent | stall n/a | ncu **157.4µs** @ T=262k; SM 58% DRAM 0.9% | **79%** of 75B peak — climb baseline; vs twin **406.6B** (6.8×) |
+| 2026-10-02 | **s0-climb** | `profiles/s0-climb/` | `theory_chi2_hist_kernel` | 29×1M | **59.44B** cudaEvent | stall n/a | ncu **157.4µs** @ T=262k; SM 58% DRAM 0.9% | **~6.6%** of 896B DRAM roof — climb baseline; vs twin **406.6B** (6.8×) |
 | 2026-10-02 | **s0-climb** | `profiles/s0-climb/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **406.62B** cudaEvent | stall n/a | ncu **19.6µs** @ T=262k; SM 66% DRAM 2.6% | reference twin on same fair JSON capture |
-| 2026-10-02 | **s0-climb-p1** | (code) | `theory_chi2_hist_kernel` | 29×1M | **~69–75B** cudaEvent | — | fair suite **pass** (~92–100% of 75B) | tiles ~16 tok/thread; shared slots; trusted split; `__ldg` cipher |
+| 2026-10-02 | **s0-climb-p1** | (code) | `theory_chi2_hist_kernel` | 29×1M | **~69–75B** cudaEvent | — | fair ~7–8% of 896B | tiles ~16 tok/thread; shared slots; trusted split; `__ldg` cipher |
+| 2026-10-02 | **s0-climb-p2** | (code) | `theory_chi2_hist_kernel` | 29×1M | **~67–71B** cudaEvent | — | no net win vs p1 | tried uchar4 packs / 32-tok / launch_bounds — all **regressed** (compute-bound); keep p1 launch |
+| 2026-10-02 | **dram-roof** | `BenchTierSpec` | all fused-hist shapes | — | — | — | Spec peak → **896B** (448B T3) | peak = physical GDDR7 / bytes/rune; **not** measured quiet max |
 
-Peak calibration rows (`BenchTierSpec` remesaured on RTX 5070 Ti 2026-10-02):
+Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 
 | Theory shape | Spec id | `estimated_peak` | 90% gate | Fair cudaEvent (2026-10-02) | Status |
 |--------------|---------|------------------|----------|------------------------------|--------|
-| Caesar-as-bytecode (S0 interpreter) | `T.theory.caesar_bytecode` | **75B** | **67.5B** | **~69–75B** (s0-climb-p1) | **pass** after tiles/trusted/residency |
-| S1 LUT-29 (caesar/affine-shaped) | `T.theory.s1_lut29` | **420B** (remesaured) | **378B** | **~396B** (94%) | pass band after remesaure |
-| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **200B** (remesaured @ C=9) | **180B** | **~188B** (94%) | pass band after remesaure |
+| Caesar-as-bytecode (S0 interpreter) | `T.theory.caesar_bytecode` | **896B** | **806.4B** | ~69–75B (~8%) | **not Done** — compute-bound |
+| S1 LUT-29 (caesar/affine-shaped) | `T.theory.s1_lut29` | **896B** | **806.4B** | ~396–404B (~44%) | **not Done** — need DRAM SoL |
+| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **896B** | **806.4B** | ~188–189B (~21% @ C=9) | **not Done** |
 
 `BenchTheorySuite` (`parcae-bench --suite theory`) gates fair rows with
 `BenchTierSpec::pass_tier` (≥90% peak + `slo_min`). Short T is

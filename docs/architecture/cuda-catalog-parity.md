@@ -161,9 +161,10 @@ Declare toolkit **1.1.0** complete when **all required** boxes below are green
 - Agent creating/pushing annotated tags or GitHub release assets
 - Treating toolkit **1.1.0** as a `dsl_spec_version` **MAJOR** bump
 - “phase*” naming anywhere in files, tags, or CI
-- Claiming theory Kernel SLO **done** until remesaured peaks pass ≥90% gate
-  ([`cuda-profile-theory.md`](cuda-profile-theory.md); S1/S2 specialized emit
-  already landed — peaks still provisional)
+- Claiming theory Kernel SLO **done** until fair runs hit ≥90% of the
+  **physical DRAM roofline** (`BenchTierSpec` 896B @ 1 B/rune) —
+  [`cuda-profile-theory.md`](cuda-profile-theory.md); S1/S2 specialized emit
+  already landed — measured ~44% / ~21% of roof today
 ---
 
 ## Document history

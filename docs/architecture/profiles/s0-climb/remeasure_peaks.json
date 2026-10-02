@@ -1,0 +1,25 @@
+﻿{
+  "date": "2026-10-02",
+  "gpu": "RTX 5070 Ti sm_120",
+  "method": "parcae-bench --suite theory --allow-cuda --tokens 1048576 --repeats 8 --json",
+  "n_runs": 20,
+  "rule": "Spec peak = ceil(max fair cudaEvent) to whole billions; %peak must stay <= 100",
+  "samples_max_B": {
+    "T.theory.caesar_bytecode": 68.31,
+    "T.theory.compare_caesar": 411.86,
+    "T.theory.s1_lut29": 404.39,
+    "T.theory.progressive": 189.33
+  },
+  "samples_min_B": {
+    "T.theory.caesar_bytecode": 60.74,
+    "T.theory.compare_caesar": 311.54,
+    "T.theory.s1_lut29": 322.14,
+    "T.theory.progressive": 178.14
+  },
+  "spec_peak_B": {
+    "T.theory.caesar_bytecode": 69,
+    "T1 / T.theory.compare_caesar": 412,
+    "T.theory.s1_lut29": 405,
+    "T.theory.s2_linear / progressive": 190
+  }
+}

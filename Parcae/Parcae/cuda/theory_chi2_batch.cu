@@ -9,8 +9,8 @@
 #include <cmath>
 #include <cuda_runtime_api.h>
 
-/// Stage HotLoop + candidate slots into shared; trusted eval after host caps.
-/// Grid.y targets ~16 tokens/thread (interpreter residency vs catalog packs).
+/// Stage HotLoop + slots; trusted eval after host caps.
+/// Launch: ~16 tokens/thread. No-index vs index `eval_at_trusted` split.
 __global__ void theory_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
                                         const std::uint8_t* __restrict__ ops,
                                         const std::uint8_t* __restrict__ imm, std::uint32_t op_count,
@@ -49,7 +49,6 @@ __global__ void theory_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
 
-    // Private mutable slot row (cipher/index overwritten per token).
     std::uint8_t local_slots[TheoryChi2Batch::kMaxSlots];
 #pragma unroll 8
     for (std::uint16_t s = 0; s < slot_count; ++s) {
@@ -58,7 +57,6 @@ __global__ void theory_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
 
     std::uint8_t stack[Z29BytecodeDevice::kMaxDeviceStack];
 
-    // Prefer the no-index path: Caesar-as-bytecode and most S0 HotLoops.
     if (binds_index_i == 0u) {
         for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
                              static_cast<std::size_t>(threadIdx.x);
@@ -109,9 +107,8 @@ __global__ void theory_chi2_patch_inf_kernel(const std::uint8_t* lane_err, doubl
 }
 
 int TheoryChi2Batch::tiles_for(std::size_t token_count) {
-    // Interpreter is latency-heavy: keep fewer tiles than uchar4 catalog kernels so
-    // each thread walks many tokens and amortizes shared program + hist flush.
-    // Target ~16 tokens/thread (4× pack density of HistFast::tiles_for).
+    // ~16 tokens/thread amortizes shared program + hist. Pass-2 measured
+    // 32 tok/thread and uchar4 pack loops — both slower on sm_120.
     constexpr std::size_t kTokensPerThread = 16u;
     const std::size_t covered =
         static_cast<std::size_t>(HistFast::threads) * kTokensPerThread;

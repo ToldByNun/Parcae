@@ -10,7 +10,9 @@
 
 This document freezes **what “done” means** for theory search fused χ²: every
 hist strategy that actually runs — **including S0 bytecode** — must meet the
-**≥90% shape-peak** Kernel SLO gate on a quiet 5070 Ti. Soft-fallback to S0 is
+**≥90% of physical DRAM-roofline** Kernel SLO gate on a quiet 5070 Ti
+(`estimated_peak` = **896B** runes/s @ 1 B cipher/rune — what the GPU *could*
+do if memory-bound, **not** a measured quiet max). Soft-fallback to S0 is
 allowed for coverage; it is **not** an exemption from the S0 peak gate.
 
 Agents implement and test only; they do **not** create git commits or tags.
@@ -30,20 +32,20 @@ done(strategy) ⇔  fair_kernel_runes_per_s >= 0.90 * BenchTierSpec.estimated_pe
 | Fair grid | Token length **`T ≥ 2^20`** (same floor as `BenchTierSpec::fair_gate_tokens()`). Shorter T is underfill — measurement-only, **not** a fail gate |
 | Shape id | Spec row for the **strategy that actually launched** (S0 / S1 / S2 / …), not “wishful” specialized id after soft fallback |
 | Pass math | Identical to `BenchTierSpec::pass_tier` (`peak_band_pct = 90`, raw band 89.5 so printed 90% matches) |
-| Catalog stretch | Document `%` of catalog ceilings (`F.atbash` 550B, Caesar twin, …). Stretch **never** replaces PRIMARY |
+| Catalog stretch | Document `%` of the same DRAM roof (`F.atbash` 896B, Caesar twin, …). Stretch **never** replaces PRIMARY |
 | Campaign wall | `research/run.log` / scheduler wall / short page `T` — **ops diary only**, never PRIMARY |
 
 ### S0 is not a free pass
 
 | Situation | Score correctness | Throughput Done? |
 |-----------|-------------------|------------------|
-| Soft-fallback S0 after S1/S2/S3 emit or module load fail | Must match CPU/bytecode oracle | PRIMARY still requires **S0 shape peak ≥90%** via fair suite |
+| Soft-fallback S0 after S1/S2/S3 emit or module load fail | Must match CPU/bytecode oracle | PRIMARY still requires **≥90% of 896B DRAM roof** via fair suite |
 | Theory classified hard-S0 (autokey / prefer_branch / caps) today | Oracle parity | Same — S0 fair row must pass; specialize-away is a separate climb |
-| Fair S0 today ~69–75B vs Spec 75B (≥90%) | OK | **pass_tier** after climb pass 1 (tiles/trusted/residency) |
+| Fair S0 quiet ~69–75B vs Spec **896B** (~7–8% peak) | Oracle OK | **Not Done** — interpreter is compute-bound; Done ≈ **806B** (90% of roof) |
 
 Two parallel workstreams (implementation roadmap, not doc names):
 
-1. **S0 climb** — tune `TheoryChi2Batch` (and remesaure Spec peak honestly) until `T.theory.caesar_bytecode` **pass_tier**. Repro: [`capture_s0_climb_baseline.ps1`](../../scripts/cuda/capture_s0_climb_baseline.ps1) + [`profiles/s0-climb/SUMMARY.md`](profiles/s0-climb/SUMMARY.md).
+1. **S0 climb / specialize-away** — get off the interpreter (or make it memory-bound) until `T.theory.caesar_bytecode` **pass_tier** vs the **896B** roof. Repro: [`capture_s0_climb_baseline.ps1`](../../scripts/cuda/capture_s0_climb_baseline.ps1) + [`profiles/s0-climb/SUMMARY.md`](profiles/s0-climb/SUMMARY.md).
 2. **Specialize-away** — S3/S4/S5 (+ artifact/module) so customs leave S0 for higher absolute runes/s, without dropping the S0 gate.
 
 ---
@@ -65,24 +67,24 @@ Optional interim `checkpoint_50B` (when Spec peak ≫ 50B) is annotation only �
 
 Classify decrypt HotLoop via `TheoryHistChi2Emit::select_strategy` / emit. Prefer specialized in `GpuCandidateExport`; soft-fallback S0 keeps `export_backend=cuda`.
 
-| Id | Enum / Spec (planned or shipping) | When | Runtime twin (shipping / target) | Shape peak class (5070 Ti) | ≥90% PRIMARY |
-|----|-----------------------------------|------|----------------------------------|----------------------------|--------------|
-| **S0** | `S0Bytecode` / `T.theory.caesar_bytecode` (+ optional autokey-shaped row) | Soft-fallback; caps; unmatched; (today) autokey / prefer_branch | `TheoryChi2Batch` | ~75B (remeasure if ceiling moves) | **Required** |
-| **S1** | `S1Lut29` / `T.theory.s1_lut29` | Decrypt `f(x; params)` only — no stream `i`, no autokey | `TheoryHistChi2S1` | ~420B | Required |
-| **S2** | `S2Uchar4Inline` / `T.theory.s2_linear` / `T.theory.progressive` | `x ± (b0 + b1·i)` (+ widened linear family over time) | `TheoryHistChi2S2` | ~200B+ | Required |
-| **S3** | `S3ScalarInline` / planned `T.theory.s3_*` | Uses `i` / general `x ± g(i; params)` without autokey; not simple linear S2 | Planned expr-inline hist / module | Calibrate 150–350B | Required once Spec row exists |
-| **S4** | planned / `T.theory.s4_autokey` | `z29_autokey_shift` shapes (e.g. vigenere_lag) | Planned `TheoryHistChi2S4` AutokeyRing+hist | Calibrate 80–250B | Required once Spec row exists |
-| **S5** | planned / poly keystream Spec | Low-degree poly / bitmask-like keystreams beyond `b0+b1·i` | Twin or S3 module | Form peak | Required once Spec row exists |
+| Id | Enum / Spec (planned or shipping) | When | Runtime twin (shipping / target) | Physical peak (DRAM roof) | ≥90% PRIMARY |
+|----|-----------------------------------|------|----------------------------------|---------------------------|--------------|
+| **S0** | `S0Bytecode` / `T.theory.caesar_bytecode` (+ optional autokey-shaped row) | Soft-fallback; caps; unmatched; (today) autokey / prefer_branch | `TheoryChi2Batch` | **896B** | **Required** (today ~7–8%) |
+| **S1** | `S1Lut29` / `T.theory.s1_lut29` | Decrypt `f(x; params)` only — no stream `i`, no autokey | `TheoryHistChi2S1` | **896B** | Required (today ~44%) |
+| **S2** | `S2Uchar4Inline` / `T.theory.s2_linear` / `T.theory.progressive` | `x ± (b0 + b1·i)` (+ widened linear family over time) | `TheoryHistChi2S2` | **896B** | Required (today ~21% @ C=9) |
+| **S3** | `S3ScalarInline` / planned `T.theory.s3_*` | Uses `i` / general `x ± g(i; params)` without autokey; not simple linear S2 | Planned expr-inline hist / module | **896B** (same 1 B/rune roof) | Required once Spec row exists |
+| **S4** | planned / `T.theory.s4_autokey` | `z29_autokey_shift` shapes (e.g. vigenere_lag) | Planned `TheoryHistChi2S4` AutokeyRing+hist | **896B** unless traffic model differs | Required once Spec row exists |
+| **S5** | planned / poly keystream Spec | Low-degree poly / bitmask-like keystreams beyond `b0+b1·i` | Twin or S3 module | **896B** | Required once Spec row exists |
 
 ### Shipping vs planned (honest snapshot)
 
-| Strategy | Classify | Emit specialized sources | In-lib / module launch | Fair ≥90% |
-|----------|----------|--------------------------|------------------------|-----------|
-| S0 | yes | n/a (bytecode) | yes (`TheoryChi2Batch`) | **pass** after climb pass 1 (~92–100% of 75B) |
-| S1 | yes | yes | yes | **pass** (~94% of 420B) |
-| S2 | yes (linear match) | yes when `match_s2_linear` | yes | **pass** (~92% of 200B) |
-| S3 | yes | **stub → soft S0** | no | blocked on S0 until emit+runtime |
-| S4 | **hard S0 today** | no | no | blocked on S0 / future S4 peak |
+| Strategy | Classify | Emit specialized sources | In-lib / module launch | Fair ≥90% of DRAM roof |
+|----------|----------|--------------------------|------------------------|------------------------|
+| S0 | yes | n/a (bytecode) | yes (`TheoryChi2Batch`) | **fail** today (~69–75B ≈ 8% of 896B) |
+| S1 | yes | yes | yes | **fail** today (~396B ≈ 44% of 896B) |
+| S2 | yes (linear match) | yes when `match_s2_linear` | yes | **fail** today (~188B ≈ 21% of 896B @ C=9) |
+| S3 | yes | **stub → soft S0** | no | blocked on emit+runtime |
+| S4 | **hard S0 today** | no | no | blocked on S4 twin |
 | S5 | partial (S2 classify, emit often soft S0) | no | no | blocked until match/emit |
 
 Non-linear `x ± g(i)` (e.g. quadratic) may **classify** S2 then soft-fall S0 when linear match fails — treat as S3/S5 work, not as “S2 done.”
@@ -170,18 +172,29 @@ Catch2 anchors (extend as strategies land): `[cuda][theory][edge]`, `[cuda][gold
 
 ---
 
-## 8. Peak calibration rule
+## 8. Peak model (physical DRAM roofline)
 
-For each shape id (including S0 and future S3/S4/S5):
+`estimated_peak` is **not** a measured quiet max. For fused hist on RTX 5070 Ti:
 
-1. Quiet GPU; fair `T≥2^20`; record cudaEvent median (and ncu when counters allowed).
-2. Set `BenchTierSpec.estimated_peak` slightly **above** observed max (round up).
-3. Confirm subsequent fair runs print `%peak` roughly **90–99**, not permanently &lt;90 and not routinely &gt;100.
-4. Append a row to the progress table in [`cuda-profile-theory.md`](cuda-profile-theory.md). Profile dirs use descriptive tags (`s0_climb`, `s3_expr`, `s4_autokey`) — never `phase*`.
+```text
+peak_runes/s = published_GDDR7_BW / bytes_cipher_per_rune
+             = 896e9 / 1     →  896B   (S0/S1/S2/T1/F.*)
+             = 896e9 / 2     →  448B   (T3 bigram)
+```
 
-If S0 hardware ceiling is honestly ~70B, **lower** the Spec peak and hold ≥90% of that — do not leave a 75B ceiling that never passes. If climb exceeds 75B, raise the peak.
+Rules:
 
-Optional separate Spec row for **autokey-as-S0** if Caesar-as-bytecode peak is an unfair gate for lag HotLoops until S4 ships.
+1. Derive peak from **device DRAM BW** and the traffic model (bytes/rune). Do
+   **not** raise/lower Spec to chase quiet-run medians.
+2. Quiet fair runs measure **progress toward** the roof (`%peak`). Done =
+   ≥90% of the roof (≈806B @ 1 B/rune).
+3. `%peak` **must stay ≤100**. A print **&gt;100** means the traffic model or
+   published BW is wrong — fix the roof, do not “absorb” a measured outlier.
+4. Append measured progress rows to [`cuda-profile-theory.md`](cuda-profile-theory.md).
+   Profile dirs use descriptive tags (`s0_climb`, `s3_expr`, `s4_autokey`) — never `phase*`.
+
+Optional separate Spec row for **autokey-as-S0** only if its bytes/rune traffic
+model differs; until then it shares the 896B roof.
 
 ---
 
@@ -189,9 +202,9 @@ Optional separate Spec row for **autokey-as-S0** if Caesar-as-bytecode peak is a
 
 Declare the theory-hist transpile throughput workstream complete only when **all** apply:
 
-- [ ] **S0** fair suite row(s) **pass** `pass_tier` (≥90% S0 Spec peak)
-- [ ] **S1** and **S2** continue to pass their Spec peaks
-- [ ] **S3 / S4 / S5** each have Spec peaks and pass ≥90% once implemented
+- [ ] **S0** fair suite row(s) **pass** `pass_tier` (≥90% of **896B** DRAM roof) — today ~8%, not Done
+- [ ] **S1** and **S2** pass ≥90% of the same **896B** roof (today ~44% / ~21%)
+- [ ] **S3 / S4 / S5** each have Spec rows (same roof unless traffic differs) and pass ≥90% once implemented
 - [ ] Soft-fallback remains correct (parity + Div0 +inf + interrupt reject)
 - [ ] Customs without presets: specialized when eligible; otherwise S0 with S0 gate green
 - [ ] Progress log has nsys/ncu (or documented counter-permission skip) for each Perf milestone

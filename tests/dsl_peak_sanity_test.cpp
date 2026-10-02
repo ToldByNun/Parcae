@@ -10,14 +10,14 @@
 #include <parcae/run/throughput_tiers.hpp>
 #endif
 
-TEST_CASE("DslPeakSanity peaks match cuda-throughput reference plateaus", "[dsl][peak]") {
-    REQUIRE(DslPeakSanity::estimated_peak("T1") == 392.0e9);
-    REQUIRE(DslPeakSanity::estimated_peak("T2") == 402.0e9);
-    REQUIRE(DslPeakSanity::estimated_peak("T3") == 55.0e9);
-    REQUIRE(DslPeakSanity::estimated_peak("F.atbash") == 550.0e9);
-    REQUIRE(DslPeakSanity::estimated_peak("F.affine") == 473.0e9);
-    REQUIRE(DslPeakSanity::estimated_peak("C.koan1_fused") == 372.0e9);
-    REQUIRE(DslPeakSanity::estimated_peak("C.koan1_stages") == 322.0e9);
+TEST_CASE("DslPeakSanity peaks match DRAM-roofline plateaus", "[dsl][peak]") {
+    REQUIRE(DslPeakSanity::estimated_peak("T1") == 896.0e9);
+    REQUIRE(DslPeakSanity::estimated_peak("T2") == 896.0e9);
+    REQUIRE(DslPeakSanity::estimated_peak("T3") == 448.0e9);
+    REQUIRE(DslPeakSanity::estimated_peak("F.atbash") == 896.0e9);
+    REQUIRE(DslPeakSanity::estimated_peak("F.affine") == 896.0e9);
+    REQUIRE(DslPeakSanity::estimated_peak("C.koan1_fused") == 896.0e9);
+    REQUIRE(DslPeakSanity::estimated_peak("C.koan1_stages") == 896.0e9);
     REQUIRE(DslPeakSanity::estimated_peak("nope") == 0.0);
 }
 

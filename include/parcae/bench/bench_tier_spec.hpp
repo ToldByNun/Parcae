@@ -8,21 +8,40 @@
 
 /// Canonical SLO tier constants for Parcae bench / throughput diagnostics.
 ///
-/// **Single source of truth** for T1–T3 config (C, T, reps) and for practical
-/// peak / SLO floor tables. `DslPeakSanity` and `ThroughputTiers` delegate here
+/// **Single source of truth** for T1–T3 config (C, T, reps) and for peak / SLO
+/// floor tables. `DslPeakSanity` and `ThroughputTiers` delegate here
 /// (Catch2 `[bench][spec]` / `[dsl][peak]`).
 ///
-/// Metric: `repeats × C × T / elapsed` (setup excluded). Peak ceilings are
-/// calibrated on RTX 5070 Ti; see `docs/architecture/cuda-throughput.md`.
+/// Metric: `repeats × C × T / elapsed` (setup excluded).
+///
+/// **`estimated_peak` = physical DRAM roofline** for fused decrypt+χ² hist on the
+/// calibration GPU (RTX 5070 Ti): published GDDR7 bandwidth / minimum cipher
+/// bytes per rune. This is what the silicon *could* do if the kernel were
+/// memory-bound at 1 B/rune — **not** a measured “best run”. `%peak` cannot
+/// exceed 100 by physics; if it does, the traffic model is wrong.
+/// See `docs/architecture/cuda-throughput.md`.
 ///
 /// Pass rule (same as historical `ThroughputTiers::pass_tier`):
 ///   rps >= slo_min  AND  (peak<=0 OR 100*rps/peak + 0.5 >= 90).
 /// Display bands (`slo_max`) are expectations only — faster than max still passes.
 class BenchTierSpec {
 public:
-    /// ≥90% of practical ceiling (89.5% raw so rounded display of 90% matches).
+    /// ≥90% of physical DRAM roofline (89.5% raw so rounded display of 90% matches).
     static constexpr double peak_band_pct = 90.0;
     static constexpr double peak_band_raw = 89.5;
+
+    /// RTX 5070 Ti published GDDR7 peak bandwidth (bytes/s).
+    static constexpr double kDramBandwidthBytesPerSec = 896.0e9;
+    /// Minimum DRAM traffic model for fused hist: one cipher byte per (c,t) rune.
+    static constexpr double kHistCipherBytesPerRune = 1.0;
+    /// Absolute physical ceiling (runes/s) = BW / bytes_per_rune. Same for every
+    /// fused hist shape that streams ≥1 B cipher/rune (S0/S1/S2/T1/F.*).
+    /// Named constant (not a call) so MSVC can use it in `static constexpr Tier` inits.
+    static constexpr double kDramRooflineHistPeak =
+        kDramBandwidthBytesPerSec / kHistCipherBytesPerRune;
+    [[nodiscard]] static constexpr double dram_roofline_hist_peak() noexcept {
+        return kDramRooflineHistPeak;
+    }
 
     /// One timed SLO tier (T1 / T2 / T3). Aggregate for MSVC `constexpr` init.
     class Tier {
@@ -39,13 +58,14 @@ public:
         double slo_min;
         /// Display band upper bound (runes/s); 0 = no upper bound (e.g. T3).
         double slo_max;
-        /// Practical ceiling on the calibration GPU (runes/s).
+        /// Physical DRAM-roofline ceiling (runes/s) — see `dram_roofline_hist_peak`.
         double estimated_peak;
     };
 
     // --- Primary SLO tiers (canonical config) --------------------------------
 
     /// Caesar fused χ² (simple substitution). C=29, T=2^20, reps=64.
+    /// Peak = DRAM roofline (896B), not measured max.
     static constexpr Tier t1{"T1",
                              "Caesar fused chi2 (simple sub)",
                              static_cast<std::size_t>(Index29::modulus),
@@ -53,7 +73,7 @@ public:
                              64u,
                              15.0e9,
                              35.0e9,
-                             392.0e9};
+                             kDramRooflineHistPeak};
 
     /// Filtered multi-key / autokey / dynamic-shift (worst of three).
     /// C=4096, T=2^18, reps=8.
@@ -61,17 +81,18 @@ public:
                              4096u,
                              262144u, // 1 << 18
                              8u,      3.0e9,
-                             10.0e9,  402.0e9};
+                             10.0e9,  kDramRooflineHistPeak};
 
     /// Caesar bigram + synthetic dictionary validation.
     /// C=512, T=2^18, reps=8. slo_max=0 → display ">=".
+    /// Bigram touches ≥2 input bytes/rune → half the 1 B/rune roof (448B).
     static constexpr Tier t3{"T3",  "Caesar bigram+dict validation", 512u, 262144u, 8u, 1.0e9, 0.0,
-                             55.0e9};
+                             kDramRooflineHistPeak / 2.0};
 
-    // --- Theory fused-χ² shapes (RTX 5070 Ti provisional; see cuda-profile-theory.md) ---
+    // --- Theory fused-χ² shapes (same physical DRAM roof as catalog hist) -----
 
-    /// S0 interpreter: Caesar-as-bytecode. Peak from post–shared/trusted cudaEvent (~69B)
-    /// rounded up. Fair gate: T≥2^20.
+    /// S0 interpreter: Caesar-as-bytecode. Peak = DRAM roofline (896B).
+    /// Soft-fallback will sit far below 90% until specialize-away; scores stay correct.
     static constexpr Tier theory_s0_caesar{"T.theory.caesar_bytecode",
                                           "TheoryChi2Batch Caesar bytecode (S0)",
                                           static_cast<std::size_t>(Index29::modulus),
@@ -79,9 +100,9 @@ public:
                                           8u,
                                           15.0e9,
                                           0.0,
-                                          75.0e9};
+                                          kDramRooflineHistPeak};
 
-    /// S1 LUT-29 (caesar/affine-shaped). Remesaured 2026-10-02 fair cudaEvent ~396B.
+    /// S1 LUT-29. Peak = DRAM roofline (896B).
     static constexpr Tier theory_s1_lut29{"T.theory.s1_lut29",
                                          "TheoryHistChi2S1 LUT-29 (f(x)-only)",
                                          static_cast<std::size_t>(Index29::modulus),
@@ -89,9 +110,9 @@ public:
                                          8u,
                                          15.0e9,
                                          0.0,
-                                         420.0e9};
+                                         kDramRooflineHistPeak};
 
-    /// S2 linear uchar4 (progressive / bitmask_blend-shaped). Remesaured ~188B @ C=9.
+    /// S2 linear uchar4. Peak = DRAM roofline (896B).
     /// Default C=841 (=29²) matches full (b0,b1) grid; suite may use smaller C for Catch2.
     static constexpr Tier theory_s2_linear{"T.theory.s2_linear",
                                           "TheoryHistChi2S2 progressive/bitmask linear",
@@ -100,7 +121,7 @@ public:
                                           8u,
                                           15.0e9,
                                           0.0,
-                                          200.0e9};
+                                          kDramRooflineHistPeak};
 
     /// Alias name used by microbench progressive row (same peak as S2 linear).
     static constexpr const char* theory_progressive_id = "T.theory.progressive";
@@ -156,7 +177,7 @@ public:
 
     // --- Peak / SLO tables (incl. F.* / C.* extended rows) --------------------
 
-    /// Practical ceilings (runes/s). Must match `DslPeakSanity` / throughput docs.
+    /// Physical DRAM-roofline ceilings (runes/s). Fused hist @ 1 B cipher/rune → 896B.
     [[nodiscard]] static constexpr double estimated_peak(std::string_view tier) noexcept {
         if (tier == "T1") {
             return t1.estimated_peak;
@@ -167,26 +188,10 @@ public:
         if (tier == "T3") {
             return t3.estimated_peak;
         }
-        if (tier == "F.atbash") {
-            return 550.0e9;
-        }
-        if (tier == "F.affine") {
-            return 473.0e9;
-        }
-        if (tier == "F.vigenere") {
-            return 398.0e9;
-        }
-        if (tier == "F.beaufort") {
-            return 402.0e9;
-        }
-        if (tier == "F.totient") {
-            return 460.0e9;
-        }
-        if (tier == "C.koan1_fused") {
-            return 372.0e9;
-        }
-        if (tier == "C.koan1_stages") {
-            return 322.0e9;
+        if (tier == "F.atbash" || tier == "F.affine" || tier == "F.vigenere" ||
+            tier == "F.beaufort" || tier == "F.totient" || tier == "C.koan1_fused" ||
+            tier == "C.koan1_stages") {
+            return dram_roofline_hist_peak();
         }
         if (tier == "T.theory.caesar_bytecode" || tier == "T.theory.s0") {
             return theory_s0_caesar.estimated_peak;

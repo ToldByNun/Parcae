@@ -19,8 +19,8 @@
 /// `op_count <= kSharedProgramOps`, then evaluates via
 /// `Z29BytecodeDevice::eval_at_trusted` (structural checks done in `launch_async`).
 ///
-/// Grid.y uses a denser work-per-thread schedule than catalog uchar4 kernels so
-/// shared program residency amortizes over many bytecode evals (~16 tokens/thread).
+/// Launch: ~16 tokens/thread. No-index vs index path split. Pass-2 measured
+/// uchar4 packs / 32-tok / launch_bounds — all slower on sm_120 (compute-bound).
 class TheoryChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;

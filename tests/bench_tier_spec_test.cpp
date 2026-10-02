@@ -5,6 +5,12 @@
 #include <parcae/dsl/dsl_peak_sanity.hpp>
 #include <string_view>
 
+TEST_CASE("BenchTierSpec DRAM roofline is physical BW / 1 B cipher/rune", "[bench][spec]") {
+    REQUIRE(BenchTierSpec::kDramBandwidthBytesPerSec == 896.0e9);
+    REQUIRE(BenchTierSpec::kHistCipherBytesPerRune == 1.0);
+    REQUIRE(BenchTierSpec::dram_roofline_hist_peak() == 896.0e9);
+}
+
 TEST_CASE("BenchTierSpec T1 config matches canonical SLO table", "[bench][spec]") {
     REQUIRE(std::string_view(BenchTierSpec::t1.id) == "T1");
     REQUIRE(BenchTierSpec::t1.candidates == Index29::modulus);
@@ -13,7 +19,7 @@ TEST_CASE("BenchTierSpec T1 config matches canonical SLO table", "[bench][spec]"
     REQUIRE(BenchTierSpec::t1.repeats == 64u);
     REQUIRE(BenchTierSpec::t1.slo_min == 15.0e9);
     REQUIRE(BenchTierSpec::t1.slo_max == 35.0e9);
-    REQUIRE(BenchTierSpec::t1.estimated_peak == 392.0e9);
+    REQUIRE(BenchTierSpec::t1.estimated_peak == BenchTierSpec::dram_roofline_hist_peak());
 }
 
 TEST_CASE("BenchTierSpec T2 config matches canonical SLO table", "[bench][spec]") {
@@ -23,7 +29,7 @@ TEST_CASE("BenchTierSpec T2 config matches canonical SLO table", "[bench][spec]"
     REQUIRE(BenchTierSpec::t2.repeats == 8u);
     REQUIRE(BenchTierSpec::t2.slo_min == 3.0e9);
     REQUIRE(BenchTierSpec::t2.slo_max == 10.0e9);
-    REQUIRE(BenchTierSpec::t2.estimated_peak == 402.0e9);
+    REQUIRE(BenchTierSpec::t2.estimated_peak == BenchTierSpec::dram_roofline_hist_peak());
 }
 
 TEST_CASE("BenchTierSpec T3 config matches canonical SLO table", "[bench][spec]") {
@@ -33,7 +39,8 @@ TEST_CASE("BenchTierSpec T3 config matches canonical SLO table", "[bench][spec]"
     REQUIRE(BenchTierSpec::t3.repeats == 8u);
     REQUIRE(BenchTierSpec::t3.slo_min == 1.0e9);
     REQUIRE(BenchTierSpec::t3.slo_max == 0.0);
-    REQUIRE(BenchTierSpec::t3.estimated_peak == 55.0e9);
+    // Bigram ≥2 B/rune → half of 1 B/rune DRAM roof.
+    REQUIRE(BenchTierSpec::t3.estimated_peak == 448.0e9);
 }
 
 TEST_CASE("BenchTierSpec primary iteration order is T1 T2 T3", "[bench][spec]") {
@@ -70,7 +77,7 @@ TEST_CASE("BenchTierSpec pass_tier mirrors DslPeakSanity band", "[bench][spec]")
 }
 
 TEST_CASE("BenchTierSpec percent_peak", "[bench][spec]") {
-    REQUIRE(BenchTierSpec::percent_peak(196.0e9, 392.0e9) == 50.0);
+    REQUIRE(BenchTierSpec::percent_peak(448.0e9, 896.0e9) == 50.0);
     REQUIRE(BenchTierSpec::percent_peak(1.0, 0.0) == 0.0);
     REQUIRE(std::isfinite(
         BenchTierSpec::percent_peak(BenchTierSpec::t3.slo_min, BenchTierSpec::t3.estimated_peak)));
@@ -86,11 +93,12 @@ TEST_CASE("BenchTierSpec primary reps match wired ThroughputTiers contract", "[b
     REQUIRE(BenchTierSpec::t3.candidates == 512u);
 }
 
-TEST_CASE("BenchTierSpec theory rows and fair-gate helpers", "[bench][spec]") {
+TEST_CASE("BenchTierSpec theory rows use DRAM roofline peak", "[bench][spec]") {
     REQUIRE(std::string_view(BenchTierSpec::theory_s0_caesar.id) == "T.theory.caesar_bytecode");
-    REQUIRE(BenchTierSpec::theory_s0_caesar.estimated_peak == 75.0e9);
-    REQUIRE(BenchTierSpec::theory_s1_lut29.estimated_peak == 420.0e9);
-    REQUIRE(BenchTierSpec::theory_s2_linear.estimated_peak == 200.0e9);
+    REQUIRE(BenchTierSpec::theory_s0_caesar.estimated_peak ==
+            BenchTierSpec::dram_roofline_hist_peak());
+    REQUIRE(BenchTierSpec::theory_s1_lut29.estimated_peak == BenchTierSpec::dram_roofline_hist_peak());
+    REQUIRE(BenchTierSpec::theory_s2_linear.estimated_peak == BenchTierSpec::dram_roofline_hist_peak());
     REQUIRE(BenchTierSpec::theory_s0_caesar.tokens == BenchTierSpec::fair_gate_tokens());
     REQUIRE(BenchTierSpec::is_fair_gate_tokens(1048576u));
     REQUIRE_FALSE(BenchTierSpec::is_fair_gate_tokens(4096u));
@@ -100,15 +108,14 @@ TEST_CASE("BenchTierSpec theory rows and fair-gate helpers", "[bench][spec]") {
     REQUIRE(BenchTierSpec::find_theory("T.theory.progressive") == &BenchTierSpec::theory_s2_linear);
     REQUIRE(BenchTierSpec::find_theory("nope") == nullptr);
 
-    REQUIRE(BenchTierSpec::estimated_peak("T.theory.caesar_bytecode") == 75.0e9);
-    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s1_lut29") == 420.0e9);
-    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s2_linear") == 200.0e9);
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.caesar_bytecode") == 896.0e9);
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s1_lut29") == 896.0e9);
+    REQUIRE(BenchTierSpec::estimated_peak("F.atbash") == 896.0e9);
     REQUIRE(BenchTierSpec::slo_floor("T.theory.s1_lut29") == 15.0e9);
 
-    REQUIRE_FALSE(BenchTierSpec::checkpoint_50B_applicable(75.0e9));
-    REQUIRE(BenchTierSpec::checkpoint_50B_applicable(420.0e9));
-    REQUIRE(BenchTierSpec::checkpoint_50B_hit(55.0e9, 420.0e9));
-    REQUIRE_FALSE(BenchTierSpec::checkpoint_50B_hit(40.0e9, 420.0e9));
+    REQUIRE(BenchTierSpec::checkpoint_50B_applicable(896.0e9));
+    REQUIRE(BenchTierSpec::checkpoint_50B_hit(55.0e9, 896.0e9));
+    REQUIRE_FALSE(BenchTierSpec::checkpoint_50B_hit(40.0e9, 896.0e9));
 
     const double peak = BenchTierSpec::theory_s1_lut29.estimated_peak;
     const double slo = BenchTierSpec::theory_s1_lut29.slo_min;
