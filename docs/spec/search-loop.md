@@ -359,14 +359,22 @@ score is not the fused χ² export below.
    full C×T plaintext for large grids.
 4. If fused path missing for a family: staged SoA + `CudaBatchScore`.
 
+**Prior + fused CUDA (no silent waste):** Catalog fused families with a
+**non-empty** prior (any seed or exclusion) MUST skip the GPU path and use the
+CPU export (exclusions / seeds applied there). Theory MUST filter exclusions
+**before** `theory_scores_only` / pipeline scoring, then materialize top-k and
+merge prior seeds — MUST NOT run fused CUDA and discard results for a CPU
+re-export.
+
 ### Score id vs backend (locked)
 
 | Condition | Required behavior |
 |-----------|-------------------|
 | `backend=cpu` | Always `CpuCandidateExport` / `RankCandidates` + `ScoreRegistry` |
 | `backend=cuda` and `score_id == chi2_english_gp_v0` and family has fused export | Prefer fused `GpuCandidateExport` (χ² only) |
+| `backend=cuda` and fused family and **non-empty prior** (not `theory`) | MUST use CPU export (skip GPU). Artifact `backend` MUST be `cpu`. |
 | `backend=cuda` and `score_id != chi2_english_gp_v0` (e.g. `log_bigram_gp_v0`) | MUST fall back to the **CPU path**. MUST NOT hard-error solely because `backend=cuda` was requested with a non-χ² score. MUST NOT invent a fused bigram `GpuCandidateExport` unless a later spec revision adds one. |
-| `backend=cuda` and `family=theory` and `score_id == chi2_english_gp_v0` and decrypt | MUST use fused `GpuCandidateExport::theory_explicit_params` (`SearchJob::has_fused_cuda_chi2_export("theory")` is true). Artifact `backend` MUST be `cuda`. Encrypt / non-χ² scores follow the rows above. |
+| `backend=cuda` and `family=theory` and `score_id == chi2_english_gp_v0` and decrypt | MUST use fused scores-only (`theory_scores_only` / `TheoryExportPipeline`) after exclusion filter, then host materialize + prior-seed merge (`SearchJob::has_fused_cuda_chi2_export("theory")` is true). Artifact `backend` MUST be `cuda` when any GPU lane scored. Encrypt / non-χ² scores follow the rows above. |
 | Hard CPU-only families (`hill_2` / `hill_3` / CTAK / PTAK) | `is_cpu_export_only_family` — CPU regardless of `backend` |
 
 Batch artifact / wire `score_id` MUST remain the job’s requested id. When the

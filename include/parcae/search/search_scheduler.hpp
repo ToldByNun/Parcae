@@ -11,6 +11,7 @@
 #include "parcae/hypothesis/hypothesis_status.hpp"
 #include "parcae/hypothesis/workspace_paths.hpp"
 #include "parcae/interrupt/policy.hpp"
+#include "parcae/score/chi2_english_gp.hpp"
 #include "parcae/score/expected_frequency_table.hpp"
 #include "parcae/search/batch_artifact.hpp"
 #include "parcae/search/cpu_candidate_export.hpp"
@@ -20,11 +21,13 @@
 #include "parcae/search/search_job.hpp"
 #include "parcae/search/search_prior.hpp"
 #include "parcae/search/theory_export_cache.hpp"
+#include "parcae/search/theory_export_pipeline.hpp"
 #include "parcae/search/workspace_cipher.hpp"
 #include "parcae/tool/context.hpp"
 #include "parcae/tool/tool_backend.hpp"
 #include "parcae/transform/transform_direction.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -78,6 +81,8 @@ public:
         TheoryDeviceScratch* theory_scratch = nullptr;
         /// Optional copy/compute stream pair for theory async H2D/hist/D2H.
         CudaStreamPair* theory_streams = nullptr;
+        /// Optional multi-chunk theory export pipeline (ping-pong overlap).
+        TheoryExportPipeline* theory_pipeline = nullptr;
 #endif
     };
 
@@ -117,6 +122,8 @@ public:
         TheoryDeviceScratch* theory_scratch = nullptr;
         /// Optional theory stream pair shared across loop iterations.
         CudaStreamPair* theory_streams = nullptr;
+        /// Optional theory export pipeline shared across loop iterations.
+        TheoryExportPipeline* theory_pipeline = nullptr;
 #endif
     };
 
@@ -258,7 +265,7 @@ public:
             options.theory_cache
 #if defined(PARCAE_HAS_CUDA)
             ,
-            options.theory_scratch, options.theory_streams
+            options.theory_scratch, options.theory_streams, options.theory_pipeline
 #endif
         );
         if (!exported.ok()) {
@@ -401,6 +408,9 @@ public:
         CudaStreamPair loop_theory_streams = CudaStreamPair::create_or_legacy();
         CudaStreamPair* theory_streams =
             options.theory_streams != nullptr ? options.theory_streams : &loop_theory_streams;
+        TheoryExportPipeline loop_theory_pipeline(*theory_cache, *theory_scratch, *theory_streams);
+        TheoryExportPipeline* theory_pipeline =
+            options.theory_pipeline != nullptr ? options.theory_pipeline : &loop_theory_pipeline;
 #endif
 
         for (std::size_t i = 0; i < options.max_iterations; ++i) {
@@ -423,6 +433,7 @@ public:
 #if defined(PARCAE_HAS_CUDA)
             once.theory_scratch = theory_scratch;
             once.theory_streams = theory_streams;
+            once.theory_pipeline = theory_pipeline;
 #endif
             if (!options.batch_ids.empty()) {
                 once.batch_id = options.batch_ids[i];
@@ -623,7 +634,8 @@ private:
 #if defined(PARCAE_HAS_CUDA)
                       ,
                       TheoryDeviceScratch* theory_scratch = nullptr,
-                      CudaStreamPair* theory_streams = nullptr
+                      CudaStreamPair* theory_streams = nullptr,
+                      TheoryExportPipeline* theory_pipeline = nullptr
 #endif
     ) {
         // Hill / CTAK / PTAK stay hard CPU-only (`is_cpu_export_only_family`).
@@ -648,43 +660,190 @@ private:
             return CpuCandidateExport::from_job(cipher, job, ctx, &prior, progress);
         }
 
+        const bool prior_nonempty =
+            !prior.seeds().empty() || !prior.exclusions().empty();
+
+        // Catalog fused exports return top-k only; exclusions must be applied
+        // before ranking. Skip GPU entirely when prior is non-empty (no silent
+        // wasted device work). Theory folds prior below (filter → scores_only).
+        if (prior_nonempty && job.family() != "theory") {
+            return CpuCandidateExport::from_job(cipher, job, ctx, &prior, progress);
+        }
+
         StatusOr<ExpectedFrequencyTable> freqs = ctx.load_english_gp_expected();
         if (!freqs.ok()) {
             return freqs.status();
         }
 
-        StatusOr<CpuCandidateExport::Result> fused = export_cuda_fused(
-            cipher, job, freqs.value(), ctx.data_root() / "theories", progress, theory_cache
+        if (job.family() == "theory") {
+            return export_cuda_theory(cipher, job, freqs.value(), ctx.data_root() / "theories",
+                                      prior, progress, theory_cache
 #if defined(PARCAE_HAS_CUDA)
-            ,
-            theory_scratch, theory_streams
+                                      ,
+                                      theory_scratch, theory_streams, theory_pipeline
 #endif
-        );
-        if (!fused.ok()) {
-            return fused.status();
+            );
         }
 
-        // Apply prior exclusions/seeds on the CPU path for parity with CpuCandidateExport.
-        // Fused GPU export does not yet fold SearchPrior; re-run CPU with prior when
-        // the prior is non-empty so exclusions/seeds match the CPU oracle.
-        if (!prior.seeds().empty() || !prior.exclusions().empty()) {
-            return CpuCandidateExport::from_job(cipher, job, ctx, &prior, progress);
+        return export_cuda_fused(cipher, job, freqs.value(), progress);
+    }
+
+    /// Theory fused path: filter exclusions → `theory_scores_only` (pipeline when
+    /// available) → top-k materialize → merge prior seeds. Never runs GPU then
+    /// discards results for a CPU re-export.
+    [[nodiscard]] static StatusOr<CpuCandidateExport::Result>
+    export_cuda_theory(std::span<const Index29> cipher, const SearchJob& job,
+                       const ExpectedFrequencyTable& freqs,
+                       const std::filesystem::path& theories_root, const SearchPrior& prior,
+                       BatchRunner::Progress progress = BatchRunner::Progress{},
+                       TheoryExportCache* theory_cache = nullptr
+#if defined(PARCAE_HAS_CUDA)
+                       ,
+                       TheoryDeviceScratch* theory_scratch = nullptr,
+                       CudaStreamPair* theory_streams = nullptr,
+                       TheoryExportPipeline* theory_pipeline = nullptr
+#endif
+    ) {
+        if (!job.allow_theory_uri()) {
+            return Status::error("SearchScheduler: theory requires allow_theory_uri");
         }
-        return fused;
+        Status grid_ok = SearchJob::validate_theory_param_grid(job.param_grid());
+        if (!grid_ok.ok()) {
+            return Status::error(std::string("SearchScheduler: ") + grid_ok.message());
+        }
+        const std::string theory_uri = job.param_grid().at("theory_uri").get<std::string>();
+        std::vector<nlohmann::json> params_list;
+        params_list.reserve(job.param_grid().at("params_list").size());
+        for (const auto& item : job.param_grid().at("params_list")) {
+            if (!prior.excludes_params(item)) {
+                params_list.push_back(item);
+            }
+        }
+
+        if (params_list.empty() && prior.seeds().empty()) {
+            return Status::error("SearchScheduler: no theory candidates after prior filters");
+        }
+
+#if !defined(PARCAE_HAS_CUDA)
+        (void)freqs;
+        (void)theories_root;
+        (void)progress;
+        (void)theory_cache;
+        return Status::error("SearchScheduler: theory fused CUDA requires PARCAE_BUILD_CUDA=ON");
+#else
+        TheoryExportCache local_cache;
+        TheoryExportCache& cache = theory_cache != nullptr ? *theory_cache : local_cache;
+        TheoryDeviceScratch local_scratch;
+        TheoryDeviceScratch& scratch = theory_scratch != nullptr ? *theory_scratch : local_scratch;
+        CudaStreamPair local_streams;
+        CudaStreamPair* streams = theory_streams;
+        if (streams == nullptr) {
+            local_streams = CudaStreamPair::create_or_legacy();
+            streams = &local_streams;
+        }
+
+        std::vector<GpuCandidateExport::Row> rows;
+        Backend backend = Backend::Cuda;
+
+        if (!params_list.empty()) {
+            StatusOr<std::vector<double>> scores = [&]() -> StatusOr<std::vector<double>> {
+                if (theory_pipeline != nullptr) {
+                    const std::vector<std::vector<nlohmann::json>> chunks{params_list};
+                    StatusOr<std::vector<std::vector<double>>> piped = theory_pipeline->run_chunks(
+                        cipher, freqs, theories_root, theory_uri, chunks, progress);
+                    if (!piped.ok()) {
+                        return piped.status();
+                    }
+                    if (piped.value().size() != 1) {
+                        return Status::error("SearchScheduler: theory pipeline chunk count");
+                    }
+                    return std::move(piped.value()[0]);
+                }
+                return GpuCandidateExport::theory_scores_only(
+                    cipher, freqs, theories_root, theory_uri, params_list,
+                    TransformDirection::Decrypt, progress, InterruptPolicy::none(), &cache,
+                    &scratch, streams);
+            }();
+            if (!scores.ok()) {
+                return scores.status();
+            }
+
+            StatusOr<GpuCandidateExport::Result> materialized =
+                GpuCandidateExport::theory_from_host_scores(
+                    cipher, theories_root, theory_uri, params_list, scores.value(), job.k(),
+                    TransformDirection::Decrypt, Backend::Cuda, progress, InterruptPolicy::none(),
+                    &cache);
+            if (!materialized.ok()) {
+                return materialized.status();
+            }
+            rows = materialized.value().rows();
+        } else {
+            backend = Backend::Cpu;
+        }
+
+        StatusOr<std::vector<GpuCandidateExport::Row>> merged =
+            merge_theory_prior_seeds(cipher, freqs, theories_root, prior, rows, job.k());
+        if (!merged.ok()) {
+            return merged.status();
+        }
+        if (merged.value().empty()) {
+            return Status::error("SearchScheduler: no theory candidates after prior seed merge");
+        }
+        return GpuCandidateExport::Result{std::move(merged.value()), backend};
+#endif
+    }
+
+    /// Merge prior seeds into theory export rows and re-select top-k (χ² Asc).
+    [[nodiscard]] static StatusOr<std::vector<GpuCandidateExport::Row>>
+    merge_theory_prior_seeds(std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+                             const std::filesystem::path& theories_root, const SearchPrior& prior,
+                             std::vector<GpuCandidateExport::Row> rows, std::size_t k) {
+        std::vector<GpuCandidateExport::Row> combined = std::move(rows);
+        for (const SearchPrior::Seed& seed : prior.seeds()) {
+            StatusOr<TransformCandidate> cand = CpuCandidateExport::materialize_seed(
+                cipher, seed, TransformDirection::Decrypt, theories_root);
+            if (!cand.ok()) {
+                return cand.status();
+            }
+            bool already = false;
+            for (const GpuCandidateExport::Row& row : combined) {
+                if (row.candidate().params() == cand.value().params()) {
+                    already = true;
+                    break;
+                }
+            }
+            if (already) {
+                continue;
+            }
+            StatusOr<double> score = Chi2EnglishGp::score(cand.value().output_indices(), freqs);
+            if (!score.ok()) {
+                return score.status();
+            }
+            combined.emplace_back(std::move(cand.value()), score.value(), /*rank=*/0,
+                                  /*source_index=*/combined.size());
+        }
+
+        std::stable_sort(combined.begin(), combined.end(),
+                         [](const GpuCandidateExport::Row& a, const GpuCandidateExport::Row& b) {
+                             if (a.score() != b.score()) {
+                                 return a.score() < b.score();
+                             }
+                             return a.candidate().candidate_id() < b.candidate().candidate_id();
+                         });
+        const std::size_t keep = combined.size() < k ? combined.size() : k;
+        std::vector<GpuCandidateExport::Row> ranked;
+        ranked.reserve(keep);
+        for (std::size_t rank = 0; rank < keep; ++rank) {
+            ranked.emplace_back(combined[rank].candidate(), combined[rank].score(), rank,
+                                combined[rank].source_index());
+        }
+        return ranked;
     }
 
     [[nodiscard]] static StatusOr<CpuCandidateExport::Result>
     export_cuda_fused(std::span<const Index29> cipher, const SearchJob& job,
                       const ExpectedFrequencyTable& freqs,
-                      const std::filesystem::path& theories_root,
-                      BatchRunner::Progress progress = BatchRunner::Progress{},
-                      TheoryExportCache* theory_cache = nullptr
-#if defined(PARCAE_HAS_CUDA)
-                      ,
-                      TheoryDeviceScratch* theory_scratch = nullptr,
-                      CudaStreamPair* theory_streams = nullptr
-#endif
-    ) {
+                      BatchRunner::Progress progress = BatchRunner::Progress{}) {
         const std::string& family = job.family();
         if (family == "caesar") {
             return GpuCandidateExport::caesar(cipher, freqs, job.k(), job.direction(), progress);
@@ -763,28 +922,8 @@ private:
                                                        job.direction(), progress);
         }
         if (family == "theory") {
-            if (!job.allow_theory_uri()) {
-                return Status::error("SearchScheduler: theory requires allow_theory_uri");
-            }
-            Status grid_ok = SearchJob::validate_theory_param_grid(job.param_grid());
-            if (!grid_ok.ok()) {
-                return Status::error(std::string("SearchScheduler: ") + grid_ok.message());
-            }
-            const std::string theory_uri =
-                job.param_grid().at("theory_uri").get<std::string>();
-            std::vector<nlohmann::json> params_list;
-            params_list.reserve(job.param_grid().at("params_list").size());
-            for (const auto& item : job.param_grid().at("params_list")) {
-                params_list.push_back(item);
-            }
-            return GpuCandidateExport::theory_explicit_params(
-                cipher, freqs, theories_root, theory_uri, params_list, job.k(), job.direction(),
-                progress, InterruptPolicy::none(), theory_cache
-#if defined(PARCAE_HAS_CUDA)
-                ,
-                theory_scratch, theory_streams
-#endif
-            );
+            return Status::error(
+                "SearchScheduler: theory fused export must use export_cuda_theory");
         }
         return Status::error("SearchScheduler: unsupported family for cuda export: " + family);
     }

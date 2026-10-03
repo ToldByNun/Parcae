@@ -179,6 +179,7 @@ parity cases skip or stub when `PARCAE_BUILD_CUDA=OFF`.
 | `[search][scheduler]` | Always (CPU `run_once`) | CUDA backend rejected unless built+allowed |
 | `[search][scheduler][loop]` | Always | `run_loop` budgets / stop reasons |
 | `[search][scheduler][prior]` | Always | Promoted seeds + rejected exclusions on next job |
+| `[search][scheduler][theory][prior]` | CUDA | Theory exclusion filter before scores_only; catalog prior skips GPU |
 | `[search][scheduler][loop][determinism]` | Always | Two-iteration fixed-seed digest stability |
 | `[search][adversarial]` | Always | Job JSON / path escape / `max_candidates` caps |
 | `[search][roundtrip]` | Always | Job + prior + batch end-to-end |

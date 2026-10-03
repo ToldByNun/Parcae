@@ -62,6 +62,15 @@ public:
     using Row = GpuCandidateExport::Row;
     using Result = GpuCandidateExport::Result;
 
+    /// Materialize one prior seed envelope into a `TransformCandidate`
+    /// (`prior-seed:<hypothesis_id>`). Used by CUDA export after fused scores.
+    [[nodiscard]] static StatusOr<TransformCandidate>
+    materialize_seed(std::span<const Index29> cipher, const SearchPrior::Seed& seed,
+                     TransformDirection job_direction,
+                     const std::filesystem::path& theories_root) {
+        return candidate_from_seed(cipher, seed, job_direction, theories_root);
+    }
+
     [[nodiscard]] static StatusOr<Result>
     from_job(std::span<const Index29> cipher, const SearchJob& job, const Context& ctx,
              const SearchPrior* prior = nullptr,

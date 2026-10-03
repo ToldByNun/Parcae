@@ -31,17 +31,20 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 `SearchJob` emits `allow_extended_families` / `allow_theory_uri` (default false).
 `is_cpu_export_only_family` covers hill / CTAK / PTAK (hard CPU). `theory` is
 **not** hard CPU-only: with χ² + decrypt,
-`has_fused_cuda_chi2_export("theory")` is true and the scheduler calls
-`GpuCandidateExport::theory_explicit_params`. Dispatch prefers
-`TheoryHistChi2Emit` **S1/S2** specialized hist when the cached plan matches;
-soft-fallback **S0** bytecode via `TheoryHistChi2Launch` / `TheoryChi2Batch`
-(`export_backend=cuda`). Toolkit **1.1.0** lifts hill/autokey off the hard list —
+`has_fused_cuda_chi2_export("theory")` is true and the scheduler routes theory
+through `export_cuda_theory` → `theory_scores_only` (or `TheoryExportPipeline`
+multi-chunk) then host materialize + prior-seed merge. Catalog fused families
+with a **non-empty prior** skip GPU entirely (CPU export) — no silent
+GPU-then-discard. Theory applies exclusions **before** scores_only so device
+work is never thrown away. Dispatch prefers `TheoryHistChi2Emit` **S1/S2**
+specialized hist when the cached plan matches; soft-fallback **S0** bytecode via
+`TheoryHistChi2Launch` / `TheoryChi2Batch` (`export_backend=cuda`). Toolkit
+**1.1.0** lifts hill/autokey off the hard list —
 [`cuda-catalog-parity.md`](../../../docs/architecture/cuda-catalog-parity.md).
 `SearchScheduler::run_loop` keeps a `TheoryExportCache`, (CUDA)
-`TheoryDeviceScratch`, and `CudaStreamPair` across iterations (override via
-`Options::theory_cache` / `theory_scratch` / `theory_streams` /
-`LoopOptions::*`). Use `GpuCandidateExport::theory_scores_only` for score
-sweeps without materialize.
+`TheoryDeviceScratch`, `CudaStreamPair`, and `TheoryExportPipeline` across
+iterations (override via `Options::theory_cache` / `theory_scratch` /
+`theory_streams` / `theory_pipeline` / `LoopOptions::*`).
 
 **Throughput:** Kernel SLO = `parcae-bench --suite theory` (`T.theory.*`, ≥90%
 peak @ fair T). Campaign wall = `research/run.log` cells/s — ops only, not the
@@ -56,7 +59,8 @@ Tests: `[search][job]`, `[search][prior]`, `[search][batch]`, `[search][roundtri
 `[search][cipher]`, `[search][cipher][resolve]`, `[search][export]`,
 `[search][export][parity]`, `[search][export][compose][parity]`, `[search][bridge]`,
 `[search][bridge][score]`, `[search][scheduler]`, `[search][scheduler][loop]`,
-`[search][scheduler][prior]`, `[search][scheduler][loop][determinism]`,
+`[search][scheduler][prior]`, `[search][scheduler][theory][prior]`,
+`[search][scheduler][loop][determinism]`,
 `[search][adversarial]`, `[search][adversarial][job]`,
 `[search][adversarial][path]`, `[search][adversarial][caps]`,
 `[search][batch][limits]`, `[search][batch][fuzz]`,
