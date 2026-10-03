@@ -199,6 +199,10 @@ host/PCIe/sync — **idle GPU ≠ Kernel SLO PCIe**.
 
 **Track A ACCEPTANCE (2026-10-03):** post-residency stress cut non-kernel NVTX
 wall **~53×** vs [`pre_residency/`](profiles/export_duty/pre_residency/) (PASS).
+
+**Metric B ACCEPTANCE (2026-10-03):** quiet fair theory ×3 + slo extended ×2 →
+[`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md) — **PARTIAL PASS**
+(Caesar twin stretch; S1 under 80%; Atbash/totient `%peak>100` model flag).
 Alloc pool **skipped** (warm `cudaMalloc` ~0.2% API). Fair S1 stayed
 ≥ ~400B class (**482B**).
 
@@ -259,15 +263,18 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-03 | **roof_hist_wire** | `profiles/roof_hist/` | S1/S2/F.* + Caesar | 29×1M; S2 C=841 | Caesar **838B** / S1 **690B** / S2 **343B**; F.atbash **1525B** / F.affine **838B** | — | `HistFast::tiles_for` → fat-64; goldens green | wire fat-64; Caesar **Done** (~93.5%); S1 stretch; S0 unchanged |
 | 2026-10-03 | **s2_ks29** | `profiles/roof_hist/` | `theory_hist_chi2_s2_linear_kernel` | 841×1M | **403.1B** S2 (was **343B**) | — | shared `ks[29]` precompute | ALU cut; ~**45%** of 896B; Caesar/S1 flat |
 | 2026-10-03 | **s0_specialize** | `profiles/roof_hist/` | fair `T.theory.caesar_bytecode` → S1 | 29×1M | **707.6B** (`specialize_S1`; was ~61–68B S0) | — | emit prefer S1 in suite; export already S1/S2 | ~**79%** of 896B; ≈ S1 twin; hard-S0 unchanged |
+| 2026-10-03 | **kernel_slo_accept** | `profiles/kernel_slo/` | theory fair ×3 + slo extended ×2 | fair 29×1M; F.* grids | twin med **783B** / specialize med **681B** / S1 noisy; F.vigenere·beaufort ≥90%; Atbash·totient `%peak>100` | — | quiet ACCEPTANCE | metric B **PARTIAL PASS** — see SUMMARY |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 
 | Theory shape | Spec id | `estimated_peak` | 90% gate | Fair cudaEvent | Status |
 |--------------|---------|------------------|----------|----------------|--------|
-| Caesar catalog twin (fat-64) | `T.theory.compare_caesar` | **896B** | **806.4B** | **829.4B** (~92.6%, 2026-10-03) | **Done** — fat-tile |
-| Caesar fair (specialize S1 when eligible) | `T.theory.caesar_bytecode` | **896B** | **806.4B** | **707.6B** (~79%, `specialize_S1`) | **stretch** — off interpreter |
-| S1 LUT-29 (fat-64) | `T.theory.s1_lut29` | **896B** | **806.4B** | **706.0B** (~79%) | **stretch** — fat-tile wired |
-| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **896B** | **806.4B** | **396.4B** (~44% @ C=841, ks29) | **not Done** — still compute-bound |
+| Caesar catalog twin (fat-64) | `T.theory.compare_caesar` | **896B** | **806.4B** | med **782.9B** (~87%; best **849B** Done) | **stretch** — ACCEPTANCE |
+| Caesar fair (specialize S1 when eligible) | `T.theory.caesar_bytecode` | **896B** | **806.4B** | med **680.8B** (~76%, `specialize_S1`) | **not stretch** — <80% |
+| S1 LUT-29 (fat-64) | `T.theory.s1_lut29` | **896B** | **806.4B** | med **487B** (noisy 303–692) | **not stretch** — stabilize |
+| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **896B** | **806.4B** | med **401.6B** (~45% @ C=841, ks29) | **not Done** — still compute-bound |
+
+Kernel SLO ACCEPTANCE (metric B): [`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md).
 
 `BenchTheorySuite` (`parcae-bench --suite theory`) gates fair rows with
 `BenchTierSpec::pass_tier` (≥90% peak + `slo_min`). Short T is

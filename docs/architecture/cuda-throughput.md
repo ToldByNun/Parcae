@@ -23,10 +23,11 @@ cipher byte per `(candidate,token)`. It is **not** “best bench run we saw”.
 If a quiet run ever prints &gt;100%, the traffic model is wrong — fix the model,
 do not celebrate “super-linear” silicon.
 
-Today’s specialized kernels sit around **~45–80%** of this roof depending on shape
-(DRAM SoL in ncu is only a few % — still compute/latency bound for S1/S2). Fair
-`T.theory.caesar_bytecode` rides S1 via specialize dispatch (~**79%**); irreducible
-hard-S0 interpreter remains ~**7–8%**. Done = ≥**90% of 896B** (≈806B).
+Quiet ACCEPTANCE ([`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md)):
+Caesar twin stretch (~**87%** median); fair specialize ~**76%**; S1 noisy;
+F.vigenere/beaufort ≥90% under 1 B/rune; Atbash/totient `%peak>100` ⇒ traffic
+model fix (do not lower Spec). DRAM SoL still ~few % — Done deferred until
+memory-bound. Hard-S0 interpreter remains ~**7–8%**.
 
 `ThroughputTiers` / `DslPeakSanity` delegate to `BenchTierSpec`
 (Catch2 `[bench][spec]` / `[dsl][peak]`).
