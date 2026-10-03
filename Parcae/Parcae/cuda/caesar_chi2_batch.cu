@@ -85,7 +85,9 @@ __global__ void caesar_chi2_histogram_kernel(const std::uint8_t* in, const std::
 }
 
 int CaesarChi2Batch::tiles_for(std::size_t token_count) {
-    const int cap = g_hist_tile_cap > 0 ? g_hist_tile_cap : kProductionTileCap;
+    static_assert(kProductionTileCap == HistFast::production_tile_cap,
+                  "CaesarChi2Batch::kProductionTileCap must match HistFast");
+    const int cap = g_hist_tile_cap > 0 ? g_hist_tile_cap : HistFast::production_tile_cap;
     return HistFast::tiles_for_capped(token_count, cap);
 }
 

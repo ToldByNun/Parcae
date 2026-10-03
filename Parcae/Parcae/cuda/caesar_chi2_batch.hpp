@@ -22,8 +22,7 @@ public:
     static constexpr std::size_t kMaxCandidates = 16384;
     static constexpr std::size_t kMaxTokens = 1u << 22;
 
-    /// Commit 10 WIN: fat-tile clamp (`grid.y` ≤ 64) with `add_private`.
-    /// ~837B fair @ 29×1M on 5070 Ti vs ~503B uncapped (see `profiles/roof_hist/`).
+    /// Same as `HistFast::production_tile_cap` (Commit 10/11 fat-64 WIN).
     static constexpr int kProductionTileCap = 64;
 
     /// `0` = production (`kProductionTileCap`). Positive = override clamp

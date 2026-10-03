@@ -9,7 +9,8 @@
 
 /// Fused decrypt+χ² histogram for batch families (device-resident, scores only D2H).
 ///
-/// `uint32` hist bins + thread-local accumulation + uchar4 where safe.
+/// Warp-private hist + fat-tile (`HistFast::production_tile_cap`) + uchar4 where
+/// safe. Atbash / Affine / Atbash∘Caesar share the Caesar Commit-10/11 clamp.
 class FamilyChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;

@@ -15,9 +15,9 @@
 /// Fast Z/29 decrypt helpers + fused-χ² histogram primitives.
 ///
 /// Hist accumulation paths (same final global counts when used correctly):
-/// - **Warp-private** (`add_private`) + **fat-tile** (`tiles_for_capped`, Caesar
-///   `kProductionTileCap=64`): production — ~780–840B fair on 5070 Ti
-///   (`profiles/roof_hist/`).
+/// - **Warp-private** (`add_private`) + **fat-tile** (`production_tile_cap=64`):
+///   production for Caesar / S1 / S2 / catalog F.* — ~780–840B Caesar fair on
+///   5070 Ti (`profiles/roof_hist/`).
 /// - **Warp-match** (`add_private_match`): `__match_any_sync` — LOSE vs fat-64.
 /// - **Register-local / 32 KiB shared-local**: regressed under thin tiling
 ///   (`profiles/hist_local_caesar/`) — parity / research only.
@@ -31,9 +31,12 @@ public:
     static constexpr int local_stride = 32;
     /// `__shared__ uint32_t stage[local_shared_uints]` for the local path.
     static constexpr int local_shared_uints = threads * local_stride; // 8192
+    /// Legacy uncapped ceiling (A/B via `tiles_for_capped(..., max_tiles)`).
     static constexpr int max_tiles = 1024;
+    /// Commit 10/11 WIN: default `grid.y` clamp for uchar4 fused-hist launches.
+    static constexpr int production_tile_cap = 64;
 
-    /// Uncapped work tiles (before `max_tiles` / fat-tile clamp).
+    /// Uncapped work tiles (before production / max clamp).
     [[nodiscard]] static int tiles_for_work(std::size_t token_count) {
         const std::size_t packs = (token_count + 3u) / 4u; // scalar epilogue covers remainder
         const int by_work = static_cast<int>((packs + static_cast<std::size_t>(threads) - 1u) /
@@ -42,13 +45,13 @@ public:
     }
 
     /// Grid.y for uchar4-first hist kernels: one tile covers `threads` packs.
-    /// Clamped to `max_tiles` (production default).
+    /// Production default: fat-tile clamp (`production_tile_cap`).
     [[nodiscard]] static int tiles_for(std::size_t token_count) {
-        return tiles_for_capped(token_count, max_tiles);
+        return tiles_for_capped(token_count, production_tile_cap);
     }
 
     /// Fat-tile clamp: fewer `grid.y` ⇒ longer grid-stride loops per block.
-    /// `cap < 1` is treated as 1. Used by Caesar roof-hist spike (Commit 10).
+    /// `cap < 1` is treated as 1.
     [[nodiscard]] static int tiles_for_capped(std::size_t token_count, int cap) {
         const int by_work = tiles_for_work(token_count);
         const int limit = cap < 1 ? 1 : cap;

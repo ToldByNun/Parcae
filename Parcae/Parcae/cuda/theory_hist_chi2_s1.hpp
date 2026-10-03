@@ -10,7 +10,7 @@
 /// S1 LUT-29 fused χ² hist for f(x)-only decrypt (Affine/Caesar-shaped).
 ///
 /// `device_luts` is row-major `C × 29`: `lut[c*29 + x] = decrypt(x; params_c)`.
-/// Hist is uchar4 via shared LUT (same pattern as `FamilyChi2Batch` affine).
+/// Hist is uchar4 via shared LUT + fat-tile (`HistFast::production_tile_cap`).
 /// Finalize via `Chi2BatchScore`. No C++ namespaces.
 class TheoryHistChi2S1 {
 public:

@@ -55,13 +55,14 @@ struct TileSweepRow {
 } // namespace
 
 TEST_CASE("HistFast tiles_for_capped clamps fat tiles", "[cuda][hist][roof]") {
-    // T=1M → packs=262144 → work tiles = 1024.
+    // T=1M → packs=262144 → work tiles = 1024; production clamp = 64.
     REQUIRE(HistFast::tiles_for_work(1048576) == 1024);
-    REQUIRE(HistFast::tiles_for(1048576) == 1024);
+    REQUIRE(HistFast::production_tile_cap == 64);
+    REQUIRE(HistFast::tiles_for(1048576) == HistFast::production_tile_cap);
     REQUIRE(HistFast::tiles_for_capped(1048576, 32) == 32);
-    REQUIRE(HistFast::tiles_for_capped(1048576, 1024) == 1024);
+    REQUIRE(HistFast::tiles_for_capped(1048576, HistFast::max_tiles) == 1024);
     REQUIRE(HistFast::tiles_for_capped(1048576, 4096) == 1024);
-    REQUIRE(HistFast::tiles_for_capped(64, 1024) == 1); // 16 packs → 1 tile
+    REQUIRE(HistFast::tiles_for_capped(64, HistFast::max_tiles) == 1); // 16 packs → 1 tile
 }
 
 TEST_CASE("Caesar fat-tile warp-private roof sweep (Commit 10)",
