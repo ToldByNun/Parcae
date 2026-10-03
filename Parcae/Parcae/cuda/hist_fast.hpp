@@ -33,7 +33,7 @@ public:
     static constexpr int local_shared_uints = threads * local_stride; // 8192
     /// Legacy uncapped ceiling (A/B via `tiles_for_capped(..., max_tiles)`).
     static constexpr int max_tiles = 1024;
-    /// Commit 10/11 WIN: default `grid.y` clamp for uchar4 fused-hist launches.
+    /// Default `grid.y` clamp for uchar4 fused-hist launches (fat-tile).
     static constexpr int production_tile_cap = 64;
 
     /// Uncapped work tiles (before production / max clamp).

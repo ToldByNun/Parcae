@@ -7,7 +7,6 @@
 #include <cuda_runtime_api.h>
 
 int FamilyChi2Batch::tiles_for(std::size_t token_count) {
-    // fat-64 for Atbash / Affine / Atbash∘Caesar / … catalog F.*.
     return HistFast::tiles_for(token_count);
 }
 

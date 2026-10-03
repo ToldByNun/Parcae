@@ -65,8 +65,7 @@ TEST_CASE("HistFast tiles_for_capped clamps fat tiles", "[cuda][hist][roof]") {
     REQUIRE(HistFast::tiles_for_capped(64, HistFast::max_tiles) == 1); // 16 packs → 1 tile
 }
 
-TEST_CASE("Caesar fat-tile warp-private roof sweep (Commit 10)",
-          "[cuda][hist][roof][caesar]") {
+TEST_CASE("Caesar fat-tile warp-private roof sweep", "[cuda][hist][roof][caesar]") {
     REQUIRE(ParcaeCuda::available());
 
     StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(

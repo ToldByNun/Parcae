@@ -10,8 +10,9 @@
 /// S2 uchar4 fused χ² hist for bitmask_blend / progressive shapes:
 /// `out = x - (b0 + b1·(t mod 29))` or `out = x + (b0 + b1·(t mod 29))` (mod 29).
 ///
-/// No interpreter; params are per-candidate `b0`/`b1` rows. Fat-tile via
-/// `HistFast::production_tile_cap`. Finalize via `Chi2BatchScore`.
+/// No interpreter; params are per-candidate `b0`/`b1` rows. Per-block shared
+/// period-29 keystream (`ks[i]=b0+b1·i`) then fat-tile hist. Finalize via
+/// `Chi2BatchScore`.
 class TheoryHistChi2S2 {
 public:
     static constexpr std::size_t alphabet_size = 29;

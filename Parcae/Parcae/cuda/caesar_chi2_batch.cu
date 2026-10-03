@@ -6,9 +6,9 @@
 #include <cuda_runtime_api.h>
 
 // Production path: warp-private hist (`add_private`) + fat-tile clamp
-// (`kProductionTileCap=64`, Commit 10 WIN — see profiles/roof_hist/).
-// Register-local / 32 KiB shared-local under profiles/hist_local_caesar/
-// regressed fair T1 — keep HistFast local APIs for research only.
+// (`kProductionTileCap=64`; see profiles/roof_hist/). Register-local /
+// 32 KiB shared-local under profiles/hist_local_caesar/ regressed fair T1 —
+// keep HistFast local APIs for research only.
 
 namespace {
 int g_hist_tile_cap = 0;

@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Commit 10: Caesar fat-tile warp-private roof-hist spike (cudaEvent sweep).
+  Caesar fat-tile warp-private roof-hist spike (cudaEvent sweep).
 
 .DESCRIPTION
   1) Fair theory suite (S1 / compare_caesar baseline).

@@ -8,11 +8,14 @@
 #include <cuda_runtime_api.h>
 
 /// File-scope — no anonymous namespace (theory hist emit contract).
+/// Period-29 keystream in shared memory: `ks[i] = b0 + b1·i (mod 29)`, then
+/// hist indexes `ks[t % 29]` (cuts per-rune mul/add in the hot loop).
 __global__ void theory_hist_chi2_s2_linear_kernel(const std::uint8_t* in, const std::uint8_t* b0,
                                                   const std::uint8_t* b1, std::uint32_t* counts,
                                                   std::size_t token_count,
                                                   std::uint8_t cipher_minus_ks) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
+    __shared__ std::uint8_t ks[HistFast::alphabet];
     HistFast::clear_private(priv);
 
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
@@ -20,16 +23,20 @@ __global__ void theory_hist_chi2_s2_linear_kernel(const std::uint8_t* in, const 
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
     const std::uint8_t pb0 = b0[candidate];
     const std::uint8_t pb1 = b1[candidate];
+
+    if (threadIdx.x < HistFast::alphabet) {
+        const std::uint8_t i = static_cast<std::uint8_t>(threadIdx.x);
+        ks[threadIdx.x] = Z29Device::add(pb0, Z29Device::mul(pb1, i));
+    }
+    __syncthreads();
+
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     const std::size_t n4 = token_count / 4u;
     const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+    constexpr std::size_t mod = static_cast<std::size_t>(Z29Device::modulus);
 
-    auto ks_at = [&](std::size_t t) -> std::uint8_t {
-        const std::uint8_t im = static_cast<std::uint8_t>(t % static_cast<std::size_t>(Z29Device::modulus));
-        return Z29Device::add(pb0, Z29Device::mul(pb1, im));
-    };
-    auto out_byte = [&](std::uint8_t x, std::uint8_t ks) -> std::uint8_t {
-        return cipher_minus_ks != 0u ? HistFast::dec_sub(x, ks) : HistFast::enc_caesar(x, ks);
+    auto out_byte = [&](std::uint8_t x, std::uint8_t key) -> std::uint8_t {
+        return cipher_minus_ks != 0u ? HistFast::dec_sub(x, key) : HistFast::enc_caesar(x, key);
     };
 
     for (std::size_t i =
@@ -37,22 +44,21 @@ __global__ void theory_hist_chi2_s2_linear_kernel(const std::uint8_t* in, const 
          i < n4; i += stride) {
         const uchar4 v = in4[i];
         const std::size_t t0 = i * 4u;
-        HistFast::add_private(priv, out_byte(v.x, ks_at(t0)));
-        HistFast::add_private(priv, out_byte(v.y, ks_at(t0 + 1u)));
-        HistFast::add_private(priv, out_byte(v.z, ks_at(t0 + 2u)));
-        HistFast::add_private(priv, out_byte(v.w, ks_at(t0 + 3u)));
+        HistFast::add_private(priv, out_byte(v.x, ks[t0 % mod]));
+        HistFast::add_private(priv, out_byte(v.y, ks[(t0 + 1u) % mod]));
+        HistFast::add_private(priv, out_byte(v.z, ks[(t0 + 2u) % mod]));
+        HistFast::add_private(priv, out_byte(v.w, ks[(t0 + 3u) % mod]));
     }
     for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count; t += stride) {
-        HistFast::add_private(priv, out_byte(in[t], ks_at(t)));
+        HistFast::add_private(priv, out_byte(in[t], ks[t % mod]));
     }
     HistFast::flush_private(priv,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
 int TheoryHistChi2S2::tiles_for(std::size_t token_count) {
-    // Commit 11: same fat-64 clamp as Caesar (HistFast::production_tile_cap).
     return HistFast::tiles_for(token_count);
 }
 

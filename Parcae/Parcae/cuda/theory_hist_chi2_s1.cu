@@ -45,7 +45,6 @@ __global__ void theory_hist_chi2_s1_lut_kernel(const std::uint8_t* in, const std
 }
 
 int TheoryHistChi2S1::tiles_for(std::size_t token_count) {
-    // same fat-64 clamp as Caesar (HistFast::production_tile_cap).
     return HistFast::tiles_for(token_count);
 }
 

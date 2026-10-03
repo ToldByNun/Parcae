@@ -14,15 +14,15 @@
 /// `profiles/hist_local_caesar/` — none beat production yet; F.* stays on
 /// `add_private` until a path ≥ fair T1 baseline.
 ///
-/// Commit 10 fat-tile spike: `set_hist_tile_cap` lowers `grid.y` while keeping
-/// `HistFast::add_private` (Caesar only; S1/S2/F.* unchanged).
+/// Optional `set_hist_tile_cap` overrides `grid.y` while keeping
+/// `HistFast::add_private` (A/B vs production fat-tile).
 class CaesarChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;
     static constexpr std::size_t kMaxCandidates = 16384;
     static constexpr std::size_t kMaxTokens = 1u << 22;
 
-    /// Same as `HistFast::production_tile_cap` (Commit 10/11 fat-64 WIN).
+    /// Same as `HistFast::production_tile_cap`.
     static constexpr int kProductionTileCap = 64;
 
     /// `0` = production (`kProductionTileCap`). Positive = override clamp
