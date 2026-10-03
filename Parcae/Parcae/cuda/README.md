@@ -18,6 +18,7 @@ Files:
 | `cuda_error.hpp` | `CudaError::to_status` — map `cudaError_t` → `Status` |
 | `device_buffer.hpp` | RAII `DeviceBuffer<T>` — alloc / H2D / D2H / free |
 | `pinned_host_arena.hpp` | RAII `PinnedHostArena` — grow-only `cudaHostAlloc` staging slabs |
+| `theory_device_scratch.hpp` | RAII `TheoryDeviceScratch` — persistent device buffers + async H2D/D2H |
 | `params.hpp` | POD classes: Caesar/Affine/Key/Totient/ComposeStage + CudaDir/CudaFamilyId |
 | `params_json.hpp` | `CudaParamsJson` host JSON ↔ POD converters |
 | `interrupt_device_view.hpp` | `InterruptDeviceView` — bitmask (`T≤4096`) or sorted `uint32_t` skips |
