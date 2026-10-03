@@ -113,6 +113,7 @@ add_executable(parcae_tests
   pinned_host_arena_test.cpp
   theory_device_scratch_test.cpp
   cuda_stream_pair_test.cpp
+  theory_export_pipeline_test.cpp
   cuda_params_test.cpp
   cuda_interrupt_device_view_test.cpp
   cuda_candidate_batch_buffers_test.cpp

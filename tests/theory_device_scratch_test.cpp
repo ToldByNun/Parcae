@@ -204,6 +204,37 @@ TEST_CASE("CUDA TheoryDeviceScratch lut and b0/b1 capacity guards", "[cuda][scra
     REQUIRE_FALSE(scratch.upload_slots_async(bad_slots, 2, 2).ok()); // size mismatch
 }
 
+TEST_CASE("CUDA TheoryDeviceScratch param ping-pong slabs", "[cuda][scratch]") {
+    REQUIRE(ParcaeCuda::available());
+
+    TheoryDeviceScratch scratch;
+    REQUIRE(scratch.ensure_capacity(2, 4).ok());
+    REQUIRE(scratch.write_slab() == 0);
+    REQUIRE(scratch.launch_slab() == 0);
+
+    const std::vector<std::uint8_t> slots_a{1, 2, 3, 4};
+    REQUIRE(scratch.upload_slots_async(slots_a, 2, 2).ok());
+    std::uint8_t* slab0 = scratch.slots();
+    scratch.commit_param_slab();
+    REQUIRE(scratch.launch_slab() == 0);
+    REQUIRE(scratch.write_slab() == 1);
+    REQUIRE(scratch.slots() == slab0);
+
+    const std::vector<std::uint8_t> slots_b{5, 6, 7, 8};
+    REQUIRE(scratch.upload_slots_async(slots_b, 2, 2).ok());
+    scratch.commit_param_slab();
+    REQUIRE(scratch.launch_slab() == 1);
+    REQUIRE(scratch.write_slab() == 0);
+    REQUIRE(scratch.slots() != slab0);
+
+    REQUIRE(sync_default().ok());
+    std::vector<std::uint8_t> back(4);
+    REQUIRE(CudaError::to_status(
+                cudaMemcpy(back.data(), scratch.slots(), 4, cudaMemcpyDeviceToHost), "slots D2H")
+                .ok());
+    REQUIRE(back == slots_b);
+}
+
 #else
 
 TEST_CASE("CUDA TheoryDeviceScratch skipped (PARCAE_HAS_CUDA unset)", "[cuda][scratch]") {

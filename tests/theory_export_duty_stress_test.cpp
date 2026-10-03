@@ -11,6 +11,7 @@
 #include <parcae/score/expected_frequency_table.hpp>
 #include <parcae/search/gpu_candidate_export.hpp>
 #include <parcae/search/theory_export_cache.hpp>
+#include <parcae/search/theory_export_pipeline.hpp>
 #include <parcae/transform/transform_direction.hpp>
 
 #include "cuda_stream_pair.hpp"
@@ -20,6 +21,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -124,6 +126,7 @@ TEST_CASE("Theory export multi-chunk duty stress (nsys)",
     TheoryExportCache cache;
     TheoryDeviceScratch scratch;
     CudaStreamPair streams = CudaStreamPair::create_or_legacy();
+    TheoryExportPipeline pipe(cache, scratch, streams);
 
     for (int chunk = 0; chunk < TheoryExportDutyStress::kChunks; ++chunk) {
         // Rotate a few params so bind_slots work is non-trivial each chunk.
@@ -133,12 +136,16 @@ TEST_CASE("Theory export multi-chunk duty stress (nsys)",
                 static_cast<int>((chunk_params[i]["c0"].get<int>() + chunk) % 29);
         }
 
-        StatusOr<std::vector<double>> scores = GpuCandidateExport::theory_scores_only(
-            fx.cipher, fx.freqs, fx.theories, fx.uri, chunk_params, TransformDirection::Decrypt,
-            BatchRunner::Progress{}, InterruptPolicy::none(), &cache, &scratch, &streams);
-        REQUIRE(scores.ok());
-        REQUIRE(scores.value().size() == TheoryExportDutyStress::kCandidates);
+        StatusOr<std::optional<std::vector<double>>> prior =
+            pipe.submit(fx.cipher, fx.freqs, fx.theories, fx.uri, chunk_params);
+        REQUIRE(prior.ok());
+        if (prior.value().has_value()) {
+            REQUIRE(prior.value()->size() == TheoryExportDutyStress::kCandidates);
+        }
     }
+    StatusOr<std::vector<double>> last = pipe.flush();
+    REQUIRE(last.ok());
+    REQUIRE(last.value().size() == TheoryExportDutyStress::kCandidates);
 
     REQUIRE(cache.host_compile_count() == 1);
     REQUIRE(cache.device_upload_count() == 1);

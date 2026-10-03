@@ -18,7 +18,7 @@ Files:
 | `cuda_error.hpp` | `CudaError::to_status` — map `cudaError_t` → `Status` |
 | `device_buffer.hpp` | RAII `DeviceBuffer<T>` — alloc / H2D / D2H / free |
 | `pinned_host_arena.hpp` | RAII `PinnedHostArena` — grow-only `cudaHostAlloc` staging slabs |
-| `theory_device_scratch.hpp` | RAII `TheoryDeviceScratch` — persistent device buffers + async H2D/D2H |
+| `theory_device_scratch.hpp` | RAII `TheoryDeviceScratch` — persistent buffers; dual param slabs (ping-pong) |
 | `cuda_stream_pair.hpp` | RAII `CudaStreamPair` — copy/compute streams + H2D/compute events |
 | `params.hpp` | POD classes: Caesar/Affine/Key/Totient/ComposeStage + CudaDir/CudaFamilyId |
 | `params_json.hpp` | `CudaParamsJson` host JSON ↔ POD converters |

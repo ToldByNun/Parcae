@@ -21,6 +21,7 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `workspace_cipher.hpp` | `WorkspaceCipher` | Done (`workspace.v0` → `Index29`) |
 | `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere + compose + beaufort/totient + theory fused χ² with S1/S2 prefer + S0 soft-fallback + `TheoryExportCache` + `TheoryDeviceScratch`) |
 | `theory_export_cache.hpp` | `TheoryExportCache` | Done (bytecode + device ops/imm reuse; caches `TheoryHistChi2Emit` hist plan) |
+| `theory_export_pipeline.hpp` | `TheoryExportPipeline` | Done (multi-chunk ping-pong H2D∥hist overlap) |
 | `nvtx_range.hpp` | `NvtxRange` | Done — RAII NVTX for nsys (`prepare_theory`…`ingest`) |
 | `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (v0 families + extended `hill_2`/`hill_3`/CTAK/PTAK + `theory` URI; hard CPU-only for hill/autokey) |
 | `hypothesis_bridge.hpp` | `HypothesisBridge` | Done (ingest + idempotent ids / provenance) |

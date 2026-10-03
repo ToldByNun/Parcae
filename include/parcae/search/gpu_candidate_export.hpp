@@ -73,6 +73,8 @@
 
 #include <cuda_runtime_api.h>
 #include <cstring>
+
+class TheoryExportPipeline;
 #endif
 
 /// Fused GPU (or host-scored) export → top-k `TransformCandidate`s.
@@ -112,6 +114,42 @@ public:
     static constexpr std::size_t default_vigenere_max_key_length = 20;
     /// Default contiguous `prime_start_index` count for opt-in `totient` family.
     static constexpr std::size_t default_totient_start_count = 32;
+
+#if defined(PARCAE_HAS_CUDA)
+    /// Handle for staged H2D / in-flight hist (pipelined ping-pong export).
+    class TheoryLaunchTicket {
+    public:
+        enum class Phase : std::uint8_t { Idle, Staged, InFlight };
+
+        TheoryLaunchTicket() = default;
+
+        [[nodiscard]] Phase phase() const noexcept { return phase_; }
+
+        [[nodiscard]] bool staged() const noexcept { return phase_ == Phase::Staged; }
+
+        [[nodiscard]] bool in_flight() const noexcept { return phase_ == Phase::InFlight; }
+
+        [[nodiscard]] std::size_t candidate_count() const noexcept { return candidate_count_; }
+
+    private:
+        friend class GpuCandidateExport;
+        friend class TheoryExportPipeline;
+
+        enum class Kind : std::uint8_t { S0, S1, S2 };
+
+        Phase phase_ = Phase::Idle;
+        Kind kind_ = Kind::S0;
+        std::size_t candidate_count_ = 0;
+        std::size_t token_count_ = 0;
+        std::uint32_t op_count_ = 0;
+        std::uint16_t slot_count_ = 0;
+        std::uint16_t cipher_slot_ = 0;
+        std::uint16_t index_slot_ = 0;
+        std::uint16_t max_stack_ = 0;
+        std::uint8_t binds_index_i_ = 0;
+        bool cipher_minus_ks_ = true;
+    };
+#endif
 
     /// One best-first row after export (envelope + plaintext indices + score).
     class Row {
@@ -991,8 +1029,92 @@ public:
 #endif
     }
 
+#if defined(PARCAE_HAS_CUDA)
+    /// Bind + H2D into the write param slab + `record_h2d_done` (no hist yet).
+    [[nodiscard]] static StatusOr<TheoryLaunchTicket> theory_stage_scores_only(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const std::filesystem::path& theories_root, std::string_view theory_uri_text,
+        const std::vector<nlohmann::json>& params_list, TheoryExportCache& cache,
+        TheoryDeviceScratch& scratch, CudaStreamPair& streams,
+        BatchRunner::Progress progress = BatchRunner::Progress{}) {
+        prepare_progress(progress, cipher);
+        TheoryLaunchTicket ticket;
+        StatusOr<std::vector<double>> staged =
+            fused_theory_scores(cipher, freqs, theories_root, theory_uri_text, params_list, cache,
+                                scratch, streams, progress, TheoryFuseMode::StageH2D, &ticket);
+        if (!staged.ok()) {
+            return staged.status();
+        }
+        return ticket;
+    }
+
+    /// `wait_h2d` + hist launch + `record_compute_done` for a staged ticket.
+    [[nodiscard]] static Status theory_launch_staged(TheoryExportCache& cache,
+                                                     TheoryDeviceScratch& scratch,
+                                                     CudaStreamPair& streams,
+                                                     TheoryLaunchTicket& ticket) {
+        if (!ticket.staged()) {
+            return Status::error("GpuCandidateExport::theory_launch_staged: ticket not staged");
+        }
+        Status wait_h2d = streams.wait_h2d_on_compute();
+        if (!wait_h2d.ok()) {
+            return wait_h2d;
+        }
+        Status launched = Status::success();
+        switch (ticket.kind_) {
+        case TheoryLaunchTicket::Kind::S0:
+            launched = TheoryHistChi2Launch::launch_bytecode_async(
+                scratch.cipher(), cache.device_ops().data(), cache.device_imm().data(),
+                ticket.op_count_, scratch.slots(), ticket.slot_count_, ticket.cipher_slot_,
+                ticket.index_slot_, ticket.binds_index_i_, ticket.max_stack_, scratch.probs(),
+                scratch.counts(), scratch.scores(), scratch.lane_err(), ticket.candidate_count_,
+                ticket.token_count_, streams.compute());
+            break;
+        case TheoryLaunchTicket::Kind::S1:
+            launched = TheoryHistChi2Launch::launch_s1_lut_async(
+                scratch.cipher(), scratch.luts(), scratch.probs(), scratch.counts(),
+                scratch.scores(), ticket.candidate_count_, ticket.token_count_, streams.compute());
+            break;
+        case TheoryLaunchTicket::Kind::S2:
+            launched = TheoryHistChi2Launch::launch_s2_linear_async(
+                scratch.cipher(), scratch.b0(), scratch.b1(), scratch.probs(), scratch.counts(),
+                scratch.scores(), ticket.candidate_count_, ticket.token_count_,
+                ticket.cipher_minus_ks_, streams.compute());
+            break;
+        }
+        if (!launched.ok()) {
+            return launched;
+        }
+        Status recorded = streams.record_compute_done();
+        if (!recorded.ok()) {
+            return recorded;
+        }
+        ticket.phase_ = TheoryLaunchTicket::Phase::InFlight;
+        return Status::success();
+    }
+
+    /// Collect scores for an in-flight ticket.
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    theory_collect_scores_only(TheoryDeviceScratch& scratch, CudaStreamPair& streams,
+                               TheoryLaunchTicket& ticket,
+                               BatchRunner::Progress progress = BatchRunner::Progress{}) {
+        if (!ticket.in_flight()) {
+            return Status::error(
+                "GpuCandidateExport::theory_collect_scores_only: ticket not in flight");
+        }
+        StatusOr<std::vector<double>> scores =
+            collect_theory_scores(scratch, streams, ticket.candidate_count_, progress);
+        ticket = TheoryLaunchTicket{};
+        return scores;
+    }
+#endif
+
 private:
     GpuCandidateExport() = delete;
+
+#if defined(PARCAE_HAS_CUDA)
+    enum class TheoryFuseMode : std::uint8_t { Full, StageH2D };
+#endif
 
     [[nodiscard]] static Status
     require_theory_params_list(const std::vector<nlohmann::json>& params_list) {
@@ -1704,12 +1826,9 @@ private:
         return Status::success();
     }
 
-    /// After H2D on copy stream: wait → launch on compute → D2H on copy → stream sync.
+    /// After H2D on copy: record → wait on compute → launch → record compute done.
     template <typename LaunchFn>
-    [[nodiscard]] static StatusOr<std::vector<double>>
-    launch_theory_stream_copy(TheoryDeviceScratch& scratch, CudaStreamPair& streams, std::size_t C,
-                              LaunchFn&& launch, const char* /*sync_label*/,
-                              BatchRunner::Progress progress = BatchRunner::Progress{}) {
+    [[nodiscard]] static Status enqueue_theory_launch(CudaStreamPair& streams, LaunchFn&& launch) {
         Status h2d_ev = streams.record_h2d_done();
         if (!h2d_ev.ok()) {
             return h2d_ev;
@@ -1722,10 +1841,13 @@ private:
         if (!launched.ok()) {
             return launched;
         }
-        Status compute_ev = streams.record_compute_done();
-        if (!compute_ev.ok()) {
-            return compute_ev;
-        }
+        return streams.record_compute_done();
+    }
+
+    /// Wait for compute, D2H scores on copy stream, synchronize copy.
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    collect_theory_scores(TheoryDeviceScratch& scratch, CudaStreamPair& streams, std::size_t C,
+                          BatchRunner::Progress progress = BatchRunner::Progress{}) {
         Status wait_compute = streams.wait_compute_on_copy();
         if (!wait_compute.ok()) {
             return wait_compute;
@@ -1747,11 +1869,24 @@ private:
         return scores;
     }
 
+    /// Full sync path: enqueue hist then collect scores.
+    template <typename LaunchFn>
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    launch_theory_stream_copy(TheoryDeviceScratch& scratch, CudaStreamPair& streams, std::size_t C,
+                              LaunchFn&& launch, const char* /*sync_label*/,
+                              BatchRunner::Progress progress = BatchRunner::Progress{}) {
+        Status enqueued = enqueue_theory_launch(streams, std::forward<LaunchFn>(launch));
+        if (!enqueued.ok()) {
+            return enqueued;
+        }
+        return collect_theory_scores(scratch, streams, C, progress);
+    }
+
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s0(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
         TheoryExportCache& cache, TheoryDeviceScratch& scratch, CudaStreamPair& streams,
-        BatchRunner::Progress progress) {
+        BatchRunner::Progress progress, TheoryFuseMode mode, TheoryLaunchTicket* ticket_out) {
         const Z29Bytecode::Program& prog = entry.program();
         const std::size_t C = params_list.size();
         const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.slot_names.size());
@@ -1797,26 +1932,46 @@ private:
             if (!slots_up.ok()) {
                 return slots_up;
             }
+            scratch.commit_param_slab();
         }
 
         cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S0Bytecode);
-        return launch_theory_stream_copy(
-            scratch, streams, C,
-            [&](cudaStream_t compute) {
-                return TheoryHistChi2Launch::launch_bytecode_async(
-                    scratch.cipher(), cache.device_ops().data(), cache.device_imm().data(),
-                    static_cast<std::uint32_t>(ops.size()), scratch.slots(), slot_count,
-                    prog.cipher_slot, prog.index_slot, prog.binds_index_i ? 1u : 0u, max_stack,
-                    scratch.probs(), scratch.counts(), scratch.scores(), scratch.lane_err(), C,
-                    host_in.size(), compute);
-            },
-            "GpuCandidateExport::theory S0 sync", progress);
+        if (mode == TheoryFuseMode::StageH2D) {
+            Status h2d_ev = streams.record_h2d_done();
+            if (!h2d_ev.ok()) {
+                return h2d_ev;
+            }
+            if (ticket_out != nullptr) {
+                ticket_out->phase_ = TheoryLaunchTicket::Phase::Staged;
+                ticket_out->kind_ = TheoryLaunchTicket::Kind::S0;
+                ticket_out->candidate_count_ = C;
+                ticket_out->token_count_ = host_in.size();
+                ticket_out->op_count_ = static_cast<std::uint32_t>(ops.size());
+                ticket_out->slot_count_ = slot_count;
+                ticket_out->cipher_slot_ = prog.cipher_slot;
+                ticket_out->index_slot_ = prog.index_slot;
+                ticket_out->max_stack_ = max_stack;
+                ticket_out->binds_index_i_ = prog.binds_index_i ? 1u : 0u;
+            }
+            return std::vector<double>{};
+        }
+        auto launch = [&](cudaStream_t compute) {
+            return TheoryHistChi2Launch::launch_bytecode_async(
+                scratch.cipher(), cache.device_ops().data(), cache.device_imm().data(),
+                static_cast<std::uint32_t>(ops.size()), scratch.slots(), slot_count,
+                prog.cipher_slot, prog.index_slot, prog.binds_index_i ? 1u : 0u, max_stack,
+                scratch.probs(), scratch.counts(), scratch.scores(), scratch.lane_err(), C,
+                host_in.size(), compute);
+        };
+        return launch_theory_stream_copy(scratch, streams, C, launch,
+                                         "GpuCandidateExport::theory S0 sync", progress);
     }
 
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s1(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
-        TheoryDeviceScratch& scratch, CudaStreamPair& streams, BatchRunner::Progress progress) {
+        TheoryDeviceScratch& scratch, CudaStreamPair& streams, BatchRunner::Progress progress,
+        TheoryFuseMode mode, TheoryLaunchTicket* ticket_out) {
         NvtxRange nvtx_s1("specialized_s1");
         const Z29Bytecode::Program& prog = entry.program();
         const std::size_t C = params_list.size();
@@ -1860,22 +2015,36 @@ private:
             if (!luts_up.ok()) {
                 return luts_up;
             }
+            scratch.commit_param_slab();
         }
 
-        return launch_theory_stream_copy(
-            scratch, streams, C,
-            [&](cudaStream_t compute) {
-                return TheoryHistChi2Launch::launch_s1_lut_async(
-                    scratch.cipher(), scratch.luts(), scratch.probs(), scratch.counts(),
-                    scratch.scores(), C, host_in.size(), compute);
-            },
-            "GpuCandidateExport::theory S1 sync", progress);
+        if (mode == TheoryFuseMode::StageH2D) {
+            Status h2d_ev = streams.record_h2d_done();
+            if (!h2d_ev.ok()) {
+                return h2d_ev;
+            }
+            if (ticket_out != nullptr) {
+                ticket_out->phase_ = TheoryLaunchTicket::Phase::Staged;
+                ticket_out->kind_ = TheoryLaunchTicket::Kind::S1;
+                ticket_out->candidate_count_ = C;
+                ticket_out->token_count_ = host_in.size();
+            }
+            return std::vector<double>{};
+        }
+        auto launch = [&](cudaStream_t compute) {
+            return TheoryHistChi2Launch::launch_s1_lut_async(
+                scratch.cipher(), scratch.luts(), scratch.probs(), scratch.counts(),
+                scratch.scores(), C, host_in.size(), compute);
+        };
+        return launch_theory_stream_copy(scratch, streams, C, launch,
+                                         "GpuCandidateExport::theory S1 sync", progress);
     }
 
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s2(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
-        TheoryDeviceScratch& scratch, CudaStreamPair& streams, BatchRunner::Progress progress) {
+        TheoryDeviceScratch& scratch, CudaStreamPair& streams, BatchRunner::Progress progress,
+        TheoryFuseMode mode, TheoryLaunchTicket* ticket_out) {
         NvtxRange nvtx_s2("specialized_s2");
         if (!entry.hist_plan().s2_linear().has_value()) {
             return Status::error("GpuCandidateExport::theory S2 missing linear plan");
@@ -1921,17 +2090,30 @@ private:
             if (!coeffs_up.ok()) {
                 return coeffs_up;
             }
+            scratch.commit_param_slab();
         }
 
-        return launch_theory_stream_copy(
-            scratch, streams, C,
-            [&](cudaStream_t compute) {
-                return TheoryHistChi2Launch::launch_s2_linear_async(
-                    scratch.cipher(), scratch.b0(), scratch.b1(), scratch.probs(),
-                    scratch.counts(), scratch.scores(), C, host_in.size(),
-                    plan.cipher_minus_ks(), compute);
-            },
-            "GpuCandidateExport::theory S2 sync", progress);
+        if (mode == TheoryFuseMode::StageH2D) {
+            Status h2d_ev = streams.record_h2d_done();
+            if (!h2d_ev.ok()) {
+                return h2d_ev;
+            }
+            if (ticket_out != nullptr) {
+                ticket_out->phase_ = TheoryLaunchTicket::Phase::Staged;
+                ticket_out->kind_ = TheoryLaunchTicket::Kind::S2;
+                ticket_out->candidate_count_ = C;
+                ticket_out->token_count_ = host_in.size();
+                ticket_out->cipher_minus_ks_ = plan.cipher_minus_ks();
+            }
+            return std::vector<double>{};
+        }
+        auto launch = [&](cudaStream_t compute) {
+            return TheoryHistChi2Launch::launch_s2_linear_async(
+                scratch.cipher(), scratch.b0(), scratch.b1(), scratch.probs(), scratch.counts(),
+                scratch.scores(), C, host_in.size(), plan.cipher_minus_ks(), compute);
+        };
+        return launch_theory_stream_copy(scratch, streams, C, launch,
+                                         "GpuCandidateExport::theory S2 sync", progress);
     }
 
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores(
@@ -1939,7 +2121,8 @@ private:
         const std::filesystem::path& theories_root, std::string_view theory_uri_text,
         const std::vector<nlohmann::json>& params_list, TheoryExportCache& cache,
         TheoryDeviceScratch& scratch, CudaStreamPair& streams,
-        BatchRunner::Progress progress = BatchRunner::Progress{}) {
+        BatchRunner::Progress progress = BatchRunner::Progress{},
+        TheoryFuseMode mode = TheoryFuseMode::Full, TheoryLaunchTicket* ticket_out = nullptr) {
         Status ok = require_cuda_freqs(freqs);
         if (!ok.ok()) {
             return ok;
@@ -1964,8 +2147,9 @@ private:
         // Prefer specialized hist when emit produced S1/S2; soft-fallback to S0 on failure.
         if (hist.specialized() &&
             hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29 && hist.s1_lut()) {
-            StatusOr<std::vector<double>> s1 = fused_theory_scores_s1(
-                cipher, freqs, entry, params_list, scratch, streams, progress);
+            StatusOr<std::vector<double>> s1 =
+                fused_theory_scores_s1(cipher, freqs, entry, params_list, scratch, streams,
+                                       progress, mode, ticket_out);
             if (s1.ok()) {
                 cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S1Lut29);
                 return s1;
@@ -1975,8 +2159,9 @@ private:
         if (hist.specialized() &&
             hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::S2Uchar4Inline &&
             hist.s2_linear()) {
-            StatusOr<std::vector<double>> s2 = fused_theory_scores_s2(
-                cipher, freqs, entry, params_list, scratch, streams, progress);
+            StatusOr<std::vector<double>> s2 =
+                fused_theory_scores_s2(cipher, freqs, entry, params_list, scratch, streams,
+                                       progress, mode, ticket_out);
             if (s2.ok()) {
                 cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
                 return s2;
@@ -1984,7 +2169,7 @@ private:
         }
 
         return fused_theory_scores_s0(cipher, freqs, entry, params_list, cache, scratch, streams,
-                                      progress);
+                                      progress, mode, ticket_out);
     }
 #endif
 };
