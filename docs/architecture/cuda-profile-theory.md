@@ -258,15 +258,16 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-03 | **roof_hist_fat64** | `profiles/roof_hist/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | sweep **~830–837B** / fair suite **783.5B** (was **509B**) | — | tile sweep; scores ≡ | fat-tile **WIN** — ship `production_tile_cap=64`; stretch **87%** fair / **~93%** sweep |
 | 2026-10-03 | **roof_hist_wire** | `profiles/roof_hist/` | S1/S2/F.* + Caesar | 29×1M; S2 C=841 | Caesar **838B** / S1 **690B** / S2 **343B**; F.atbash **1525B** / F.affine **838B** | — | `HistFast::tiles_for` → fat-64; goldens green | wire fat-64; Caesar **Done** (~93.5%); S1 stretch; S0 unchanged |
 | 2026-10-03 | **s2_ks29** | `profiles/roof_hist/` | `theory_hist_chi2_s2_linear_kernel` | 841×1M | **403.1B** S2 (was **343B**) | — | shared `ks[29]` precompute | ALU cut; ~**45%** of 896B; Caesar/S1 flat |
+| 2026-10-03 | **s0_specialize** | `profiles/roof_hist/` | fair `T.theory.caesar_bytecode` → S1 | 29×1M | **707.6B** (`specialize_S1`; was ~61–68B S0) | — | emit prefer S1 in suite; export already S1/S2 | ~**79%** of 896B; ≈ S1 twin; hard-S0 unchanged |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 
 | Theory shape | Spec id | `estimated_peak` | 90% gate | Fair cudaEvent | Status |
 |--------------|---------|------------------|----------|----------------|--------|
-| Caesar catalog twin (fat-64) | `T.theory.compare_caesar` | **896B** | **806.4B** | **838.1B** (~93.5%, 2026-10-03) | **Done** — fat-tile |
-| Caesar-as-bytecode (S0 interpreter) | `T.theory.caesar_bytecode` | **896B** | **806.4B** | ~61B (~7%) | **not Done** — specialize dispatch |
-| S1 LUT-29 (fat-64) | `T.theory.s1_lut29` | **896B** | **806.4B** | **690.2B** (~77%) | **stretch** — fat-tile wired |
-| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **896B** | **806.4B** | **403.1B** (~45% @ C=841, ks29) | **not Done** — still compute-bound |
+| Caesar catalog twin (fat-64) | `T.theory.compare_caesar` | **896B** | **806.4B** | **829.4B** (~92.6%, 2026-10-03) | **Done** — fat-tile |
+| Caesar fair (specialize S1 when eligible) | `T.theory.caesar_bytecode` | **896B** | **806.4B** | **707.6B** (~79%, `specialize_S1`) | **stretch** — off interpreter |
+| S1 LUT-29 (fat-64) | `T.theory.s1_lut29` | **896B** | **806.4B** | **706.0B** (~79%) | **stretch** — fat-tile wired |
+| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **896B** | **806.4B** | **396.4B** (~44% @ C=841, ks29) | **not Done** — still compute-bound |
 
 `BenchTheorySuite` (`parcae-bench --suite theory`) gates fair rows with
 `BenchTierSpec::pass_tier` (≥90% peak + `slo_min`). Short T is

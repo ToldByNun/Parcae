@@ -89,6 +89,7 @@ TEST_CASE("BenchTheorySuite run fair microbench on CUDA", "[bench][theory][cuda]
     REQUIRE(doc.value().rows()[3].estimated_peak() ==
             BenchTierSpec::theory_s2_linear.estimated_peak);
     REQUIRE(doc.value().rows()[0].detail().find("underfill_not_slo_gate") != std::string::npos);
+    REQUIRE(doc.value().rows()[0].detail().find("specialize_S1") != std::string::npos);
     REQUIRE(doc.value().rows()[0].runes_per_sec() > 0.0);
     REQUIRE(doc.value().rows()[1].runes_per_sec() > 0.0);
     REQUIRE(doc.value().rows()[2].runes_per_sec() > 0.0);

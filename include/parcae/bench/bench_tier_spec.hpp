@@ -91,10 +91,11 @@ public:
 
     // --- Theory fused-χ² shapes (same physical DRAM roof as catalog hist) -----
 
-    /// S0 interpreter: Caesar-as-bytecode. Peak = DRAM roofline (896B).
-    /// Soft-fallback will sit far below 90% until specialize-away; scores stay correct.
+    /// Fair Caesar-as-bytecode Spec row. Peak = DRAM roofline (896B).
+    /// Suite prefers S1 when emit classifies f(x)-only (`specialize_S1`); hard-S0
+    /// (autokey / prefer_branch / caps) stays on the interpreter.
     static constexpr Tier theory_s0_caesar{"T.theory.caesar_bytecode",
-                                          "TheoryChi2Batch Caesar bytecode (S0)",
+                                          "Theory Caesar fair (specialize S1 when eligible)",
                                           static_cast<std::size_t>(Index29::modulus),
                                           1048576u,
                                           8u,

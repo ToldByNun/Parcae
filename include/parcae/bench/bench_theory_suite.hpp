@@ -9,6 +9,7 @@
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
 #include "parcae/dsl/param_ir.hpp"
+#include "parcae/dsl/theory_hist_chi2_emit.hpp"
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/z29_bytecode.hpp"
 #include "parcae/dsl/z29_expr.hpp"
@@ -437,6 +438,8 @@ private:
         return params;
     }
 
+    /// Caesar-as-bytecode fair row: prefer S1 specialize when emit classifies
+    /// f(x)-only (same scores, S1 kernel rates); else S0 interpreter.
     [[nodiscard]] static StatusOr<BenchReport::Row>
     run_caesar_bytecode(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
                         std::size_t reps, std::string name, std::string workload,
@@ -445,6 +448,14 @@ private:
         if (!theory.ok()) {
             return theory.status();
         }
+        StatusOr<TheoryHistChi2Emit::EmitBundle> emit =
+            TheoryHistChi2Emit::emit_decrypt_hist(theory.value());
+        if (emit.ok() && emit.value().specialized() &&
+            emit.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29) {
+            return run_caesar_s1(freqs, C, T, reps, std::move(name), std::move(workload), tier,
+                                 "specialize_S1");
+        }
+
         StatusOr<Z29Bytecode::Program> prog =
             Z29Bytecode::compile_theory(theory.value(), TransformDirection::Decrypt);
         if (!prog.ok()) {
@@ -480,7 +491,7 @@ private:
     [[nodiscard]] static StatusOr<BenchReport::Row>
     run_caesar_s1(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
                   std::size_t reps, std::string name, std::string workload,
-                  const BenchTierSpec::Tier* tier) {
+                  const BenchTierSpec::Tier* tier, std::string detail_prefix = "S1_lut29") {
         StatusOr<TheoryIr> theory = make_caesar_theory();
         if (!theory.ok()) {
             return theory.status();
@@ -547,13 +558,13 @@ private:
             return sample.status();
         }
         return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
-                               tier, "S1_lut29");
+                               tier, std::move(detail_prefix));
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Row>
     run_progressive_s2(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
                        std::size_t reps, std::string name, std::string workload,
-                       const BenchTierSpec::Tier* tier) {
+                       const BenchTierSpec::Tier* tier, std::string detail_prefix = "S2_linear") {
         const auto params = progressive_params(C);
         std::vector<std::uint8_t> host_b0(C);
         std::vector<std::uint8_t> host_b1(C);
@@ -604,7 +615,7 @@ private:
             return sample.status();
         }
         return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
-                               tier, "S2_linear");
+                               tier, std::move(detail_prefix));
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Row>

@@ -41,12 +41,13 @@ done(strategy) ⇔  fair_kernel_runes_per_s >= 0.90 * BenchTierSpec.estimated_pe
 |-----------|-------------------|------------------|
 | Soft-fallback S0 after S1/S2/S3 emit or module load fail | Must match CPU/bytecode oracle | PRIMARY still requires **≥90% of 896B DRAM roof** via fair suite |
 | Theory classified hard-S0 (autokey / prefer_branch / caps) today | Oracle parity | Same — S0 fair row must pass; specialize-away is a separate climb |
-| Fair S0 quiet ~69–75B vs Spec **896B** (~7–8% peak) | Oracle OK | **Not Done** — interpreter is compute-bound; Done ≈ **806B** (90% of roof) |
+| Fair Caesar specializes to S1 (~708B / ~79% of Spec **896B**) | Oracle OK | **Stretch** — off interpreter; Done ≈ **806B** (90% of roof) still open |
+| Hard-S0 soft-fallback (autokey / prefer_branch / caps) ~7–8% | Oracle OK | **Not Done** — interpreter remains compute-bound until S4/S3+ |
 
 Two parallel workstreams (implementation roadmap, not doc names):
 
-1. **S0 climb / specialize-away** — get off the interpreter (or make it memory-bound) until `T.theory.caesar_bytecode` **pass_tier** vs the **896B** roof. Repro: [`capture_s0_climb_baseline.ps1`](../../scripts/cuda/capture_s0_climb_baseline.ps1) + [`profiles/s0-climb/SUMMARY.md`](profiles/s0-climb/SUMMARY.md).
-2. **Specialize-away** — S3/S4/S5 (+ artifact/module) so customs leave S0 for higher absolute runes/s, without dropping the S0 gate.
+1. **Roof climb on specialized paths** — push S1 / Caesar fair / F.* from stretch (~79–93%) to **pass_tier** vs the **896B** roof. Repro: [`capture_roof_hist.ps1`](../../scripts/cuda/capture_roof_hist.ps1) + [`profiles/roof_hist/SUMMARY.md`](profiles/roof_hist/SUMMARY.md).
+2. **Widen specialize-away** — S3/S4/S5 (+ artifact/module) so hard-S0 customs leave the interpreter, without dropping the soft-fallback gate.
 
 ---
 
@@ -69,9 +70,9 @@ Classify decrypt HotLoop via `TheoryHistChi2Emit::select_strategy` / emit. Prefe
 
 | Id | Enum / Spec (planned or shipping) | When | Runtime twin (shipping / target) | Physical peak (DRAM roof) | ≥90% PRIMARY |
 |----|-----------------------------------|------|----------------------------------|---------------------------|--------------|
-| **S0** | `S0Bytecode` / `T.theory.caesar_bytecode` (+ optional autokey-shaped row) | Soft-fallback; caps; unmatched; (today) autokey / prefer_branch | `TheoryChi2Batch` | **896B** | **Required** (today ~7–8%) |
-| **S1** | `S1Lut29` / `T.theory.s1_lut29` | Decrypt `f(x; params)` only — no stream `i`, no autokey | `TheoryHistChi2S1` | **896B** | Required (today ~44%) |
-| **S2** | `S2Uchar4Inline` / `T.theory.s2_linear` / `T.theory.progressive` | `x ± (b0 + b1·i)` (+ widened linear family over time) | `TheoryHistChi2S2` | **896B** | Required (today ~21% @ C=9) |
+| **S0** | `S0Bytecode` / hard-S0 soft-fallback | Soft-fallback; caps; unmatched; autokey / prefer_branch | `TheoryChi2Batch` | **896B** | **Required** (~7–8% until S4/S3+) |
+| **S1** | `S1Lut29` / `T.theory.s1_lut29` (+ fair `T.theory.caesar_bytecode` when emit matches) | Decrypt `f(x; params)` only — no stream `i`, no autokey | `TheoryHistChi2S1` | **896B** | Required (today ~79%) |
+| **S2** | `S2Uchar4Inline` / `T.theory.s2_linear` / `T.theory.progressive` | `x ± (b0 + b1·i)` (+ widened linear family over time) | `TheoryHistChi2S2` | **896B** | Required (today ~44% @ C=841) |
 | **S3** | `S3ScalarInline` / planned `T.theory.s3_*` | Uses `i` / general `x ± g(i; params)` without autokey; not simple linear S2 | Planned expr-inline hist / module | **896B** (same 1 B/rune roof) | Required once Spec row exists |
 | **S4** | planned / `T.theory.s4_autokey` | `z29_autokey_shift` shapes (e.g. vigenere_lag) | Planned `TheoryHistChi2S4` AutokeyRing+hist | **896B** unless traffic model differs | Required once Spec row exists |
 | **S5** | planned / poly keystream Spec | Low-degree poly / bitmask-like keystreams beyond `b0+b1·i` | Twin or S3 module | **896B** | Required once Spec row exists |

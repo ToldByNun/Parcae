@@ -23,9 +23,10 @@ cipher byte per `(candidate,token)`. It is **not** “best bench run we saw”.
 If a quiet run ever prints &gt;100%, the traffic model is wrong — fix the model,
 do not celebrate “super-linear” silicon.
 
-Today’s specialized kernels sit around **~40–45%** of this roof (DRAM SoL in ncu
-is only a few % — they are still compute/latency bound). S0 bytecode is ~**7–8%**.
-Done = ≥**90% of 896B** (≈806B) — i.e. near memory-bound ideal.
+Today’s specialized kernels sit around **~45–80%** of this roof depending on shape
+(DRAM SoL in ncu is only a few % — still compute/latency bound for S1/S2). Fair
+`T.theory.caesar_bytecode` rides S1 via specialize dispatch (~**79%**); irreducible
+hard-S0 interpreter remains ~**7–8%**. Done = ≥**90% of 896B** (≈806B).
 
 `ThroughputTiers` / `DslPeakSanity` delegate to `BenchTierSpec`
 (Catch2 `[bench][spec]` / `[dsl][peak]`).
@@ -45,14 +46,14 @@ TheoryIr decrypt HotLoop
 
 | Strategy | Spec id | Kernel | Physical peak (DRAM roof) |
 |----------|---------|--------|---------------------------|
-| S0 bytecode interpreter | `T.theory.caesar_bytecode` | `theory_chi2_hist_kernel` | **896B** |
+| Fair Caesar (specialize S1 when eligible; else S0) | `T.theory.caesar_bytecode` | S1 lut / `theory_chi2_hist_kernel` | **896B** |
 | S1 LUT-29 (`f(x)`-only) | `T.theory.s1_lut29` | `theory_hist_chi2_s1_lut_kernel` | **896B** |
 | S2 linear uchar4 | `T.theory.s2_linear` / `T.theory.progressive` | `theory_hist_chi2_s2_linear_kernel` | **896B** |
 
 Fair gate: `parcae-bench --suite theory --allow-cuda` → `BenchTierSpec::pass_tier`
-(≥90% of **896B** + `slo_min` at `T≥2^20`). Soft-fallback S0 will fail that gate
-until specialize-away (or a true memory-bound S0 — unlikely). Short T is
-measurement-only (`underfill_not_slo_gate`).
+(≥90% of **896B** + `slo_min` at `T≥2^20`). Soft-fallback / hard-S0 interpreter
+still fails that gate (~7–8%); eligible Caesar fair row is stretch (~79%) via
+specialize dispatch. Short T is measurement-only (`underfill_not_slo_gate`).
 
 ### Kernel SLO vs campaign wall
 
@@ -70,9 +71,9 @@ log: [`cuda-profile-theory.md`](cuda-profile-theory.md).
 
 | Tier | Workload | Ceiling (runes/s) | SLO floor | Notes |
 |------|----------|-------------------|-----------|-------|
-| T.theory.caesar_bytecode | S0 interpreter | **896B** | ≥15B | DRAM roof; S0 typically ~7–8% today |
-| T.theory.s1_lut29 | S1 LUT-29 | **896B** | ≥15B | same roof; specialized ~45% today |
-| T.theory.s2_linear | S2 progressive / bitmask | **896B** | ≥15B | same roof @ C=9 microbench |
+| T.theory.caesar_bytecode | specialize S1 when eligible | **896B** | ≥15B | ~79% fair (`specialize_S1`); hard-S0 ~7–8% |
+| T.theory.s1_lut29 | S1 LUT-29 | **896B** | ≥15B | same roof; ~79% fair (fat-64) |
+| T.theory.s2_linear | S2 progressive / bitmask | **896B** | ≥15B | ~44% fair @ C=841 (ks29) |
 
 Operator handbook: [`search-handbook.md`](search-handbook.md) § Theory URI.
 Emit API: [`theory_hist_chi2_emit.hpp`](../../include/parcae/dsl/theory_hist_chi2_emit.hpp).
