@@ -5,10 +5,26 @@
 
 #include <cuda_runtime_api.h>
 
-// Production path: warp-private hist (`add_private`). Register-local /
-// 32 KiB shared-local experiments under profiles/hist_local_caesar/ regressed
-// fair T1 from ~400B to ~19–49B under current tiling — keep HistFast local
-// APIs for a later retile/design, do not ship them here yet.
+// Production path: warp-private hist (`add_private`) + fat-tile clamp
+// (`kProductionTileCap=64`, Commit 10 WIN — see profiles/roof_hist/).
+// Register-local / 32 KiB shared-local under profiles/hist_local_caesar/
+// regressed fair T1 — keep HistFast local APIs for research only.
+
+namespace {
+int g_hist_tile_cap = 0;
+} // namespace
+
+void CaesarChi2Batch::set_hist_tile_cap(int cap) noexcept {
+    g_hist_tile_cap = cap < 0 ? 0 : cap;
+}
+
+int CaesarChi2Batch::hist_tile_cap() noexcept {
+    return g_hist_tile_cap;
+}
+
+int CaesarChi2Batch::tiles_for_public(std::size_t token_count) {
+    return tiles_for(token_count);
+}
 
 __global__ void caesar_chi2_histogram_decrypt_kernel(const std::uint8_t* in,
                                                      const std::uint8_t* shifts,
@@ -69,7 +85,8 @@ __global__ void caesar_chi2_histogram_kernel(const std::uint8_t* in, const std::
 }
 
 int CaesarChi2Batch::tiles_for(std::size_t token_count) {
-    return HistFast::tiles_for(token_count);
+    const int cap = g_hist_tile_cap > 0 ? g_hist_tile_cap : kProductionTileCap;
+    return HistFast::tiles_for_capped(token_count, cap);
 }
 
 Status CaesarChi2Batch::validate(std::size_t candidate_count, std::size_t token_count,

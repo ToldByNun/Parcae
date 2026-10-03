@@ -197,6 +197,11 @@ sync) are different metrics. Capture both with
 Diagnosis: high fair Kernel SLO + low hist wall share ⇒ idle GPU from
 host/PCIe/sync — **idle GPU ≠ Kernel SLO PCIe**.
 
+**Track A ACCEPTANCE (2026-10-03):** post-residency stress cut non-kernel NVTX
+wall **~53×** vs [`pre_residency/`](profiles/export_duty/pre_residency/) (PASS).
+Commit 8 alloc pool **skipped** (warm `cudaMalloc` ~0.2% API). Fair S1 stayed
+≥ ~400B class (**482B**).
+
 ---
 
 ## 3. Progress rule (every throughput milestone)
@@ -248,15 +253,18 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-03 | **hist_warp_match** | `profiles/hist_local_caesar/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **113.8B** T1 | — | — | `add_private_match`; **12.7%** of 896B; **LOSE** vs ~356B; **F.\* not wired** |
 | 2026-10-03 | **hist_local_s1** | `profiles/hist_local_caesar/` | `theory_hist_chi2_s1_lut_kernel` | 29×1M | **36.06B** fair S1 | — | — | regs + fat≤32; **~4%** of 896B; **LOSE** vs ~396B; **reverted** to warp-private (confirm **397.37B**) |
 | 2026-10-03 | **hist_local_s2** | `profiles/hist_local_caesar/` | `theory_hist_chi2_s2_linear_kernel` | **841**×1M | **30.30B** local / **245.58B** warp | — | — | regs + fat≤32; **~3.4%** of 896B; **LOSE** vs warp@841 (**~27%**); **reverted**; suite default C→**841** |
-| 2026-10-03 | **export_duty** | `profiles/export_duty/` | fair S0/S1/S2 + export stress | 29×1M fair; stress 64×65k×8 | **67.83B** S0 / **395.31B** S1 / **257.86B** S2 / twin **390.32B** | — | nsys: hist **94%** of kern; NVTX `h2d` **99%** range wall; `cudaMalloc` **94%** API | idle GPU = host/PCIe/sync; **idle GPU ≠ Kernel SLO PCIe** |
+| 2026-10-03 | **export_duty** | `profiles/export_duty/pre_residency/` | fair S0/S1/S2 + export stress | 29×1M fair; stress 64×65k×8 | **67.83B** S0 / **395.31B** S1 / **257.86B** S2 / twin **390.32B** | — | nsys: hist **94%** of kern; NVTX `h2d` **99%** range wall; `cudaMalloc` **94%** API | Commit 1 baseline; idle GPU = host/PCIe/sync; **idle GPU ≠ Kernel SLO PCIe** |
+| 2026-10-03 | **export_duty_accept** | `profiles/export_duty/` | fair S0/S1/S2 + pipeline stress | 29×1M fair; stress 64×65k×8 | **61.82B** S0 / **482.40B** S1 / **244.43B** S2 / twin **396.65B** | — | NVTX hist **27%**; `h2d` **17%** (was 99%); `cudaMalloc` **0.2%** API; non-kernel wall **~53×** ↓ | Track A metric A **PASS**; Commit 8 alloc pool **skipped** |
+| 2026-10-03 | **roof_hist_fat64** | `profiles/roof_hist/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | sweep **~830–837B** / fair suite **783.5B** (was **509B**) | — | tile sweep; scores ≡ | Commit 10 **WIN** — ship `kProductionTileCap=64`; stretch **87%** fair / **~93%** sweep; S1/S2 not wired yet |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 
-| Theory shape | Spec id | `estimated_peak` | 90% gate | Fair cudaEvent (2026-10-02) | Status |
-|--------------|---------|------------------|----------|------------------------------|--------|
-| Caesar-as-bytecode (S0 interpreter) | `T.theory.caesar_bytecode` | **896B** | **806.4B** | ~69–75B (~8%) | **not Done** — compute-bound |
-| S1 LUT-29 (caesar/affine-shaped) | `T.theory.s1_lut29` | **896B** | **806.4B** | ~396–404B (~44%) | **not Done** — need DRAM SoL |
-| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **896B** | **806.4B** | **245.58B** (~27% @ C=841 warp); hist_local **30.30B** LOSE | **not Done** |
+| Theory shape | Spec id | `estimated_peak` | 90% gate | Fair cudaEvent | Status |
+|--------------|---------|------------------|----------|----------------|--------|
+| Caesar catalog twin (fat-64) | `T.theory.compare_caesar` | **896B** | **806.4B** | **783.5B** (~87%, 2026-10-03) | **stretch** — Commit 10 WIN; near Done |
+| Caesar-as-bytecode (S0 interpreter) | `T.theory.caesar_bytecode` | **896B** | **806.4B** | ~65B (~7%) | **not Done** — compute-bound |
+| S1 LUT-29 (caesar/affine-shaped) | `T.theory.s1_lut29` | **896B** | **806.4B** | ~470B (~52%, post fat-64 Caesar only) | **not Done** — wire fat-64 in Commit 11 |
+| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **896B** | **806.4B** | **~261B** (~29% @ C=841) | **not Done** — wire fat-64 in Commit 11 |
 
 `BenchTheorySuite` (`parcae-bench --suite theory`) gates fair rows with
 `BenchTierSpec::pass_tier` (≥90% peak + `slo_min`). Short T is

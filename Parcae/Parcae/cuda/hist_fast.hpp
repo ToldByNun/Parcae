@@ -15,12 +15,12 @@
 /// Fast Z/29 decrypt helpers + fused-χ² histogram primitives.
 ///
 /// Hist accumulation paths (same final global counts when used correctly):
-/// - **Warp-private** (`add_private`): per-rune `atomicAdd` into warp shared —
-///   production baseline (~350–480B fair on 5070 Ti).
-/// - **Warp-match** (`add_private_match`): `__match_any_sync` aggregates equal
-///   lanes so each unique bin issues one atomic per warp step — climb candidate.
-/// - **Register-local / 32 KiB shared-local**: correct but **regressed** under
-///   current tiling (see `profiles/hist_local_caesar/`) — parity / research only.
+/// - **Warp-private** (`add_private`) + **fat-tile** (`tiles_for_capped`, Caesar
+///   `kProductionTileCap=64`): production — ~780–840B fair on 5070 Ti
+///   (`profiles/roof_hist/`).
+/// - **Warp-match** (`add_private_match`): `__match_any_sync` — LOSE vs fat-64.
+/// - **Register-local / 32 KiB shared-local**: regressed under thin tiling
+///   (`profiles/hist_local_caesar/`) — parity / research only.
 class HistFast {
 public:
     static constexpr int alphabet = 29;
@@ -33,15 +33,26 @@ public:
     static constexpr int local_shared_uints = threads * local_stride; // 8192
     static constexpr int max_tiles = 1024;
 
-    /// Grid.y for uchar4-first hist kernels: one tile covers `threads` packs.
-    [[nodiscard]] static int tiles_for(std::size_t token_count) {
+    /// Uncapped work tiles (before `max_tiles` / fat-tile clamp).
+    [[nodiscard]] static int tiles_for_work(std::size_t token_count) {
         const std::size_t packs = (token_count + 3u) / 4u; // scalar epilogue covers remainder
         const int by_work = static_cast<int>((packs + static_cast<std::size_t>(threads) - 1u) /
                                              static_cast<std::size_t>(threads));
-        if (by_work < 1) {
-            return 1;
-        }
-        return by_work < max_tiles ? by_work : max_tiles;
+        return by_work < 1 ? 1 : by_work;
+    }
+
+    /// Grid.y for uchar4-first hist kernels: one tile covers `threads` packs.
+    /// Clamped to `max_tiles` (production default).
+    [[nodiscard]] static int tiles_for(std::size_t token_count) {
+        return tiles_for_capped(token_count, max_tiles);
+    }
+
+    /// Fat-tile clamp: fewer `grid.y` ⇒ longer grid-stride loops per block.
+    /// `cap < 1` is treated as 1. Used by Caesar roof-hist spike (Commit 10).
+    [[nodiscard]] static int tiles_for_capped(std::size_t token_count, int cap) {
+        const int by_work = tiles_for_work(token_count);
+        const int limit = cap < 1 ? 1 : cap;
+        return by_work < limit ? by_work : limit;
     }
     [[nodiscard]] PARCAE_HD static std::uint8_t dec_caesar(std::uint8_t x,
                                                            std::uint8_t shift) noexcept {

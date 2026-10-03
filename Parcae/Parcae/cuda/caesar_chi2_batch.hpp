@@ -13,11 +13,27 @@
 /// Climb experiments (local regs / 32KiB / warp-match): see
 /// `profiles/hist_local_caesar/` — none beat production yet; F.* stays on
 /// `add_private` until a path ≥ fair T1 baseline.
+///
+/// Commit 10 fat-tile spike: `set_hist_tile_cap` lowers `grid.y` while keeping
+/// `HistFast::add_private` (Caesar only; S1/S2/F.* unchanged).
 class CaesarChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;
     static constexpr std::size_t kMaxCandidates = 16384;
     static constexpr std::size_t kMaxTokens = 1u << 22;
+
+    /// Commit 10 WIN: fat-tile clamp (`grid.y` ≤ 64) with `add_private`.
+    /// ~837B fair @ 29×1M on 5070 Ti vs ~503B uncapped (see `profiles/roof_hist/`).
+    static constexpr int kProductionTileCap = 64;
+
+    /// `0` = production (`kProductionTileCap`). Positive = override clamp
+    /// (use `HistFast::max_tiles` to A/B uncapped tiling).
+    static void set_hist_tile_cap(int cap) noexcept;
+
+    [[nodiscard]] static int hist_tile_cap() noexcept;
+
+    /// Effective `grid.y` for the current cap (public for roof-hist capture).
+    [[nodiscard]] static int tiles_for_public(std::size_t token_count);
 
     [[nodiscard]] static Status launch(const std::uint8_t* device_in,
                                        const std::uint8_t* device_shifts,
