@@ -213,15 +213,21 @@ See [theory-artifact.md](../spec/theory-artifact.md) § Envelope bridge.
 
 `parcae-compile` may emit **two** CUDA-related products for one URI — keep them
 separate ([theory-artifact.md](../spec/theory-artifact.md),
-[theory-hist-transpile.md](theory-hist-transpile.md)):
+[theory-hist-transpile.md](theory-hist-transpile.md),
+[dsl-smart-hist.md](dsl-smart-hist.md)):
 
 | Product | On-disk | Header / emit | Used for |
 |---------|---------|---------------|----------|
 | **Stream twin** | `emitted/*Kernel.{hpp,cu}` (`paths.cuda_*`) | `DslEmitCuda` | Bit-identity apply / smoke |
-| **Fused hist** | `hist/` (`paths.hist_*`, optional `hist` manifest object) | `TheoryHistChi2Emit` | Search fused χ² Kernel SLO |
+| **Fused hist** | `hist/` (`paths.hist_*`, optional `hist` manifest object) | `TheoryHistChi2Emit` (+ normalize / `ShapeId` match) | Search fused χ² Kernel SLO |
 
 Shipping default: stream twins written; `hist` / `paths.hist_*` often null;
 search classifies at runtime. Stream-twin success ≠ hist Kernel SLO Done.
+
+**Customs without presets:** HotLoop math that is algebraically Atbash / Caesar /
+Affine / linear keystream must match a fast hist shape **without** catalog
+`TransformId` or builtin Calls — see [dsl-smart-hist.md](dsl-smart-hist.md)
+(name-irrelevant `ShapeId` ladder, Done/stretch vs 896B).
 
 ---
 
@@ -350,6 +356,8 @@ gate.
 
 **Normative contract (S0–S5, PRIMARY gate, edgecases, style):**
 [theory-hist-transpile.md](theory-hist-transpile.md).
+**Smart customs (normalize → ShapeId, no catalog API required):**
+[dsl-smart-hist.md](dsl-smart-hist.md).
 
 Throughput tables and Kernel SLO vs campaign wall:
 [cuda-throughput.md](cuda-throughput.md) § Theory,

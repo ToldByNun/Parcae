@@ -136,6 +136,10 @@ scripts/research/falsify_nt_keystreams_lp2.py
 !/docs/architecture/profiles/kernel_slo/
 !/docs/architecture/profiles/kernel_slo/SUMMARY.md
 !/docs/architecture/profiles/kernel_slo/*.json
+!/docs/architecture/profiles/dsl_smart/
+!/docs/architecture/profiles/dsl_smart/README.md
+!/docs/architecture/profiles/dsl_smart/SUMMARY.md
+!/docs/architecture/profiles/dsl_smart/*.json
 !/docs/architecture/profiles/roof_hist/
 !/docs/architecture/profiles/roof_hist/SUMMARY.md
 !/docs/architecture/profiles/roof_hist/*.json

@@ -8,7 +8,9 @@
 RTX 5070 Ti), **not** a measured quiet max. Applies to **every** strategy that
 runs, **including S0 bytecode**. Soft-fallback to S0 does not waive the S0 peak
 gate. Normative contract: [`theory-hist-transpile.md`](theory-hist-transpile.md).
-  
+Smart customs (name-irrelevant ShapeId / stretch 80% / Done 90%):
+[`dsl-smart-hist.md`](dsl-smart-hist.md).
+
 **Wrapper:** [`scripts/cuda/profile_theory_hist.ps1`](../../scripts/cuda/profile_theory_hist.ps1)
 
 Use this doc before and after every theory-throughput change. Do **not** compare

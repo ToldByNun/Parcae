@@ -120,6 +120,8 @@ Handbook: [python-transpiler.md](../../../docs/architecture/python-transpiler.md
 § Execution scopes. Theory fused-χ² search path (S1/S2 prefer, S0 soft-fallback;
 **S0–S5 all ≥90% shape peak**):
 [theory-hist-transpile.md](../../../docs/architecture/theory-hist-transpile.md),
+[dsl-smart-hist.md](../../../docs/architecture/dsl-smart-hist.md)
+(normalize → ShapeId; customs without presets),
 [cuda-throughput.md](../../../docs/architecture/cuda-throughput.md) § Theory,
 [search-handbook.md](../../../docs/architecture/search-handbook.md) § Theory URI,
 [cuda-profile-theory.md](../../../docs/architecture/cuda-profile-theory.md).
@@ -136,10 +138,15 @@ Compile still emits CPU/CUDA transform text + bytecode. Separately,
 | S0 | unmatched / Autokey / soft-fallback | `TheoryChi2Batch` bytecode interpreter |
 | S3–S5 | planned (expr inline / autokey ring / poly) | see contract |
 
+Target smart path: `Z29ExprNormalize` → `TheoryShapeMatch` (`Atbash` /
+`Caesar` / `Affine` / … by **algebra**, not catalog API) → shared `HistFast`
+twins — [`dsl-smart-hist.md`](../../../docs/architecture/dsl-smart-hist.md).
+
 `GpuCandidateExport` prefers S1/S2 when the cached `HistPlan` matches; launch
 failure soft-falls back to S0 with `export_backend=cuda` unchanged. Soft-fallback
 still requires the **S0** fair Kernel SLO ≥90% Spec peak. Normative rules:
-[`theory-hist-transpile.md`](../../../docs/architecture/theory-hist-transpile.md).
+[`theory-hist-transpile.md`](../../../docs/architecture/theory-hist-transpile.md),
+[`dsl-smart-hist.md`](../../../docs/architecture/dsl-smart-hist.md).
 Artifact **stream** (`emitted/`, `paths.cuda_*`) vs **fused hist** (`hist/`,
 `paths.hist_*`):
 [`theory-artifact.md`](../../../docs/spec/theory-artifact.md).

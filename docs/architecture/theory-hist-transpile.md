@@ -6,7 +6,8 @@
 **Fair Kernel SLO tool:** `parcae-bench --suite theory --allow-cuda`  
 **Profiling playbook:** [`cuda-profile-theory.md`](cuda-profile-theory.md)  
 **Emit / classify:** [`theory_hist_chi2_emit.hpp`](../../include/parcae/dsl/theory_hist_chi2_emit.hpp)  
-**Launch façade:** [`theory_hist_chi2_launch.hpp`](../../Parcae/Parcae/cuda/theory_hist_chi2_launch.hpp)
+**Launch façade:** [`theory_hist_chi2_launch.hpp`](../../Parcae/Parcae/cuda/theory_hist_chi2_launch.hpp)  
+**Smart customs (normalize → ShapeId):** [`dsl-smart-hist.md`](dsl-smart-hist.md)
 
 This document freezes **what “done” means** for theory search fused χ²: every
 hist strategy that actually runs — **including S0 bytecode** — must meet the
@@ -14,6 +15,10 @@ hist strategy that actually runs — **including S0 bytecode** — must meet the
 (`estimated_peak` = **896B** runes/s @ 1 B cipher/rune — what the GPU *could*
 do if memory-bound, **not** a measured quiet max). Soft-fallback to S0 is
 allowed for coverage; it is **not** an exemption from the S0 peak gate.
+
+How self-written HotLoop math (no catalog API / no builtin preset) must reach
+catalog-class hist speed is normative in [`dsl-smart-hist.md`](dsl-smart-hist.md)
+(name-irrelevant `ShapeId` match after `Z29ExprNormalize`).
 
 Agents implement and test only; they do **not** create git commits or tags.
 
@@ -48,6 +53,7 @@ Two parallel workstreams (implementation roadmap, not doc names):
 
 1. **Roof climb on specialized paths** — push S1 / Caesar fair / F.* from stretch (~79–93%) to **pass_tier** vs the **896B** roof. Repro: [`capture_roof_hist.ps1`](../../scripts/cuda/capture_roof_hist.ps1) + [`profiles/roof_hist/SUMMARY.md`](profiles/roof_hist/SUMMARY.md).
 2. **Widen specialize-away** — S3/S4/S5 (+ artifact/module) so hard-S0 customs leave the interpreter, without dropping the soft-fallback gate.
+3. **Smart hist** — normalize + `ShapeId` match so customs without presets share catalog `HistFast` twins; see [`dsl-smart-hist.md`](dsl-smart-hist.md).
 
 ---
 
@@ -208,6 +214,7 @@ Declare the theory-hist transpile throughput workstream complete only when **all
 - [ ] **S3 / S4 / S5** each have Spec rows (same roof unless traffic differs) and pass ≥90% once implemented
 - [ ] Soft-fallback remains correct (parity + Div0 +inf + interrupt reject)
 - [ ] Customs without presets: specialized when eligible; otherwise S0 with S0 gate green
+- [ ] Smart hist exit checklist in [`dsl-smart-hist.md`](dsl-smart-hist.md) §9 green
 - [ ] Progress log has nsys/ncu (or documented counter-permission skip) for each Perf milestone
 - [ ] Style: no namespaces; no `phase*` names
 - [ ] Campaign wall never used as Done evidence
@@ -218,6 +225,7 @@ Declare the theory-hist transpile throughput workstream complete only when **all
 
 | Doc | Role |
 |-----|------|
+| [`dsl-smart-hist.md`](dsl-smart-hist.md) | Normalize → ShapeId; customs without presets at catalog speed |
 | [`cuda-throughput.md`](cuda-throughput.md) | Catalog + theory Spec ceilings table |
 | [`cuda-profile-theory.md`](cuda-profile-theory.md) | nsys/ncu recipes; progress log |
 | [`python-transpiler.md`](python-transpiler.md) | DSL compile + hist strategy summary |

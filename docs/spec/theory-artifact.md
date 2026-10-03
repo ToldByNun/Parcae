@@ -6,7 +6,9 @@
 **Related:** [dsl.md](dsl.md) (`dsl_spec_version`), [transforms.md](transforms.md),
 [tools.md](tools.md),
 [theory-hist-transpile.md](../architecture/theory-hist-transpile.md)
-(stream twin vs fused hist Kernel SLO)
+(stream twin vs fused hist Kernel SLO),
+[dsl-smart-hist.md](../architecture/dsl-smart-hist.md)
+(normalize → ShapeId; customs without presets)
 
 Compiled theories are **versioned, inspectable artifacts** under
 `data/theories/`. They are the only form that validate/sweep/runtime dispatch
@@ -16,11 +18,13 @@ inputs, not runnable registry entries.
 **Two CUDA products** may appear under one artifact URI — do **not** conflate them.
 Throughput Done (≥90% shape peak) is defined on the **fused hist** product, not
 the stream twin. See [theory-hist-transpile.md](../architecture/theory-hist-transpile.md).
+Smart hist matching (algebra, not catalog API):
+[dsl-smart-hist.md](../architecture/dsl-smart-hist.md).
 
 | Product | Manifest paths (today / planned) | Producer | Consumer | Role |
 |---------|----------------------------------|----------|----------|------|
 | **Stream twin** | `paths.cuda_header` / `paths.cuda_source` under `emitted/` | `DslEmitCuda` @ compile | Transform / apply / smoke | Bit-identity 1D device apply |
-| **Fused hist** | `paths.hist_*` under `hist/` (optional until writers land) | `TheoryHistChi2Emit` (+ future cubin tool) | Search `GpuCandidateExport` / module load | Fused decrypt+χ² Kernel SLO |
+| **Fused hist** | `paths.hist_*` under `hist/` (optional until writers land) | `TheoryHistChi2Emit` (+ shape match / cubin) | Search `GpuCandidateExport` / module load | Fused decrypt+χ² Kernel SLO |
 
 ---
 

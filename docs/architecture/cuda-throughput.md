@@ -39,11 +39,14 @@ catalog fused hist (same traffic class).
 
 ```text
 TheoryIr decrypt HotLoop
-  → TheoryHistChi2Emit (S1 LUT-29 / S2 linear uchar4 / else S0)
+  → Z29ExprNormalize + TheoryShapeMatch   (target; see dsl-smart-hist.md)
+  → TheoryHistChi2Emit (shape twin / S1 / S2 / else S0)
   → TheoryExportCache HistPlan
   → GpuCandidateExport prefers specialized launch; soft-fallback S0 bytecode
   → export_backend=cuda
 ```
+
+Smart customs (self-written math without catalog API): [`dsl-smart-hist.md`](dsl-smart-hist.md).
 
 | Strategy | Spec id | Kernel | Physical peak (DRAM roof) |
 |----------|---------|--------|---------------------------|
@@ -65,8 +68,9 @@ specialize dispatch. Short T is measurement-only (`underfill_not_slo_gate`).
 
 Do **not** compare campaign wall at short page `T` to catalog or theory cudaEvent
 peaks at `T≈2^20`. Normative Done rules:
-[`theory-hist-transpile.md`](theory-hist-transpile.md). Playbook + progress
-log: [`cuda-profile-theory.md`](cuda-profile-theory.md).
+[`theory-hist-transpile.md`](theory-hist-transpile.md). Smart ShapeId path:
+[`dsl-smart-hist.md`](dsl-smart-hist.md). Playbook + progress log:
+[`cuda-profile-theory.md`](cuda-profile-theory.md).
 
 ### Theory plateaus (physical roof)
 
@@ -168,5 +172,6 @@ are far below 90% — that is expected until kernels are memory-bound.
 - Build notes: [cuda-build.md](cuda-build.md)
 - Theory profiling (nsys/ncu): [cuda-profile-theory.md](cuda-profile-theory.md)
 - Theory hist transpile contract (S0–S5 ≥90% shape peak): [theory-hist-transpile.md](theory-hist-transpile.md)
+- DSL smart hist (customs without presets): [dsl-smart-hist.md](dsl-smart-hist.md)
 - Operator handbook (theory URI + dispatch): [search-handbook.md](search-handbook.md)
 - Transpiler + HistChi2 strategies: [python-transpiler.md](python-transpiler.md)
