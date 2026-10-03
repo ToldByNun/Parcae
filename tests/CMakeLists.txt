@@ -41,6 +41,7 @@ add_executable(parcae_tests
   dsl_koan_parity_test.cpp
   dsl_optimize_test.cpp
   z29_expr_normalize_test.cpp
+  theory_shape_match_test.cpp
   dsl_launch_plan_test.cpp
   dsl_peak_sanity_test.cpp
   bench_tier_spec_test.cpp

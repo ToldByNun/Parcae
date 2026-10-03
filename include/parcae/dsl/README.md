@@ -62,6 +62,7 @@ private:
 | `dsl_fuse.hpp` | `DslFuse` | Done (inline + emit + CPU bench; DSL-only leaves → fused emit) |
 | `dsl_optimize.hpp` | `DslOptimize` | Done (const-fold + Select dead-arm + `inv` hoist; hooked in `DslCompile`) |
 | `z29_expr_normalize.hpp` | `Z29ExprNormalize` | Done (algebraic HotLoop normalize for smart hist; `[dsl][normalize]` goldens) |
+| `theory_shape_match.hpp` | `TheoryShapeMatch` | Done (ShapeId from normalized trees; name-irrelevant; `[dsl][shape]` goldens) |
 | `dsl_compile.hpp` | `DslCompile` | Done (ast_dump → Optimize → emit/apply_ir) |
 | `dsl_launch_plan.hpp` | `DslLaunchPlan` | Done (1D / HistFast 2D twin grids) |
 | `dsl_peak_sanity.hpp` | `DslPeakSanity` | Done (ThroughputTiers peak / SLO) |
