@@ -67,9 +67,11 @@
 #include "params_json.hpp"
 #include "parcae_cuda.hpp"
 #include "theory_chi2_batch.hpp"
+#include "theory_device_scratch.hpp"
 #include "theory_hist_chi2_launch.hpp"
 
 #include <cuda_runtime_api.h>
+#include <cstring>
 #endif
 
 /// Fused GPU (or host-scored) export → top-k `TransformCandidate`s.
@@ -95,9 +97,11 @@
 /// `finalize`, `d2h`, `materialize` (plus scheduler `ingest`).
 ///
 /// Theory path: pass a long-lived `TheoryExportCache*` to amortize bytecode
-/// compile and (CUDA) device `ops`/`imm` uploads across chunks. `nullptr`
-/// still works (one-shot local cache). Prefer `theory_scores_only` when the
-/// caller only needs χ² scores (no top-k materialize).
+/// compile and (CUDA) device `ops`/`imm` uploads across chunks. Pass a
+/// long-lived `TheoryDeviceScratch*` to reuse cipher/probs/param device
+/// buffers across chunks (`nullptr` → one-shot local scratch). Prefer
+/// `theory_scores_only` when the caller only needs χ² scores (no top-k
+/// materialize).
 class GpuCandidateExport {
 public:
     static constexpr std::string_view score_id = "chi2_english_gp_v0";
@@ -878,6 +882,7 @@ public:
     /// Fused CUDA χ² over `params_list` for one `theory_uri`, then top-k materialize.
     /// Decrypt + empty interrupt only. Requires `PARCAE_BUILD_CUDA`.
     /// Pass `cache` to reuse bytecode + device program buffers across chunks.
+    /// Pass `scratch` to reuse cipher/probs/param device buffers across chunks.
     [[nodiscard]] static StatusOr<Result> theory_explicit_params(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const std::filesystem::path& theories_root, std::string_view theory_uri_text,
@@ -885,7 +890,12 @@ public:
         TransformDirection direction = TransformDirection::Decrypt,
         BatchRunner::Progress progress = BatchRunner::Progress{},
         const InterruptPolicy& interrupt = InterruptPolicy::none(),
-        TheoryExportCache* cache = nullptr) {
+        TheoryExportCache* cache = nullptr
+#if defined(PARCAE_HAS_CUDA)
+        ,
+        TheoryDeviceScratch* scratch = nullptr
+#endif
+    ) {
         if (direction != TransformDirection::Decrypt) {
             return Status::error(
                 "GpuCandidateExport::theory_explicit_params fused path supports decrypt only");
@@ -909,8 +919,11 @@ public:
         prepare_progress(progress, cipher);
         TheoryExportCache local_cache;
         TheoryExportCache& active = cache != nullptr ? *cache : local_cache;
-        StatusOr<std::vector<double>> scores = fused_theory_scores(
-            cipher, freqs, theories_root, theory_uri_text, params_list, active, progress);
+        TheoryDeviceScratch local_scratch;
+        TheoryDeviceScratch& active_scratch = scratch != nullptr ? *scratch : local_scratch;
+        StatusOr<std::vector<double>> scores =
+            fused_theory_scores(cipher, freqs, theories_root, theory_uri_text, params_list, active,
+                                active_scratch, progress);
         if (!scores.ok()) {
             return scores.status();
         }
@@ -929,7 +942,12 @@ public:
         TransformDirection direction = TransformDirection::Decrypt,
         BatchRunner::Progress progress = BatchRunner::Progress{},
         const InterruptPolicy& interrupt = InterruptPolicy::none(),
-        TheoryExportCache* cache = nullptr) {
+        TheoryExportCache* cache = nullptr
+#if defined(PARCAE_HAS_CUDA)
+        ,
+        TheoryDeviceScratch* scratch = nullptr
+#endif
+    ) {
         if (direction != TransformDirection::Decrypt) {
             return Status::error(
                 "GpuCandidateExport::theory_scores_only fused path supports decrypt only");
@@ -952,8 +970,10 @@ public:
         prepare_progress(progress, cipher);
         TheoryExportCache local_cache;
         TheoryExportCache& active = cache != nullptr ? *cache : local_cache;
+        TheoryDeviceScratch local_scratch;
+        TheoryDeviceScratch& active_scratch = scratch != nullptr ? *scratch : local_scratch;
         return fused_theory_scores(cipher, freqs, theories_root, theory_uri_text, params_list,
-                                   active, progress);
+                                   active, active_scratch, progress);
 #endif
     }
 
@@ -1621,10 +1641,90 @@ private:
         return std::nullopt;
     }
 
+    [[nodiscard]] static std::uint64_t fingerprint_bytes(std::span<const std::uint8_t> bytes) {
+        std::uint64_t h = 14695981039346656037ull;
+        for (const std::uint8_t b : bytes) {
+            h ^= static_cast<std::uint64_t>(b);
+            h *= 1099511628211ull;
+        }
+        h ^= static_cast<std::uint64_t>(bytes.size());
+        h *= 1099511628211ull;
+        return h == 0 ? 1 : h;
+    }
+
+    [[nodiscard]] static std::uint64_t fingerprint_doubles(std::span<const double> values) {
+        std::uint64_t h = 14695981039346656037ull;
+        for (const double v : values) {
+            std::uint64_t bits = 0;
+            static_assert(sizeof(double) == sizeof(std::uint64_t));
+            std::memcpy(&bits, &v, sizeof(bits));
+            h ^= bits;
+            h *= 1099511628211ull;
+        }
+        h ^= static_cast<std::uint64_t>(values.size());
+        h *= 1099511628211ull;
+        return h == 0 ? 1 : h;
+    }
+
+    /// Grow-only reserve + skippable cipher/probs H2D into persistent scratch.
+    [[nodiscard]] static Status ensure_theory_resident(TheoryDeviceScratch& scratch,
+                                                       std::span<const std::uint8_t> host_in,
+                                                       const ExpectedFrequencyTable& freqs,
+                                                       std::size_t C) {
+        Status cap = scratch.ensure_capacity(C, host_in.size());
+        if (!cap.ok()) {
+            return cap;
+        }
+        StatusOr<bool> cipher_up =
+            scratch.upload_cipher_async(host_in, fingerprint_bytes(host_in));
+        if (!cipher_up.ok()) {
+            return cipher_up.status();
+        }
+        const std::span<const double> probs(freqs.probabilities().data(),
+                                            freqs.probabilities().size());
+        StatusOr<bool> probs_up =
+            scratch.upload_probs_async(probs, fingerprint_doubles(probs));
+        if (!probs_up.ok()) {
+            return probs_up.status();
+        }
+        return Status::success();
+    }
+
+    template <typename LaunchFn>
+    [[nodiscard]] static StatusOr<std::vector<double>>
+    launch_theory_sync_copy(TheoryDeviceScratch& scratch, std::size_t C, LaunchFn&& launch,
+                            const char* sync_label,
+                            BatchRunner::Progress progress = BatchRunner::Progress{}) {
+        Status launched = launch();
+        if (!launched.ok()) {
+            return launched;
+        }
+        Status synced = CudaError::to_status(cudaDeviceSynchronize(), sync_label);
+        if (!synced.ok()) {
+            return synced;
+        }
+        emit_stage(progress, "fuse", C, C);
+        std::vector<double> scores(C, 0.0);
+        {
+            NvtxRange nvtx_d2h("d2h");
+            Status copied = scratch.download_scores_async(scores);
+            if (!copied.ok()) {
+                return copied;
+            }
+            Status d2h_sync = CudaError::to_status(cudaStreamSynchronize(nullptr),
+                                                   "GpuCandidateExport::theory d2h sync");
+            if (!d2h_sync.ok()) {
+                return d2h_sync;
+            }
+        }
+        emit_stage(progress, "d2h", C, C);
+        return scores;
+    }
+
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s0(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
-        TheoryExportCache& cache, BatchRunner::Progress progress) {
+        TheoryExportCache& cache, TheoryDeviceScratch& scratch, BatchRunner::Progress progress) {
         const Z29Bytecode::Program& prog = entry.program();
         const std::size_t C = params_list.size();
         const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.slot_names.size());
@@ -1654,56 +1754,32 @@ private:
         }
 
         const auto host_in = to_bytes(cipher);
-        struct TheoryDevicePack {
-            DeviceScratch scratch;
-            DeviceBuffer<std::uint8_t> slots;
-            DeviceBuffer<std::uint8_t> err;
-            const std::uint8_t* ops = nullptr;
-            const std::uint8_t* imm = nullptr;
-        };
-        StatusOr<TheoryDevicePack> devices = [&]() -> StatusOr<TheoryDevicePack> {
+        {
             NvtxRange nvtx_h2d("h2d");
-            StatusOr<DeviceScratch> scratch = make_scratch(host_in, freqs, C);
-            if (!scratch.ok()) {
-                return scratch.status();
+            Status resident = ensure_theory_resident(scratch, host_in, freqs, C);
+            if (!resident.ok()) {
+                return resident;
             }
             Status prog_up = cache.ensure_device_program();
             if (!prog_up.ok()) {
                 return prog_up;
             }
-            StatusOr<DeviceBuffer<std::uint8_t>> device_slots =
-                DeviceBuffer<std::uint8_t>::from_host(slots);
-            if (!device_slots.ok()) {
-                return device_slots.status();
+            Status slots_up = scratch.upload_slots_async(slots, C, slot_count);
+            if (!slots_up.ok()) {
+                return slots_up;
             }
-            StatusOr<DeviceBuffer<std::uint8_t>> device_err =
-                DeviceBuffer<std::uint8_t>::allocate(C);
-            if (!device_err.ok()) {
-                return device_err.status();
-            }
-            TheoryDevicePack pack;
-            pack.scratch = std::move(scratch.value());
-            pack.slots = std::move(device_slots.value());
-            pack.err = std::move(device_err.value());
-            pack.ops = cache.device_ops().data();
-            pack.imm = cache.device_imm().data();
-            return pack;
-        }();
-        if (!devices.ok()) {
-            return devices.status();
         }
 
         cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S0Bytecode);
-        return launch_sync_copy(
-            devices.value().scratch,
+        return launch_theory_sync_copy(
+            scratch, C,
             [&]() {
                 return TheoryHistChi2Launch::launch_bytecode_async(
-                    devices.value().scratch.in.data(), devices.value().ops, devices.value().imm,
-                    static_cast<std::uint32_t>(ops.size()), devices.value().slots.data(), slot_count,
+                    scratch.cipher(), cache.device_ops().data(), cache.device_imm().data(),
+                    static_cast<std::uint32_t>(ops.size()), scratch.slots(), slot_count,
                     prog.cipher_slot, prog.index_slot, prog.binds_index_i ? 1u : 0u, max_stack,
-                    devices.value().scratch.probs.data(), devices.value().scratch.counts.data(),
-                    devices.value().scratch.scores.data(), devices.value().err.data(), C,
-                    devices.value().scratch.T);
+                    scratch.probs(), scratch.counts(), scratch.scores(), scratch.lane_err(), C,
+                    host_in.size());
             },
             "GpuCandidateExport::theory S0 sync", progress);
     }
@@ -1711,7 +1787,7 @@ private:
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s1(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
-        BatchRunner::Progress progress) {
+        TheoryDeviceScratch& scratch, BatchRunner::Progress progress) {
         NvtxRange nvtx_s1("specialized_s1");
         const Z29Bytecode::Program& prog = entry.program();
         const std::size_t C = params_list.size();
@@ -1744,23 +1820,24 @@ private:
         }
 
         const auto host_in = to_bytes(cipher);
-        StatusOr<DeviceScratch> scratch = make_scratch(host_in, freqs, C);
-        if (!scratch.ok()) {
-            return scratch.status();
-        }
-        StatusOr<DeviceBuffer<std::uint8_t>> device_luts =
-            DeviceBuffer<std::uint8_t>::from_host(host_luts);
-        if (!device_luts.ok()) {
-            return device_luts.status();
+        {
+            NvtxRange nvtx_h2d("h2d");
+            Status resident = ensure_theory_resident(scratch, host_in, freqs, C);
+            if (!resident.ok()) {
+                return resident;
+            }
+            Status luts_up = scratch.upload_luts_async(host_luts, C);
+            if (!luts_up.ok()) {
+                return luts_up;
+            }
         }
 
-        return launch_sync_copy(
-            scratch.value(),
+        return launch_theory_sync_copy(
+            scratch, C,
             [&]() {
                 return TheoryHistChi2Launch::launch_s1_lut_async(
-                    scratch.value().in.data(), device_luts.value().data(),
-                    scratch.value().probs.data(), scratch.value().counts.data(),
-                    scratch.value().scores.data(), C, scratch.value().T);
+                    scratch.cipher(), scratch.luts(), scratch.probs(), scratch.counts(),
+                    scratch.scores(), C, host_in.size());
             },
             "GpuCandidateExport::theory S1 sync", progress);
     }
@@ -1768,7 +1845,7 @@ private:
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s2(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
-        BatchRunner::Progress progress) {
+        TheoryDeviceScratch& scratch, BatchRunner::Progress progress) {
         NvtxRange nvtx_s2("specialized_s2");
         if (!entry.hist_plan().s2_linear().has_value()) {
             return Status::error("GpuCandidateExport::theory S2 missing linear plan");
@@ -1802,28 +1879,25 @@ private:
         }
 
         const auto host_in = to_bytes(cipher);
-        StatusOr<DeviceScratch> scratch = make_scratch(host_in, freqs, C);
-        if (!scratch.ok()) {
-            return scratch.status();
-        }
-        StatusOr<DeviceBuffer<std::uint8_t>> device_b0 =
-            DeviceBuffer<std::uint8_t>::from_host(host_b0);
-        if (!device_b0.ok()) {
-            return device_b0.status();
-        }
-        StatusOr<DeviceBuffer<std::uint8_t>> device_b1 =
-            DeviceBuffer<std::uint8_t>::from_host(host_b1);
-        if (!device_b1.ok()) {
-            return device_b1.status();
+        {
+            NvtxRange nvtx_h2d("h2d");
+            Status resident = ensure_theory_resident(scratch, host_in, freqs, C);
+            if (!resident.ok()) {
+                return resident;
+            }
+            Status coeffs_up = scratch.upload_b0_b1_async(host_b0, host_b1, C);
+            if (!coeffs_up.ok()) {
+                return coeffs_up;
+            }
         }
 
-        return launch_sync_copy(
-            scratch.value(),
+        return launch_theory_sync_copy(
+            scratch, C,
             [&]() {
                 return TheoryHistChi2Launch::launch_s2_linear_async(
-                    scratch.value().in.data(), device_b0.value().data(), device_b1.value().data(),
-                    scratch.value().probs.data(), scratch.value().counts.data(),
-                    scratch.value().scores.data(), C, scratch.value().T, plan.cipher_minus_ks());
+                    scratch.cipher(), scratch.b0(), scratch.b1(), scratch.probs(),
+                    scratch.counts(), scratch.scores(), C, host_in.size(),
+                    plan.cipher_minus_ks());
             },
             "GpuCandidateExport::theory S2 sync", progress);
     }
@@ -1832,7 +1906,7 @@ private:
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const std::filesystem::path& theories_root, std::string_view theory_uri_text,
         const std::vector<nlohmann::json>& params_list, TheoryExportCache& cache,
-        BatchRunner::Progress progress = BatchRunner::Progress{}) {
+        TheoryDeviceScratch& scratch, BatchRunner::Progress progress = BatchRunner::Progress{}) {
         Status ok = require_cuda_freqs(freqs);
         if (!ok.ok()) {
             return ok;
@@ -1858,7 +1932,7 @@ private:
         if (hist.specialized() &&
             hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29 && hist.s1_lut()) {
             StatusOr<std::vector<double>> s1 =
-                fused_theory_scores_s1(cipher, freqs, entry, params_list, progress);
+                fused_theory_scores_s1(cipher, freqs, entry, params_list, scratch, progress);
             if (s1.ok()) {
                 cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S1Lut29);
                 return s1;
@@ -1869,14 +1943,14 @@ private:
             hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::S2Uchar4Inline &&
             hist.s2_linear()) {
             StatusOr<std::vector<double>> s2 =
-                fused_theory_scores_s2(cipher, freqs, entry, params_list, progress);
+                fused_theory_scores_s2(cipher, freqs, entry, params_list, scratch, progress);
             if (s2.ok()) {
                 cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
                 return s2;
             }
         }
 
-        return fused_theory_scores_s0(cipher, freqs, entry, params_list, cache, progress);
+        return fused_theory_scores_s0(cipher, freqs, entry, params_list, cache, scratch, progress);
     }
 #endif
 };

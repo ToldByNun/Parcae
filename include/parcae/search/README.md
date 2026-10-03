@@ -19,7 +19,7 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 | `search_prior.hpp` | `SearchPrior` | Done (`parcae.search_prior.v0`) |
 | `batch_artifact.hpp` | `BatchArtifact` | Done (`parcae.batch_artifact.v0`) |
 | `workspace_cipher.hpp` | `WorkspaceCipher` | Done (`workspace.v0` → `Index29`) |
-| `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere + compose + beaufort/totient + theory fused χ² with S1/S2 prefer + S0 soft-fallback + `TheoryExportCache`) |
+| `gpu_candidate_export.hpp` | `GpuCandidateExport` | Done (Caesar…affine + vigenere + compose + beaufort/totient + theory fused χ² with S1/S2 prefer + S0 soft-fallback + `TheoryExportCache` + `TheoryDeviceScratch`) |
 | `theory_export_cache.hpp` | `TheoryExportCache` | Done (bytecode + device ops/imm reuse; caches `TheoryHistChi2Emit` hist plan) |
 | `nvtx_range.hpp` | `NvtxRange` | Done — RAII NVTX for nsys (`prepare_theory`…`ingest`) |
 | `cpu_candidate_export.hpp` | `CpuCandidateExport` | Done (v0 families + extended `hill_2`/`hill_3`/CTAK/PTAK + `theory` URI; hard CPU-only for hill/autokey) |
@@ -36,8 +36,9 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 soft-fallback **S0** bytecode via `TheoryHistChi2Launch` / `TheoryChi2Batch`
 (`export_backend=cuda`). Toolkit **1.1.0** lifts hill/autokey off the hard list —
 [`cuda-catalog-parity.md`](../../../docs/architecture/cuda-catalog-parity.md).
-`SearchScheduler::run_loop` keeps a `TheoryExportCache` across iterations
-(override via `Options::theory_cache` / `LoopOptions::theory_cache`). Use
+`SearchScheduler::run_loop` keeps a `TheoryExportCache` and (CUDA)
+`TheoryDeviceScratch` across iterations (override via `Options::theory_cache` /
+`theory_scratch` / `LoopOptions::*`). Use
 `GpuCandidateExport::theory_scores_only` for score sweeps without materialize.
 
 **Throughput:** Kernel SLO = `parcae-bench --suite theory` (`T.theory.*`, ≥90%

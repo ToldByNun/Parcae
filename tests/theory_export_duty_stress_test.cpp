@@ -14,6 +14,7 @@
 #include <parcae/transform/transform_direction.hpp>
 
 #include "parcae_cuda.hpp"
+#include "theory_device_scratch.hpp"
 
 #include <cstdint>
 #include <filesystem>
@@ -120,6 +121,7 @@ TEST_CASE("Theory export multi-chunk duty stress (nsys)",
     REQUIRE(ParcaeCuda::available());
     TheoryExportDutyStress::Fixture fx = TheoryExportDutyStress::make_fixture();
     TheoryExportCache cache;
+    TheoryDeviceScratch scratch;
 
     for (int chunk = 0; chunk < TheoryExportDutyStress::kChunks; ++chunk) {
         // Rotate a few params so bind_slots work is non-trivial each chunk.
@@ -131,7 +133,7 @@ TEST_CASE("Theory export multi-chunk duty stress (nsys)",
 
         StatusOr<std::vector<double>> scores = GpuCandidateExport::theory_scores_only(
             fx.cipher, fx.freqs, fx.theories, fx.uri, chunk_params, TransformDirection::Decrypt,
-            BatchRunner::Progress{}, InterruptPolicy::none(), &cache);
+            BatchRunner::Progress{}, InterruptPolicy::none(), &cache, &scratch);
         REQUIRE(scores.ok());
         REQUIRE(scores.value().size() == TheoryExportDutyStress::kCandidates);
     }
@@ -139,6 +141,8 @@ TEST_CASE("Theory export multi-chunk duty stress (nsys)",
     REQUIRE(cache.host_compile_count() == 1);
     REQUIRE(cache.device_upload_count() == 1);
     REQUIRE(cache.host_hit_count() >= static_cast<std::uint64_t>(TheoryExportDutyStress::kChunks - 1));
+    REQUIRE(scratch.cipher_upload_count() == 1);
+    REQUIRE(scratch.probs_upload_count() == 1);
 
     TheoryExportDutyStress::cleanup(fx);
 }

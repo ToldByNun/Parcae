@@ -38,6 +38,10 @@
 #include <utility>
 #include <vector>
 
+#if defined(PARCAE_HAS_CUDA)
+#include "theory_device_scratch.hpp"
+#endif
+
 /// One closed-loop search cycle or multi-iteration loop.
 /// Normative: `docs/spec/search-loop.md` (`SearchScheduler` / `parcae.search_cycle_result.v0`).
 /// Optional `Options::progress` / `LoopOptions::progress` is observe-only (digests
@@ -68,6 +72,10 @@ public:
         ConsoleProgressSink* progress = nullptr;
         /// Optional theory bytecode / device-program cache (amortize across cycles).
         TheoryExportCache* theory_cache = nullptr;
+#if defined(PARCAE_HAS_CUDA)
+        /// Optional persistent theory device scratch (cipher/probs/param buffers).
+        TheoryDeviceScratch* theory_scratch = nullptr;
+#endif
     };
 
     /// Budgets and stop policy for `run_loop` (`search-loop.md`).
@@ -101,6 +109,10 @@ public:
         ConsoleProgressSink* progress = nullptr;
         /// Optional theory cache shared across loop iterations (nullptr → local loop cache).
         TheoryExportCache* theory_cache = nullptr;
+#if defined(PARCAE_HAS_CUDA)
+        /// Optional theory device scratch shared across loop iterations.
+        TheoryDeviceScratch* theory_scratch = nullptr;
+#endif
     };
 
     /// One batch summary line inside the cycle result.
@@ -236,9 +248,14 @@ public:
         export_progress.sink = options.progress;
         export_progress.rune_count = cipher.value().indices().size();
 
-        StatusOr<CpuCandidateExport::Result> exported =
-            export_candidates(cipher.value().indices(), job, ctx, prior.value(), export_progress,
-                              options.theory_cache);
+        StatusOr<CpuCandidateExport::Result> exported = export_candidates(
+            cipher.value().indices(), job, ctx, prior.value(), export_progress,
+            options.theory_cache
+#if defined(PARCAE_HAS_CUDA)
+            ,
+            options.theory_scratch
+#endif
+        );
         if (!exported.ok()) {
             return exported.status();
         }
@@ -372,6 +389,11 @@ public:
         TheoryExportCache loop_theory_cache;
         TheoryExportCache* theory_cache =
             options.theory_cache != nullptr ? options.theory_cache : &loop_theory_cache;
+#if defined(PARCAE_HAS_CUDA)
+        TheoryDeviceScratch loop_theory_scratch;
+        TheoryDeviceScratch* theory_scratch =
+            options.theory_scratch != nullptr ? options.theory_scratch : &loop_theory_scratch;
+#endif
 
         for (std::size_t i = 0; i < options.max_iterations; ++i) {
             if (i > 0 && wall_exceeded()) {
@@ -390,6 +412,9 @@ public:
             once.prior_build = options.prior_build;
             once.progress = options.progress;
             once.theory_cache = theory_cache;
+#if defined(PARCAE_HAS_CUDA)
+            once.theory_scratch = theory_scratch;
+#endif
             if (!options.batch_ids.empty()) {
                 once.batch_id = options.batch_ids[i];
             }
@@ -585,7 +610,12 @@ private:
     export_candidates(std::span<const Index29> cipher, const SearchJob& job, const Context& ctx,
                       const SearchPrior& prior,
                       BatchRunner::Progress progress = BatchRunner::Progress{},
-                      TheoryExportCache* theory_cache = nullptr) {
+                      TheoryExportCache* theory_cache = nullptr
+#if defined(PARCAE_HAS_CUDA)
+                      ,
+                      TheoryDeviceScratch* theory_scratch = nullptr
+#endif
+    ) {
         // Hill / CTAK / PTAK stay hard CPU-only (`is_cpu_export_only_family`).
         if (job.backend() == Backend::Cpu ||
             SearchJob::is_cpu_export_only_family(job.family())) {
@@ -613,9 +643,13 @@ private:
             return freqs.status();
         }
 
-        StatusOr<CpuCandidateExport::Result> fused =
-            export_cuda_fused(cipher, job, freqs.value(), ctx.data_root() / "theories", progress,
-                              theory_cache);
+        StatusOr<CpuCandidateExport::Result> fused = export_cuda_fused(
+            cipher, job, freqs.value(), ctx.data_root() / "theories", progress, theory_cache
+#if defined(PARCAE_HAS_CUDA)
+            ,
+            theory_scratch
+#endif
+        );
         if (!fused.ok()) {
             return fused.status();
         }
@@ -634,7 +668,12 @@ private:
                       const ExpectedFrequencyTable& freqs,
                       const std::filesystem::path& theories_root,
                       BatchRunner::Progress progress = BatchRunner::Progress{},
-                      TheoryExportCache* theory_cache = nullptr) {
+                      TheoryExportCache* theory_cache = nullptr
+#if defined(PARCAE_HAS_CUDA)
+                      ,
+                      TheoryDeviceScratch* theory_scratch = nullptr
+#endif
+    ) {
         const std::string& family = job.family();
         if (family == "caesar") {
             return GpuCandidateExport::caesar(cipher, freqs, job.k(), job.direction(), progress);
@@ -729,7 +768,12 @@ private:
             }
             return GpuCandidateExport::theory_explicit_params(
                 cipher, freqs, theories_root, theory_uri, params_list, job.k(), job.direction(),
-                progress, InterruptPolicy::none(), theory_cache);
+                progress, InterruptPolicy::none(), theory_cache
+#if defined(PARCAE_HAS_CUDA)
+                ,
+                theory_scratch
+#endif
+            );
         }
         return Status::error("SearchScheduler: unsupported family for cuda export: " + family);
     }

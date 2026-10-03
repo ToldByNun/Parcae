@@ -164,6 +164,7 @@ TEST_CASE("GpuCandidateExport theory_from_host_scores cache preserves top-k",
 #if defined(PARCAE_HAS_CUDA)
 
 #include "parcae_cuda.hpp"
+#include "theory_device_scratch.hpp"
 
 TEST_CASE("GpuCandidateExport theory cache reuses device program across chunks",
           "[search][export][theory][cache][cuda]") {
@@ -204,6 +205,42 @@ TEST_CASE("GpuCandidateExport theory cache reuses device program across chunks",
     REQUIRE(exported.value().backend() == Backend::Cuda);
     // prepare inside scores + materialize should hit, not recompile.
     REQUIRE(cache.host_compile_count() == 1);
+
+    std::error_code ec;
+    std::filesystem::remove_all(fx.root, ec);
+}
+
+TEST_CASE("GpuCandidateExport theory scratch skips cipher/probs across chunks",
+          "[search][export][theory][scratch][cuda]") {
+    REQUIRE(ParcaeCuda::available());
+    TheoryFixture fx = make_fixture();
+    TheoryExportCache cache;
+    TheoryDeviceScratch scratch;
+
+    StatusOr<std::vector<double>> scores_a = GpuCandidateExport::theory_scores_only(
+        fx.cipher, fx.freqs, fx.theories, fx.uri, fx.params_list, TransformDirection::Decrypt,
+        BatchRunner::Progress{}, InterruptPolicy::none(), &cache, &scratch);
+    REQUIRE(scores_a.ok());
+    REQUIRE(scratch.cipher_upload_count() == 1);
+    REQUIRE(scratch.probs_upload_count() == 1);
+    REQUIRE(scratch.capacity_C() >= fx.params_list.size());
+    REQUIRE(scratch.capacity_T() >= fx.cipher.size());
+
+    StatusOr<std::vector<double>> scores_b = GpuCandidateExport::theory_scores_only(
+        fx.cipher, fx.freqs, fx.theories, fx.uri, fx.params_chunk_b, TransformDirection::Decrypt,
+        BatchRunner::Progress{}, InterruptPolicy::none(), &cache, &scratch);
+    REQUIRE(scores_b.ok());
+    REQUIRE(scratch.cipher_upload_count() == 1);
+    REQUIRE(scratch.probs_upload_count() == 1);
+    REQUIRE(scores_b.value().size() == fx.params_chunk_b.size());
+
+    StatusOr<std::vector<double>> cold = GpuCandidateExport::theory_scores_only(
+        fx.cipher, fx.freqs, fx.theories, fx.uri, fx.params_list);
+    REQUIRE(cold.ok());
+    REQUIRE(cold.value().size() == scores_a.value().size());
+    for (std::size_t i = 0; i < cold.value().size(); ++i) {
+        REQUIRE(std::abs(cold.value()[i] - scores_a.value()[i]) < 1e-12);
+    }
 
     std::error_code ec;
     std::filesystem::remove_all(fx.root, ec);

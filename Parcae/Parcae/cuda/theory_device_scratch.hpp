@@ -174,6 +174,7 @@ public:
         }
         cipher_generation_ = generation;
         live_T_ = cipher.size();
+        ++cipher_upload_count_;
         return true;
     }
 
@@ -193,6 +194,7 @@ public:
             return copied;
         }
         probs_generation_ = generation;
+        ++probs_upload_count_;
         return true;
     }
 
@@ -314,6 +316,9 @@ public:
     [[nodiscard]] std::uint64_t cipher_generation() const noexcept { return cipher_generation_; }
     [[nodiscard]] std::uint64_t probs_generation() const noexcept { return probs_generation_; }
 
+    [[nodiscard]] std::size_t cipher_upload_count() const noexcept { return cipher_upload_count_; }
+    [[nodiscard]] std::size_t probs_upload_count() const noexcept { return probs_upload_count_; }
+
     [[nodiscard]] bool empty() const noexcept { return capacity_C_ == 0 && capacity_T_ == 0; }
 
     void reset() noexcept {
@@ -333,6 +338,8 @@ public:
         live_slot_count_ = 0;
         cipher_generation_ = 0;
         probs_generation_ = 0;
+        cipher_upload_count_ = 0;
+        probs_upload_count_ = 0;
     }
 
 private:
@@ -369,6 +376,8 @@ private:
     std::uint16_t live_slot_count_ = 0;
     std::uint64_t cipher_generation_ = 0;
     std::uint64_t probs_generation_ = 0;
+    std::size_t cipher_upload_count_ = 0;
+    std::size_t probs_upload_count_ = 0;
 };
 
 #endif // THEORY_DEVICE_SCRATCH_HPP
