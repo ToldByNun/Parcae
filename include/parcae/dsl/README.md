@@ -61,6 +61,7 @@ private:
 | `dsl_catalog_builtins.hpp` | `DslCatalogBuiltins` | Done (`identity`/`atbash`/`caesar`/`affine` + DSL-only `matrix_mix`/`autokey_lag`; **not** `TransformId` / decode `--transform-id`) |
 | `dsl_fuse.hpp` | `DslFuse` | Done (inline + emit + CPU bench; DSL-only leaves → fused emit) |
 | `dsl_optimize.hpp` | `DslOptimize` | Done (const-fold + Select dead-arm + `inv` hoist; hooked in `DslCompile`) |
+| `z29_expr_normalize.hpp` | `Z29ExprNormalize` | Done (algebraic HotLoop normalize for smart hist; `[dsl][normalize]` goldens) |
 | `dsl_compile.hpp` | `DslCompile` | Done (ast_dump → Optimize → emit/apply_ir) |
 | `dsl_launch_plan.hpp` | `DslLaunchPlan` | Done (1D / HistFast 2D twin grids) |
 | `dsl_peak_sanity.hpp` | `DslPeakSanity` | Done (ThroughputTiers peak / SLO) |

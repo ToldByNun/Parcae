@@ -59,7 +59,7 @@ Python HotLoop decrypt_step
 
 | Layer | Class (planned / shipping) | Role |
 |-------|----------------------------|------|
-| Normalize | `Z29ExprNormalize` | Fold, commute, atbash-as-arith, affine/caesar/linear normal forms |
+| Normalize | `Z29ExprNormalize` ([`z29_expr_normalize.hpp`](../../include/parcae/dsl/z29_expr_normalize.hpp)) | Fold, commute, atbash-as-arith, affine/caesar/linear normal forms — **shipping** |
 | Match | `TheoryShapeMatch` | `ShapeId` from normalized tree + `cipher_var` |
 | Emit | `TheoryHistChi2Emit` | Existing façade; must run normalize+match before generic S1 |
 | Lower (long tail) | `TheoryHistExprLower` | Device decrypt fragment for S3 / module |
@@ -246,7 +246,8 @@ private:
 
 | Capability | Today | Contract target |
 |------------|-------|-----------------|
-| Self-written Atbash arith | S1 LUT (+ host fill) | `Atbash` shape twin (`HistFast::dec_atbash`) |
+| `Z29ExprNormalize` | **Shipping** (`[dsl][normalize]`) | Idempotent arith → Atbash / commute forms |
+| Self-written Atbash arith | S1 LUT (+ host fill); normalize → `Atbash` node | `Atbash` shape twin (`HistFast::dec_atbash`) |
 | Name / API required for fast path | Effective yes (catalog) | **No** — algebra only |
 | S3 / S4 / S5 | Stub or hard S0 | Real launch or module |
 | Emit sources / `hist_module` | Discarded / null | `hist_plan` + optional module load |
