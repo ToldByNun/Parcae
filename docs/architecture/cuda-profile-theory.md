@@ -185,6 +185,20 @@ nsys remain valid without that permission.
 
 ---
 
+## Export duty cycle
+
+Fair Kernel SLO (cudaEvent, H2D excluded) and export-path wall (host / PCIe /
+sync) are different metrics. Capture both with
+[`scripts/cuda/capture_export_duty.ps1`](../../scripts/cuda/capture_export_duty.ps1)
+→ [`profiles/export_duty/`](profiles/export_duty/) (fair JSON + nsys stress at
+`T=65536`, `C=64`, 8 chunks). Write-up:
+[`profiles/export_duty/SUMMARY.md`](profiles/export_duty/SUMMARY.md).
+
+Diagnosis: high fair Kernel SLO + low hist wall share ⇒ idle GPU from
+host/PCIe/sync — **idle GPU ≠ Kernel SLO PCIe**.
+
+---
+
 ## 3. Progress rule (every throughput milestone)
 
 After each meaningful change:
@@ -205,7 +219,8 @@ Repro specialized: [`scripts/cuda/capture_theory_specialized.ps1`](../../scripts
 Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 [`profiles/specialized/SUMMARY.md`](profiles/specialized/SUMMARY.md),
 [`profiles/s0-climb/SUMMARY.md`](profiles/s0-climb/SUMMARY.md),
-[`profiles/hist_local_caesar/SUMMARY.md`](profiles/hist_local_caesar/SUMMARY.md).
+[`profiles/hist_local_caesar/SUMMARY.md`](profiles/hist_local_caesar/SUMMARY.md),
+[`profiles/export_duty/SUMMARY.md`](profiles/export_duty/SUMMARY.md).
 
 ### Progress log
 
@@ -233,6 +248,7 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-03 | **hist_warp_match** | `profiles/hist_local_caesar/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | **113.8B** T1 | — | — | `add_private_match`; **12.7%** of 896B; **LOSE** vs ~356B; **F.\* not wired** |
 | 2026-10-03 | **hist_local_s1** | `profiles/hist_local_caesar/` | `theory_hist_chi2_s1_lut_kernel` | 29×1M | **36.06B** fair S1 | — | — | regs + fat≤32; **~4%** of 896B; **LOSE** vs ~396B; **reverted** to warp-private (confirm **397.37B**) |
 | 2026-10-03 | **hist_local_s2** | `profiles/hist_local_caesar/` | `theory_hist_chi2_s2_linear_kernel` | **841**×1M | **30.30B** local / **245.58B** warp | — | — | regs + fat≤32; **~3.4%** of 896B; **LOSE** vs warp@841 (**~27%**); **reverted**; suite default C→**841** |
+| 2026-10-03 | **export_duty** | `profiles/export_duty/` | fair S0/S1/S2 + export stress | 29×1M fair; stress 64×65k×8 | **67.83B** S0 / **395.31B** S1 / **257.86B** S2 / twin **390.32B** | — | nsys: hist **94%** of kern; NVTX `h2d` **99%** range wall; `cudaMalloc` **94%** API | idle GPU = host/PCIe/sync; **idle GPU ≠ Kernel SLO PCIe** |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 

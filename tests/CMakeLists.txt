@@ -95,6 +95,7 @@ add_executable(parcae_tests
   gpu_candidate_export_test.cpp
   gpu_candidate_export_theory_test.cpp
   theory_export_cache_test.cpp
+  theory_export_duty_stress_test.cpp
   theory_export_prefer_specialized_test.cpp
   theory_specialized_edgecases_test.cpp
   theory_gpu_export_parity_test.cpp
