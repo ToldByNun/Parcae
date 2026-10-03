@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cuda_runtime_api.h>
 
 /// Device-resident batch χ² over candidate-major lanes.
 ///
@@ -25,7 +26,8 @@ public:
     [[nodiscard]] static Status finalize_async(const std::uint32_t* device_counts,
                                                const double* device_probabilities,
                                                double* device_scores, std::size_t candidate_count,
-                                               std::size_t token_count);
+                                               std::size_t token_count,
+                                               cudaStream_t stream = nullptr);
 
     [[nodiscard]] static Status
     score_from_out_async(const std::uint8_t* device_out, const double* device_probabilities,

@@ -122,7 +122,7 @@ int TheoryChi2Batch::tiles_for(std::size_t token_count) {
 
 Status TheoryChi2Batch::clear_and_grid(std::uint32_t* device_counts, std::uint8_t* device_lane_err,
                                        std::size_t candidate_count, std::size_t token_count,
-                                       dim3* grid_out) {
+                                       dim3* grid_out, cudaStream_t stream) {
     if (candidate_count == 0 || candidate_count > kMaxCandidates) {
         return Status::error("TheoryChi2Batch: bad C");
     }
@@ -130,13 +130,14 @@ Status TheoryChi2Batch::clear_and_grid(std::uint32_t* device_counts, std::uint8_
         return Status::error("TheoryChi2Batch: bad T");
     }
     const std::size_t hist_bytes = candidate_count * alphabet_size * sizeof(std::uint32_t);
-    Status cleared = CudaError::to_status(cudaMemsetAsync(device_counts, 0, hist_bytes, 0),
-                                          "TheoryChi2Batch::clear counts");
+    Status cleared =
+        CudaError::to_status(cudaMemsetAsync(device_counts, 0, hist_bytes, stream),
+                             "TheoryChi2Batch::clear counts");
     if (!cleared.ok()) {
         return cleared;
     }
     Status err_cleared =
-        CudaError::to_status(cudaMemsetAsync(device_lane_err, 0, candidate_count, 0),
+        CudaError::to_status(cudaMemsetAsync(device_lane_err, 0, candidate_count, stream),
                              "TheoryChi2Batch::clear lane_err");
     if (!err_cleared.ok()) {
         return err_cleared;
@@ -152,7 +153,7 @@ Status TheoryChi2Batch::launch_async(
     std::uint16_t cipher_slot, std::uint16_t index_slot, std::uint8_t binds_index_i,
     std::uint16_t max_stack, const double* device_probabilities, std::uint32_t* device_counts,
     double* device_scores, std::uint8_t* device_lane_err, std::size_t candidate_count,
-    std::size_t token_count) {
+    std::size_t token_count, cudaStream_t stream) {
     if (device_in == nullptr || device_ops == nullptr || device_imm == nullptr ||
         device_slots == nullptr || device_probabilities == nullptr || device_counts == nullptr ||
         device_scores == nullptr || device_lane_err == nullptr) {
@@ -175,15 +176,15 @@ Status TheoryChi2Batch::launch_async(
     }
 
     dim3 grid;
-    Status prep =
-        clear_and_grid(device_counts, device_lane_err, candidate_count, token_count, &grid);
+    Status prep = clear_and_grid(device_counts, device_lane_err, candidate_count, token_count,
+                                 &grid, stream);
     if (!prep.ok()) {
         return prep;
     }
 
     {
         NvtxRange nvtx_hist("hist_kernel");
-        theory_chi2_hist_kernel<<<grid, HistFast::threads>>>(
+        theory_chi2_hist_kernel<<<grid, HistFast::threads, 0, stream>>>(
             device_in, device_ops, device_imm, op_count, device_slots, slot_count, cipher_slot,
             index_slot, binds_index_i, max_stack, device_counts, device_lane_err, token_count);
         Status hist = CudaError::to_status(cudaGetLastError(), "TheoryChi2Batch::hist");
@@ -195,7 +196,8 @@ Status TheoryChi2Batch::launch_async(
     {
         NvtxRange nvtx_finalize("finalize");
         Status finalized = Chi2BatchScore::finalize_async(
-            device_counts, device_probabilities, device_scores, candidate_count, token_count);
+            device_counts, device_probabilities, device_scores, candidate_count, token_count,
+            stream);
         if (!finalized.ok()) {
             return finalized;
         }
@@ -204,8 +206,8 @@ Status TheoryChi2Batch::launch_async(
         const int blocks =
             static_cast<int>((candidate_count + static_cast<std::size_t>(threads) - 1u) /
                              static_cast<std::size_t>(threads));
-        theory_chi2_patch_inf_kernel<<<blocks, threads>>>(device_lane_err, device_scores,
-                                                          candidate_count);
+        theory_chi2_patch_inf_kernel<<<blocks, threads, 0, stream>>>(device_lane_err, device_scores,
+                                                                     candidate_count);
         return CudaError::to_status(cudaGetLastError(), "TheoryChi2Batch::patch_inf");
     }
 }

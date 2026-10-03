@@ -58,7 +58,8 @@ int TheoryHistChi2S2::tiles_for(std::size_t token_count) {
 Status TheoryHistChi2S2::launch_linear_async(
     const std::uint8_t* device_in, const std::uint8_t* device_b0, const std::uint8_t* device_b1,
     const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
-    std::size_t candidate_count, std::size_t token_count, bool cipher_minus_ks) {
+    std::size_t candidate_count, std::size_t token_count, bool cipher_minus_ks,
+    cudaStream_t stream) {
     if (device_in == nullptr || device_b0 == nullptr || device_b1 == nullptr ||
         device_probabilities == nullptr || device_counts == nullptr || device_scores == nullptr) {
         return Status::error("TheoryHistChi2S2::launch_linear_async null");
@@ -71,15 +72,16 @@ Status TheoryHistChi2S2::launch_linear_async(
     }
 
     const std::size_t hist_bytes = candidate_count * alphabet_size * sizeof(std::uint32_t);
-    Status cleared = CudaError::to_status(cudaMemsetAsync(device_counts, 0, hist_bytes, 0),
-                                          "TheoryHistChi2S2::clear counts");
+    Status cleared =
+        CudaError::to_status(cudaMemsetAsync(device_counts, 0, hist_bytes, stream),
+                             "TheoryHistChi2S2::clear counts");
     if (!cleared.ok()) {
         return cleared;
     }
 
     const dim3 grid(static_cast<unsigned>(candidate_count),
                     static_cast<unsigned>(tiles_for(token_count)));
-    theory_hist_chi2_s2_linear_kernel<<<grid, HistFast::threads>>>(
+    theory_hist_chi2_s2_linear_kernel<<<grid, HistFast::threads, 0, stream>>>(
         device_in, device_b0, device_b1, device_counts, token_count,
         cipher_minus_ks ? 1u : 0u);
     Status hist = CudaError::to_status(cudaGetLastError(), "TheoryHistChi2S2::hist");
@@ -87,5 +89,5 @@ Status TheoryHistChi2S2::launch_linear_async(
         return hist;
     }
     return Chi2BatchScore::finalize_async(device_counts, device_probabilities, device_scores,
-                                          candidate_count, token_count);
+                                          candidate_count, token_count, stream);
 }

@@ -72,7 +72,8 @@ Status Chi2BatchScore::histogram_from_out_async(const std::uint8_t* device_out,
 
 Status Chi2BatchScore::finalize_async(const std::uint32_t* device_counts,
                                       const double* device_probabilities, double* device_scores,
-                                      std::size_t candidate_count, std::size_t token_count) {
+                                      std::size_t candidate_count, std::size_t token_count,
+                                      cudaStream_t stream) {
     if (candidate_count == 0 || candidate_count > kMaxCandidates) {
         return Status::error("Chi2BatchScore::finalize_async bad C");
     }
@@ -83,8 +84,8 @@ Status Chi2BatchScore::finalize_async(const std::uint32_t* device_counts,
     const int threads = 128;
     const int blocks = static_cast<int>((candidate_count + static_cast<std::size_t>(threads) - 1u) /
                                         static_cast<std::size_t>(threads));
-    chi2_finalize_kernel<<<blocks, threads>>>(device_counts, device_probabilities, device_scores,
-                                              candidate_count, token_count);
+    chi2_finalize_kernel<<<blocks, threads, 0, stream>>>(
+        device_counts, device_probabilities, device_scores, candidate_count, token_count);
     return CudaError::to_status(cudaGetLastError(), "Chi2BatchScore::finalize");
 }
 

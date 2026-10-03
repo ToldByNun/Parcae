@@ -52,7 +52,8 @@ Status TheoryHistChi2S1::launch_lut_async(const std::uint8_t* device_in,
                                           const std::uint8_t* device_luts,
                                           const double* device_probabilities,
                                           std::uint32_t* device_counts, double* device_scores,
-                                          std::size_t candidate_count, std::size_t token_count) {
+                                          std::size_t candidate_count, std::size_t token_count,
+                                          cudaStream_t stream) {
     if (device_in == nullptr || device_luts == nullptr || device_probabilities == nullptr ||
         device_counts == nullptr || device_scores == nullptr) {
         return Status::error("TheoryHistChi2S1::launch_lut_async null");
@@ -65,20 +66,21 @@ Status TheoryHistChi2S1::launch_lut_async(const std::uint8_t* device_in,
     }
 
     const std::size_t hist_bytes = candidate_count * alphabet_size * sizeof(std::uint32_t);
-    Status cleared = CudaError::to_status(cudaMemsetAsync(device_counts, 0, hist_bytes, 0),
-                                          "TheoryHistChi2S1::clear counts");
+    Status cleared =
+        CudaError::to_status(cudaMemsetAsync(device_counts, 0, hist_bytes, stream),
+                             "TheoryHistChi2S1::clear counts");
     if (!cleared.ok()) {
         return cleared;
     }
 
     const dim3 grid(static_cast<unsigned>(candidate_count),
                     static_cast<unsigned>(tiles_for(token_count)));
-    theory_hist_chi2_s1_lut_kernel<<<grid, HistFast::threads>>>(device_in, device_luts,
-                                                                device_counts, token_count);
+    theory_hist_chi2_s1_lut_kernel<<<grid, HistFast::threads, 0, stream>>>(
+        device_in, device_luts, device_counts, token_count);
     Status hist = CudaError::to_status(cudaGetLastError(), "TheoryHistChi2S1::hist");
     if (!hist.ok()) {
         return hist;
     }
     return Chi2BatchScore::finalize_async(device_counts, device_probabilities, device_scores,
-                                          candidate_count, token_count);
+                                          candidate_count, token_count, stream);
 }

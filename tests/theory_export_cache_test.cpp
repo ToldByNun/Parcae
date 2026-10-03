@@ -163,6 +163,7 @@ TEST_CASE("GpuCandidateExport theory_from_host_scores cache preserves top-k",
 
 #if defined(PARCAE_HAS_CUDA)
 
+#include "cuda_stream_pair.hpp"
 #include "parcae_cuda.hpp"
 #include "theory_device_scratch.hpp"
 
@@ -241,6 +242,40 @@ TEST_CASE("GpuCandidateExport theory scratch skips cipher/probs across chunks",
     for (std::size_t i = 0; i < cold.value().size(); ++i) {
         REQUIRE(std::abs(cold.value()[i] - scores_a.value()[i]) < 1e-12);
     }
+
+    std::error_code ec;
+    std::filesystem::remove_all(fx.root, ec);
+}
+
+TEST_CASE("GpuCandidateExport theory stream pair matches cold scores",
+          "[search][export][theory][streams][cuda]") {
+    REQUIRE(ParcaeCuda::available());
+    TheoryFixture fx = make_fixture();
+    TheoryExportCache cache;
+    TheoryDeviceScratch scratch;
+    CudaStreamPair streams = CudaStreamPair::create_or_legacy();
+    REQUIRE(streams.uses_dedicated_streams());
+
+    StatusOr<std::vector<double>> streamed = GpuCandidateExport::theory_scores_only(
+        fx.cipher, fx.freqs, fx.theories, fx.uri, fx.params_list, TransformDirection::Decrypt,
+        BatchRunner::Progress{}, InterruptPolicy::none(), &cache, &scratch, &streams);
+    REQUIRE(streamed.ok());
+
+    StatusOr<std::vector<double>> cold = GpuCandidateExport::theory_scores_only(
+        fx.cipher, fx.freqs, fx.theories, fx.uri, fx.params_list);
+    REQUIRE(cold.ok());
+    REQUIRE(cold.value().size() == streamed.value().size());
+    for (std::size_t i = 0; i < cold.value().size(); ++i) {
+        REQUIRE(std::abs(cold.value()[i] - streamed.value()[i]) < 1e-12);
+    }
+
+    // Second chunk on the same streams stays correct.
+    StatusOr<std::vector<double>> chunk_b = GpuCandidateExport::theory_scores_only(
+        fx.cipher, fx.freqs, fx.theories, fx.uri, fx.params_chunk_b, TransformDirection::Decrypt,
+        BatchRunner::Progress{}, InterruptPolicy::none(), &cache, &scratch, &streams);
+    REQUIRE(chunk_b.ok());
+    REQUIRE(chunk_b.value().size() == fx.params_chunk_b.size());
+    REQUIRE(scratch.cipher_upload_count() == 1);
 
     std::error_code ec;
     std::filesystem::remove_all(fx.root, ec);

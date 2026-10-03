@@ -39,6 +39,7 @@
 #include <vector>
 
 #if defined(PARCAE_HAS_CUDA)
+#include "cuda_stream_pair.hpp"
 #include "theory_device_scratch.hpp"
 #endif
 
@@ -75,6 +76,8 @@ public:
 #if defined(PARCAE_HAS_CUDA)
         /// Optional persistent theory device scratch (cipher/probs/param buffers).
         TheoryDeviceScratch* theory_scratch = nullptr;
+        /// Optional copy/compute stream pair for theory async H2D/hist/D2H.
+        CudaStreamPair* theory_streams = nullptr;
 #endif
     };
 
@@ -112,6 +115,8 @@ public:
 #if defined(PARCAE_HAS_CUDA)
         /// Optional theory device scratch shared across loop iterations.
         TheoryDeviceScratch* theory_scratch = nullptr;
+        /// Optional theory stream pair shared across loop iterations.
+        CudaStreamPair* theory_streams = nullptr;
 #endif
     };
 
@@ -253,7 +258,7 @@ public:
             options.theory_cache
 #if defined(PARCAE_HAS_CUDA)
             ,
-            options.theory_scratch
+            options.theory_scratch, options.theory_streams
 #endif
         );
         if (!exported.ok()) {
@@ -393,6 +398,9 @@ public:
         TheoryDeviceScratch loop_theory_scratch;
         TheoryDeviceScratch* theory_scratch =
             options.theory_scratch != nullptr ? options.theory_scratch : &loop_theory_scratch;
+        CudaStreamPair loop_theory_streams = CudaStreamPair::create_or_legacy();
+        CudaStreamPair* theory_streams =
+            options.theory_streams != nullptr ? options.theory_streams : &loop_theory_streams;
 #endif
 
         for (std::size_t i = 0; i < options.max_iterations; ++i) {
@@ -414,6 +422,7 @@ public:
             once.theory_cache = theory_cache;
 #if defined(PARCAE_HAS_CUDA)
             once.theory_scratch = theory_scratch;
+            once.theory_streams = theory_streams;
 #endif
             if (!options.batch_ids.empty()) {
                 once.batch_id = options.batch_ids[i];
@@ -613,7 +622,8 @@ private:
                       TheoryExportCache* theory_cache = nullptr
 #if defined(PARCAE_HAS_CUDA)
                       ,
-                      TheoryDeviceScratch* theory_scratch = nullptr
+                      TheoryDeviceScratch* theory_scratch = nullptr,
+                      CudaStreamPair* theory_streams = nullptr
 #endif
     ) {
         // Hill / CTAK / PTAK stay hard CPU-only (`is_cpu_export_only_family`).
@@ -647,7 +657,7 @@ private:
             cipher, job, freqs.value(), ctx.data_root() / "theories", progress, theory_cache
 #if defined(PARCAE_HAS_CUDA)
             ,
-            theory_scratch
+            theory_scratch, theory_streams
 #endif
         );
         if (!fused.ok()) {
@@ -671,7 +681,8 @@ private:
                       TheoryExportCache* theory_cache = nullptr
 #if defined(PARCAE_HAS_CUDA)
                       ,
-                      TheoryDeviceScratch* theory_scratch = nullptr
+                      TheoryDeviceScratch* theory_scratch = nullptr,
+                      CudaStreamPair* theory_streams = nullptr
 #endif
     ) {
         const std::string& family = job.family();
@@ -771,7 +782,7 @@ private:
                 progress, InterruptPolicy::none(), theory_cache
 #if defined(PARCAE_HAS_CUDA)
                 ,
-                theory_scratch
+                theory_scratch, theory_streams
 #endif
             );
         }

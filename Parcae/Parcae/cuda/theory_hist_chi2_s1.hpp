@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cuda_runtime_api.h>
 
 /// S1 LUT-29 fused χ² hist for f(x)-only decrypt (Affine/Caesar-shaped).
 ///
@@ -20,7 +21,8 @@ public:
     [[nodiscard]] static Status
     launch_lut_async(const std::uint8_t* device_in, const std::uint8_t* device_luts,
                      const double* device_probabilities, std::uint32_t* device_counts,
-                     double* device_scores, std::size_t candidate_count, std::size_t token_count);
+                     double* device_scores, std::size_t candidate_count, std::size_t token_count,
+                     cudaStream_t stream = nullptr);
 
 private:
     TheoryHistChi2S1() = delete;

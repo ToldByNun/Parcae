@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cuda_runtime_api.h>
 
 /// S2 uchar4 fused χ² hist for bitmask_blend / progressive shapes:
 /// `out = x - (b0 + b1·(t mod 29))` or `out = x + (b0 + b1·(t mod 29))` (mod 29).
@@ -23,7 +24,7 @@ public:
         const std::uint8_t* device_in, const std::uint8_t* device_b0,
         const std::uint8_t* device_b1, const double* device_probabilities,
         std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
-        std::size_t token_count, bool cipher_minus_ks);
+        std::size_t token_count, bool cipher_minus_ks, cudaStream_t stream = nullptr);
 
 private:
     TheoryHistChi2S2() = delete;

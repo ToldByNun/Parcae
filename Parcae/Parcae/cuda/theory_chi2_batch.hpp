@@ -33,7 +33,7 @@ public:
     /// Larger programs fall back to global loads (still trusted eval).
     static constexpr std::uint32_t kSharedProgramOps = 512;
 
-    /// Launch hist + χ² finalize + inf-patch (async on default stream).
+    /// Launch hist + χ² finalize + inf-patch (async; `stream` default = null).
     /// `device_lane_err` must hold `candidate_count` bytes (cleared here).
     [[nodiscard]] static Status
     launch_async(const std::uint8_t* device_in, const std::uint8_t* device_ops,
@@ -42,7 +42,8 @@ public:
                  std::uint16_t cipher_slot, std::uint16_t index_slot, std::uint8_t binds_index_i,
                  std::uint16_t max_stack, const double* device_probabilities,
                  std::uint32_t* device_counts, double* device_scores, std::uint8_t* device_lane_err,
-                 std::size_t candidate_count, std::size_t token_count);
+                 std::size_t candidate_count, std::size_t token_count,
+                 cudaStream_t stream = nullptr);
 
 private:
     TheoryChi2Batch() = delete;
@@ -52,7 +53,7 @@ private:
     [[nodiscard]] static Status clear_and_grid(std::uint32_t* device_counts,
                                                std::uint8_t* device_lane_err,
                                                std::size_t candidate_count, std::size_t token_count,
-                                               dim3* grid_out);
+                                               dim3* grid_out, cudaStream_t stream);
 };
 
 #endif // THEORY_CHI2_BATCH_HPP

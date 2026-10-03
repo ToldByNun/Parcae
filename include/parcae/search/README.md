@@ -36,10 +36,11 @@ Top-level classes only — **no** C++ namespaces. One class per header with
 soft-fallback **S0** bytecode via `TheoryHistChi2Launch` / `TheoryChi2Batch`
 (`export_backend=cuda`). Toolkit **1.1.0** lifts hill/autokey off the hard list —
 [`cuda-catalog-parity.md`](../../../docs/architecture/cuda-catalog-parity.md).
-`SearchScheduler::run_loop` keeps a `TheoryExportCache` and (CUDA)
-`TheoryDeviceScratch` across iterations (override via `Options::theory_cache` /
-`theory_scratch` / `LoopOptions::*`). Use
-`GpuCandidateExport::theory_scores_only` for score sweeps without materialize.
+`SearchScheduler::run_loop` keeps a `TheoryExportCache`, (CUDA)
+`TheoryDeviceScratch`, and `CudaStreamPair` across iterations (override via
+`Options::theory_cache` / `theory_scratch` / `theory_streams` /
+`LoopOptions::*`). Use `GpuCandidateExport::theory_scores_only` for score
+sweeps without materialize.
 
 **Throughput:** Kernel SLO = `parcae-bench --suite theory` (`T.theory.*`, ≥90%
 peak @ fair T). Campaign wall = `research/run.log` cells/s — ops only, not the

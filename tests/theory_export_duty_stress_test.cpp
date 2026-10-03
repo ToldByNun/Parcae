@@ -13,6 +13,7 @@
 #include <parcae/search/theory_export_cache.hpp>
 #include <parcae/transform/transform_direction.hpp>
 
+#include "cuda_stream_pair.hpp"
 #include "parcae_cuda.hpp"
 #include "theory_device_scratch.hpp"
 
@@ -122,6 +123,7 @@ TEST_CASE("Theory export multi-chunk duty stress (nsys)",
     TheoryExportDutyStress::Fixture fx = TheoryExportDutyStress::make_fixture();
     TheoryExportCache cache;
     TheoryDeviceScratch scratch;
+    CudaStreamPair streams = CudaStreamPair::create_or_legacy();
 
     for (int chunk = 0; chunk < TheoryExportDutyStress::kChunks; ++chunk) {
         // Rotate a few params so bind_slots work is non-trivial each chunk.
@@ -133,7 +135,7 @@ TEST_CASE("Theory export multi-chunk duty stress (nsys)",
 
         StatusOr<std::vector<double>> scores = GpuCandidateExport::theory_scores_only(
             fx.cipher, fx.freqs, fx.theories, fx.uri, chunk_params, TransformDirection::Decrypt,
-            BatchRunner::Progress{}, InterruptPolicy::none(), &cache, &scratch);
+            BatchRunner::Progress{}, InterruptPolicy::none(), &cache, &scratch, &streams);
         REQUIRE(scores.ok());
         REQUIRE(scores.value().size() == TheoryExportDutyStress::kCandidates);
     }
