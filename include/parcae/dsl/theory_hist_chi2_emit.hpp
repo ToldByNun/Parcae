@@ -9,6 +9,7 @@
 #include "parcae/dsl/dsl_optimize.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
 #include "parcae/dsl/theory_ir.hpp"
+#include "parcae/dsl/theory_shape_match.hpp"
 #include "parcae/dsl/z29_bytecode.hpp"
 #include "parcae/dsl/z29_expr.hpp"
 #include "parcae/transform/transform_direction.hpp"
@@ -23,11 +24,11 @@
 #include <utility>
 #include <vector>
 
-/// AOT fused-χ² hist emit for theory search (docs: theory CUDA throughput climb).
+/// AOT fused-χ² hist emit for theory search (`docs/architecture/dsl-smart-hist.md`).
 ///
-/// S1: f(x)-only decrypt → LUT-29 + uchar4 hist (runtime twin: `TheoryHistChi2S1`).
-/// S2: bitmask_blend-shaped `x ± g(i; params)` — linear `b0 + b1·i`
-/// (runtime twin: `TheoryHistChi2S2`). S3 source emit TBD; non-matching shapes soft-fallback S0.
+/// Classify via `Z29ExprNormalize` + `TheoryShapeMatch` (name-irrelevant), then:
+/// ShapeInline (Atbash/Caesar/Affine) → S1 LUT twin until shape kernels land;
+/// LinearKeystream → S2; FxOnly → S1; Autokey/prefer_branch → S0; else S3 stub→S0.
 ///
 /// No C++ namespaces. Emitted CUDA uses file-scope `__global__` names —
 /// never anonymous `namespace {}`.
@@ -49,6 +50,59 @@ public:
         S2Uchar4Inline,
         /// Inline scalar hist (no interpreter); not uchar4-packable.
         S3ScalarInline,
+        /// Algebraic Atbash / Caesar / Affine (`TheoryShapeMatch`); runtime may
+        /// use S1 twin until dedicated HistFast shape kernels ship.
+        ShapeInline,
+    };
+
+    /// Persisted shape match (algebra only — not theory name / catalog API).
+    class ShapePlan {
+    public:
+        explicit ShapePlan(TheoryShapeMatch::ShapeId shape, std::string reason)
+            : shape_(shape), reason_(std::move(reason)) {}
+
+        [[nodiscard]] static ShapePlan from_match(const TheoryShapeMatch::Match& m) {
+            ShapePlan p{m.shape(), m.reason()};
+            p.shift_name_ = m.shift_name();
+            p.a_name_ = m.a_name();
+            p.b_name_ = m.b_name();
+            p.b0_name_ = m.b0_name();
+            p.b1_name_ = m.b1_name();
+            p.cipher_minus_ks_ = m.cipher_minus_ks();
+            return p;
+        }
+
+        [[nodiscard]] TheoryShapeMatch::ShapeId shape() const noexcept { return shape_; }
+
+        [[nodiscard]] const std::string& reason() const noexcept { return reason_; }
+
+        [[nodiscard]] const std::string& shift_name() const noexcept { return shift_name_; }
+
+        [[nodiscard]] const std::string& a_name() const noexcept { return a_name_; }
+
+        [[nodiscard]] const std::string& b_name() const noexcept { return b_name_; }
+
+        [[nodiscard]] const std::string& b0_name() const noexcept { return b0_name_; }
+
+        [[nodiscard]] const std::string& b1_name() const noexcept { return b1_name_; }
+
+        [[nodiscard]] bool cipher_minus_ks() const noexcept { return cipher_minus_ks_; }
+
+        [[nodiscard]] bool is_shape_inline() const noexcept {
+            return shape_ == TheoryShapeMatch::ShapeId::Atbash ||
+                   shape_ == TheoryShapeMatch::ShapeId::Caesar ||
+                   shape_ == TheoryShapeMatch::ShapeId::Affine;
+        }
+
+    private:
+        TheoryShapeMatch::ShapeId shape_ = TheoryShapeMatch::ShapeId::Unknown;
+        std::string reason_;
+        std::string shift_name_;
+        std::string a_name_;
+        std::string b_name_;
+        std::string b0_name_;
+        std::string b1_name_;
+        bool cipher_minus_ks_ = false;
     };
 
     /// S1 plan: params in `TheoryIr::params()` order; LUT rows are `C × 29`.
@@ -89,12 +143,15 @@ public:
 
     class Selection {
     public:
-        Selection(Strategy strategy, std::string reason)
-            : strategy_(strategy), reason_(std::move(reason)) {}
+        Selection(Strategy strategy, std::string reason,
+                  std::optional<ShapePlan> shape = std::nullopt)
+            : strategy_(strategy), reason_(std::move(reason)), shape_(std::move(shape)) {}
 
         [[nodiscard]] Strategy strategy() const noexcept { return strategy_; }
 
         [[nodiscard]] const std::string& reason() const noexcept { return reason_; }
+
+        [[nodiscard]] const std::optional<ShapePlan>& shape() const noexcept { return shape_; }
 
         [[nodiscard]] bool is_specialized() const noexcept {
             return strategy_ != Strategy::S0Bytecode;
@@ -103,6 +160,7 @@ public:
     private:
         Strategy strategy_ = Strategy::S0Bytecode;
         std::string reason_;
+        std::optional<ShapePlan> shape_;
     };
 
     /// Emit / artifact wiring result. `specialized()==false` → use bytecode launch.
@@ -111,11 +169,13 @@ public:
         EmitBundle(Strategy intended, Strategy emitted, bool specialized, std::string reason,
                    std::string header_text, std::string cu_text, std::string kernel_symbol,
                    std::optional<S1LutPlan> s1_lut = std::nullopt,
-                   std::optional<S2LinearPlan> s2_linear = std::nullopt)
+                   std::optional<S2LinearPlan> s2_linear = std::nullopt,
+                   std::optional<ShapePlan> shape = std::nullopt)
             : intended_(intended), emitted_(emitted), specialized_(specialized),
               reason_(std::move(reason)), header_text_(std::move(header_text)),
               cu_text_(std::move(cu_text)), kernel_symbol_(std::move(kernel_symbol)),
-              s1_lut_(std::move(s1_lut)), s2_linear_(std::move(s2_linear)) {}
+              s1_lut_(std::move(s1_lut)), s2_linear_(std::move(s2_linear)),
+              shape_(std::move(shape)) {}
 
         [[nodiscard]] Strategy intended_strategy() const noexcept { return intended_; }
 
@@ -137,6 +197,18 @@ public:
             return s2_linear_;
         }
 
+        [[nodiscard]] const std::optional<ShapePlan>& shape() const noexcept { return shape_; }
+
+        [[nodiscard]] bool is_shape_inline() const noexcept {
+            return emitted_ == Strategy::ShapeInline;
+        }
+
+        /// Soft runtime path until dedicated shape HistFast kernels ship.
+        [[nodiscard]] bool has_s1_soft_path() const noexcept {
+            return s1_lut_.has_value() &&
+                   (emitted_ == Strategy::S1Lut29 || emitted_ == Strategy::ShapeInline);
+        }
+
     private:
         Strategy intended_ = Strategy::S0Bytecode;
         Strategy emitted_ = Strategy::S0Bytecode;
@@ -147,6 +219,7 @@ public:
         std::string kernel_symbol_;
         std::optional<S1LutPlan> s1_lut_;
         std::optional<S2LinearPlan> s2_linear_;
+        std::optional<ShapePlan> shape_;
     };
 
     [[nodiscard]] static const char* strategy_str(Strategy s) noexcept {
@@ -159,11 +232,17 @@ public:
             return "S2_uchar4_inline";
         case Strategy::S3ScalarInline:
             return "S3_scalar_inline";
+        case Strategy::ShapeInline:
+            return "ShapeInline";
         }
         return "S0_bytecode";
     }
 
-    /// Classify decrypt HotLoop for fused hist emit (does not emit sources).
+    [[nodiscard]] static const char* shape_id_str(TheoryShapeMatch::ShapeId id) noexcept {
+        return TheoryShapeMatch::shape_str(id);
+    }
+
+    /// Classify decrypt HotLoop: normalize+match before generic S1/S2 heuristics.
     [[nodiscard]] static Selection select_strategy(const TheoryIr& theory,
                                                    std::string_view cipher_var = "x") {
         if (!theory.decrypt_step()) {
@@ -197,12 +276,55 @@ public:
             return Selection{Strategy::S0Bytecode, "prefer_branch Select is S0-only"};
         }
 
-        const bool uses_i = DslOptimize::depends_on_var(dec, "i");
         const bool uses_cipher = DslOptimize::depends_on_var(dec, cipher_var);
         if (!uses_cipher) {
             return Selection{Strategy::S0Bytecode, "decrypt_step does not reference cipher_var"};
         }
 
+        StatusOr<TheoryShapeMatch::Match> matched =
+            TheoryShapeMatch::match_theory(theory, cipher_var);
+        if (matched.ok()) {
+            const ShapePlan plan = ShapePlan::from_match(matched.value());
+            switch (matched.value().shape()) {
+            case TheoryShapeMatch::ShapeId::Atbash:
+            case TheoryShapeMatch::ShapeId::Caesar:
+            case TheoryShapeMatch::ShapeId::Affine:
+                return Selection{Strategy::ShapeInline,
+                                 std::string("shape ") + shape_id_str(matched.value().shape()) +
+                                     " — ShapeInline (S1 soft twin until shape kernels)",
+                                 plan};
+            case TheoryShapeMatch::ShapeId::LinearKeystream:
+                return Selection{Strategy::S2Uchar4Inline,
+                                 std::string("shape LinearKeystream — S2 uchar4 candidate (") +
+                                     matched.value().reason() + ")",
+                                 plan};
+            case TheoryShapeMatch::ShapeId::FxOnly:
+                return Selection{Strategy::S1Lut29,
+                                 std::string("shape FxOnly — S1 LUT candidate (") +
+                                     matched.value().reason() + ")",
+                                 plan};
+            case TheoryShapeMatch::ShapeId::PolyKeystream:
+                return Selection{Strategy::S3ScalarInline,
+                                 std::string("shape PolyKeystream — S3/S5 stub (") +
+                                     matched.value().reason() + ")",
+                                 plan};
+            case TheoryShapeMatch::ShapeId::KeyedGeneral:
+                return Selection{Strategy::S3ScalarInline,
+                                 std::string("shape KeyedGeneral — S3 scalar candidate (") +
+                                     matched.value().reason() + ")",
+                                 plan};
+            case TheoryShapeMatch::ShapeId::Autokey:
+                return Selection{Strategy::S0Bytecode,
+                                 std::string("shape Autokey — S0 until S4 (") +
+                                     matched.value().reason() + ")",
+                                 plan};
+            case TheoryShapeMatch::ShapeId::Unknown:
+                break;
+            }
+        }
+
+        // Legacy soft heuristics when shape is Unknown / match failed.
+        const bool uses_i = DslOptimize::depends_on_var(dec, "i");
         if (!uses_i) {
             return Selection{Strategy::S1Lut29,
                              "decrypt is f(x;params) without stream index — S1 LUT candidate"};
@@ -261,7 +383,8 @@ public:
     }
 
     /// Emit fused-hist sources for decrypt search path.
-    /// S1 f(x)-only → LUT-29; S2 linear (`b0+b1·i`) → uchar4; else soft S0 fallback.
+    /// ShapeInline → S1 LUT soft twin (+ ShapePlan); S1 → LUT-29; S2 linear → uchar4;
+    /// else soft S0 fallback.
     [[nodiscard]] static StatusOr<EmitBundle>
     emit_decrypt_hist(const TheoryIr& theory, std::string_view cipher_var = "x",
                       const std::vector<DslOptimize::Hoist>& decrypt_hoists = {}) {
@@ -273,7 +396,30 @@ public:
         Selection sel = select_strategy(theory, cipher_var);
         if (sel.strategy() == Strategy::S0Bytecode) {
             return EmitBundle{Strategy::S0Bytecode, Strategy::S0Bytecode, false, sel.reason(), "",
-                              "", ""};
+                              "", "", std::nullopt, std::nullopt, sel.shape()};
+        }
+
+        if (sel.strategy() == Strategy::ShapeInline) {
+            if (!decrypt_hoists.empty()) {
+                return EmitBundle{Strategy::ShapeInline, Strategy::S0Bytecode, false,
+                                  std::string("ShapeInline classified but decrypt hoists not yet "
+                                              "wired; fallback S0 (") +
+                                      sel.reason() + ")",
+                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
+            }
+            StatusOr<EmitBundle> soft = emit_s1_lut_sources(theory, cipher_var, sel.reason());
+            if (!soft.ok()) {
+                return EmitBundle{Strategy::ShapeInline, Strategy::S0Bytecode, false,
+                                  std::string("ShapeInline S1 soft twin failed: ") +
+                                      soft.status().message() + "; fallback S0 (" + sel.reason() +
+                                      ")",
+                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
+            }
+            EmitBundle& b = soft.value();
+            return EmitBundle{Strategy::ShapeInline, Strategy::ShapeInline, true,
+                              std::string("ShapeInline + S1 soft twin: ") + sel.reason(),
+                              b.header_text(), b.cu_text(), b.kernel_symbol(), b.s1_lut(),
+                              std::nullopt, sel.shape()};
         }
 
         if (sel.strategy() == Strategy::S1Lut29) {
@@ -282,32 +428,46 @@ public:
                                   std::string("S1 classified but decrypt hoists not yet wired; "
                                               "fallback S0 (") +
                                       sel.reason() + ")",
-                                  "", "", ""};
+                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
             }
             StatusOr<EmitBundle> bundle = emit_s1_lut_sources(theory, cipher_var, sel.reason());
             if (!bundle.ok()) {
                 return EmitBundle{Strategy::S1Lut29, Strategy::S0Bytecode, false,
                                   std::string("S1 emit failed: ") + bundle.status().message() +
                                       "; fallback S0 (" + sel.reason() + ")",
-                                  "", "", ""};
+                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
             }
-            return bundle;
+            return EmitBundle{bundle.value().intended_strategy(),
+                              bundle.value().emitted_strategy(), bundle.value().specialized(),
+                              bundle.value().reason(), bundle.value().header_text(),
+                              bundle.value().cu_text(), bundle.value().kernel_symbol(),
+                              bundle.value().s1_lut(), bundle.value().s2_linear(), sel.shape()};
         }
 
         if (sel.strategy() == Strategy::S2Uchar4Inline) {
             std::optional<S2LinearPlan> plan = match_s2_linear(theory, cipher_var);
+            if (!plan && sel.shape() && !sel.shape()->b0_name().empty() &&
+                !sel.shape()->b1_name().empty()) {
+                plan = S2LinearPlan{sel.shape()->b0_name(), sel.shape()->b1_name(),
+                                    sel.shape()->cipher_minus_ks()};
+            }
             if (plan) {
                 StatusOr<EmitBundle> bundle = emit_s2_linear_sources(theory, *plan, sel.reason());
                 if (!bundle.ok()) {
                     return bundle.status();
                 }
-                return bundle;
+                return EmitBundle{bundle.value().intended_strategy(),
+                                  bundle.value().emitted_strategy(), bundle.value().specialized(),
+                                  bundle.value().reason(), bundle.value().header_text(),
+                                  bundle.value().cu_text(), bundle.value().kernel_symbol(),
+                                  bundle.value().s1_lut(), bundle.value().s2_linear(),
+                                  sel.shape()};
             }
             return EmitBundle{Strategy::S2Uchar4Inline, Strategy::S0Bytecode, false,
                               std::string("S2 classified but keystream is not linear b0+b1*i; "
                                           "fallback S0 (") +
                                   sel.reason() + ")",
-                              "", "", ""};
+                              "", "", "", std::nullopt, std::nullopt, sel.shape()};
         }
 
         // S3 emit not implemented yet — soft S0 fallback (export stays correct).
@@ -315,7 +475,7 @@ public:
                           std::string("skeleton: ") + strategy_str(sel.strategy()) +
                               " classified but emit not implemented; fallback S0 (" + sel.reason() +
                               ")",
-                          "", "", ""};
+                          "", "", "", std::nullopt, std::nullopt, sel.shape()};
     }
 
     /// Launch geometry for specialized hist (same as FamilyChi2 / HistFast).

@@ -11,6 +11,7 @@
 #include <parcae/dsl/theory_dispatch.hpp>
 #include <parcae/dsl/theory_hist_chi2_emit.hpp>
 #include <parcae/dsl/theory_ir.hpp>
+#include <parcae/dsl/theory_shape_match.hpp>
 #include <parcae/dsl/theory_uri.hpp>
 #include <parcae/dsl/z29_expr.hpp>
 #include <parcae/interrupt/policy.hpp>
@@ -106,10 +107,10 @@ constexpr const char* kSha =
 
 } // namespace
 
-TEST_CASE("GpuCandidateExport prefers S1 LUT hist; export_backend=cuda",
-          "[search][export][theory][specialized][cuda]") {
+TEST_CASE("GpuCandidateExport prefers ShapeInline (S1 soft twin); export_backend=cuda",
+          "[search][export][theory][specialized][cuda][shape]") {
     const std::filesystem::path root =
-        std::filesystem::temp_directory_path() / "parcae_export_prefer_s1";
+        std::filesystem::temp_directory_path() / "parcae_export_prefer_shape";
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
     std::filesystem::create_directories(root / "theories", ec);
@@ -133,14 +134,17 @@ TEST_CASE("GpuCandidateExport prefers S1 LUT hist; export_backend=cuda",
     REQUIRE(prepared.ok());
     REQUIRE(prepared.value()->hist_plan().specialized());
     REQUIRE(prepared.value()->hist_plan().emitted_strategy() ==
-            TheoryHistChi2Emit::Strategy::S1Lut29);
+            TheoryHistChi2Emit::Strategy::ShapeInline);
+    REQUIRE(prepared.value()->hist_plan().has_s1_soft_path());
+    REQUIRE(prepared.value()->hist_plan().shape().has_value());
+    REQUIRE(prepared.value()->hist_plan().shape()->shape() == TheoryShapeMatch::ShapeId::Caesar);
 
     StatusOr<GpuCandidateExport::Result> exported = GpuCandidateExport::theory_explicit_params(
         cipher, freqs.value(), root / "theories", "parcae://theories/export_prefer_caesar@1",
         params_list, /*k=*/3, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
     REQUIRE(exported.ok());
     REQUIRE(exported.value().backend() == Backend::Cuda);
-    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S1Lut29);
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::ShapeInline);
     REQUIRE(exported.value().size() == 3);
 
     // Parity vs CPU χ² ordering for top-1.
@@ -148,7 +152,7 @@ TEST_CASE("GpuCandidateExport prefers S1 LUT hist; export_backend=cuda",
         cipher, freqs.value(), root / "theories", "parcae://theories/export_prefer_caesar@1",
         params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
     REQUIRE(gpu_scores.ok());
-    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S1Lut29);
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::ShapeInline);
 
     for (std::size_t c = 0; c < params_list.size(); ++c) {
         StatusOr<std::vector<Index29>> plain = TheoryDispatch::apply(

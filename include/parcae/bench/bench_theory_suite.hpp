@@ -438,8 +438,8 @@ private:
         return params;
     }
 
-    /// Caesar-as-bytecode fair row: prefer S1 specialize when emit classifies
-    /// f(x)-only (same scores, S1 kernel rates); else S0 interpreter.
+    /// Caesar-as-bytecode fair row: prefer ShapeInline/S1 specialize when emit
+    /// classifies (same scores, S1 soft-twin rates); else S0 interpreter.
     [[nodiscard]] static StatusOr<BenchReport::Row>
     run_caesar_bytecode(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
                         std::size_t reps, std::string name, std::string workload,
@@ -450,10 +450,13 @@ private:
         }
         StatusOr<TheoryHistChi2Emit::EmitBundle> emit =
             TheoryHistChi2Emit::emit_decrypt_hist(theory.value());
-        if (emit.ok() && emit.value().specialized() &&
-            emit.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29) {
+        if (emit.ok() && emit.value().specialized() && emit.value().has_s1_soft_path()) {
+            const char* tag =
+                emit.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::ShapeInline
+                    ? "specialize_ShapeInline"
+                    : "specialize_S1";
             return run_caesar_s1(freqs, C, T, reps, std::move(name), std::move(workload), tier,
-                                 "specialize_S1");
+                                 tag);
         }
 
         StatusOr<Z29Bytecode::Program> prog =

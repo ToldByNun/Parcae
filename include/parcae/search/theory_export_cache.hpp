@@ -42,9 +42,10 @@ public:
 
         HistPlan(TheoryHistChi2Emit::Strategy emitted, bool specialized,
                  std::optional<TheoryHistChi2Emit::S1LutPlan> s1,
-                 std::optional<TheoryHistChi2Emit::S2LinearPlan> s2, std::string cipher_var)
+                 std::optional<TheoryHistChi2Emit::S2LinearPlan> s2, std::string cipher_var,
+                 std::optional<TheoryHistChi2Emit::ShapePlan> shape = std::nullopt)
             : emitted_(emitted), specialized_(specialized), s1_(std::move(s1)),
-              s2_(std::move(s2)), cipher_var_(std::move(cipher_var)) {}
+              s2_(std::move(s2)), cipher_var_(std::move(cipher_var)), shape_(std::move(shape)) {}
 
         [[nodiscard]] TheoryHistChi2Emit::Strategy emitted_strategy() const noexcept {
             return emitted_;
@@ -61,7 +62,17 @@ public:
             return s2_;
         }
 
+        [[nodiscard]] const std::optional<TheoryHistChi2Emit::ShapePlan>& shape() const noexcept {
+            return shape_;
+        }
+
         [[nodiscard]] const std::string& cipher_var() const noexcept { return cipher_var_; }
+
+        [[nodiscard]] bool has_s1_soft_path() const noexcept {
+            return s1_.has_value() &&
+                   (emitted_ == TheoryHistChi2Emit::Strategy::S1Lut29 ||
+                    emitted_ == TheoryHistChi2Emit::Strategy::ShapeInline);
+        }
 
     private:
         TheoryHistChi2Emit::Strategy emitted_ = TheoryHistChi2Emit::Strategy::S0Bytecode;
@@ -69,6 +80,7 @@ public:
         std::optional<TheoryHistChi2Emit::S1LutPlan> s1_;
         std::optional<TheoryHistChi2Emit::S2LinearPlan> s2_;
         std::string cipher_var_ = "x";
+        std::optional<TheoryHistChi2Emit::ShapePlan> shape_;
     };
 
     /// Prepared host theory + bytecode for one (root, uri, direction) key.
@@ -261,10 +273,11 @@ private:
             if (bundle.ok() && bundle.value().specialized()) {
                 hist_plan = HistPlan{bundle.value().emitted_strategy(), true,
                                      bundle.value().s1_lut(), bundle.value().s2_linear(),
-                                     cipher_var};
+                                     cipher_var, bundle.value().shape()};
             } else {
                 hist_plan = HistPlan{TheoryHistChi2Emit::Strategy::S0Bytecode, false, std::nullopt,
-                                     std::nullopt, cipher_var};
+                                     std::nullopt, cipher_var,
+                                     bundle.ok() ? bundle.value().shape() : std::nullopt};
             }
         } else {
             hist_plan = HistPlan{TheoryHistChi2Emit::Strategy::S0Bytecode, false, std::nullopt,

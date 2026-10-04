@@ -66,9 +66,10 @@ Python HotLoop decrypt_step
 | Module | `TheoryHistModule` | Optional cubin/NVRTC by URI+digest; soft S0 on fail |
 | Hist primitives | `HistFast` | Shared decode with catalog (`dec_atbash`, caesar, affine, …) |
 
-Shipping today (honest): classify S0–S3; launch in-lib S1/S2; emit sources
-discarded; `has_specialized` always false; no normalize/match. This contract
-defines the target; code catches up behind tests.
+Shipping today (honest): normalize+match before S1; `ShapeInline` for
+Atbash/Caesar/Affine with S1 soft twin; launch prefer
+`ShapeInline→S1→S2→S0`; shape HistFast kernels still pending; emit sources
+still discarded at export; `has_specialized` still false for NVRTC modules.
 
 ---
 
@@ -248,7 +249,7 @@ private:
 |------------|-------|-----------------|
 | `Z29ExprNormalize` | **Shipping** (`[dsl][normalize]`) | Idempotent arith → Atbash / commute forms |
 | `TheoryShapeMatch` | **Shipping** (`[dsl][shape]`) | ShapeId ladder; name-irrelevant; autokey / prefer_branch / non-inv affine |
-| Self-written Atbash arith | S1 LUT (+ host fill); normalize+match → `Atbash` | `Atbash` shape twin (`HistFast::dec_atbash`) |
+| Self-written Atbash arith | `ShapeInline` + S1 soft twin (export prefer) | `Atbash` shape twin (`HistFast::dec_atbash`) |
 | Name / API required for fast path | Effective yes (catalog) | **No** — algebra only |
 | S3 / S4 / S5 | Stub or hard S0 | Real launch or module |
 | Emit sources / `hist_module` | Discarded / null | `hist_plan` + optional module load |

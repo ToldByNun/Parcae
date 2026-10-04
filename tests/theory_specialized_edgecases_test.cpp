@@ -275,7 +275,7 @@ TEST_CASE("specialized S1 vs bytecode: scores + top-k order match",
         cipher, freqs.value(), root / "theories", "parcae://theories/edge_caesar@1", params_list,
         TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
     REQUIRE(specialized.ok());
-    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S1Lut29);
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::ShapeInline);
 
     const std::vector<double> bytecode =
         launch_bytecode_scores(theory, cipher, params_list, freqs.value());

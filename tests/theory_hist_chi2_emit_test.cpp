@@ -3,6 +3,7 @@
 #include <parcae/dsl/param_ir.hpp>
 #include <parcae/dsl/theory_hist_chi2_emit.hpp>
 #include <parcae/dsl/theory_ir.hpp>
+#include <parcae/dsl/theory_shape_match.hpp>
 #include <parcae/dsl/z29_expr.hpp>
 
 #include <optional>
@@ -82,7 +83,20 @@ namespace {
         TheoryIr::InterruptMode::ElementwiseDefault, {a.value(), b.value()},
         Z29Expr::add(Z29Expr::mul(av, x), bv),
         Z29Expr::mul(Z29Expr::inv(av), Z29Expr::sub(x, bv)),
-        std::string("S1 candidate affine."));
+        std::string("FxOnly/S1 candidate affine decrypt (inv form)."));
+    REQUIRE(theory.ok());
+    return theory.value();
+}
+
+[[nodiscard]] TheoryIr make_atbash_arith_theory() {
+    // Self-written Atbash as pure arith — name-irrelevant ShapeInline.
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr twenty_eight = Z29Expr::constant(28).value();
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "emit_foo_bar", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {},
+        Z29Expr::sub(twenty_eight, x), Z29Expr::sub(twenty_eight, x),
+        std::string("Atbash arith ShapeInline."));
     REQUIRE(theory.ok());
     return theory.value();
 }
@@ -107,12 +121,24 @@ namespace {
 
 } // namespace
 
-TEST_CASE("TheoryHistChi2Emit selects S1 for caesar-shaped decrypt",
-          "[dsl][emit][hist][chi2]") {
+TEST_CASE("TheoryHistChi2Emit selects ShapeInline for caesar-shaped decrypt",
+          "[dsl][emit][hist][chi2][shape]") {
     const TheoryIr theory = make_caesar_theory();
     const TheoryHistChi2Emit::Selection sel = TheoryHistChi2Emit::select_strategy(theory);
-    REQUIRE(sel.strategy() == TheoryHistChi2Emit::Strategy::S1Lut29);
+    REQUIRE(sel.strategy() == TheoryHistChi2Emit::Strategy::ShapeInline);
     REQUIRE(sel.is_specialized());
+    REQUIRE(sel.shape().has_value());
+    REQUIRE(sel.shape()->shape() == TheoryShapeMatch::ShapeId::Caesar);
+}
+
+TEST_CASE("TheoryHistChi2Emit selects ShapeInline for self-written Atbash arith",
+          "[dsl][emit][hist][chi2][shape]") {
+    const TheoryIr theory = make_atbash_arith_theory();
+    const TheoryHistChi2Emit::Selection sel = TheoryHistChi2Emit::select_strategy(theory);
+    REQUIRE(sel.strategy() == TheoryHistChi2Emit::Strategy::ShapeInline);
+    REQUIRE(sel.shape().has_value());
+    REQUIRE(sel.shape()->shape() == TheoryShapeMatch::ShapeId::Atbash);
+    REQUIRE(std::string(theory.name()).find("atbash") == std::string::npos);
 }
 
 TEST_CASE("TheoryHistChi2Emit selects S2 for progressive x±g(i)", "[dsl][emit][hist][chi2]") {
@@ -164,30 +190,33 @@ TEST_CASE("TheoryHistChi2Emit S2 linear progressive emits uchar4 sources",
     REQUIRE(launch.value().grid_x() == 29);
 }
 
-TEST_CASE("TheoryHistChi2Emit S2 non-linear keystream falls back to S0",
+TEST_CASE("TheoryHistChi2Emit non-linear keystream is S3 stub → S0",
           "[dsl][emit][hist][chi2]") {
     const TheoryIr theory = make_nonlinear_s2_theory();
     REQUIRE(TheoryHistChi2Emit::select_strategy(theory).strategy() ==
-            TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
+            TheoryHistChi2Emit::Strategy::S3ScalarInline);
     REQUIRE_FALSE(TheoryHistChi2Emit::match_s2_linear(theory).has_value());
 
     StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
         TheoryHistChi2Emit::emit_decrypt_hist(theory);
     REQUIRE(bundle.ok());
-    REQUIRE(bundle.value().intended_strategy() == TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
+    REQUIRE(bundle.value().intended_strategy() == TheoryHistChi2Emit::Strategy::S3ScalarInline);
     REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
     REQUIRE_FALSE(bundle.value().specialized());
-    REQUIRE(bundle.value().reason().find("not linear") != std::string::npos);
 }
 
-TEST_CASE("TheoryHistChi2Emit S1 caesar emits LUT-29 sources", "[dsl][emit][hist][chi2]") {
+TEST_CASE("TheoryHistChi2Emit ShapeInline caesar emits S1 soft-twin sources",
+          "[dsl][emit][hist][chi2][shape]") {
     const TheoryIr theory = make_caesar_theory();
     StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
         TheoryHistChi2Emit::emit_decrypt_hist(theory);
     REQUIRE(bundle.ok());
-    REQUIRE(bundle.value().intended_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29);
-    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29);
+    REQUIRE(bundle.value().intended_strategy() == TheoryHistChi2Emit::Strategy::ShapeInline);
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::ShapeInline);
     REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().has_s1_soft_path());
+    REQUIRE(bundle.value().shape().has_value());
+    REQUIRE(bundle.value().shape()->shape() == TheoryShapeMatch::ShapeId::Caesar);
     REQUIRE(bundle.value().s1_lut().has_value());
     REQUIRE(bundle.value().s1_lut()->param_count() == 1);
     REQUIRE(bundle.value().s1_lut()->param_names()[0] == "shift");
@@ -198,7 +227,19 @@ TEST_CASE("TheoryHistChi2Emit S1 caesar emits LUT-29 sources", "[dsl][emit][hist
     REQUIRE(bundle.value().header_text().find("TheoryHistChi2S1") != std::string::npos);
 }
 
-TEST_CASE("TheoryHistChi2Emit S1 affine emits LUT-29 sources", "[dsl][emit][hist][chi2]") {
+TEST_CASE("TheoryHistChi2Emit ShapeInline Atbash arith emits S1 soft twin",
+          "[dsl][emit][hist][chi2][shape]") {
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(make_atbash_arith_theory());
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::ShapeInline);
+    REQUIRE(bundle.value().shape()->shape() == TheoryShapeMatch::ShapeId::Atbash);
+    REQUIRE(bundle.value().has_s1_soft_path());
+    REQUIRE(bundle.value().kernel_symbol() == "emit_foo_bar_s1_hist_kernel");
+}
+
+TEST_CASE("TheoryHistChi2Emit S1 affine (inv decrypt) emits LUT-29 sources",
+          "[dsl][emit][hist][chi2]") {
     const TheoryIr theory = make_affine_theory();
     REQUIRE(TheoryHistChi2Emit::select_strategy(theory).strategy() ==
             TheoryHistChi2Emit::Strategy::S1Lut29);
@@ -206,6 +247,7 @@ TEST_CASE("TheoryHistChi2Emit S1 affine emits LUT-29 sources", "[dsl][emit][hist
         TheoryHistChi2Emit::emit_decrypt_hist(theory);
     REQUIRE(bundle.ok());
     REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29);
     REQUIRE(bundle.value().s1_lut().has_value());
     REQUIRE(bundle.value().s1_lut()->param_count() == 2);
     REQUIRE(bundle.value().cu_text().find("Z29Device::inv") != std::string::npos);
@@ -262,11 +304,11 @@ TEST_CASE("TheoryHistChi2Emit S2 effective_strategy is specialized",
             TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
 }
 
-TEST_CASE("TheoryHistChi2Emit S1 effective_strategy is specialized",
+TEST_CASE("TheoryHistChi2Emit ShapeInline effective_strategy is specialized",
           "[dsl][emit][hist][chi2][cuda]") {
     REQUIRE(TheoryHistChi2Launch::effective_strategy(
                 TheoryHistChi2Emit::emit_decrypt_hist(make_caesar_theory()).value()) ==
-            TheoryHistChi2Emit::Strategy::S1Lut29);
+            TheoryHistChi2Emit::Strategy::ShapeInline);
 }
 
 TEST_CASE("TheoryHistChi2 S1 LUT golden: bytecode χ² == specialized χ² (caesar+affine)",
@@ -282,7 +324,7 @@ TEST_CASE("TheoryHistChi2 S1 LUT golden: bytecode χ² == specialized χ² (caes
             TheoryHistChi2Emit::emit_decrypt_hist(theory);
         REQUIRE(bundle.ok());
         REQUIRE(bundle.value().specialized());
-        REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29);
+        REQUIRE(bundle.value().has_s1_soft_path());
         REQUIRE(bundle.value().s1_lut().has_value());
 
         const StatusOr<Z29Bytecode::Program> prog =

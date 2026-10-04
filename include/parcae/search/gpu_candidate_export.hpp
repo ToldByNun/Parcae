@@ -82,7 +82,7 @@ class TheoryExportPipeline;
 /// Scores-only fused χ² → D2H scores → host `BatchOrdering` → apply transform
 /// **only** for retained lanes (search-loop.md). Caesar uses `CaesarChi2Batch`;
 /// atbash / atbash_caesar / affine / vigenere use `FamilyChi2Batch`.
-/// Theory: prefers `TheoryHistChi2Emit` S1/S2 specialized twins when present,
+/// Theory: prefers `TheoryHistChi2Emit` ShapeInline→S1→S2 specialized twins when present,
 /// soft-fallback S0 bytecode via `TheoryHistChi2Launch`; `export_backend=cuda`.
 /// Family `compose`: Atbash∘Caesar grid reuses fused export; arbitrary recipes
 /// score via `ComposeDriver` apply + host χ² (top-k only).
@@ -2144,7 +2144,19 @@ private:
         const TheoryExportCache::Entry& entry = *prepared.value();
         const TheoryExportCache::HistPlan& hist = entry.hist_plan();
 
-        // Prefer specialized hist when emit produced S1/S2; soft-fallback to S0 on failure.
+        // Prefer ShapeInline (S1 soft twin) → S1 → S2 → S0 (soft-fallback on failure).
+        if (hist.specialized() &&
+            hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::ShapeInline &&
+            hist.s1_lut()) {
+            StatusOr<std::vector<double>> shape =
+                fused_theory_scores_s1(cipher, freqs, entry, params_list, scratch, streams,
+                                       progress, mode, ticket_out);
+            if (shape.ok()) {
+                cache.note_hist_launch(TheoryHistChi2Emit::Strategy::ShapeInline);
+                return shape;
+            }
+            // Soft fallback S0 (domain / bind issues in LUT fill).
+        }
         if (hist.specialized() &&
             hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29 && hist.s1_lut()) {
             StatusOr<std::vector<double>> s1 =
