@@ -48,7 +48,7 @@ private:
 | `theory_chi2_batch.hpp` | `TheoryChi2Batch` | Done (fused bytecode hist + χ²; S0 path via `TheoryHistChi2Launch`) |
 | `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S3 select; S1 LUT-29 + S2 linear uchar4 emit + goldens; S3 TBD) |
 | `theory_hist_chi2_launch.hpp` | `TheoryHistChi2Launch` | Done (CUDA façade: S0 / Shape Atbash / S1 LUT / S2 linear) — under `Parcae/Parcae/cuda/` |
-| `theory_hist_chi2_s1.hpp` | `TheoryHistChi2S1` | Done (LUT-29 twin) — under `Parcae/Parcae/cuda/` |
+| `theory_hist_chi2_s1.hpp` | `TheoryHistChi2S1` | Done (LUT-29 twin + device bake from slots) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_s2.hpp` | `TheoryHistChi2S2` | Done (linear uchar4 twin) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_shape.hpp` | `TheoryHistChi2Shape` | Done (Atbash/Caesar/Affine-decrypt twins) — under `Parcae/Parcae/cuda/` |
 | `param_ir.hpp` | `ParamIr` | Done |

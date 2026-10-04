@@ -6,6 +6,13 @@
 #include <parcae/core/index29.hpp>
 #include <parcae/core/status_or.hpp>
 #include <parcae/dsl/dsl_compile.hpp>
+#include <parcae/dsl/dsl_verifier.hpp>
+#include <parcae/dsl/param_ir.hpp>
+#include <parcae/dsl/theory_apply_ir.hpp>
+#include <parcae/dsl/theory_artifact.hpp>
+#include <parcae/dsl/theory_hist_chi2_emit.hpp>
+#include <parcae/dsl/theory_ir.hpp>
+#include <parcae/dsl/z29_expr.hpp>
 #include <parcae/interrupt/policy.hpp>
 #include <parcae/score/expected_frequency_loader.hpp>
 #include <parcae/score/expected_frequency_table.hpp>
@@ -154,6 +161,97 @@ TEST_CASE("Theory export multi-chunk duty stress (nsys)",
     REQUIRE(scratch.probs_upload_count() == 1);
 
     TheoryExportDutyStress::cleanup(fx);
+}
+
+TEST_CASE("Theory export S1 FxOnly multi-chunk duty smoke (device LUT bake)",
+          "[search][export][theory][duty][cuda][s1]") {
+    REQUIRE(ParcaeCuda::available());
+
+    // Residual FxOnly (not Affine/Caesar): decrypt = x^2 + k → S1 device bake.
+    const StatusOr<ParamIr> k = ParamIr::make("k", 0, 28);
+    REQUIRE(k.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr kv = Z29Expr::var("k");
+    const Z29Expr::Ptr body = Z29Expr::add(Z29Expr::mul(x, x), kv);
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "duty_fx_square_add", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {k.value()}, body, body,
+        std::string("S1 duty smoke."));
+    REQUIRE(theory.ok());
+    REQUIRE(TheoryHistChi2Emit::select_strategy(theory.value()).strategy() ==
+            TheoryHistChi2Emit::Strategy::S1Lut29);
+
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_theory_export_duty_s1";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    {
+        TheoryArtifact::Paths paths;
+        paths.set_apply_ir(std::string("apply_ir.json"));
+        std::vector<TheoryArtifact::Param> params;
+        params.emplace_back("k", 0, 28);
+        constexpr const char* kSha =
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        StatusOr<TheoryArtifact> art = TheoryArtifact::make(
+            theory.value().name(), 1, theory.value().tier(), theory.value().family(), kSha,
+            TheoryArtifact::Verification{DslVerifier::Mode::Exhaustive, true, std::nullopt,
+                                         "1970-01-01T00:00:00Z"},
+            TheoryArtifact::FusionStatus::NotApplicable,
+            TheoryArtifact::interrupt_mode_from_theory(theory.value().interrupt_mode()),
+            std::move(params), {}, theory.value().structural_claim(), std::string("inline_test"),
+            std::move(paths));
+        REQUIRE(art.ok());
+        REQUIRE(art.value().store(root / "theories").ok());
+        REQUIRE(TheoryApplyIr::write(art.value().artifact_dir(root / "theories") / "apply_ir.json",
+                                     theory.value())
+                    .ok());
+    }
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    std::vector<Index29> cipher(TheoryExportDutyStress::kTokens);
+    for (std::size_t i = 0; i < cipher.size(); ++i) {
+        cipher[i] = Index29{static_cast<std::uint8_t>((i * 3u + 7u) % 29u)};
+    }
+    std::vector<nlohmann::json> params;
+    params.reserve(TheoryExportDutyStress::kCandidates);
+    for (std::size_t c = 0; c < TheoryExportDutyStress::kCandidates; ++c) {
+        params.push_back(nlohmann::json{{"k", static_cast<int>(c % 29)}});
+    }
+
+    TheoryExportCache cache;
+    TheoryDeviceScratch scratch;
+    CudaStreamPair streams = CudaStreamPair::create_or_legacy();
+    TheoryExportPipeline pipe(cache, scratch, streams);
+
+    for (int chunk = 0; chunk < TheoryExportDutyStress::kChunks; ++chunk) {
+        std::vector<nlohmann::json> chunk_params = params;
+        for (std::size_t i = 0; i < chunk_params.size(); ++i) {
+            chunk_params[i]["k"] =
+                static_cast<int>((chunk_params[i]["k"].get<int>() + chunk) % 29);
+        }
+        StatusOr<std::optional<std::vector<double>>> prior =
+            pipe.submit(cipher, freqs.value(), root / "theories",
+                        "parcae://theories/duty_fx_square_add@1", chunk_params);
+        REQUIRE(prior.ok());
+        if (prior.value().has_value()) {
+            REQUIRE(prior.value()->size() == TheoryExportDutyStress::kCandidates);
+        }
+    }
+    StatusOr<std::vector<double>> last = pipe.flush();
+    REQUIRE(last.ok());
+    REQUIRE(last.value().size() == TheoryExportDutyStress::kCandidates);
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S1Lut29);
+    REQUIRE(cache.host_compile_count() == 1);
+    REQUIRE(cache.device_upload_count() == 1);
+    REQUIRE(scratch.cipher_upload_count() == 1);
+    REQUIRE(scratch.probs_upload_count() == 1);
+
+    std::filesystem::remove_all(root, ec);
 }
 
 #endif

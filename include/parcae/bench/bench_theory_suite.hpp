@@ -559,25 +559,30 @@ private:
             return prog.status();
         }
         const auto params = caesar_params(C);
-        // Host LUT fill is setup (excluded from cudaEvent window).
-        std::vector<std::uint8_t> host_luts(C * TheoryHistChi2S1::alphabet_size, 0);
+        const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.value().slot_names.size());
+        const std::uint16_t max_stack = prog.value().max_stack == 0 ? 8 : prog.value().max_stack;
+        // Host bind only (setup). Device bake fills LUTs inside the timed window.
+        std::vector<std::uint8_t> host_slots(C * slot_count, 0);
         for (std::size_t c = 0; c < C; ++c) {
             StatusOr<std::vector<Index29>> bound =
                 Z29Bytecode::bind_theory_slots(prog.value(), theory.value(), params[c]);
             if (!bound.ok()) {
                 return bound.status();
             }
-            std::vector<Index29> slots = bound.value();
-            for (std::uint8_t sym = 0; sym < TheoryHistChi2S1::alphabet_size; ++sym) {
-                const std::vector<Index29> one{Index29{sym}};
-                StatusOr<Index29> out = Z29Bytecode::eval_at(
-                    prog.value(), std::span<Index29>(slots), std::span<const Index29>(one), 0);
-                if (!out.ok()) {
-                    return out.status();
-                }
-                host_luts[c * TheoryHistChi2S1::alphabet_size + sym] = out.value().value();
+            if (bound.value().size() != slot_count) {
+                return Status::error("BenchTheorySuite: S1 slot bind size mismatch");
+            }
+            for (std::uint16_t s = 0; s < slot_count; ++s) {
+                host_slots[c * slot_count + s] = bound.value()[s].value();
             }
         }
+
+        std::vector<std::uint8_t> ops;
+        ops.reserve(prog.value().ops.size());
+        for (Z29Bytecode::Op op : prog.value().ops) {
+            ops.push_back(Z29Bytecode::op_as_u8(op));
+        }
+        const std::vector<std::uint8_t>& imm = prog.value().imm;
 
         const auto host_in = random_stream(T, 0x71EFu);
         StatusOr<DeviceBuffer<std::uint8_t>> device_in =
@@ -585,10 +590,30 @@ private:
         if (!device_in.ok()) {
             return device_in.status();
         }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_ops =
+            DeviceBuffer<std::uint8_t>::from_host(ops);
+        if (!device_ops.ok()) {
+            return device_ops.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_imm =
+            DeviceBuffer<std::uint8_t>::from_host(imm);
+        if (!device_imm.ok()) {
+            return device_imm.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_slots =
+            DeviceBuffer<std::uint8_t>::from_host(host_slots);
+        if (!device_slots.ok()) {
+            return device_slots.status();
+        }
         StatusOr<DeviceBuffer<std::uint8_t>> device_luts =
-            DeviceBuffer<std::uint8_t>::from_host(host_luts);
+            DeviceBuffer<std::uint8_t>::allocate(C * TheoryHistChi2S1::alphabet_size);
         if (!device_luts.ok()) {
             return device_luts.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_lane_err =
+            DeviceBuffer<std::uint8_t>::allocate(C);
+        if (!device_lane_err.ok()) {
+            return device_lane_err.status();
         }
         StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
             std::span<const double>(freqs.probabilities().data(), freqs.probabilities().size()));
@@ -606,13 +631,20 @@ private:
         }
 
         StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
-            NvtxRange nvtx_s1("hist_s1_lut");
-            return TheoryHistChi2Launch::launch_s1_lut_async(
-                device_in.value().data(), device_luts.value().data(), device_probs.value().data(),
-                device_counts.value().data(), device_scores.value().data(), C, T);
+            NvtxRange nvtx_s1("hist_s1_bake_lut");
+            return TheoryHistChi2Launch::launch_s1_from_slots_async(
+                device_in.value().data(), device_ops.value().data(), device_imm.value().data(),
+                static_cast<std::uint32_t>(ops.size()), device_slots.value().data(), slot_count,
+                prog.value().cipher_slot, prog.value().index_slot, /*binds_index_i=*/0u, max_stack,
+                device_luts.value().data(), device_probs.value().data(),
+                device_counts.value().data(), device_scores.value().data(),
+                device_lane_err.value().data(), C, T);
         });
         if (!sample.ok()) {
             return sample.status();
+        }
+        if (detail_prefix == "S1_lut29") {
+            detail_prefix = "S1_device_bake";
         }
         return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
                                tier, std::move(detail_prefix));

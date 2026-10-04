@@ -130,7 +130,7 @@ constexpr const char* kSha =
 }
 
 [[nodiscard]] TheoryIr make_div_by_param() {
-    // Mixed grid: d==0 → +inf; d!=0 → finite (S1 soft-falls to S0 when any lane fails LUT).
+    // Mixed grid: d==0 → +inf via S1 bake lane_err patch; d!=0 → finite.
     const StatusOr<ParamIr> d = ParamIr::make("d", 0, 28);
     REQUIRE(d.ok());
     const Z29Expr::Ptr x = Z29Expr::var("x");
@@ -422,10 +422,9 @@ TEST_CASE("domain error Div0 patches fused theory score to +inf",
     REQUIRE(freqs.ok());
     const std::vector<Index29> cipher = make_cipher(16);
 
-    SECTION("constant div0 theory (S1 soft-falls to S0 → +inf)") {
+    SECTION("constant div0 theory (S1 device bake → +inf)") {
         const TheoryIr theory = make_div0_const();
         REQUIRE(install_theory(root / "theories", theory).ok());
-        // Classified S1 (f(x)-only) but LUT fill fails → soft S0.
         REQUIRE(TheoryHistChi2Emit::select_strategy(theory).strategy() ==
                 TheoryHistChi2Emit::Strategy::S1Lut29);
 
@@ -438,8 +437,8 @@ TEST_CASE("domain error Div0 patches fused theory score to +inf",
         REQUIRE(scores.value().size() == 1);
         REQUIRE(std::isinf(scores.value()[0]));
         REQUIRE(scores.value()[0] > 0.0);
-        // Soft-fallback used bytecode after S1 LUT build failed.
-        REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+        // Residual FxOnly stays on S1; bake lane_err patches +inf.
+        REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S1Lut29);
     }
 
     SECTION("param d=0 lane is +inf; d!=0 stays finite") {
@@ -458,7 +457,7 @@ TEST_CASE("domain error Div0 patches fused theory score to +inf",
         REQUIRE(std::isinf(scores.value()[1]));
         REQUIRE(scores.value()[1] > 0.0);
         REQUIRE(std::isfinite(scores.value()[2]));
-        REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+        REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S1Lut29);
     }
 
     SECTION("affine a=0 inv domain soft-falls ShapeInline → S0 (+inf lane)") {

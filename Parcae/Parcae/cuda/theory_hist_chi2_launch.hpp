@@ -108,7 +108,7 @@ public:
             candidate_count, token_count, stream);
     }
 
-    /// S1 LUT-29 twin. `device_luts` is row-major `C × 29`.
+    /// S1 LUT-29 twin. `device_luts` is row-major `C × 29` (pre-baked).
     [[nodiscard]] static Status
     launch_s1_lut_async(const std::uint8_t* device_in, const std::uint8_t* device_luts,
                         const double* device_probabilities, std::uint32_t* device_counts,
@@ -117,6 +117,22 @@ public:
         return TheoryHistChi2S1::launch_lut_async(device_in, device_luts, device_probabilities,
                                                   device_counts, device_scores, candidate_count,
                                                   token_count, stream);
+    }
+
+    /// Residual FxOnly: device-bake LUTs from slots into `device_luts`, then hist.
+    /// Clears / uses `device_lane_err` for domain → +inf patch (no host eval_at×29×C).
+    [[nodiscard]] static Status launch_s1_from_slots_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_ops,
+        const std::uint8_t* device_imm, std::uint32_t op_count, const std::uint8_t* device_slots,
+        std::uint16_t slot_count, std::uint16_t cipher_slot, std::uint16_t index_slot,
+        std::uint8_t binds_index_i, std::uint16_t max_stack, std::uint8_t* device_luts,
+        const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+        std::uint8_t* device_lane_err, std::size_t candidate_count, std::size_t token_count,
+        cudaStream_t stream = nullptr) {
+        return TheoryHistChi2S1::launch_from_slots_async(
+            device_in, device_ops, device_imm, op_count, device_slots, slot_count, cipher_slot,
+            index_slot, binds_index_i, max_stack, device_luts, device_probabilities, device_counts,
+            device_scores, device_lane_err, candidate_count, token_count, stream);
     }
 
     /// S2 linear uchar4 twin (`b0 + b1·(t mod 29)`). Same χ² finalize ABI as FamilyChi2.

@@ -125,6 +125,18 @@ constexpr const char* kSha =
     return th.value();
 }
 
+/// Residual FxOnly: mul(x,x) — not Affine/Caesar; forces S1 device LUT bake.
+[[nodiscard]] TheoryIr make_fx_square() {
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr body = Z29Expr::mul(x, x);
+    const StatusOr<TheoryIr> th =
+        TheoryIr::make("export_prefer_fx_square", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+                       TheoryIr::InterruptMode::ElementwiseDefault, {}, body, body,
+                       std::string("FxOnly residual S1 bake."));
+    REQUIRE(th.ok());
+    return th.value();
+}
+
 [[nodiscard]] std::vector<Index29> make_cipher(std::size_t n) {
     std::vector<Index29> out;
     out.reserve(n);
@@ -280,6 +292,45 @@ TEST_CASE("GpuCandidateExport prefers ShapeInline Atbash hist twin",
         StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
         REQUIRE(cpu.ok());
         REQUIRE(gpu_scores.value()[c] == cpu.value());
+    }
+}
+
+TEST_CASE("GpuCandidateExport prefers S1 device-bake for residual FxOnly; χ² parity",
+          "[search][export][theory][specialized][cuda][s1]") {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_export_prefer_s1_fx";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const TheoryIr theory = make_fx_square();
+    REQUIRE(install_theory(root / "theories", theory).ok());
+    REQUIRE(TheoryHistChi2Emit::select_strategy(theory).strategy() ==
+            TheoryHistChi2Emit::Strategy::S1Lut29);
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = make_cipher(96);
+    // Param-free FxOnly — one lane is enough for parity; pad a few identical rows.
+    std::vector<nlohmann::json> params_list(8, nlohmann::json::object());
+
+    TheoryExportCache cache;
+    StatusOr<std::vector<double>> gpu_scores = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/export_prefer_fx_square@1",
+        params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
+    REQUIRE(gpu_scores.ok());
+    REQUIRE(gpu_scores.value().size() == params_list.size());
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S1Lut29);
+
+    StatusOr<std::vector<Index29>> plain =
+        TheoryDispatch::apply(theory, cipher, params_list[0], TransformDirection::Decrypt);
+    REQUIRE(plain.ok());
+    StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
+    REQUIRE(cpu.ok());
+    for (double s : gpu_scores.value()) {
+        REQUIRE(s == cpu.value());
     }
 }
 
