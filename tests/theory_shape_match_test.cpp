@@ -142,6 +142,83 @@ TEST_CASE("TheoryShapeMatch LinearKeystream Add(ks,x) after commute", "[dsl][sha
     REQUIRE_FALSE(m.value().cipher_minus_ks());
 }
 
+TEST_CASE("TheoryShapeMatch LinearKeystream bare b1*i implies b0=0", "[dsl][shape]") {
+    const Z29Expr::Ptr expr = Z29Expr::sub(
+        TheoryShapeMatchTestUtil::x(),
+        Z29Expr::mul(TheoryShapeMatchTestUtil::v("b1"), TheoryShapeMatchTestUtil::v("i")));
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::LinearKeystream);
+    REQUIRE(m.value().b1_name() == "b1");
+    REQUIRE(m.value().b0_name().empty());
+    REQUIRE(m.value().has_const_b0());
+    REQUIRE(m.value().const_b0() == 0);
+    REQUIRE(m.value().cipher_minus_ks());
+    REQUIRE(m.value().linear_coeffs_ok());
+}
+
+TEST_CASE("TheoryShapeMatch LinearKeystream Mul(i,b1) commute bare term", "[dsl][shape]") {
+    const Z29Expr::Ptr expr = Z29Expr::add(
+        TheoryShapeMatchTestUtil::x(),
+        Z29Expr::mul(TheoryShapeMatchTestUtil::v("i"), TheoryShapeMatchTestUtil::v("b1")));
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::LinearKeystream);
+    REQUIRE(m.value().b1_name() == "b1");
+    REQUIRE(m.value().has_const_b0());
+    REQUIRE_FALSE(m.value().cipher_minus_ks());
+}
+
+TEST_CASE("TheoryShapeMatch LinearKeystream const b0 Lit + b1*i", "[dsl][shape]") {
+    const Z29Expr::Ptr ks = Z29Expr::add(
+        TheoryShapeMatchTestUtil::lit(5),
+        Z29Expr::mul(TheoryShapeMatchTestUtil::v("b1"), TheoryShapeMatchTestUtil::v("i")));
+    const Z29Expr::Ptr expr = Z29Expr::sub(TheoryShapeMatchTestUtil::x(), ks);
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::LinearKeystream);
+    REQUIRE(m.value().has_const_b0());
+    REQUIRE(m.value().const_b0() == 5);
+    REQUIRE(m.value().b1_name() == "b1");
+    REQUIRE(m.value().cipher_minus_ks());
+}
+
+TEST_CASE("TheoryShapeMatch LinearKeystream b0 + const*i", "[dsl][shape]") {
+    const Z29Expr::Ptr ks = Z29Expr::add(
+        TheoryShapeMatchTestUtil::v("b0"),
+        Z29Expr::mul(TheoryShapeMatchTestUtil::lit(3), TheoryShapeMatchTestUtil::v("i")));
+    const Z29Expr::Ptr expr = Z29Expr::sub(TheoryShapeMatchTestUtil::x(), ks);
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::LinearKeystream);
+    REQUIRE(m.value().b0_name() == "b0");
+    REQUIRE(m.value().has_const_b1());
+    REQUIRE(m.value().const_b1() == 3);
+}
+
+TEST_CASE("TheoryShapeMatch LinearKeystream bare i is b0=0 b1=1", "[dsl][shape]") {
+    const Z29Expr::Ptr expr =
+        Z29Expr::sub(TheoryShapeMatchTestUtil::x(), TheoryShapeMatchTestUtil::v("i"));
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::LinearKeystream);
+    REQUIRE(m.value().has_const_b0());
+    REQUIRE(m.value().const_b0() == 0);
+    REQUIRE(m.value().has_const_b1());
+    REQUIRE(m.value().const_b1() == 1);
+    REQUIRE(m.value().cipher_minus_ks());
+}
+
+TEST_CASE("TheoryShapeMatch LinearKeystream x+const stays Caesar not S2", "[dsl][shape]") {
+    const Z29Expr::Ptr expr =
+        Z29Expr::add(TheoryShapeMatchTestUtil::x(), TheoryShapeMatchTestUtil::lit(7));
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::Caesar);
+    REQUIRE(m.value().has_const_shift());
+    REQUIRE(m.value().const_shift() == 7);
+}
+
 TEST_CASE("TheoryShapeMatch Affine decrypt Mul(Inv(a), x) is b=0", "[dsl][shape]") {
     const Z29Expr::Ptr expr =
         Z29Expr::mul(Z29Expr::inv(TheoryShapeMatchTestUtil::v("a")), TheoryShapeMatchTestUtil::x());

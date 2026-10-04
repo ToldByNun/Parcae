@@ -75,6 +75,19 @@ public:
 
         [[nodiscard]] std::uint8_t const_b() const noexcept { return const_b_; }
 
+        [[nodiscard]] bool has_const_b0() const noexcept { return has_const_b0_; }
+
+        [[nodiscard]] std::uint8_t const_b0() const noexcept { return const_b0_; }
+
+        [[nodiscard]] bool has_const_b1() const noexcept { return has_const_b1_; }
+
+        [[nodiscard]] std::uint8_t const_b1() const noexcept { return const_b1_; }
+
+        /// Linear coeffs complete when each of b0/b1 is either a param name or a const.
+        [[nodiscard]] bool linear_coeffs_ok() const noexcept {
+            return (has_const_b0_ || !b0_name_.empty()) && (has_const_b1_ || !b1_name_.empty());
+        }
+
         void set_shift_name(std::string name) { shift_name_ = std::move(name); }
 
         void set_const_shift(std::uint8_t v) {
@@ -108,6 +121,16 @@ public:
             cipher_minus_ks_ = cipher_minus_ks;
         }
 
+        void set_const_b0(std::uint8_t v) {
+            has_const_b0_ = true;
+            const_b0_ = v;
+        }
+
+        void set_const_b1(std::uint8_t v) {
+            has_const_b1_ = true;
+            const_b1_ = v;
+        }
+
     private:
         ShapeId shape_ = ShapeId::Unknown;
         std::string reason_;
@@ -124,6 +147,10 @@ public:
         std::uint8_t const_a_ = 0;
         bool has_const_b_ = false;
         std::uint8_t const_b_ = 0;
+        bool has_const_b0_ = false;
+        std::uint8_t const_b0_ = 0;
+        bool has_const_b1_ = false;
+        std::uint8_t const_b1_ = 0;
         bool affine_decrypt_ = false;
     };
 
@@ -487,37 +514,114 @@ private:
         return m;
     }
 
-    [[nodiscard]] static std::optional<std::pair<std::string, std::string>>
-    match_b0_b1_i(const Z29Expr& ks) {
+    /// Linear `b0 + b1·i` coeffs (param name and/or folded const). Empty name ⇒ const.
+    struct LinearCoeffs {
+        std::string b0_name;
+        std::string b1_name;
+        bool has_const_b0 = false;
+        std::uint8_t const_b0 = 0;
+        bool has_const_b1 = false;
+        std::uint8_t const_b1 = 0;
+
+        [[nodiscard]] bool ok() const noexcept {
+            return (has_const_b0 || !b0_name.empty()) && (has_const_b1 || !b1_name.empty());
+        }
+    };
+
+    static void apply_linear_coeffs(Match& m, const LinearCoeffs& c, bool cipher_minus_ks) {
+        m.set_linear(c.b0_name, c.b1_name, cipher_minus_ks);
+        if (c.has_const_b0) {
+            m.set_const_b0(c.const_b0);
+        }
+        if (c.has_const_b1) {
+            m.set_const_b1(c.const_b1);
+        }
+    }
+
+    /// Match scalar coeff: Var param, Const literal, or bare `i` as Mul(1,i) via caller.
+    [[nodiscard]] static bool match_scalar_coeff(const Z29Expr& e, std::string& name_out,
+                                                 bool& has_const_out, std::uint8_t& const_out) {
         using Kind = Z29Expr::Kind;
+        if (e.kind() == Kind::Var && e.name() != "i") {
+            name_out = e.name();
+            has_const_out = false;
+            return true;
+        }
+        if (e.kind() == Kind::Const) {
+            name_out.clear();
+            has_const_out = true;
+            const_out = static_cast<std::uint8_t>(e.const_value());
+            return true;
+        }
+        return false;
+    }
+
+    /// Match `b1*i` / `i*b1` / bare `i` (⇒ b1=1).
+    [[nodiscard]] static std::optional<LinearCoeffs> match_mul_b1_i_term(const Z29Expr& e) {
+        using Kind = Z29Expr::Kind;
+        LinearCoeffs out;
+        out.has_const_b0 = true;
+        out.const_b0 = 0;
+        if (e.kind() == Kind::Var && e.name() == "i") {
+            out.has_const_b1 = true;
+            out.const_b1 = 1;
+            return out;
+        }
+        if (e.kind() != Kind::Mul || !e.left() || !e.right()) {
+            return std::nullopt;
+        }
+        const Z29Expr& ml = *e.left();
+        const Z29Expr& mr = *e.right();
+        const bool l_i = ml.kind() == Kind::Var && ml.name() == "i";
+        const bool r_i = mr.kind() == Kind::Var && mr.name() == "i";
+        if (r_i && match_scalar_coeff(ml, out.b1_name, out.has_const_b1, out.const_b1)) {
+            return out;
+        }
+        if (l_i && match_scalar_coeff(mr, out.b1_name, out.has_const_b1, out.const_b1)) {
+            return out;
+        }
+        return std::nullopt;
+    }
+
+    /// Match `b0 + b1*i` (any commute), bare `b1*i`, bare `i`, or `b0 + i`.
+    [[nodiscard]] static std::optional<LinearCoeffs> match_b0_b1_i(const Z29Expr& ks) {
+        using Kind = Z29Expr::Kind;
+
+        // Bare Mul(b1,i) / Mul(i,b1) / bare i → implied b0=0.
+        if (std::optional<LinearCoeffs> bare = match_mul_b1_i_term(ks)) {
+            return bare;
+        }
+
         if (ks.kind() != Kind::Add || !ks.left() || !ks.right()) {
             return std::nullopt;
         }
-        auto match_mul_b1_i = [](const Z29Expr& e) -> std::optional<std::string> {
-            if (e.kind() != Kind::Mul || !e.left() || !e.right()) {
+
+        auto try_sides = [](const Z29Expr& b0_side,
+                            const Z29Expr& mul_side) -> std::optional<LinearCoeffs> {
+            LinearCoeffs out;
+            if (!match_scalar_coeff(b0_side, out.b0_name, out.has_const_b0, out.const_b0)) {
                 return std::nullopt;
             }
-            const bool l_i = e.left()->kind() == Kind::Var && e.left()->name() == "i";
-            const bool r_i = e.right()->kind() == Kind::Var && e.right()->name() == "i";
-            if (r_i && e.left()->kind() == Kind::Var && e.left()->name() != "i") {
-                return e.left()->name();
+            std::optional<LinearCoeffs> mul = match_mul_b1_i_term(mul_side);
+            if (!mul) {
+                return std::nullopt;
             }
-            if (l_i && e.right()->kind() == Kind::Var && e.right()->name() != "i") {
-                return e.right()->name();
+            // mul term carries implied b0=0 — take only b1 from it.
+            out.b1_name = std::move(mul->b1_name);
+            out.has_const_b1 = mul->has_const_b1;
+            out.const_b1 = mul->const_b1;
+            // Reject identical param names for b0 and b1.
+            if (!out.has_const_b0 && !out.has_const_b1 && out.b0_name == out.b1_name) {
+                return std::nullopt;
             }
-            return std::nullopt;
+            return out;
         };
-        if (ks.left()->kind() == Kind::Var) {
-            std::optional<std::string> b1 = match_mul_b1_i(*ks.right());
-            if (b1 && *b1 != ks.left()->name()) {
-                return std::make_pair(ks.left()->name(), *b1);
-            }
+
+        if (std::optional<LinearCoeffs> a = try_sides(*ks.left(), *ks.right())) {
+            return a;
         }
-        if (ks.right()->kind() == Kind::Var) {
-            std::optional<std::string> b1 = match_mul_b1_i(*ks.left());
-            if (b1 && *b1 != ks.right()->name()) {
-                return std::make_pair(ks.right()->name(), *b1);
-            }
+        if (std::optional<LinearCoeffs> b = try_sides(*ks.right(), *ks.left())) {
+            return b;
         }
         return std::nullopt;
     }
@@ -537,18 +641,18 @@ private:
                 return std::nullopt;
             }
             if (rhs.kind() == Kind::Neg && rhs.arg()) {
-                std::optional<std::pair<std::string, std::string>> names = match_b0_b1_i(*rhs.arg());
-                if (names) {
-                    Match m{ShapeId::LinearKeystream, "Add(cipher, Neg(b0+b1*i))",
+                std::optional<LinearCoeffs> coeffs = match_b0_b1_i(*rhs.arg());
+                if (coeffs && coeffs->ok()) {
+                    Match m{ShapeId::LinearKeystream, "Add(cipher, Neg(linear_ks))",
                             std::move(owned)};
-                    m.set_linear(names->first, names->second, /*cipher_minus_ks=*/true);
+                    apply_linear_coeffs(m, *coeffs, /*cipher_minus_ks=*/true);
                     return m;
                 }
             } else {
-                std::optional<std::pair<std::string, std::string>> names = match_b0_b1_i(rhs);
-                if (names) {
-                    Match m{ShapeId::LinearKeystream, "Add(cipher, b0+b1*i)", std::move(owned)};
-                    m.set_linear(names->first, names->second, /*cipher_minus_ks=*/false);
+                std::optional<LinearCoeffs> coeffs = match_b0_b1_i(rhs);
+                if (coeffs && coeffs->ok()) {
+                    Match m{ShapeId::LinearKeystream, "Add(cipher, linear_ks)", std::move(owned)};
+                    apply_linear_coeffs(m, *coeffs, /*cipher_minus_ks=*/false);
                     return m;
                 }
             }
@@ -558,10 +662,10 @@ private:
         // Unnormalized Sub(cipher, ks).
         if (expr.kind() == Kind::Sub && is_cipher_var(*expr.left(), cipher_var) &&
             !DslOptimize::depends_on_var(*expr.right(), cipher_var)) {
-            std::optional<std::pair<std::string, std::string>> names = match_b0_b1_i(*expr.right());
-            if (names) {
-                Match m{ShapeId::LinearKeystream, "Sub(cipher, b0+b1*i)", std::move(owned)};
-                m.set_linear(names->first, names->second, /*cipher_minus_ks=*/true);
+            std::optional<LinearCoeffs> coeffs = match_b0_b1_i(*expr.right());
+            if (coeffs && coeffs->ok()) {
+                Match m{ShapeId::LinearKeystream, "Sub(cipher, linear_ks)", std::move(owned)};
+                apply_linear_coeffs(m, *coeffs, /*cipher_minus_ks=*/true);
                 return m;
             }
         }

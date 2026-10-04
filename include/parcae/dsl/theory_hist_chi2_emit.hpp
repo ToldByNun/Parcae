@@ -77,6 +77,10 @@ public:
             p.const_a_ = m.const_a();
             p.has_const_b_ = m.has_const_b();
             p.const_b_ = m.const_b();
+            p.has_const_b0_ = m.has_const_b0();
+            p.const_b0_ = m.const_b0();
+            p.has_const_b1_ = m.has_const_b1();
+            p.const_b1_ = m.const_b1();
             return p;
         }
 
@@ -109,6 +113,18 @@ public:
         [[nodiscard]] bool has_const_b() const noexcept { return has_const_b_; }
 
         [[nodiscard]] std::uint8_t const_b() const noexcept { return const_b_; }
+
+        [[nodiscard]] bool has_const_b0() const noexcept { return has_const_b0_; }
+
+        [[nodiscard]] std::uint8_t const_b0() const noexcept { return const_b0_; }
+
+        [[nodiscard]] bool has_const_b1() const noexcept { return has_const_b1_; }
+
+        [[nodiscard]] std::uint8_t const_b1() const noexcept { return const_b1_; }
+
+        [[nodiscard]] bool linear_coeffs_ok() const noexcept {
+            return (has_const_b0_ || !b0_name_.empty()) && (has_const_b1_ || !b1_name_.empty());
+        }
 
         [[nodiscard]] bool is_shape_inline() const noexcept {
             return shape_ == TheoryShapeMatch::ShapeId::Atbash ||
@@ -150,6 +166,10 @@ public:
         std::uint8_t const_a_ = 0;
         bool has_const_b_ = false;
         std::uint8_t const_b_ = 0;
+        bool has_const_b0_ = false;
+        std::uint8_t const_b0_ = 0;
+        bool has_const_b1_ = false;
+        std::uint8_t const_b1_ = 0;
     };
 
     /// S1 plan: params in `TheoryIr::params()` order; LUT rows are `C × 29`.
@@ -168,12 +188,23 @@ public:
         std::vector<std::string> param_names_;
     };
 
-    /// Linear keystream plan: `ks = b0 + b1·(t mod 29)` (param names from the expr).
+    /// Linear keystream plan: `ks = b0 + b1·(t mod 29)` (param names and/or folded consts).
     class S2LinearPlan {
     public:
         S2LinearPlan(std::string b0_name, std::string b1_name, bool cipher_minus_ks)
             : b0_name_(std::move(b0_name)), b1_name_(std::move(b1_name)),
               cipher_minus_ks_(cipher_minus_ks) {}
+
+        [[nodiscard]] static S2LinearPlan from_shape(const ShapePlan& shape) {
+            S2LinearPlan p{shape.b0_name(), shape.b1_name(), shape.cipher_minus_ks()};
+            if (shape.has_const_b0()) {
+                p.set_const_b0(shape.const_b0());
+            }
+            if (shape.has_const_b1()) {
+                p.set_const_b1(shape.const_b1());
+            }
+            return p;
+        }
 
         [[nodiscard]] const std::string& b0_name() const noexcept { return b0_name_; }
 
@@ -182,10 +213,45 @@ public:
         /// `true` → `HistFast::dec_sub(x, ks)`; `false` → `HistFast::enc_caesar(x, ks)`.
         [[nodiscard]] bool cipher_minus_ks() const noexcept { return cipher_minus_ks_; }
 
+        [[nodiscard]] bool has_const_b0() const noexcept { return has_const_b0_; }
+
+        [[nodiscard]] std::uint8_t const_b0() const noexcept { return const_b0_; }
+
+        [[nodiscard]] bool has_const_b1() const noexcept { return has_const_b1_; }
+
+        [[nodiscard]] std::uint8_t const_b1() const noexcept { return const_b1_; }
+
+        [[nodiscard]] bool coeffs_ok() const noexcept {
+            return (has_const_b0_ || !b0_name_.empty()) && (has_const_b1_ || !b1_name_.empty());
+        }
+
+        void set_const_b0(std::uint8_t v) {
+            has_const_b0_ = true;
+            const_b0_ = v;
+        }
+
+        void set_const_b1(std::uint8_t v) {
+            has_const_b1_ = true;
+            const_b1_ = v;
+        }
+
+        /// Device API / generated-source placeholder when the coeff is a folded const.
+        [[nodiscard]] std::string_view b0_api_name() const noexcept {
+            return b0_name_.empty() ? std::string_view{"b0"} : std::string_view{b0_name_};
+        }
+
+        [[nodiscard]] std::string_view b1_api_name() const noexcept {
+            return b1_name_.empty() ? std::string_view{"b1"} : std::string_view{b1_name_};
+        }
+
     private:
         std::string b0_name_;
         std::string b1_name_;
         bool cipher_minus_ks_ = true;
+        bool has_const_b0_ = false;
+        std::uint8_t const_b0_ = 0;
+        bool has_const_b1_ = false;
+        std::uint8_t const_b1_ = 0;
     };
 
     class Selection {
@@ -412,49 +478,18 @@ public:
                          "decrypt uses i but is not simple ± keystream — S3 scalar candidate"};
     }
 
-    /// Match progressive / bitmask_blend-linear decrypt: `x ± (b0 + b1·i)`.
+    /// Match progressive / bitmask_blend-linear decrypt: `x ± (b0 + b1·i)` (+ widened forms).
     [[nodiscard]] static std::optional<S2LinearPlan>
     match_s2_linear(const TheoryIr& theory, std::string_view cipher_var = "x") {
-        if (!theory.decrypt_step()) {
+        StatusOr<TheoryShapeMatch::Match> matched =
+            TheoryShapeMatch::match_theory(theory, cipher_var);
+        if (!matched.ok() || matched.value().shape() != TheoryShapeMatch::ShapeId::LinearKeystream ||
+            !matched.value().linear_coeffs_ok()) {
             return std::nullopt;
         }
-        const Z29Expr& dec = *theory.decrypt_step();
-        using Kind = Z29Expr::Kind;
-        if (dec.kind() != Kind::Add && dec.kind() != Kind::Sub) {
-            return std::nullopt;
-        }
-        const Z29Expr& l = *dec.left();
-        const Z29Expr& r = *dec.right();
-        const bool l_cipher = l.kind() == Kind::Var && l.name() == cipher_var;
-        const bool r_cipher = r.kind() == Kind::Var && r.name() == cipher_var;
-        if (l_cipher == r_cipher) {
-            return std::nullopt;
-        }
-        if (l_cipher && DslOptimize::depends_on_var(r, cipher_var)) {
-            return std::nullopt;
-        }
-        if (r_cipher && DslOptimize::depends_on_var(l, cipher_var)) {
-            return std::nullopt;
-        }
-
-        const Z29Expr& ks = l_cipher ? r : l;
-        std::optional<std::pair<std::string, std::string>> names = match_linear_b0_b1_i(ks);
-        if (!names) {
-            return std::nullopt;
-        }
-
-        // Decrypt root Sub(x, ks) or Add(x, ks) only (cipher on the left).
-        // Add(ks, x) is commutative → treat as enc_caesar; Sub(ks, x) is not linear S2.
-        if (r_cipher && dec.kind() == Kind::Sub) {
-            return std::nullopt;
-        }
-        const bool cipher_minus_ks = (dec.kind() == Kind::Sub) && l_cipher;
-        const bool cipher_plus_ks =
-            (dec.kind() == Kind::Add) && (l_cipher || r_cipher);
-        if (!cipher_minus_ks && !cipher_plus_ks) {
-            return std::nullopt;
-        }
-        return S2LinearPlan{names->first, names->second, cipher_minus_ks};
+        const ShapePlan shape = ShapePlan::from_match(matched.value());
+        S2LinearPlan plan = S2LinearPlan::from_shape(shape);
+        return plan.coeffs_ok() ? std::optional<S2LinearPlan>{std::move(plan)} : std::nullopt;
     }
 
     /// Emit fused-hist sources for decrypt search path.
@@ -531,13 +566,16 @@ public:
         }
 
         if (sel.strategy() == Strategy::S2Uchar4Inline) {
-            std::optional<S2LinearPlan> plan = match_s2_linear(theory, cipher_var);
-            if (!plan && sel.shape() && !sel.shape()->b0_name().empty() &&
-                !sel.shape()->b1_name().empty()) {
-                plan = S2LinearPlan{sel.shape()->b0_name(), sel.shape()->b1_name(),
-                                    sel.shape()->cipher_minus_ks()};
+            std::optional<S2LinearPlan> plan;
+            if (sel.shape() &&
+                sel.shape()->shape() == TheoryShapeMatch::ShapeId::LinearKeystream &&
+                sel.shape()->linear_coeffs_ok()) {
+                plan = S2LinearPlan::from_shape(*sel.shape());
             }
-            if (plan) {
+            if (!plan) {
+                plan = match_s2_linear(theory, cipher_var);
+            }
+            if (plan && plan->coeffs_ok()) {
                 StatusOr<EmitBundle> bundle = emit_s2_linear_sources(theory, *plan, sel.reason());
                 if (!bundle.ok()) {
                     return bundle.status();
@@ -647,54 +685,14 @@ private:
         return false;
     }
 
-    /// Match `b0 + b1*i` / `b1*i + b0` (Mul operands either order). Returns `{b0,b1}`.
-    [[nodiscard]] static std::optional<std::pair<std::string, std::string>>
-    match_linear_b0_b1_i(const Z29Expr& ks) {
-        using Kind = Z29Expr::Kind;
-        if (ks.kind() != Kind::Add) {
-            return std::nullopt;
-        }
-        const Z29Expr& a = *ks.left();
-        const Z29Expr& b = *ks.right();
-
-        auto match_mul_b1_i = [](const Z29Expr& e) -> std::optional<std::string> {
-            if (e.kind() != Kind::Mul) {
-                return std::nullopt;
-            }
-            const Z29Expr& ml = *e.left();
-            const Z29Expr& mr = *e.right();
-            const bool l_i = ml.kind() == Kind::Var && ml.name() == "i";
-            const bool r_i = mr.kind() == Kind::Var && mr.name() == "i";
-            if (l_i && mr.kind() == Kind::Var && mr.name() != "i") {
-                return mr.name();
-            }
-            if (r_i && ml.kind() == Kind::Var && ml.name() != "i") {
-                return ml.name();
-            }
-            return std::nullopt;
-        };
-
-        if (a.kind() == Kind::Var) {
-            std::optional<std::string> b1 = match_mul_b1_i(b);
-            if (b1 && *b1 != a.name()) {
-                return std::make_pair(a.name(), *b1);
-            }
-        }
-        if (b.kind() == Kind::Var) {
-            std::optional<std::string> b1 = match_mul_b1_i(a);
-            if (b1 && *b1 != b.name()) {
-                return std::make_pair(b.name(), *b1);
-            }
-        }
-        return std::nullopt;
-    }
-
     [[nodiscard]] static StatusOr<EmitBundle>
     emit_s2_linear_sources(const TheoryIr& theory, const S2LinearPlan& plan,
                            const std::string& select_reason) {
         const std::string& id = theory.name();
         const std::string kern = id + "_s2_hist_kernel";
         const std::string guard = "PARCAE_EMIT_" + id + "_S2_HIST_HPP";
+        const std::string_view b0_api = plan.b0_api_name();
+        const std::string_view b1_api = plan.b1_api_name();
 
         std::ostringstream hdr;
         hdr << "// Generated by TheoryHistChi2Emit (S2 linear uchar4) — do not hand-edit.\n";
@@ -704,16 +702,16 @@ private:
         hdr << "#include <cstddef>\n";
         hdr << "#include <cstdint>\n\n";
         hdr << "/// S2 uchar4 fused χ² hist for `" << id << "` "
-            << "(ks = " << plan.b0_name() << " + " << plan.b1_name() << "·i).\n";
+            << "(ks = " << b0_api << " + " << b1_api << "·i).\n";
         hdr << "/// Runtime twin: TheoryHistChi2S2::launch_linear_async "
             << "(cipher_minus_ks=" << (plan.cipher_minus_ks() ? "true" : "false") << ").\n";
         hdr << "class " << to_pascal(id) << "S2Hist {\n";
         hdr << "public:\n";
         hdr << "    static constexpr std::size_t alphabet_size = 29;\n";
         hdr << "    [[nodiscard]] static Status launch_linear_async(\n";
-        hdr << "        const std::uint8_t* device_in, const std::uint8_t* device_"
-            << plan.b0_name() << ",\n";
-        hdr << "        const std::uint8_t* device_" << plan.b1_name()
+        hdr << "        const std::uint8_t* device_in, const std::uint8_t* device_" << b0_api
+            << ",\n";
+        hdr << "        const std::uint8_t* device_" << b1_api
             << ", const double* device_probabilities,\n";
         hdr << "        std::uint32_t* device_counts, double* device_scores, "
                "std::size_t candidate_count,\n";

@@ -119,6 +119,37 @@ namespace {
     return theory.value();
 }
 
+[[nodiscard]] TheoryIr make_bare_b1i_theory() {
+    // x - (b1*i) — widened LinearKeystream (implied b0=0).
+    const StatusOr<ParamIr> b1 = ParamIr::make("b1", 0, 28);
+    REQUIRE(b1.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr ks =
+        Z29Expr::mul(Z29Expr::var("b1"), Z29Expr::var("i"));
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "emit_bare_b1i", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign, {b1.value()}, Z29Expr::add(x, ks),
+        Z29Expr::sub(x, ks), std::string("S2 bare b1*i."));
+    REQUIRE(theory.ok());
+    return theory.value();
+}
+
+[[nodiscard]] TheoryIr make_const_b0_linear_theory() {
+    // x - (5 + b1*i) — const b0 edge form.
+    const StatusOr<ParamIr> b1 = ParamIr::make("b1", 0, 28);
+    REQUIRE(b1.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr ks = Z29Expr::add(
+        Z29Expr::constant(5).value(),
+        Z29Expr::mul(Z29Expr::var("b1"), Z29Expr::var("i")));
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "emit_const_b0_lin", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign, {b1.value()}, Z29Expr::add(x, ks),
+        Z29Expr::sub(x, ks), std::string("S2 const b0 + b1*i."));
+    REQUIRE(theory.ok());
+    return theory.value();
+}
+
 } // namespace
 
 TEST_CASE("TheoryHistChi2Emit selects ShapeInline for caesar-shaped decrypt",
@@ -188,6 +219,41 @@ TEST_CASE("TheoryHistChi2Emit S2 linear progressive emits uchar4 sources",
     REQUIRE(launch.ok());
     REQUIRE(launch.value().kind() == DslLaunchPlan::Kind::HistChi2_2D);
     REQUIRE(launch.value().grid_x() == 29);
+}
+
+TEST_CASE("TheoryHistChi2Emit S2 widen bare b1*i specializes (not soft S0)",
+          "[dsl][emit][hist][chi2]") {
+    const TheoryIr theory = make_bare_b1i_theory();
+    REQUIRE(TheoryHistChi2Emit::select_strategy(theory).strategy() ==
+            TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
+    std::optional<TheoryHistChi2Emit::S2LinearPlan> plan =
+        TheoryHistChi2Emit::match_s2_linear(theory);
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->has_const_b0());
+    REQUIRE(plan->const_b0() == 0);
+    REQUIRE(plan->b1_name() == "b1");
+    REQUIRE(plan->coeffs_ok());
+
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
+    REQUIRE(bundle.value().s2_linear().has_value());
+    REQUIRE(bundle.value().s2_linear()->has_const_b0());
+}
+
+TEST_CASE("TheoryHistChi2Emit S2 widen const b0 + b1*i specializes",
+          "[dsl][emit][hist][chi2]") {
+    const TheoryIr theory = make_const_b0_linear_theory();
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
+    REQUIRE(bundle.value().s2_linear()->has_const_b0());
+    REQUIRE(bundle.value().s2_linear()->const_b0() == 5);
+    REQUIRE(bundle.value().s2_linear()->b1_name() == "b1");
 }
 
 TEST_CASE("TheoryHistChi2Emit non-linear keystream is S3 stub → S0",

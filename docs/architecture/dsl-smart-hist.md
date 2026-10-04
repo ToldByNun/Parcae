@@ -110,6 +110,7 @@ it.
 | `x + shift` / `x - shift` (param `shift`) | `Caesar` |
 | `a * x + b` with inv(a) in domain | `Affine` |
 | `x - (b0 + b1 * i)` progressive-style | `LinearKeystream` |
+| `x - (b1 * i)` / `x ± i` / const `b0`/`b1` Lits | `LinearKeystream` (widened) |
 | Theory named `foo_bar` that is Atbash arith | still `Atbash` |
 | `family` / URI string mentioning “caesar” but math is affine | `Affine` (math wins) |
 
@@ -168,7 +169,7 @@ Minimum pack (each needs goldens when implemented):
 | Atbash-as-arith | `Sub(Lit(28), x)` and equivalents → Atbash normal form |
 | Caesar form | `Add/Sub(x, shift)` → Caesar normal form |
 | Affine form | `Add(Mul(a,x), b)` (and safe rearrangements) → Affine normal form |
-| Linear S2 form | `x ± (b0 + b1·i)` permutations → LinearKeystream normal form |
+| Linear S2 form | `x ± (b0 + b1·i)` permutations, bare `b1·i`, const Lits → LinearKeystream |
 | Autokey / prefer_branch | **No** rewrite across `z29_autokey_shift` or `prefer_branch` Select |
 
 Builtin Call nodes (`z29_atbash`, …) remain valid input; arith-only trees must
@@ -266,7 +267,7 @@ private:
 Declare this smartness workstream complete only when **all** apply:
 
 - [ ] Self-written Atbash / Caesar / Affine (pure arith HotLoop) → shape twin; scores ≡ bytecode; fair Kernel SLO in catalog twin class (`parcae-bench --suite dsl_smart`; noise under `profiles/dsl_smart/`)
-- [ ] Self-written linear `x±(b0+b1·i)` → S2 (widened), not S0
+- [x] Self-written linear `x±(b0+b1·i)` → S2 (widened), not S0
 - [ ] Non-linear `i` customs → S3 or module (unless caps / prefer_branch / pre-S4 autokey)
 - [ ] Autokey customs → S4 when implemented
 - [ ] Normalize + match name-irrelevant goldens green

@@ -2295,11 +2295,19 @@ private:
             return Status::error("GpuCandidateExport::theory S2 missing linear plan");
         }
         const TheoryHistChi2Emit::S2LinearPlan& plan = *entry.hist_plan().s2_linear();
+        if (!plan.coeffs_ok()) {
+            return Status::error("GpuCandidateExport::theory S2 incomplete linear coeffs");
+        }
         const Z29Bytecode::Program& prog = entry.program();
-        const std::optional<std::uint16_t> ib0 = find_slot_index(prog, plan.b0_name());
-        const std::optional<std::uint16_t> ib1 = find_slot_index(prog, plan.b1_name());
-        if (!ib0.has_value() || !ib1.has_value()) {
-            return Status::error("GpuCandidateExport::theory S2 b0/b1 slots not found");
+        const std::optional<std::uint16_t> ib0 =
+            plan.has_const_b0() ? std::nullopt : find_slot_index(prog, plan.b0_name());
+        const std::optional<std::uint16_t> ib1 =
+            plan.has_const_b1() ? std::nullopt : find_slot_index(prog, plan.b1_name());
+        if (!plan.has_const_b0() && !ib0.has_value()) {
+            return Status::error("GpuCandidateExport::theory S2 b0 slot not found");
+        }
+        if (!plan.has_const_b1() && !ib1.has_value()) {
+            return Status::error("GpuCandidateExport::theory S2 b1 slot not found");
         }
 
         const std::size_t C = params_list.size();
@@ -2309,6 +2317,11 @@ private:
         {
             NvtxRange nvtx_bind("bind_slots_s2");
             for (std::size_t c = 0; c < C; ++c) {
+                if (plan.has_const_b0() && plan.has_const_b1()) {
+                    host_b0[c] = plan.const_b0();
+                    host_b1[c] = plan.const_b1();
+                    continue;
+                }
                 StatusOr<std::vector<Index29>> bound =
                     Z29Bytecode::bind_theory_slots(prog, entry.theory(), params_list[c]);
                 if (!bound.ok()) {
@@ -2317,8 +2330,8 @@ private:
                 if (bound.value().size() != slot_count) {
                     return Status::error("GpuCandidateExport::theory S2 slot bind size mismatch");
                 }
-                host_b0[c] = bound.value()[*ib0].value();
-                host_b1[c] = bound.value()[*ib1].value();
+                host_b0[c] = plan.has_const_b0() ? plan.const_b0() : bound.value()[*ib0].value();
+                host_b1[c] = plan.has_const_b1() ? plan.const_b1() : bound.value()[*ib1].value();
             }
         }
 
