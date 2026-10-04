@@ -5,7 +5,8 @@
 same plate as [`cuda-throughput.md`](cuda-throughput.md)  
 **Canonical peaks / pass rule:** [`BenchTierSpec`](../../include/parcae/bench/bench_tier_spec.hpp)  
 **Strategy / Done base contract:** [`theory-hist-transpile.md`](theory-hist-transpile.md)  
-**Fair Kernel SLO tool:** `parcae-bench --suite theory --allow-cuda`  
+**Fair Kernel SLO tool (customs):** `parcae-bench --suite dsl_smart --allow-cuda`  
+**Fair Kernel SLO tool (theory S0–S2):** `parcae-bench --suite theory --allow-cuda`  
 **Profiling playbook:** [`cuda-profile-theory.md`](cuda-profile-theory.md)  
 **Emit / classify (today):** [`theory_hist_chi2_emit.hpp`](../../include/parcae/dsl/theory_hist_chi2_emit.hpp)  
 **Launch façade:** [`theory_hist_chi2_launch.hpp`](../../Parcae/Parcae/cuda/theory_hist_chi2_launch.hpp)  
@@ -146,8 +147,8 @@ counterparts (e.g. Atbash shape twin ↔ `F.atbash`). If catalog Atbash prints
 `%peak>100`, that is a **model defect** for both paths.
 
 Metric B quiet plate: [`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md).  
-Smart-customs ACCEPTANCE digests: [`profiles/dsl_smart/`](profiles/dsl_smart/)
-(when captured).
+Smart-customs ACCEPTANCE digests: [`profiles/dsl_smart/SUMMARY.md`](profiles/dsl_smart/SUMMARY.md)
+(capture via [`scripts/cuda/capture_dsl_smart.ps1`](../../scripts/cuda/capture_dsl_smart.ps1)).
 
 ---
 
@@ -262,7 +263,7 @@ private:
 
 Declare this smartness workstream complete only when **all** apply:
 
-- [ ] Self-written Atbash / Caesar / Affine (pure arith HotLoop) → shape twin; scores ≡ bytecode; fair Kernel SLO in catalog twin class (noise documented under `profiles/dsl_smart/`)
+- [ ] Self-written Atbash / Caesar / Affine (pure arith HotLoop) → shape twin; scores ≡ bytecode; fair Kernel SLO in catalog twin class (`parcae-bench --suite dsl_smart`; noise under `profiles/dsl_smart/`)
 - [ ] Self-written linear `x±(b0+b1·i)` → S2 (widened), not S0
 - [ ] Non-linear `i` customs → S3 or module (unless caps / prefer_branch / pre-S4 autokey)
 - [ ] Autokey customs → S4 when implemented

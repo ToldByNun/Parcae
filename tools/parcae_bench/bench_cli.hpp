@@ -31,6 +31,9 @@ public:
             << "                    [--tokens N] [--candidates N] [--repeats N]\n"
             << "                    [--campaign-grid] [--no-compare-catalog]\n"
             << "                    [--json] [--omit-timing] [--data-dir <path>]\n"
+            << "       parcae-bench --suite dsl_smart --allow-cuda\n"
+            << "                    [--tokens N] [--repeats N] [--no-compare-catalog]\n"
+            << "                    [--json] [--omit-timing] [--data-dir <path>]\n"
             << "       parcae-bench --suite all [flags for each leg…]\n"
             << "\n"
             << "Benchmark & diagnostics umbrella (toolkit bench target).\n"
@@ -43,16 +46,20 @@ public:
             << "  --suite probe         External JSON subprocess probes (see "
                "docs/spec/bench-probe.md)\n"
             << "  --suite theory        Theory fused χ² cudaEvent microbench (bytecode vs Caesar)\n"
+            << "  --suite dsl_smart     Hand-written customs vs F.atbash / Caesar / F.affine "
+               "(Kernel SLO)\n"
             << "  --suite all           accuracy → slo → hardware → probe (probe only if "
                "--probe-cmd)\n"
             << "  --extended            Also run F.* and C.* rows (with --suite slo)\n"
             << "  --campaign-grid       Theory: also measure campaign-like T=262 C=16384 row\n"
-            << "  --no-compare-catalog  Theory: skip CaesarChi2Batch twin row\n"
-            << "  --tokens N            Theory: override stream length T (default fair T1)\n"
+            << "  --no-compare-catalog  Theory/dsl_smart: skip catalog twin rows\n"
+            << "  --tokens N            Theory/dsl_smart: override stream length T (default fair "
+               "T1)\n"
             << "  --candidates N        Theory: override candidate count C where applicable\n"
-            << "  --repeats N           Theory: override timed inner-loop repetitions\n"
+            << "  --repeats N           Theory/dsl_smart: override timed inner-loop repetitions\n"
             << "  --backend MODE        hardware only: cpu|cuda|both (default both)\n"
-            << "  --allow-cuda          Required for slo/theory; CUDA leg for accuracy/hardware\n"
+            << "  --allow-cuda          Required for slo/theory/dsl_smart; CUDA leg for "
+               "accuracy/hardware\n"
             << "  --require-cuda        hardware: fail if CUDA unavailable\n"
             << "  --allow-skip          hardware: OK when CUDA rows are skipped_not_built\n"
             << "  --cpu-full            hardware: full T1–T3 CPU C/T/reps (not smoke)\n"
@@ -79,11 +86,13 @@ public:
                  {"hardware", true},
                  {"probe", true},
                  {"theory", true},
+                 {"dsl_smart", true},
                  {"all", true},
              }},
             {"data_dir", std::string(data_dir)},
             {"message",
-             "parcae-bench ready: --status | --suite slo|accuracy|hardware|probe|theory|all"},
+             "parcae-bench ready: --status | --suite "
+             "slo|accuracy|hardware|probe|theory|dsl_smart|all"},
         };
     }
 

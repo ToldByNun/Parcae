@@ -160,6 +160,8 @@ docs/architecture/profiles/specialized/capture_log.txt
 docs/architecture/profiles/s0-climb/*.sqlite
 docs/architecture/profiles/s0-climb/capture_log.txt
 docs/architecture/profiles/kernel_slo/*.txt
+docs/architecture/profiles/dsl_smart/*.txt
+docs/architecture/profiles/dsl_smart/*.sqlite
 docs/architecture/profiles/roof_hist/*.txt
 docs/architecture/profiles/export_duty/*.txt
 docs/architecture/profiles/export_duty/*.sqlite

@@ -28,7 +28,9 @@ campaign wall rates at short `T` to catalog `cudaEvent` peaks at `T≈2^20`.
 Catalog families use Kernel SLO via `parcae-bench --suite slo` and
 [`BenchTierSpec`](../../include/parcae/bench/bench_tier_spec.hpp). Theory Kernel
 SLO uses `parcae-bench --suite theory --allow-cuda` (`T.theory.*` Spec rows +
-≥90% peak gate at fair T). Campaign wall stays in `research/run.log`.
+≥90% peak gate at fair T). Hand-written customs vs catalog twins use
+`parcae-bench --suite dsl_smart --allow-cuda` → [`profiles/dsl_smart/`](profiles/dsl_smart/).
+Campaign wall stays in `research/run.log`.
 
 Optional interim checkpoint **≥50B runes/s** (Kernel SLO) is allowed only when
 `estimated_peak ≫ 50B`. It never replaces the 90% peak gate.
@@ -134,6 +136,12 @@ same workload launcher when available). Preferred Kernel SLO launcher:
 
 Also usable under ncu/nsys via `profile_theory_hist.ps1 -Exe …\parcae-bench.exe -ExeArgs …`.
 `parcae-bench --suite slo --extended --allow-cuda` remains the catalog Kernel SLO path.
+Customs without presets (fair T, vs F.atbash / Caesar twin):
+
+```powershell
+.\build-cuda\tools\Release\parcae-bench.exe --suite dsl_smart --allow-cuda --data-dir data
+.\scripts\cuda\capture_dsl_smart.ps1 -BuildDir build-cuda -Runs 3
+```
 
 ---
 

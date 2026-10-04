@@ -50,6 +50,7 @@ add_executable(parcae_tests
   bench_report_test.cpp
   bench_slo_suite_test.cpp
   bench_theory_suite_test.cpp
+  bench_dsl_smart_suite_test.cpp
   bench_accuracy_suite_test.cpp
   bench_hardware_suite_test.cpp
   bench_probe_protocol_test.cpp

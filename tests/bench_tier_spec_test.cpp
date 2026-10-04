@@ -111,7 +111,13 @@ TEST_CASE("BenchTierSpec theory rows use DRAM roofline peak", "[bench][spec]") {
     REQUIRE(BenchTierSpec::estimated_peak("T.theory.caesar_bytecode") == 896.0e9);
     REQUIRE(BenchTierSpec::estimated_peak("T.theory.s1_lut29") == 896.0e9);
     REQUIRE(BenchTierSpec::estimated_peak("F.atbash") == 896.0e9);
+    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_atbash") == 896.0e9);
+    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.compare_caesar") == 896.0e9);
     REQUIRE(BenchTierSpec::slo_floor("T.theory.s1_lut29") == 15.0e9);
+    REQUIRE(BenchTierSpec::slo_floor("T.dsl_smart.custom_affine") == 15.0e9);
+    REQUIRE(BenchTierSpec::find_dsl_smart("T.dsl_smart.custom_caesar") ==
+            &BenchTierSpec::dsl_smart_caesar);
+    REQUIRE(BenchTierSpec::find_dsl_smart("nope") == nullptr);
 
     REQUIRE(BenchTierSpec::checkpoint_50B_applicable(896.0e9));
     REQUIRE(BenchTierSpec::checkpoint_50B_hit(55.0e9, 896.0e9));

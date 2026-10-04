@@ -23,6 +23,7 @@ public:
         Hardware,
         Probe,
         Theory,
+        DslSmart,
         All,
     };
 
@@ -239,6 +240,8 @@ public:
             return "probe";
         case Suite::Theory:
             return "theory";
+        case Suite::DslSmart:
+            return "dsl_smart";
         case Suite::All:
             return "all";
         }

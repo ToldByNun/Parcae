@@ -127,6 +127,69 @@ public:
     /// Alias name used by microbench progressive row (same peak as S2 linear).
     static constexpr const char* theory_progressive_id = "T.theory.progressive";
 
+    // --- DSL smart customs (hand-written HotLoop → ShapeInline twin) ----------
+    // Fair Kernel SLO only (T≥2^20). Campaign wall is never PRIMARY.
+
+    /// Custom Atbash arith (`28-x`) vs catalog `F.atbash` occupancy (C=512).
+    static constexpr Tier dsl_smart_atbash{"T.dsl_smart.custom_atbash",
+                                          "Self-written Atbash arith → ShapeInline twin",
+                                          512u,
+                                          1048576u,
+                                          8u,
+                                          15.0e9,
+                                          0.0,
+                                          kDramRooflineHistPeak};
+
+    /// Catalog `FamilyChi2Batch` atbash twin (same C/T as custom_atbash).
+    static constexpr Tier dsl_smart_compare_atbash{"T.dsl_smart.compare_Fatbash",
+                                                  "Catalog F.atbash twin (same C/T)",
+                                                  512u,
+                                                  1048576u,
+                                                  8u,
+                                                  15.0e9,
+                                                  0.0,
+                                                  kDramRooflineHistPeak};
+
+    /// Custom Caesar → ShapeInline (`HistFast::dec_caesar`).
+    static constexpr Tier dsl_smart_caesar{"T.dsl_smart.custom_caesar",
+                                          "Self-written Caesar → ShapeInline twin",
+                                          static_cast<std::size_t>(Index29::modulus),
+                                          1048576u,
+                                          8u,
+                                          15.0e9,
+                                          0.0,
+                                          kDramRooflineHistPeak};
+
+    /// Catalog CaesarChi2Batch twin (same C/T as custom_caesar).
+    static constexpr Tier dsl_smart_compare_caesar{"T.dsl_smart.compare_caesar",
+                                                  "Catalog CaesarChi2Batch twin (same C/T)",
+                                                  static_cast<std::size_t>(Index29::modulus),
+                                                  1048576u,
+                                                  8u,
+                                                  15.0e9,
+                                                  0.0,
+                                                  kDramRooflineHistPeak};
+
+    /// Custom Affine decrypt → ShapeInline; fair C=812 (a=1..28 × b=0..28).
+    static constexpr Tier dsl_smart_affine{"T.dsl_smart.custom_affine",
+                                          "Self-written Affine decrypt → ShapeInline twin",
+                                          812u,
+                                          1048576u,
+                                          4u,
+                                          15.0e9,
+                                          0.0,
+                                          kDramRooflineHistPeak};
+
+    /// Catalog `FamilyChi2Batch` affine twin (same C/T as custom_affine).
+    static constexpr Tier dsl_smart_compare_affine{"T.dsl_smart.compare_Faffine",
+                                                  "Catalog F.affine twin (same C/T)",
+                                                  812u,
+                                                  1048576u,
+                                                  4u,
+                                                  15.0e9,
+                                                  0.0,
+                                                  kDramRooflineHistPeak};
+
     static constexpr std::size_t primary_tier_count = 3;
 
     /// Optional interim checkpoint when `estimated_peak ≫ 50B` (never replaces 90% gate).
@@ -204,6 +267,11 @@ public:
             tier == "T.theory.s2") {
             return theory_s2_linear.estimated_peak;
         }
+        if (tier == "T.dsl_smart.custom_atbash" || tier == "T.dsl_smart.compare_Fatbash" ||
+            tier == "T.dsl_smart.custom_caesar" || tier == "T.dsl_smart.compare_caesar" ||
+            tier == "T.dsl_smart.custom_affine" || tier == "T.dsl_smart.compare_Faffine") {
+            return dram_roofline_hist_peak();
+        }
         return 0.0;
     }
 
@@ -222,7 +290,10 @@ public:
             tier == "C.koan1_stages" || tier == "T.theory.caesar_bytecode" ||
             tier == "T.theory.s0" || tier == "T.theory.s1_lut29" || tier == "T.theory.s1" ||
             tier == "T.theory.s2_linear" || tier == "T.theory.progressive" ||
-            tier == "T.theory.s2") {
+            tier == "T.theory.s2" || tier == "T.dsl_smart.custom_atbash" ||
+            tier == "T.dsl_smart.compare_Fatbash" || tier == "T.dsl_smart.custom_caesar" ||
+            tier == "T.dsl_smart.compare_caesar" || tier == "T.dsl_smart.custom_affine" ||
+            tier == "T.dsl_smart.compare_Faffine") {
             return 15.0e9;
         }
         if (tier == "F.vigenere" || tier == "F.beaufort" || tier == "F.totient") {
@@ -242,6 +313,29 @@ public:
         if (id == std::string_view{theory_s2_linear.id} || id == "T.theory.s2" ||
             id == std::string_view{theory_progressive_id}) {
             return &theory_s2_linear;
+        }
+        return nullptr;
+    }
+
+    /// Look up a dsl_smart Tier by id (nullptr if unknown).
+    [[nodiscard]] static constexpr const Tier* find_dsl_smart(std::string_view id) noexcept {
+        if (id == std::string_view{dsl_smart_atbash.id}) {
+            return &dsl_smart_atbash;
+        }
+        if (id == std::string_view{dsl_smart_compare_atbash.id}) {
+            return &dsl_smart_compare_atbash;
+        }
+        if (id == std::string_view{dsl_smart_caesar.id}) {
+            return &dsl_smart_caesar;
+        }
+        if (id == std::string_view{dsl_smart_compare_caesar.id}) {
+            return &dsl_smart_compare_caesar;
+        }
+        if (id == std::string_view{dsl_smart_affine.id}) {
+            return &dsl_smart_affine;
+        }
+        if (id == std::string_view{dsl_smart_compare_affine.id}) {
+            return &dsl_smart_compare_affine;
         }
         return nullptr;
     }

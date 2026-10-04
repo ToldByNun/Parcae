@@ -21,4 +21,5 @@ S0 climb baseline (S0 vs Caesar twin): [`scripts/cuda/capture_s0_climb_baseline.
 Kernel SLO ACCEPTANCE (metric B): quiet `parcae-bench --suite theory` +
 `slo --extended` → [`kernel_slo/`](kernel_slo/).  
 Smart hist customs: contract [`dsl-smart-hist.md`](../dsl-smart-hist.md) →
-[`dsl_smart/`](dsl_smart/).
+[`dsl_smart/`](dsl_smart/) via `parcae-bench --suite dsl_smart` +
+[`scripts/cuda/capture_dsl_smart.ps1`](../../../scripts/cuda/capture_dsl_smart.ps1).

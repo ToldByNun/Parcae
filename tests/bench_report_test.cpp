@@ -23,6 +23,7 @@ TEST_CASE("BenchReport suite backend status strings", "[bench][report]") {
     REQUIRE(std::string(BenchReport::suite_str(BenchReport::Suite::Slo)) == "slo");
     REQUIRE(std::string(BenchReport::suite_str(BenchReport::Suite::Accuracy)) == "accuracy");
     REQUIRE(std::string(BenchReport::suite_str(BenchReport::Suite::Theory)) == "theory");
+    REQUIRE(std::string(BenchReport::suite_str(BenchReport::Suite::DslSmart)) == "dsl_smart");
     REQUIRE(std::string(BenchReport::backend_str(BenchReport::Backend::Cuda)) == "cuda");
     REQUIRE(std::string(BenchReport::status_str(BenchReport::RowStatus::Skipped)) == "skipped");
 }

@@ -153,7 +153,8 @@ still requires the **S0** fair Kernel SLO ≥90% Spec peak. Normative rules:
 Artifact **stream** (`emitted/`, `paths.cuda_*`) vs **fused hist** (`hist/`,
 `paths.hist_*`):
 [`theory-artifact.md`](../../../docs/spec/theory-artifact.md).
-Peaks / suite: `BenchTierSpec` `T.theory.*` via `parcae-bench --suite theory`.
+Peaks / suite: `BenchTierSpec` `T.theory.*` via `parcae-bench --suite theory`;
+customs vs catalog twins via `--suite dsl_smart` → `profiles/dsl_smart/`.
 
 ## Status
 
