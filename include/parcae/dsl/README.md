@@ -50,7 +50,7 @@ private:
 | `theory_hist_chi2_launch.hpp` | `TheoryHistChi2Launch` | Done (CUDA façade: S0 / Shape Atbash / S1 LUT / S2 linear) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_s1.hpp` | `TheoryHistChi2S1` | Done (LUT-29 twin) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_s2.hpp` | `TheoryHistChi2S2` | Done (linear uchar4 twin) — under `Parcae/Parcae/cuda/` |
-| `theory_hist_chi2_shape.hpp` | `TheoryHistChi2Shape` | Done (Atbash `HistFast::dec_atbash` twin) — under `Parcae/Parcae/cuda/` |
+| `theory_hist_chi2_shape.hpp` | `TheoryHistChi2Shape` | Done (Atbash/Caesar/Affine-decrypt twins) — under `Parcae/Parcae/cuda/` |
 | `param_ir.hpp` | `ParamIr` | Done |
 | `primitive_ir.hpp` | `PrimitiveIr` | Done |
 | `theory_ir.hpp` | `TheoryIr` | Done |

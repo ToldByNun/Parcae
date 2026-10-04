@@ -438,8 +438,8 @@ private:
         return params;
     }
 
-    /// Caesar-as-bytecode fair row: prefer ShapeInline/S1 specialize when emit
-    /// classifies (same scores, S1 soft-twin rates); else S0 interpreter.
+    /// Caesar-as-bytecode fair row: prefer ShapeInline Caesar twin / S1 soft when
+    /// emit classifies; else S0 interpreter.
     [[nodiscard]] static StatusOr<BenchReport::Row>
     run_caesar_bytecode(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
                         std::size_t reps, std::string name, std::string workload,
@@ -450,6 +450,10 @@ private:
         }
         StatusOr<TheoryHistChi2Emit::EmitBundle> emit =
             TheoryHistChi2Emit::emit_decrypt_hist(theory.value());
+        if (emit.ok() && emit.value().specialized() && emit.value().has_shape_caesar_kernel()) {
+            return run_caesar_shape(freqs, C, T, reps, std::move(name), std::move(workload), tier,
+                                   "specialize_ShapeInline");
+        }
         if (emit.ok() && emit.value().specialized() && emit.value().has_s1_soft_path()) {
             const char* tag =
                 emit.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::ShapeInline
@@ -489,6 +493,56 @@ private:
         }
         return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
                                tier, tier == nullptr ? "" : "S0_bytecode");
+    }
+
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    run_caesar_shape(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
+                     std::size_t reps, std::string name, std::string workload,
+                     const BenchTierSpec::Tier* tier,
+                     std::string detail_prefix = "ShapeInline_caesar") {
+        const auto params = caesar_params(C);
+        std::vector<std::uint8_t> host_shifts(C, 0);
+        for (std::size_t c = 0; c < C; ++c) {
+            host_shifts[c] = static_cast<std::uint8_t>(params[c].at("shift").get<int>());
+        }
+        const auto host_in = random_stream(T, 0x71EFu);
+        StatusOr<DeviceBuffer<std::uint8_t>> device_in =
+            DeviceBuffer<std::uint8_t>::from_host(host_in);
+        if (!device_in.ok()) {
+            return device_in.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_shifts =
+            DeviceBuffer<std::uint8_t>::from_host(host_shifts);
+        if (!device_shifts.ok()) {
+            return device_shifts.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
+            std::span<const double>(freqs.probabilities().data(), freqs.probabilities().size()));
+        if (!device_probs.ok()) {
+            return device_probs.status();
+        }
+        StatusOr<DeviceBuffer<std::uint32_t>> device_counts =
+            DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2Launch::alphabet_size);
+        if (!device_counts.ok()) {
+            return device_counts.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_scores = DeviceBuffer<double>::allocate(C);
+        if (!device_scores.ok()) {
+            return device_scores.status();
+        }
+
+        StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
+            NvtxRange nvtx_shape("hist_shape_caesar");
+            return TheoryHistChi2Launch::launch_shape_caesar_async(
+                device_in.value().data(), device_shifts.value().data(),
+                device_probs.value().data(), device_counts.value().data(),
+                device_scores.value().data(), C, T);
+        });
+        if (!sample.ok()) {
+            return sample.status();
+        }
+        return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
+                               tier, std::move(detail_prefix));
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Row>

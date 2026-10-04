@@ -81,6 +81,19 @@ TEST_CASE("TheoryShapeMatch Affine Add(b, Mul(x,a))", "[dsl][shape]") {
     REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::Affine);
     REQUIRE(m.value().a_name() == "a");
     REQUIRE(m.value().b_name() == "b");
+    REQUIRE_FALSE(m.value().affine_decrypt());
+}
+
+TEST_CASE("TheoryShapeMatch Affine decrypt Mul(Inv(a), Sub(x,b))", "[dsl][shape]") {
+    const Z29Expr::Ptr expr = Z29Expr::mul(
+        Z29Expr::inv(TheoryShapeMatchTestUtil::v("a")),
+        Z29Expr::sub(TheoryShapeMatchTestUtil::x(), TheoryShapeMatchTestUtil::v("b")));
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::Affine);
+    REQUIRE(m.value().affine_decrypt());
+    REQUIRE(m.value().a_name() == "a");
+    REQUIRE(m.value().b_name() == "b");
 }
 
 TEST_CASE("TheoryShapeMatch Affine Mul(const,x) with invertible a", "[dsl][shape]") {
@@ -129,10 +142,22 @@ TEST_CASE("TheoryShapeMatch LinearKeystream Add(ks,x) after commute", "[dsl][sha
     REQUIRE_FALSE(m.value().cipher_minus_ks());
 }
 
-TEST_CASE("TheoryShapeMatch FxOnly custom f(x)", "[dsl][shape]") {
-    // inv(a)*x — not Atbash/Caesar/Affine pattern (Inv on param side).
+TEST_CASE("TheoryShapeMatch Affine decrypt Mul(Inv(a), x) is b=0", "[dsl][shape]") {
     const Z29Expr::Ptr expr =
         Z29Expr::mul(Z29Expr::inv(TheoryShapeMatchTestUtil::v("a")), TheoryShapeMatchTestUtil::x());
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::Affine);
+    REQUIRE(m.value().affine_decrypt());
+    REQUIRE(m.value().a_name() == "a");
+    REQUIRE(m.value().has_const_b());
+    REQUIRE(m.value().const_b() == 0);
+}
+
+TEST_CASE("TheoryShapeMatch FxOnly custom f(x)", "[dsl][shape]") {
+    // x^2-style: Mul(x,x) — not Affine/Caesar.
+    const Z29Expr::Ptr expr =
+        Z29Expr::mul(TheoryShapeMatchTestUtil::x(), TheoryShapeMatchTestUtil::x());
     const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
     REQUIRE(m.ok());
     REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::FxOnly);

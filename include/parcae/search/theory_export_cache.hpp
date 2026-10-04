@@ -72,12 +72,27 @@ public:
             return s1_.has_value() &&
                    (emitted_ == TheoryHistChi2Emit::Strategy::S1Lut29 ||
                     emitted_ == TheoryHistChi2Emit::Strategy::ShapeInline) &&
-                   !has_shape_atbash_kernel();
+                   !has_shape_hist_kernel();
         }
 
         [[nodiscard]] bool has_shape_atbash_kernel() const noexcept {
             return emitted_ == TheoryHistChi2Emit::Strategy::ShapeInline && shape_.has_value() &&
                    shape_->has_shape_atbash_kernel();
+        }
+
+        [[nodiscard]] bool has_shape_caesar_kernel() const noexcept {
+            return emitted_ == TheoryHistChi2Emit::Strategy::ShapeInline && shape_.has_value() &&
+                   shape_->has_shape_caesar_kernel();
+        }
+
+        [[nodiscard]] bool has_shape_affine_kernel() const noexcept {
+            return emitted_ == TheoryHistChi2Emit::Strategy::ShapeInline && shape_.has_value() &&
+                   shape_->has_shape_affine_kernel();
+        }
+
+        [[nodiscard]] bool has_shape_hist_kernel() const noexcept {
+            return emitted_ == TheoryHistChi2Emit::Strategy::ShapeInline && shape_.has_value() &&
+                   shape_->has_shape_hist_kernel();
         }
 
     private:

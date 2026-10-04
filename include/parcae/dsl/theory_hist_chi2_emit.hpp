@@ -27,8 +27,9 @@
 /// AOT fused-χ² hist emit for theory search (`docs/architecture/dsl-smart-hist.md`).
 ///
 /// Classify via `Z29ExprNormalize` + `TheoryShapeMatch` (name-irrelevant), then:
-/// ShapeInline (Atbash/Caesar/Affine) → S1 LUT twin until shape kernels land;
-/// LinearKeystream → S2; FxOnly → S1; Autokey/prefer_branch → S0; else S3 stub→S0.
+/// ShapeInline Atbash/Caesar/Affine-decrypt → in-lib `TheoryHistChi2Shape`;
+/// Affine encrypt-form → S1 soft twin; LinearKeystream → S2; FxOnly → S1;
+/// Autokey/prefer_branch → S0; else S3 stub→S0.
 ///
 /// No C++ namespaces. Emitted CUDA uses file-scope `__global__` names —
 /// never anonymous `namespace {}`.
@@ -69,6 +70,13 @@ public:
             p.b0_name_ = m.b0_name();
             p.b1_name_ = m.b1_name();
             p.cipher_minus_ks_ = m.cipher_minus_ks();
+            p.affine_decrypt_ = m.affine_decrypt();
+            p.has_const_shift_ = m.has_const_shift();
+            p.const_shift_ = m.const_shift();
+            p.has_const_a_ = m.has_const_a();
+            p.const_a_ = m.const_a();
+            p.has_const_b_ = m.has_const_b();
+            p.const_b_ = m.const_b();
             return p;
         }
 
@@ -88,15 +96,42 @@ public:
 
         [[nodiscard]] bool cipher_minus_ks() const noexcept { return cipher_minus_ks_; }
 
+        [[nodiscard]] bool affine_decrypt() const noexcept { return affine_decrypt_; }
+
+        [[nodiscard]] bool has_const_shift() const noexcept { return has_const_shift_; }
+
+        [[nodiscard]] std::uint8_t const_shift() const noexcept { return const_shift_; }
+
+        [[nodiscard]] bool has_const_a() const noexcept { return has_const_a_; }
+
+        [[nodiscard]] std::uint8_t const_a() const noexcept { return const_a_; }
+
+        [[nodiscard]] bool has_const_b() const noexcept { return has_const_b_; }
+
+        [[nodiscard]] std::uint8_t const_b() const noexcept { return const_b_; }
+
         [[nodiscard]] bool is_shape_inline() const noexcept {
             return shape_ == TheoryShapeMatch::ShapeId::Atbash ||
                    shape_ == TheoryShapeMatch::ShapeId::Caesar ||
                    shape_ == TheoryShapeMatch::ShapeId::Affine;
         }
 
-        /// In-lib `TheoryHistChi2Shape::launch_atbash_async` is available.
         [[nodiscard]] bool has_shape_atbash_kernel() const noexcept {
             return shape_ == TheoryShapeMatch::ShapeId::Atbash;
+        }
+
+        [[nodiscard]] bool has_shape_caesar_kernel() const noexcept {
+            return shape_ == TheoryShapeMatch::ShapeId::Caesar;
+        }
+
+        /// Decrypt-form Affine only (`inv(a)·(x−b)`); encrypt-form stays S1 soft.
+        [[nodiscard]] bool has_shape_affine_kernel() const noexcept {
+            return shape_ == TheoryShapeMatch::ShapeId::Affine && affine_decrypt_;
+        }
+
+        [[nodiscard]] bool has_shape_hist_kernel() const noexcept {
+            return has_shape_atbash_kernel() || has_shape_caesar_kernel() ||
+                   has_shape_affine_kernel();
         }
 
     private:
@@ -108,6 +143,13 @@ public:
         std::string b0_name_;
         std::string b1_name_;
         bool cipher_minus_ks_ = false;
+        bool affine_decrypt_ = false;
+        bool has_const_shift_ = false;
+        std::uint8_t const_shift_ = 0;
+        bool has_const_a_ = false;
+        std::uint8_t const_a_ = 0;
+        bool has_const_b_ = false;
+        std::uint8_t const_b_ = 0;
     };
 
     /// S1 plan: params in `TheoryIr::params()` order; LUT rows are `C × 29`.
@@ -208,16 +250,31 @@ public:
             return emitted_ == Strategy::ShapeInline;
         }
 
-        /// Soft runtime path until dedicated shape HistFast kernels ship.
+        /// Soft runtime path when ShapeInline still uses S1 LUT (encrypt Affine).
         [[nodiscard]] bool has_s1_soft_path() const noexcept {
             return s1_lut_.has_value() &&
                    (emitted_ == Strategy::S1Lut29 || emitted_ == Strategy::ShapeInline) &&
-                   !has_shape_atbash_kernel();
+                   !has_shape_hist_kernel();
         }
 
         [[nodiscard]] bool has_shape_atbash_kernel() const noexcept {
             return emitted_ == Strategy::ShapeInline && shape_.has_value() &&
                    shape_->has_shape_atbash_kernel();
+        }
+
+        [[nodiscard]] bool has_shape_caesar_kernel() const noexcept {
+            return emitted_ == Strategy::ShapeInline && shape_.has_value() &&
+                   shape_->has_shape_caesar_kernel();
+        }
+
+        [[nodiscard]] bool has_shape_affine_kernel() const noexcept {
+            return emitted_ == Strategy::ShapeInline && shape_.has_value() &&
+                   shape_->has_shape_affine_kernel();
+        }
+
+        [[nodiscard]] bool has_shape_hist_kernel() const noexcept {
+            return emitted_ == Strategy::ShapeInline && shape_.has_value() &&
+                   shape_->has_shape_hist_kernel();
         }
 
     private:
@@ -301,11 +358,16 @@ public:
                 return Selection{Strategy::ShapeInline,
                                  "shape Atbash — ShapeInline (HistFast::dec_atbash twin)", plan};
             case TheoryShapeMatch::ShapeId::Caesar:
-            case TheoryShapeMatch::ShapeId::Affine:
                 return Selection{Strategy::ShapeInline,
-                                 std::string("shape ") + shape_id_str(matched.value().shape()) +
-                                     " — ShapeInline (S1 soft twin until shape kernels)",
-                                 plan};
+                                 "shape Caesar — ShapeInline (HistFast::dec_caesar twin)", plan};
+            case TheoryShapeMatch::ShapeId::Affine:
+                if (matched.value().affine_decrypt()) {
+                    return Selection{Strategy::ShapeInline,
+                                     "shape Affine decrypt — ShapeInline (inv(a)·(x-b) twin)",
+                                     plan};
+                }
+                return Selection{Strategy::ShapeInline,
+                                 "shape Affine encrypt-form — ShapeInline (S1 soft twin)", plan};
             case TheoryShapeMatch::ShapeId::LinearKeystream:
                 return Selection{Strategy::S2Uchar4Inline,
                                  std::string("shape LinearKeystream — S2 uchar4 candidate (") +
@@ -420,12 +482,16 @@ public:
                                       sel.reason() + ")",
                                   "", "", "", std::nullopt, std::nullopt, sel.shape()};
             }
-            if (sel.shape() && sel.shape()->has_shape_atbash_kernel()) {
-                // In-lib twin — sources discarded; export launches TheoryHistChi2Shape.
+            if (sel.shape() && sel.shape()->has_shape_hist_kernel()) {
+                const char* kern = "theory_hist_chi2_shape_atbash_kernel";
+                if (sel.shape()->has_shape_caesar_kernel()) {
+                    kern = "theory_hist_chi2_shape_caesar_kernel";
+                } else if (sel.shape()->has_shape_affine_kernel()) {
+                    kern = "theory_hist_chi2_shape_affine_kernel";
+                }
                 return EmitBundle{Strategy::ShapeInline, Strategy::ShapeInline, true,
-                                  std::string("ShapeInline Atbash hist twin: ") + sel.reason(), "",
-                                  "", "theory_hist_chi2_shape_atbash_kernel", std::nullopt,
-                                  std::nullopt, sel.shape()};
+                                  std::string("ShapeInline hist twin: ") + sel.reason(), "", "",
+                                  kern, std::nullopt, std::nullopt, sel.shape()};
             }
             StatusOr<EmitBundle> soft = emit_s1_lut_sources(theory, cipher_var, sel.reason());
             if (!soft.ok()) {

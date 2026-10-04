@@ -9,6 +9,7 @@
 #include "parcae/core/index29.hpp"
 #include "parcae/core/status.hpp"
 #include "parcae/core/status_or.hpp"
+#include "parcae/core/z29.hpp"
 #include "parcae/generate/affine_candidate_generator.hpp"
 #include "parcae/generate/atbash_caesar_candidate_generator.hpp"
 #include "parcae/generate/atbash_candidate_generator.hpp"
@@ -135,7 +136,7 @@ public:
         friend class GpuCandidateExport;
         friend class TheoryExportPipeline;
 
-        enum class Kind : std::uint8_t { S0, S1, S2, ShapeAtbash };
+        enum class Kind : std::uint8_t { S0, S1, S2, ShapeAtbash, ShapeCaesar, ShapeAffine };
 
         Phase phase_ = Phase::Idle;
         Kind kind_ = Kind::S0;
@@ -1086,6 +1087,16 @@ public:
                 scratch.cipher(), scratch.probs(), scratch.counts(), scratch.scores(),
                 ticket.candidate_count_, ticket.token_count_, streams.compute());
             break;
+        case TheoryLaunchTicket::Kind::ShapeCaesar:
+            launched = TheoryHistChi2Launch::launch_shape_caesar_async(
+                scratch.cipher(), scratch.b0(), scratch.probs(), scratch.counts(),
+                scratch.scores(), ticket.candidate_count_, ticket.token_count_, streams.compute());
+            break;
+        case TheoryLaunchTicket::Kind::ShapeAffine:
+            launched = TheoryHistChi2Launch::launch_shape_affine_async(
+                scratch.cipher(), scratch.b0(), scratch.b1(), scratch.probs(), scratch.counts(),
+                scratch.scores(), ticket.candidate_count_, ticket.token_count_, streams.compute());
+            break;
         }
         if (!launched.ok()) {
             return launched;
@@ -2012,6 +2023,175 @@ private:
                                          "GpuCandidateExport::theory ShapeAtbash sync", progress);
     }
 
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_shape_caesar(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
+        TheoryDeviceScratch& scratch, CudaStreamPair& streams, BatchRunner::Progress progress,
+        TheoryFuseMode mode, TheoryLaunchTicket* ticket_out) {
+        NvtxRange nvtx_shape("specialized_shape_caesar");
+        if (!entry.hist_plan().shape().has_value()) {
+            return Status::error("GpuCandidateExport::theory ShapeCaesar missing shape plan");
+        }
+        const TheoryHistChi2Emit::ShapePlan& plan = *entry.hist_plan().shape();
+        const Z29Bytecode::Program& prog = entry.program();
+        const std::size_t C = params_list.size();
+        std::vector<std::uint8_t> host_shifts(C, 0);
+        std::vector<std::uint8_t> host_dummy(C, 0);
+        {
+            NvtxRange nvtx_bind("bind_slots_shape_caesar");
+            if (plan.has_const_shift()) {
+                std::fill(host_shifts.begin(), host_shifts.end(), plan.const_shift());
+            } else {
+                const std::optional<std::uint16_t> ishift =
+                    find_slot_index(prog, plan.shift_name());
+                if (!ishift.has_value()) {
+                    return Status::error(
+                        "GpuCandidateExport::theory ShapeCaesar shift slot not found");
+                }
+                const std::uint16_t slot_count =
+                    static_cast<std::uint16_t>(prog.slot_names.size());
+                for (std::size_t c = 0; c < C; ++c) {
+                    StatusOr<std::vector<Index29>> bound =
+                        Z29Bytecode::bind_theory_slots(prog, entry.theory(), params_list[c]);
+                    if (!bound.ok()) {
+                        return bound.status();
+                    }
+                    if (bound.value().size() != slot_count) {
+                        return Status::error(
+                            "GpuCandidateExport::theory ShapeCaesar slot bind size mismatch");
+                    }
+                    host_shifts[c] = bound.value()[*ishift].value();
+                }
+            }
+        }
+
+        const auto host_in = to_bytes(cipher);
+        {
+            NvtxRange nvtx_h2d("h2d");
+            Status resident =
+                ensure_theory_resident(scratch, host_in, freqs, C, streams.copy());
+            if (!resident.ok()) {
+                return resident;
+            }
+            Status up = scratch.upload_b0_b1_async(host_shifts, host_dummy, C, streams.copy());
+            if (!up.ok()) {
+                return up;
+            }
+            scratch.commit_param_slab();
+        }
+
+        if (mode == TheoryFuseMode::StageH2D) {
+            Status h2d_ev = streams.record_h2d_done();
+            if (!h2d_ev.ok()) {
+                return h2d_ev;
+            }
+            if (ticket_out != nullptr) {
+                ticket_out->phase_ = TheoryLaunchTicket::Phase::Staged;
+                ticket_out->kind_ = TheoryLaunchTicket::Kind::ShapeCaesar;
+                ticket_out->candidate_count_ = C;
+                ticket_out->token_count_ = host_in.size();
+            }
+            return std::vector<double>{};
+        }
+        auto launch = [&](cudaStream_t compute) {
+            return TheoryHistChi2Launch::launch_shape_caesar_async(
+                scratch.cipher(), scratch.b0(), scratch.probs(), scratch.counts(),
+                scratch.scores(), C, host_in.size(), compute);
+        };
+        return launch_theory_stream_copy(scratch, streams, C, launch,
+                                         "GpuCandidateExport::theory ShapeCaesar sync", progress);
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_shape_affine(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
+        TheoryDeviceScratch& scratch, CudaStreamPair& streams, BatchRunner::Progress progress,
+        TheoryFuseMode mode, TheoryLaunchTicket* ticket_out) {
+        NvtxRange nvtx_shape("specialized_shape_affine");
+        if (!entry.hist_plan().shape().has_value()) {
+            return Status::error("GpuCandidateExport::theory ShapeAffine missing shape plan");
+        }
+        const TheoryHistChi2Emit::ShapePlan& plan = *entry.hist_plan().shape();
+        const Z29Bytecode::Program& prog = entry.program();
+        const std::size_t C = params_list.size();
+        std::vector<std::uint8_t> host_a(C, 0);
+        std::vector<std::uint8_t> host_b(C, 0);
+        {
+            NvtxRange nvtx_bind("bind_slots_shape_affine");
+            const std::optional<std::uint16_t> ia =
+                plan.a_name().empty() ? std::nullopt : find_slot_index(prog, plan.a_name());
+            const std::optional<std::uint16_t> ib =
+                plan.b_name().empty() ? std::nullopt : find_slot_index(prog, plan.b_name());
+            if (!plan.has_const_a() && !ia.has_value()) {
+                return Status::error("GpuCandidateExport::theory ShapeAffine a slot not found");
+            }
+            if (!plan.has_const_b() && !plan.b_name().empty() && !ib.has_value()) {
+                return Status::error("GpuCandidateExport::theory ShapeAffine b slot not found");
+            }
+            const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.slot_names.size());
+            for (std::size_t c = 0; c < C; ++c) {
+                StatusOr<std::vector<Index29>> bound =
+                    Z29Bytecode::bind_theory_slots(prog, entry.theory(), params_list[c]);
+                if (!bound.ok()) {
+                    return bound.status();
+                }
+                if (bound.value().size() != slot_count) {
+                    return Status::error(
+                        "GpuCandidateExport::theory ShapeAffine slot bind size mismatch");
+                }
+                const std::uint8_t a =
+                    plan.has_const_a() ? plan.const_a() : bound.value()[*ia].value();
+                const std::uint8_t b =
+                    plan.has_const_b()
+                        ? plan.const_b()
+                        : (ib.has_value() ? bound.value()[*ib].value() : static_cast<std::uint8_t>(0));
+                // inv(a) domain: a==0 is undefined in ℤ₂₉ → soft-fallback S0.
+                if (a == 0 || !Z29::try_inv(Index29{a}).ok()) {
+                    return Status::error(
+                        "GpuCandidateExport::theory ShapeAffine inv(a) domain (a==0)");
+                }
+                host_a[c] = a;
+                host_b[c] = b;
+            }
+        }
+
+        const auto host_in = to_bytes(cipher);
+        {
+            NvtxRange nvtx_h2d("h2d");
+            Status resident =
+                ensure_theory_resident(scratch, host_in, freqs, C, streams.copy());
+            if (!resident.ok()) {
+                return resident;
+            }
+            Status up = scratch.upload_b0_b1_async(host_a, host_b, C, streams.copy());
+            if (!up.ok()) {
+                return up;
+            }
+            scratch.commit_param_slab();
+        }
+
+        if (mode == TheoryFuseMode::StageH2D) {
+            Status h2d_ev = streams.record_h2d_done();
+            if (!h2d_ev.ok()) {
+                return h2d_ev;
+            }
+            if (ticket_out != nullptr) {
+                ticket_out->phase_ = TheoryLaunchTicket::Phase::Staged;
+                ticket_out->kind_ = TheoryLaunchTicket::Kind::ShapeAffine;
+                ticket_out->candidate_count_ = C;
+                ticket_out->token_count_ = host_in.size();
+            }
+            return std::vector<double>{};
+        }
+        auto launch = [&](cudaStream_t compute) {
+            return TheoryHistChi2Launch::launch_shape_affine_async(
+                scratch.cipher(), scratch.b0(), scratch.b1(), scratch.probs(), scratch.counts(),
+                scratch.scores(), C, host_in.size(), compute);
+        };
+        return launch_theory_stream_copy(scratch, streams, C, launch,
+                                         "GpuCandidateExport::theory ShapeAffine sync", progress);
+    }
+
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s1(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
@@ -2189,7 +2369,7 @@ private:
         const TheoryExportCache::Entry& entry = *prepared.value();
         const TheoryExportCache::HistPlan& hist = entry.hist_plan();
 
-        // Prefer ShapeInline Atbash twin → ShapeInline S1 soft twin → S1 → S2 → S0.
+        // Prefer ShapeInline twins (Atbash/Caesar/Affine) → S1 soft → S1 → S2 → S0.
         if (hist.specialized() && hist.has_shape_atbash_kernel()) {
             StatusOr<std::vector<double>> shape =
                 fused_theory_scores_shape_atbash(cipher, freqs, params_list, scratch, streams,
@@ -2199,6 +2379,26 @@ private:
                 return shape;
             }
             // Soft fallback S0.
+        }
+        if (hist.specialized() && hist.has_shape_caesar_kernel()) {
+            StatusOr<std::vector<double>> shape =
+                fused_theory_scores_shape_caesar(cipher, freqs, entry, params_list, scratch,
+                                                 streams, progress, mode, ticket_out);
+            if (shape.ok()) {
+                cache.note_hist_launch(TheoryHistChi2Emit::Strategy::ShapeInline);
+                return shape;
+            }
+            // Soft fallback S0.
+        }
+        if (hist.specialized() && hist.has_shape_affine_kernel()) {
+            StatusOr<std::vector<double>> shape =
+                fused_theory_scores_shape_affine(cipher, freqs, entry, params_list, scratch,
+                                                 streams, progress, mode, ticket_out);
+            if (shape.ok()) {
+                cache.note_hist_launch(TheoryHistChi2Emit::Strategy::ShapeInline);
+                return shape;
+            }
+            // Soft fallback S0 (incl. inv(a) domain).
         }
         if (hist.specialized() &&
             hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::ShapeInline &&

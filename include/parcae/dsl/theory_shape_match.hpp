@@ -97,6 +97,11 @@ public:
             const_b_ = v;
         }
 
+        /// True when match is decrypt `inv(a)·(x−b)` (shape hist twin eligible).
+        void set_affine_decrypt(bool v) noexcept { affine_decrypt_ = v; }
+
+        [[nodiscard]] bool affine_decrypt() const noexcept { return affine_decrypt_; }
+
         void set_linear(std::string b0, std::string b1, bool cipher_minus_ks) {
             b0_name_ = std::move(b0);
             b1_name_ = std::move(b1);
@@ -119,6 +124,7 @@ public:
         std::uint8_t const_a_ = 0;
         bool has_const_b_ = false;
         std::uint8_t const_b_ = 0;
+        bool affine_decrypt_ = false;
     };
 
     [[nodiscard]] static const char* shape_str(ShapeId id) noexcept {
@@ -200,6 +206,10 @@ private:
             return std::move(*m);
         }
         if (std::optional<Match> m = try_caesar(expr, owned, cipher_var)) {
+            return std::move(*m);
+        }
+        // Decrypt form inv(a)·(x−b) before encrypt-form a·x+b.
+        if (std::optional<Match> m = try_affine_decrypt(expr, owned, cipher_var)) {
             return std::move(*m);
         }
         if (std::optional<Match> m = try_affine(expr, owned, cipher_var)) {
@@ -329,6 +339,80 @@ private:
             return m;
         }
         return std::nullopt;
+    }
+
+    /// Decrypt Affine: `Mul(Inv(a), Sub/Add(cipher, ±b))` or `Mul(Inv(a), cipher)`.
+    [[nodiscard]] static std::optional<Match>
+    try_affine_decrypt(const Z29Expr& expr, Z29Expr::Ptr owned, std::string_view cipher_var) {
+        using Kind = Z29Expr::Kind;
+        if (expr.kind() != Kind::Mul || !expr.left() || !expr.right()) {
+            return std::nullopt;
+        }
+        const Z29Expr* inv_side = nullptr;
+        const Z29Expr* body = nullptr;
+        if (expr.left()->kind() == Kind::Inv) {
+            inv_side = expr.left().get();
+            body = expr.right().get();
+        } else if (expr.right()->kind() == Kind::Inv) {
+            inv_side = expr.right().get();
+            body = expr.left().get();
+        } else {
+            return std::nullopt;
+        }
+        if (!inv_side->arg() || !body) {
+            return std::nullopt;
+        }
+        const Z29Expr& a_expr = *inv_side->arg();
+        std::string a_name;
+        std::optional<std::uint8_t> const_a;
+        if (a_expr.kind() == Kind::Var) {
+            a_name = a_expr.name();
+        } else if (a_expr.kind() == Kind::Const) {
+            if (a_expr.const_value() == 0 || !Z29::try_inv(Index29{a_expr.const_value()}).ok()) {
+                return std::nullopt;
+            }
+            const_a = static_cast<std::uint8_t>(a_expr.const_value());
+        } else {
+            return std::nullopt;
+        }
+
+        std::string b_name;
+        std::optional<std::uint8_t> const_b;
+        if (is_cipher_var(*body, cipher_var)) {
+            const_b = static_cast<std::uint8_t>(0);
+        } else if ((body->kind() == Kind::Sub || body->kind() == Kind::Add) && body->left() &&
+                   body->right() && is_cipher_var(*body->left(), cipher_var) &&
+                   !DslOptimize::depends_on_var(*body->right(), cipher_var) &&
+                   !DslOptimize::depends_on_var(*body->right(), "i")) {
+            const Z29Expr* b_expr = body->right().get();
+            // Add(cipher, Neg(b)) after Caesar-style normalize of Sub(cipher, b).
+            if (body->kind() == Kind::Add && b_expr->kind() == Kind::Neg && b_expr->arg()) {
+                b_expr = b_expr->arg().get();
+            } else if (body->kind() == Kind::Add) {
+                // Add(cipher, +b) is not standard affine decrypt.
+                return std::nullopt;
+            }
+            if (b_expr->kind() == Kind::Var) {
+                b_name = b_expr->name();
+            } else if (b_expr->kind() == Kind::Const) {
+                const_b = static_cast<std::uint8_t>(b_expr->const_value());
+            } else {
+                return std::nullopt;
+            }
+        } else {
+            return std::nullopt;
+        }
+
+        Match m{ShapeId::Affine, "Mul(Inv(a), cipher-b) decrypt", std::move(owned)};
+        m.set_affine(std::move(a_name), std::move(b_name));
+        m.set_affine_decrypt(true);
+        if (const_a) {
+            m.set_const_a(*const_a);
+        }
+        if (const_b) {
+            m.set_const_b(*const_b);
+        }
+        return m;
     }
 
     /// `Add(Mul(a, cipher), b)` or `Mul(a, cipher)` with invertible const `a` (or param `a`).

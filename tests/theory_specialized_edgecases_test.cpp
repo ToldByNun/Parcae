@@ -143,6 +143,24 @@ constexpr const char* kSha =
     return th.value();
 }
 
+[[nodiscard]] TheoryIr make_affine() {
+    const StatusOr<ParamIr> a = ParamIr::make("a", 0, 28);
+    const StatusOr<ParamIr> b = ParamIr::make("b", 0, 28);
+    REQUIRE(a.ok());
+    REQUIRE(b.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr av = Z29Expr::var("a");
+    const Z29Expr::Ptr bv = Z29Expr::var("b");
+    const StatusOr<TheoryIr> th = TheoryIr::make(
+        "edge_affine", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {a.value(), b.value()},
+        Z29Expr::add(Z29Expr::mul(av, x), bv),
+        Z29Expr::mul(Z29Expr::inv(av), Z29Expr::sub(x, bv)),
+        std::string("Edge affine decrypt; a=0 is inv domain."));
+    REQUIRE(th.ok());
+    return th.value();
+}
+
 [[nodiscard]] std::vector<Index29> make_cipher(std::size_t n) {
     std::vector<Index29> out;
     out.reserve(n);
@@ -276,6 +294,7 @@ TEST_CASE("specialized S1 vs bytecode: scores + top-k order match",
         TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
     REQUIRE(specialized.ok());
     REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::ShapeInline);
+    REQUIRE(TheoryHistChi2Emit::emit_decrypt_hist(theory).value().has_shape_caesar_kernel());
 
     const std::vector<double> bytecode =
         launch_bytecode_scores(theory, cipher, params_list, freqs.value());
@@ -432,6 +451,28 @@ TEST_CASE("domain error Div0 patches fused theory score to +inf",
                                                 nlohmann::json{{"d", 2}}};
         StatusOr<std::vector<double>> scores = GpuCandidateExport::theory_scores_only(
             cipher, freqs.value(), root / "theories", "parcae://theories/edge_div_param@1",
+            params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
+        REQUIRE(scores.ok());
+        REQUIRE(scores.value().size() == 3);
+        REQUIRE(std::isfinite(scores.value()[0]));
+        REQUIRE(std::isinf(scores.value()[1]));
+        REQUIRE(scores.value()[1] > 0.0);
+        REQUIRE(std::isfinite(scores.value()[2]));
+        REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+    }
+
+    SECTION("affine a=0 inv domain soft-falls ShapeInline → S0 (+inf lane)") {
+        const TheoryIr theory = make_affine();
+        REQUIRE(install_theory(root / "theories", theory).ok());
+        REQUIRE(TheoryHistChi2Emit::emit_decrypt_hist(theory).value().has_shape_affine_kernel());
+
+        TheoryExportCache cache;
+        // Mix: invertible a then a==0 — shape path rejects domain → soft S0.
+        std::vector<nlohmann::json> params_list{nlohmann::json{{"a", 1}, {"b", 0}},
+                                                nlohmann::json{{"a", 0}, {"b", 0}},
+                                                nlohmann::json{{"a", 2}, {"b", 1}}};
+        StatusOr<std::vector<double>> scores = GpuCandidateExport::theory_scores_only(
+            cipher, freqs.value(), root / "theories", "parcae://theories/edge_affine@1",
             params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
         REQUIRE(scores.ok());
         REQUIRE(scores.value().size() == 3);

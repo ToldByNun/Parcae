@@ -90,6 +90,24 @@ constexpr const char* kSha =
     return th.value();
 }
 
+[[nodiscard]] TheoryIr make_affine_decrypt() {
+    const StatusOr<ParamIr> a = ParamIr::make("a", 1, 28);
+    const StatusOr<ParamIr> b = ParamIr::make("b", 0, 28);
+    REQUIRE(a.ok());
+    REQUIRE(b.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr av = Z29Expr::var("a");
+    const Z29Expr::Ptr bv = Z29Expr::var("b");
+    const StatusOr<TheoryIr> th = TheoryIr::make(
+        "export_prefer_affine", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {a.value(), b.value()},
+        Z29Expr::add(Z29Expr::mul(av, x), bv),
+        Z29Expr::mul(Z29Expr::inv(av), Z29Expr::sub(x, bv)),
+        std::string("Affine decrypt ShapeInline."));
+    REQUIRE(th.ok());
+    return th.value();
+}
+
 [[nodiscard]] TheoryIr make_progressive() {
     const StatusOr<ParamIr> b0 = ParamIr::make("b0", 0, 28);
     const StatusOr<ParamIr> b1 = ParamIr::make("b1", 0, 28);
@@ -118,7 +136,7 @@ constexpr const char* kSha =
 
 } // namespace
 
-TEST_CASE("GpuCandidateExport prefers ShapeInline (S1 soft twin); export_backend=cuda",
+TEST_CASE("GpuCandidateExport prefers ShapeInline Caesar twin; export_backend=cuda",
           "[search][export][theory][specialized][cuda][shape]") {
     const std::filesystem::path root =
         std::filesystem::temp_directory_path() / "parcae_export_prefer_shape";
@@ -146,7 +164,8 @@ TEST_CASE("GpuCandidateExport prefers ShapeInline (S1 soft twin); export_backend
     REQUIRE(prepared.value()->hist_plan().specialized());
     REQUIRE(prepared.value()->hist_plan().emitted_strategy() ==
             TheoryHistChi2Emit::Strategy::ShapeInline);
-    REQUIRE(prepared.value()->hist_plan().has_s1_soft_path());
+    REQUIRE(prepared.value()->hist_plan().has_shape_caesar_kernel());
+    REQUIRE_FALSE(prepared.value()->hist_plan().has_s1_soft_path());
     REQUIRE(prepared.value()->hist_plan().shape().has_value());
     REQUIRE(prepared.value()->hist_plan().shape()->shape() == TheoryShapeMatch::ShapeId::Caesar);
 
@@ -168,6 +187,50 @@ TEST_CASE("GpuCandidateExport prefers ShapeInline (S1 soft twin); export_backend
     for (std::size_t c = 0; c < params_list.size(); ++c) {
         StatusOr<std::vector<Index29>> plain = TheoryDispatch::apply(
             theory, cipher, params_list[c], TransformDirection::Decrypt);
+        REQUIRE(plain.ok());
+        StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
+        REQUIRE(cpu.ok());
+        REQUIRE(gpu_scores.value()[c] == cpu.value());
+    }
+}
+
+TEST_CASE("GpuCandidateExport prefers ShapeInline Affine decrypt twin",
+          "[search][export][theory][specialized][cuda][shape]") {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_export_prefer_affine";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const TheoryIr theory = make_affine_decrypt();
+    REQUIRE(install_theory(root / "theories", theory).ok());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = make_cipher(48);
+    std::vector<nlohmann::json> params_list;
+    for (int a = 1; a <= 3; ++a) {
+        for (int b = 0; b < 3; ++b) {
+            params_list.push_back(nlohmann::json{{"a", a}, {"b", b}});
+        }
+    }
+
+    TheoryExportCache cache;
+    StatusOr<const TheoryExportCache::Entry*> prepared = cache.ensure(
+        root / "theories", "parcae://theories/export_prefer_affine@1", TransformDirection::Decrypt);
+    REQUIRE(prepared.ok());
+    REQUIRE(prepared.value()->hist_plan().has_shape_affine_kernel());
+
+    StatusOr<std::vector<double>> gpu_scores = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/export_prefer_affine@1",
+        params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
+    REQUIRE(gpu_scores.ok());
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::ShapeInline);
+    for (std::size_t c = 0; c < params_list.size(); ++c) {
+        StatusOr<std::vector<Index29>> plain =
+            TheoryDispatch::apply(theory, cipher, params_list[c], TransformDirection::Decrypt);
         REQUIRE(plain.ok());
         StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
         REQUIRE(cpu.ok());

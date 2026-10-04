@@ -66,8 +66,8 @@ Python HotLoop decrypt_step
 | Module | `TheoryHistModule` | Optional cubin/NVRTC by URI+digest; soft S0 on fail |
 | Hist primitives | `HistFast` | Shared decode with catalog (`dec_atbash`, caesar, affine, …) |
 
-Shipping today (honest): normalize+match before S1; `ShapeInline` Atbash uses
-in-lib `TheoryHistChi2Shape` (`HistFast::dec_atbash`); Caesar/Affine still S1
+Shipping today (honest): normalize+match before S1; `ShapeInline` Atbash/Caesar/
+Affine-decrypt use in-lib `TheoryHistChi2Shape`; Affine encrypt-form still S1
 soft twin; launch prefer `ShapeInline→S1→S2→S0`; emit sources still discarded
 at export; `has_specialized` still false for NVRTC modules.
 
@@ -249,7 +249,7 @@ private:
 |------------|-------|-----------------|
 | `Z29ExprNormalize` | **Shipping** (`[dsl][normalize]`) | Idempotent arith → Atbash / commute forms |
 | `TheoryShapeMatch` | **Shipping** (`[dsl][shape]`) | ShapeId ladder; name-irrelevant; autokey / prefer_branch / non-inv affine |
-| Self-written Atbash arith | `ShapeInline` + `TheoryHistChi2Shape` atbash twin | Caesar/Affine shape twins (still S1 soft) |
+| Self-written Atbash/Caesar/Affine-decrypt | `ShapeInline` + `TheoryHistChi2Shape` twins | Affine encrypt-form S1 soft; S3/S4/S5 |
 | Name / API required for fast path | Effective yes (catalog) | **No** — algebra only |
 | S3 / S4 / S5 | Stub or hard S0 | Real launch or module |
 | Emit sources / `hist_module` | Discarded / null | `hist_plan` + optional module load |
