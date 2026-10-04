@@ -79,6 +79,17 @@ constexpr const char* kSha =
     return th.value();
 }
 
+[[nodiscard]] TheoryIr make_atbash_arith() {
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr twenty_eight = Z29Expr::constant(28).value();
+    const StatusOr<TheoryIr> th = TheoryIr::make(
+        "export_prefer_atbash_arith", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {}, Z29Expr::sub(twenty_eight, x),
+        Z29Expr::sub(twenty_eight, x), std::string("Self-written Atbash arith."));
+    REQUIRE(th.ok());
+    return th.value();
+}
+
 [[nodiscard]] TheoryIr make_progressive() {
     const StatusOr<ParamIr> b0 = ParamIr::make("b0", 0, 28);
     const StatusOr<ParamIr> b1 = ParamIr::make("b1", 0, 28);
@@ -157,6 +168,51 @@ TEST_CASE("GpuCandidateExport prefers ShapeInline (S1 soft twin); export_backend
     for (std::size_t c = 0; c < params_list.size(); ++c) {
         StatusOr<std::vector<Index29>> plain = TheoryDispatch::apply(
             theory, cipher, params_list[c], TransformDirection::Decrypt);
+        REQUIRE(plain.ok());
+        StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
+        REQUIRE(cpu.ok());
+        REQUIRE(gpu_scores.value()[c] == cpu.value());
+    }
+}
+
+TEST_CASE("GpuCandidateExport prefers ShapeInline Atbash hist twin",
+          "[search][export][theory][specialized][cuda][shape]") {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_export_prefer_atbash";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const TheoryIr theory = make_atbash_arith();
+    REQUIRE(install_theory(root / "theories", theory).ok());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = make_cipher(64);
+    std::vector<nlohmann::json> params_list{nlohmann::json::object(), nlohmann::json::object(),
+                                            nlohmann::json::object()};
+
+    TheoryExportCache cache;
+    StatusOr<const TheoryExportCache::Entry*> prepared =
+        cache.ensure(root / "theories", "parcae://theories/export_prefer_atbash_arith@1",
+                     TransformDirection::Decrypt);
+    REQUIRE(prepared.ok());
+    REQUIRE(prepared.value()->hist_plan().specialized());
+    REQUIRE(prepared.value()->hist_plan().has_shape_atbash_kernel());
+    REQUIRE(prepared.value()->hist_plan().emitted_strategy() ==
+            TheoryHistChi2Emit::Strategy::ShapeInline);
+
+    StatusOr<std::vector<double>> gpu_scores = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/export_prefer_atbash_arith@1",
+        params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
+    REQUIRE(gpu_scores.ok());
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::ShapeInline);
+
+    for (std::size_t c = 0; c < params_list.size(); ++c) {
+        StatusOr<std::vector<Index29>> plain =
+            TheoryDispatch::apply(theory, cipher, params_list[c], TransformDirection::Decrypt);
         REQUIRE(plain.ok());
         StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
         REQUIRE(cpu.ok());

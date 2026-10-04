@@ -71,7 +71,13 @@ public:
         [[nodiscard]] bool has_s1_soft_path() const noexcept {
             return s1_.has_value() &&
                    (emitted_ == TheoryHistChi2Emit::Strategy::S1Lut29 ||
-                    emitted_ == TheoryHistChi2Emit::Strategy::ShapeInline);
+                    emitted_ == TheoryHistChi2Emit::Strategy::ShapeInline) &&
+                   !has_shape_atbash_kernel();
+        }
+
+        [[nodiscard]] bool has_shape_atbash_kernel() const noexcept {
+            return emitted_ == TheoryHistChi2Emit::Strategy::ShapeInline && shape_.has_value() &&
+                   shape_->has_shape_atbash_kernel();
         }
 
     private:

@@ -94,6 +94,11 @@ public:
                    shape_ == TheoryShapeMatch::ShapeId::Affine;
         }
 
+        /// In-lib `TheoryHistChi2Shape::launch_atbash_async` is available.
+        [[nodiscard]] bool has_shape_atbash_kernel() const noexcept {
+            return shape_ == TheoryShapeMatch::ShapeId::Atbash;
+        }
+
     private:
         TheoryShapeMatch::ShapeId shape_ = TheoryShapeMatch::ShapeId::Unknown;
         std::string reason_;
@@ -206,7 +211,13 @@ public:
         /// Soft runtime path until dedicated shape HistFast kernels ship.
         [[nodiscard]] bool has_s1_soft_path() const noexcept {
             return s1_lut_.has_value() &&
-                   (emitted_ == Strategy::S1Lut29 || emitted_ == Strategy::ShapeInline);
+                   (emitted_ == Strategy::S1Lut29 || emitted_ == Strategy::ShapeInline) &&
+                   !has_shape_atbash_kernel();
+        }
+
+        [[nodiscard]] bool has_shape_atbash_kernel() const noexcept {
+            return emitted_ == Strategy::ShapeInline && shape_.has_value() &&
+                   shape_->has_shape_atbash_kernel();
         }
 
     private:
@@ -287,6 +298,8 @@ public:
             const ShapePlan plan = ShapePlan::from_match(matched.value());
             switch (matched.value().shape()) {
             case TheoryShapeMatch::ShapeId::Atbash:
+                return Selection{Strategy::ShapeInline,
+                                 "shape Atbash — ShapeInline (HistFast::dec_atbash twin)", plan};
             case TheoryShapeMatch::ShapeId::Caesar:
             case TheoryShapeMatch::ShapeId::Affine:
                 return Selection{Strategy::ShapeInline,
@@ -406,6 +419,13 @@ public:
                                               "wired; fallback S0 (") +
                                       sel.reason() + ")",
                                   "", "", "", std::nullopt, std::nullopt, sel.shape()};
+            }
+            if (sel.shape() && sel.shape()->has_shape_atbash_kernel()) {
+                // In-lib twin — sources discarded; export launches TheoryHistChi2Shape.
+                return EmitBundle{Strategy::ShapeInline, Strategy::ShapeInline, true,
+                                  std::string("ShapeInline Atbash hist twin: ") + sel.reason(), "",
+                                  "", "theory_hist_chi2_shape_atbash_kernel", std::nullopt,
+                                  std::nullopt, sel.shape()};
             }
             StatusOr<EmitBundle> soft = emit_s1_lut_sources(theory, cipher_var, sel.reason());
             if (!soft.ok()) {

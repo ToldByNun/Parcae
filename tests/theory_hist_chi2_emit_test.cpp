@@ -227,15 +227,16 @@ TEST_CASE("TheoryHistChi2Emit ShapeInline caesar emits S1 soft-twin sources",
     REQUIRE(bundle.value().header_text().find("TheoryHistChi2S1") != std::string::npos);
 }
 
-TEST_CASE("TheoryHistChi2Emit ShapeInline Atbash arith emits S1 soft twin",
+TEST_CASE("TheoryHistChi2Emit ShapeInline Atbash uses HistFast shape twin",
           "[dsl][emit][hist][chi2][shape]") {
     StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
         TheoryHistChi2Emit::emit_decrypt_hist(make_atbash_arith_theory());
     REQUIRE(bundle.ok());
     REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::ShapeInline);
     REQUIRE(bundle.value().shape()->shape() == TheoryShapeMatch::ShapeId::Atbash);
-    REQUIRE(bundle.value().has_s1_soft_path());
-    REQUIRE(bundle.value().kernel_symbol() == "emit_foo_bar_s1_hist_kernel");
+    REQUIRE(bundle.value().has_shape_atbash_kernel());
+    REQUIRE_FALSE(bundle.value().has_s1_soft_path());
+    REQUIRE(bundle.value().kernel_symbol() == "theory_hist_chi2_shape_atbash_kernel");
 }
 
 TEST_CASE("TheoryHistChi2Emit S1 affine (inv decrypt) emits LUT-29 sources",
@@ -273,6 +274,7 @@ TEST_CASE("TheoryHistChi2Emit S3 still soft-falls back to S0", "[dsl][emit][hist
 
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
+#include "family_chi2_batch.hpp"
 #include "parcae_cuda.hpp"
 #include "theory_hist_chi2_launch.hpp"
 
@@ -571,6 +573,125 @@ TEST_CASE("TheoryHistChi2 S2 linear golden: bytecode χ² == specialized χ²",
     REQUIRE(scores_bc.size() == scores_s2.size());
     for (std::size_t c = 0; c < C; ++c) {
         REQUIRE(scores_bc[c] == scores_s2[c]);
+    }
+}
+
+TEST_CASE("TheoryHistChi2 Shape Atbash golden: bytecode ≡ shape ≡ catalog atbash",
+          "[dsl][emit][hist][chi2][cuda][golden][shape]") {
+    REQUIRE(ParcaeCuda::available());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const TheoryIr theory = make_atbash_arith_theory();
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().has_shape_atbash_kernel());
+
+    const StatusOr<Z29Bytecode::Program> prog =
+        Z29Bytecode::compile_theory(theory, TransformDirection::Decrypt);
+    REQUIRE(prog.ok());
+    REQUIRE_FALSE(prog.value().binds_index_i);
+
+    // Fixed cipher grid (same length class as other hist goldens).
+    std::vector<Index29> cipher;
+    for (std::uint8_t i = 0; i < 64; ++i) {
+        cipher.push_back(Index29{static_cast<std::uint8_t>((i * 7u + 11u) % 29u)});
+    }
+    const std::vector<std::uint8_t> host_in = to_bytes(cipher);
+
+    // Param-free Atbash: three identical candidate rows.
+    constexpr std::size_t C = 3;
+    std::vector<nlohmann::json> params_list(C, nlohmann::json::object());
+
+    const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.value().slot_names.size());
+    std::vector<std::uint8_t> ops;
+    ops.reserve(prog.value().ops.size());
+    for (Z29Bytecode::Op op : prog.value().ops) {
+        ops.push_back(Z29Bytecode::op_as_u8(op));
+    }
+    std::vector<std::uint8_t> slots_flat(slot_count == 0 ? 1 : C * slot_count, 0);
+    for (std::size_t c = 0; c < C; ++c) {
+        StatusOr<std::vector<Index29>> bound =
+            Z29Bytecode::bind_theory_slots(prog.value(), theory, params_list[c]);
+        REQUIRE(bound.ok());
+        REQUIRE(bound.value().size() == slot_count);
+        for (std::uint16_t s = 0; s < slot_count; ++s) {
+            slots_flat[c * slot_count + s] = bound.value()[s].value();
+        }
+    }
+
+    StatusOr<DeviceBuffer<std::uint8_t>> device_in =
+        DeviceBuffer<std::uint8_t>::from_host(host_in);
+    REQUIRE(device_in.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_ops = DeviceBuffer<std::uint8_t>::from_host(ops);
+    REQUIRE(device_ops.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_imm =
+        DeviceBuffer<std::uint8_t>::from_host(prog.value().imm.empty()
+                                                  ? std::vector<std::uint8_t>{0}
+                                                  : prog.value().imm);
+    REQUIRE(device_imm.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_slots =
+        DeviceBuffer<std::uint8_t>::from_host(slots_flat);
+    REQUIRE(device_slots.ok());
+    StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
+        std::span<const double>(freqs.value().probabilities().data(),
+                                freqs.value().probabilities().size()));
+    REQUIRE(device_probs.ok());
+    StatusOr<DeviceBuffer<std::uint32_t>> device_counts_bc =
+        DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2Launch::alphabet_size);
+    REQUIRE(device_counts_bc.ok());
+    StatusOr<DeviceBuffer<std::uint32_t>> device_counts_shape =
+        DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2Launch::alphabet_size);
+    REQUIRE(device_counts_shape.ok());
+    StatusOr<DeviceBuffer<std::uint32_t>> device_counts_cat =
+        DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2Launch::alphabet_size);
+    REQUIRE(device_counts_cat.ok());
+    StatusOr<DeviceBuffer<double>> device_scores_bc = DeviceBuffer<double>::allocate(C);
+    REQUIRE(device_scores_bc.ok());
+    StatusOr<DeviceBuffer<double>> device_scores_shape = DeviceBuffer<double>::allocate(C);
+    REQUIRE(device_scores_shape.ok());
+    StatusOr<DeviceBuffer<double>> device_scores_cat = DeviceBuffer<double>::allocate(C);
+    REQUIRE(device_scores_cat.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_err = DeviceBuffer<std::uint8_t>::allocate(C);
+    REQUIRE(device_err.ok());
+
+    const std::uint16_t max_stack = prog.value().max_stack == 0 ? 8 : prog.value().max_stack;
+
+    REQUIRE(TheoryHistChi2Launch::launch_bytecode_async(
+                device_in.value().data(), device_ops.value().data(), device_imm.value().data(),
+                static_cast<std::uint32_t>(ops.size()), device_slots.value().data(), slot_count,
+                prog.value().cipher_slot, prog.value().index_slot, 0u, max_stack,
+                device_probs.value().data(), device_counts_bc.value().data(),
+                device_scores_bc.value().data(), device_err.value().data(), C, host_in.size())
+                .ok());
+    REQUIRE(CudaError::to_status(cudaDeviceSynchronize(), "shape atbash bytecode sync").ok());
+
+    REQUIRE(TheoryHistChi2Launch::launch_shape_atbash_async(
+                device_in.value().data(), device_probs.value().data(),
+                device_counts_shape.value().data(), device_scores_shape.value().data(), C,
+                host_in.size())
+                .ok());
+    REQUIRE(CudaError::to_status(cudaDeviceSynchronize(), "shape atbash twin sync").ok());
+
+    REQUIRE(FamilyChi2Batch::launch_atbash_async(
+                device_in.value().data(), device_probs.value().data(),
+                device_counts_cat.value().data(), device_scores_cat.value().data(), C,
+                host_in.size())
+                .ok());
+    REQUIRE(CudaError::to_status(cudaDeviceSynchronize(), "catalog atbash sync").ok());
+
+    std::vector<double> scores_bc(C, 0.0);
+    std::vector<double> scores_shape(C, 0.0);
+    std::vector<double> scores_cat(C, 0.0);
+    REQUIRE(device_scores_bc.value().copy_to_host(scores_bc).ok());
+    REQUIRE(device_scores_shape.value().copy_to_host(scores_shape).ok());
+    REQUIRE(device_scores_cat.value().copy_to_host(scores_cat).ok());
+    for (std::size_t c = 0; c < C; ++c) {
+        REQUIRE(scores_bc[c] == scores_shape[c]);
+        REQUIRE(scores_shape[c] == scores_cat[c]);
     }
 }
 

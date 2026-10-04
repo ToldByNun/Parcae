@@ -135,7 +135,7 @@ public:
         friend class GpuCandidateExport;
         friend class TheoryExportPipeline;
 
-        enum class Kind : std::uint8_t { S0, S1, S2 };
+        enum class Kind : std::uint8_t { S0, S1, S2, ShapeAtbash };
 
         Phase phase_ = Phase::Idle;
         Kind kind_ = Kind::S0;
@@ -1081,6 +1081,11 @@ public:
                 scratch.scores(), ticket.candidate_count_, ticket.token_count_,
                 ticket.cipher_minus_ks_, streams.compute());
             break;
+        case TheoryLaunchTicket::Kind::ShapeAtbash:
+            launched = TheoryHistChi2Launch::launch_shape_atbash_async(
+                scratch.cipher(), scratch.probs(), scratch.counts(), scratch.scores(),
+                ticket.candidate_count_, ticket.token_count_, streams.compute());
+            break;
         }
         if (!launched.ok()) {
             return launched;
@@ -1967,6 +1972,46 @@ private:
                                          "GpuCandidateExport::theory S0 sync", progress);
     }
 
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_shape_atbash(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const std::vector<nlohmann::json>& params_list, TheoryDeviceScratch& scratch,
+        CudaStreamPair& streams, BatchRunner::Progress progress, TheoryFuseMode mode,
+        TheoryLaunchTicket* ticket_out) {
+        NvtxRange nvtx_shape("specialized_shape_atbash");
+        const std::size_t C = params_list.size();
+        const auto host_in = to_bytes(cipher);
+        {
+            NvtxRange nvtx_h2d("h2d");
+            Status resident =
+                ensure_theory_resident(scratch, host_in, freqs, C, streams.copy());
+            if (!resident.ok()) {
+                return resident;
+            }
+            scratch.commit_param_slab();
+        }
+
+        if (mode == TheoryFuseMode::StageH2D) {
+            Status h2d_ev = streams.record_h2d_done();
+            if (!h2d_ev.ok()) {
+                return h2d_ev;
+            }
+            if (ticket_out != nullptr) {
+                ticket_out->phase_ = TheoryLaunchTicket::Phase::Staged;
+                ticket_out->kind_ = TheoryLaunchTicket::Kind::ShapeAtbash;
+                ticket_out->candidate_count_ = C;
+                ticket_out->token_count_ = host_in.size();
+            }
+            return std::vector<double>{};
+        }
+        auto launch = [&](cudaStream_t compute) {
+            return TheoryHistChi2Launch::launch_shape_atbash_async(
+                scratch.cipher(), scratch.probs(), scratch.counts(), scratch.scores(), C,
+                host_in.size(), compute);
+        };
+        return launch_theory_stream_copy(scratch, streams, C, launch,
+                                         "GpuCandidateExport::theory ShapeAtbash sync", progress);
+    }
+
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s1(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
@@ -2144,16 +2189,26 @@ private:
         const TheoryExportCache::Entry& entry = *prepared.value();
         const TheoryExportCache::HistPlan& hist = entry.hist_plan();
 
-        // Prefer ShapeInline (S1 soft twin) → S1 → S2 → S0 (soft-fallback on failure).
-        if (hist.specialized() &&
-            hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::ShapeInline &&
-            hist.s1_lut()) {
+        // Prefer ShapeInline Atbash twin → ShapeInline S1 soft twin → S1 → S2 → S0.
+        if (hist.specialized() && hist.has_shape_atbash_kernel()) {
             StatusOr<std::vector<double>> shape =
-                fused_theory_scores_s1(cipher, freqs, entry, params_list, scratch, streams,
-                                       progress, mode, ticket_out);
+                fused_theory_scores_shape_atbash(cipher, freqs, params_list, scratch, streams,
+                                                 progress, mode, ticket_out);
             if (shape.ok()) {
                 cache.note_hist_launch(TheoryHistChi2Emit::Strategy::ShapeInline);
                 return shape;
+            }
+            // Soft fallback S0.
+        }
+        if (hist.specialized() &&
+            hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::ShapeInline &&
+            hist.has_s1_soft_path()) {
+            StatusOr<std::vector<double>> soft =
+                fused_theory_scores_s1(cipher, freqs, entry, params_list, scratch, streams,
+                                       progress, mode, ticket_out);
+            if (soft.ok()) {
+                cache.note_hist_launch(TheoryHistChi2Emit::Strategy::ShapeInline);
+                return soft;
             }
             // Soft fallback S0 (domain / bind issues in LUT fill).
         }

@@ -65,6 +65,7 @@ Side-by-side catalog kernels at the **same** `(C,T)`:
 | `theory_chi2_hist_kernel` | Theory S0 bytecode hist ([`theory_chi2_batch.cu`](../../Parcae/Parcae/cuda/theory_chi2_batch.cu)) |
 | `theory_hist_chi2_s1_lut_kernel` | Theory S1 LUT-29 ([`theory_hist_chi2_s1.cu`](../../Parcae/Parcae/cuda/theory_hist_chi2_s1.cu)) |
 | `theory_hist_chi2_s2_linear_kernel` | Theory S2 linear ([`theory_hist_chi2_s2.cu`](../../Parcae/Parcae/cuda/theory_hist_chi2_s2.cu)) |
+| `theory_hist_chi2_shape_atbash_kernel` | Theory ShapeInline Atbash ([`theory_hist_chi2_shape.cu`](../../Parcae/Parcae/cuda/theory_hist_chi2_shape.cu)) |
 | `caesar` / `atbash_caesar_chi2_hist_kernel` | T1 / compose path |
 | `affine_chi2_hist_kernel` | F.affine |
 | `atbash_chi2_hist_kernel` | F.atbash |
