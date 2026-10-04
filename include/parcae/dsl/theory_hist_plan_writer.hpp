@@ -372,6 +372,8 @@ private:
             return std::nullopt; // Spec row TBD
         case TheoryHistChi2Emit::Strategy::ShapeInline:
             return std::string{"T.theory.s1_lut29"};
+        case TheoryHistChi2Emit::Strategy::ModuleLoaded:
+            return std::string{"T.theory.caesar_bytecode"};
         }
         return std::nullopt;
     }

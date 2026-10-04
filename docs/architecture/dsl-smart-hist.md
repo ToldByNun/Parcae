@@ -70,9 +70,10 @@ Python HotLoop decrypt_step
 Shipping today (honest): normalize+match before S1; `ShapeInline` Atbash/Caesar/
 Affine-decrypt use in-lib `TheoryHistChi2Shape`; Affine encrypt-form still S1
 soft twin; residual FxOnly uses **device LUT bake** into `TheoryDeviceScratch`
-(bind slots on host; bake+hist on device; domain → +inf via `lane_err`); launch
-prefer `ShapeInline→S1→S2→S0`; emit sources still discarded at export;
-`has_specialized` still false for NVRTC modules.
+(bind slots on host; bake+hist on device; domain → +inf via `lane_err`); S3
+ExprLower in-lib twin; `TheoryHistModule` cubin/NVRTC cache by URI+digest;
+`has_specialized` true when a module is cached; launch prefer
+`Module→ShapeInline→S1→S2→S3→S0` (module fail → soft S0).
 
 ---
 
@@ -256,8 +257,8 @@ private:
 | Self-written Atbash/Caesar/Affine-decrypt | `ShapeInline` + `TheoryHistChi2Shape` twins | Affine encrypt-form S1 soft; S3/S4/S5 |
 | Name / API required for fast path | Effective yes (catalog) | **No** — algebra only |
 | S3 / S4 / S5 | S3 ExprLower+launch shipping; S4/S5 stub | Real launch or module |
-| Emit sources / `hist_module` | `hist_plan.json` (+ optional `hist/*.{hpp,cu}`); module null | `hist_plan` + optional module load |
-| `has_specialized` | Always false | True when module/shape plan present |
+| Emit sources / `hist_module` | `hist_plan.json` (+ optional `hist/*.{hpp,cu}`); `TheoryHistModule` load by URI+digest | `hist_plan` + optional module load |
+| `has_specialized` | True when `TheoryHistModule` has URI | True when module/shape plan present |
 | Fair specialize Caesar bytecode | S1 when eligible | Keep; shape twins supersede when richer |
 
 ---

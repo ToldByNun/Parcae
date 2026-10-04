@@ -9,6 +9,7 @@
 #include "theory_hist_chi2_s2.hpp"
 #include "theory_hist_chi2_s3.hpp"
 #include "theory_hist_chi2_shape.hpp"
+#include "theory_hist_module.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -20,7 +21,8 @@
 /// S0: `TheoryChi2Batch` bytecode. ShapeInline Atbash: `TheoryHistChi2Shape`.
 /// S1: `TheoryHistChi2S1` LUT-29 twin. S2 linear: `TheoryHistChi2S2` uchar4 twin.
 /// S3: `TheoryHistChi2S3` bounded ExprLower scalar twin.
-/// `GpuCandidateExport` prefers specialized when emit/registry says so;
+/// Module: `TheoryHistModule` cubin/NVRTC cache (URI+digest); fail → soft S0.
+/// `GpuCandidateExport` prefers module then in-lib twins when present;
 /// otherwise bytecode.
 ///
 /// Caps and ABI match `TheoryChi2Batch`. No C++ namespaces.
@@ -33,10 +35,23 @@ public:
     static constexpr std::uint16_t kMaxSlots = TheoryChi2Batch::kMaxSlots;
     static constexpr std::uint32_t kMaxProgramOps = TheoryChi2Batch::kMaxProgramOps;
 
-    /// True when a specialized hist twin is loaded for `theory_id`.
-    /// In-lib S1/S2/shape twins are not per-id NVRTC yet.
-    [[nodiscard]] static bool has_specialized(std::string_view /*theory_id*/) noexcept {
-        return false;
+    /// True when a per-URI hist module is cached (`TheoryHistModule`).
+    [[nodiscard]] static bool has_specialized(std::string_view theory_id) noexcept {
+        return TheoryHistModule::has(theory_id);
+    }
+
+    /// Module path (URI cache). Soft error → caller falls back to S0.
+    [[nodiscard]] static Status launch_module_async(
+        std::string_view theory_uri, const std::uint8_t* device_in, const std::uint8_t* device_ops,
+        const std::uint8_t* device_imm, std::uint32_t op_count, const std::uint8_t* device_slots,
+        std::uint16_t slot_count, std::uint16_t cipher_slot, std::uint16_t index_slot,
+        std::uint8_t binds_index_i, std::uint16_t max_stack, const double* device_probabilities,
+        std::uint32_t* device_counts, double* device_scores, std::uint8_t* device_lane_err,
+        std::size_t candidate_count, std::size_t token_count, cudaStream_t stream = nullptr) {
+        return TheoryHistModule::launch_async(
+            theory_uri, device_in, device_ops, device_imm, op_count, device_slots, slot_count,
+            cipher_slot, index_slot, binds_index_i, max_stack, device_probabilities, device_counts,
+            device_scores, device_lane_err, candidate_count, token_count, stream);
     }
 
     /// Preferred strategy for an emit bundle (S0 when not specialized).

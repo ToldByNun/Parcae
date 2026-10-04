@@ -83,8 +83,9 @@ class TheoryExportPipeline;
 /// Scores-only fused χ² → D2H scores → host `BatchOrdering` → apply transform
 /// **only** for retained lanes (search-loop.md). Caesar uses `CaesarChi2Batch`;
 /// atbash / atbash_caesar / affine / vigenere use `FamilyChi2Batch`.
-/// Theory: prefers `TheoryHistChi2Emit` ShapeInline→S1→S2 specialized twins when present,
-/// soft-fallback S0 bytecode via `TheoryHistChi2Launch`; `export_backend=cuda`.
+/// Theory: prefers module (`TheoryHistModule`) then ShapeInline→S1→S2→S3 twins when
+/// present; module/twin fail → soft-fallback S0 via `TheoryHistChi2Launch`;
+/// `export_backend=cuda`.
 /// Family `compose`: Atbash∘Caesar grid reuses fused export; arbitrary recipes
 /// score via `ComposeDriver` apply + host χ² (top-k only).
 /// Vigenère is **explicit keys or a bounded synthetic grid only** — never an
@@ -1901,6 +1902,115 @@ private:
         return collect_theory_scores(scratch, streams, C, progress);
     }
 
+    /// Soft-load artifact `paths.hist_module` into `TheoryHistModule` (ignore failures).
+    static void try_load_hist_module(const std::filesystem::path& theories_root,
+                                     std::string_view theory_uri_text) {
+        if (TheoryHistChi2Launch::has_specialized(theory_uri_text)) {
+            return;
+        }
+        StatusOr<TheoryUri> uri = TheoryUri::parse(theory_uri_text);
+        if (!uri.ok()) {
+            return;
+        }
+        StatusOr<TheoryArtifact> art =
+            TheoryRegistry::load(theories_root, uri.value().name(), uri.value().version());
+        if (!art.ok() || !art.value().paths().hist_module().has_value()) {
+            return;
+        }
+        const std::filesystem::path path =
+            art.value().artifact_dir(theories_root) / *art.value().paths().hist_module();
+        // Presence load: keep module resident; launch via ProxyS0 (bytecode twin).
+        (void)TheoryHistModule::ensure_file(uri.value().to_string(), path,
+                                            TheoryHistModule::kDefaultKernelSymbol,
+                                            /*proxy_launch=*/true);
+    }
+
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_module(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
+        TheoryExportCache& cache, TheoryDeviceScratch& scratch, CudaStreamPair& streams,
+        std::string_view theory_uri_text, BatchRunner::Progress progress, TheoryFuseMode mode,
+        TheoryLaunchTicket* ticket_out) {
+        const Z29Bytecode::Program& prog = entry.program();
+        const std::size_t C = params_list.size();
+        const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.slot_names.size());
+        const std::uint16_t max_stack = prog.max_stack == 0 ? 8 : prog.max_stack;
+        if (max_stack > TheoryChi2Batch::kMaxDeviceStack) {
+            return Status::error("GpuCandidateExport::theory module max_stack exceeds device cap");
+        }
+
+        const std::vector<std::uint8_t>& ops = entry.ops_u8();
+
+        std::vector<std::uint8_t> slots(C * slot_count, 0);
+        {
+            NvtxRange nvtx_bind("bind_slots");
+            for (std::size_t c = 0; c < C; ++c) {
+                StatusOr<std::vector<Index29>> bound =
+                    Z29Bytecode::bind_theory_slots(prog, entry.theory(), params_list[c]);
+                if (!bound.ok()) {
+                    return bound.status();
+                }
+                if (bound.value().size() != slot_count) {
+                    return Status::error("GpuCandidateExport::theory module slot bind size mismatch");
+                }
+                for (std::uint16_t s = 0; s < slot_count; ++s) {
+                    slots[c * slot_count + s] = bound.value()[s].value();
+                }
+            }
+        }
+
+        const auto host_in = to_bytes(cipher);
+        {
+            NvtxRange nvtx_h2d("h2d");
+            Status resident =
+                ensure_theory_resident(scratch, host_in, freqs, C, streams.copy());
+            if (!resident.ok()) {
+                return resident;
+            }
+            Status prog_up = cache.ensure_device_program();
+            if (!prog_up.ok()) {
+                return prog_up;
+            }
+            Status slots_up =
+                scratch.upload_slots_async(slots, C, slot_count, streams.copy());
+            if (!slots_up.ok()) {
+                return slots_up;
+            }
+            scratch.commit_param_slab();
+        }
+
+        cache.note_hist_launch(TheoryHistChi2Emit::Strategy::ModuleLoaded);
+        if (mode == TheoryFuseMode::StageH2D) {
+            Status h2d_ev = streams.record_h2d_done();
+            if (!h2d_ev.ok()) {
+                return h2d_ev;
+            }
+            if (ticket_out != nullptr) {
+                ticket_out->phase_ = TheoryLaunchTicket::Phase::Staged;
+                ticket_out->kind_ = TheoryLaunchTicket::Kind::S0;
+                ticket_out->candidate_count_ = C;
+                ticket_out->token_count_ = host_in.size();
+                ticket_out->op_count_ = static_cast<std::uint32_t>(ops.size());
+                ticket_out->slot_count_ = slot_count;
+                ticket_out->cipher_slot_ = prog.cipher_slot;
+                ticket_out->index_slot_ = prog.index_slot;
+                ticket_out->max_stack_ = max_stack;
+                ticket_out->binds_index_i_ = prog.binds_index_i ? 1u : 0u;
+            }
+            return std::vector<double>{};
+        }
+        auto launch = [&](cudaStream_t compute) {
+            return TheoryHistChi2Launch::launch_module_async(
+                theory_uri_text, scratch.cipher(), cache.device_ops().data(),
+                cache.device_imm().data(), static_cast<std::uint32_t>(ops.size()),
+                scratch.slots(), slot_count, prog.cipher_slot, prog.index_slot,
+                prog.binds_index_i ? 1u : 0u, max_stack, scratch.probs(), scratch.counts(),
+                scratch.scores(), scratch.lane_err(), C, host_in.size(), compute);
+        };
+        return launch_theory_stream_copy(scratch, streams, C, launch,
+                                         "GpuCandidateExport::theory module sync", progress);
+    }
+
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s0(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
@@ -2498,7 +2608,21 @@ private:
         const TheoryExportCache::Entry& entry = *prepared.value();
         const TheoryExportCache::HistPlan& hist = entry.hist_plan();
 
-        // Prefer ShapeInline twins → S1 soft → S1 → S2 → S3 → S0.
+        // Prefer module (URI+digest cache) → ShapeInline → S1 → S2 → S3 → S0.
+        try_load_hist_module(theories_root, theory_uri_text);
+        if (TheoryHistChi2Launch::has_specialized(theory_uri_text)) {
+            StatusOr<std::vector<double>> mod = fused_theory_scores_module(
+                cipher, freqs, entry, params_list, cache, scratch, streams, theory_uri_text,
+                progress, mode, ticket_out);
+            if (mod.ok()) {
+                cache.note_hist_launch(TheoryHistChi2Emit::Strategy::ModuleLoaded);
+                return mod;
+            }
+            // Soft fallback S0 (load/launch/OOM/invalid module).
+            return fused_theory_scores_s0(cipher, freqs, entry, params_list, cache, scratch,
+                                          streams, progress, mode, ticket_out);
+        }
+
         if (hist.specialized() && hist.has_shape_atbash_kernel()) {
             StatusOr<std::vector<double>> shape =
                 fused_theory_scores_shape_atbash(cipher, freqs, params_list, scratch, streams,

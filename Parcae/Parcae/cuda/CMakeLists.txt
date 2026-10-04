@@ -32,6 +32,7 @@ set(PARCAE_CUDA_SOURCES
   theory_hist_chi2_s1.cu
   theory_hist_chi2_s2.cu
   theory_hist_chi2_shape.cu
+  theory_hist_module.cu
   hist_fast_parity.cu
   deep_score_batch.cu
   ciphertext_autokey_kernel.cu
@@ -54,6 +55,8 @@ target_link_libraries(parcae_cuda
   PUBLIC
     parcae::core
     CUDA::cudart
+    CUDA::cuda_driver
+    CUDA::nvrtc
 )
 
 target_compile_features(parcae_cuda PUBLIC cxx_std_20 cuda_std_20)

@@ -60,6 +60,8 @@ public:
         /// Algebraic Atbash / Caesar / Affine (`TheoryShapeMatch`); runtime may
         /// use S1 twin until dedicated HistFast shape kernels ship.
         ShapeInline,
+        /// Optional cubin / NVRTC module (`TheoryHistModule`) for a theory URI.
+        ModuleLoaded,
     };
 
     /// Persisted shape match (algebra only — not theory name / catalog API).
@@ -416,6 +418,8 @@ public:
             return "S3_scalar_inline";
         case Strategy::ShapeInline:
             return "ShapeInline";
+        case Strategy::ModuleLoaded:
+            return "Module";
         }
         return "S0_bytecode";
     }

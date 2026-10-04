@@ -37,6 +37,7 @@ add_executable(parcae_tests
   theory_hist_chi2_emit_test.cpp
   theory_hist_expr_lower_test.cpp
   theory_hist_plan_writer_test.cpp
+  theory_hist_module_test.cpp
   dsl_poly2_oracle_test.cpp
   dsl_verify_test.cpp
   dsl_fuse_test.cpp

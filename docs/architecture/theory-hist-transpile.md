@@ -112,7 +112,9 @@ Rules:
 - Domain errors (e.g. Div0): lane `+inf` (same contract as `TheoryChi2Batch`).
 - Non-empty interrupt policy: **hard reject** export (already).
 - Missing cubin / module load fail: soft S0 + diagnostic; S0 PRIMARY gate still applies.
-- `TheoryHistChi2Launch::has_specialized` today always `false` (shared in-lib S1/S2 via plans, not per-URI modules). Future artifact/module work must not invent C++ namespaces.
+- `TheoryHistChi2Launch::has_specialized` is true when `TheoryHistModule` has a
+  cached entry for the theory URI (cubin/NVRTC/proxy). In-lib S1/S2/shape twins
+  remain plan-driven when no module is loaded. No C++ namespaces.
 
 ---
 
