@@ -46,10 +46,12 @@ private:
 | `z29_bytecode.hpp` | `Z29Bytecode` | Done (HotLoop stack program + host eval; `op_as_u8` for device twin) |
 | `z29_bytecode_device.hpp` | `Z29BytecodeDevice` | Done (host/device `eval_at` twin) |
 | `theory_chi2_batch.hpp` | `TheoryChi2Batch` | Done (fused bytecode hist + χ²; S0 path via `TheoryHistChi2Launch`) |
-| `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S3 select; S1 LUT-29 + S2 linear uchar4 emit + goldens; S3 TBD) |
-| `theory_hist_chi2_launch.hpp` | `TheoryHistChi2Launch` | Done (CUDA façade: S0 / Shape Atbash / S1 LUT / S2 linear) — under `Parcae/Parcae/cuda/` |
+| `theory_hist_expr_lower.hpp` | `TheoryHistExprLower` | Done (bounded S3 lower + caps; soft S0 beyond) |
+| `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S3 select; S1/S2/S3 emit + goldens; S4 TBD) |
+| `theory_hist_chi2_launch.hpp` | `TheoryHistChi2Launch` | Done (CUDA façade: S0 / Shape / S1 / S2 / S3) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_s1.hpp` | `TheoryHistChi2S1` | Done (LUT-29 twin + device bake from slots) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_s2.hpp` | `TheoryHistChi2S2` | Done (linear uchar4 twin) — under `Parcae/Parcae/cuda/` |
+| `theory_hist_chi2_s3.hpp` | `TheoryHistChi2S3` | Done (bounded ExprLower scalar twin) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_shape.hpp` | `TheoryHistChi2Shape` | Done (Atbash/Caesar/Affine-decrypt twins) — under `Parcae/Parcae/cuda/` |
 | `param_ir.hpp` | `ParamIr` | Done |
 | `primitive_ir.hpp` | `PrimitiveIr` | Done |

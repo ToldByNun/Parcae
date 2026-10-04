@@ -7,6 +7,7 @@
 #include "theory_chi2_batch.hpp"
 #include "theory_hist_chi2_s1.hpp"
 #include "theory_hist_chi2_s2.hpp"
+#include "theory_hist_chi2_s3.hpp"
 #include "theory_hist_chi2_shape.hpp"
 
 #include <cstddef>
@@ -18,6 +19,7 @@
 ///
 /// S0: `TheoryChi2Batch` bytecode. ShapeInline Atbash: `TheoryHistChi2Shape`.
 /// S1: `TheoryHistChi2S1` LUT-29 twin. S2 linear: `TheoryHistChi2S2` uchar4 twin.
+/// S3: `TheoryHistChi2S3` bounded ExprLower scalar twin.
 /// `GpuCandidateExport` prefers specialized when emit/registry says so;
 /// otherwise bytecode.
 ///
@@ -144,6 +146,20 @@ public:
         return TheoryHistChi2S2::launch_linear_async(
             device_in, device_b0, device_b1, device_probabilities, device_counts, device_scores,
             candidate_count, token_count, cipher_minus_ks, stream);
+    }
+
+    /// S3 bounded scalar twin (ExprLower within caps; index-bound bytecode hist).
+    [[nodiscard]] static Status launch_s3_scalar_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_ops,
+        const std::uint8_t* device_imm, std::uint32_t op_count, const std::uint8_t* device_slots,
+        std::uint16_t slot_count, std::uint16_t cipher_slot, std::uint16_t index_slot,
+        const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+        std::uint8_t* device_lane_err, std::size_t candidate_count, std::size_t token_count,
+        std::uint16_t max_stack, cudaStream_t stream = nullptr) {
+        return TheoryHistChi2S3::launch_async(
+            device_in, device_ops, device_imm, op_count, device_slots, slot_count, cipher_slot,
+            index_slot, device_probabilities, device_counts, device_scores, device_lane_err,
+            candidate_count, token_count, max_stack, stream);
     }
 
 private:

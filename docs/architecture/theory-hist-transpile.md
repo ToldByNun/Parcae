@@ -79,7 +79,7 @@ Classify decrypt HotLoop via `TheoryHistChi2Emit::select_strategy` / emit. Prefe
 | **S0** | `S0Bytecode` / hard-S0 soft-fallback | Soft-fallback; caps; unmatched; autokey / prefer_branch | `TheoryChi2Batch` | **896B** | **Required** (~7–8% until S4/S3+) |
 | **S1** | `S1Lut29` / `T.theory.s1_lut29` (+ fair `T.theory.caesar_bytecode` when emit matches) | Decrypt `f(x; params)` only — no stream `i`, no autokey | `TheoryHistChi2S1` | **896B** | Required (today ~79%) |
 | **S2** | `S2Uchar4Inline` / `T.theory.s2_linear` / `T.theory.progressive` | `x ± (b0 + b1·i)` (+ widened linear family over time) | `TheoryHistChi2S2` | **896B** | Required (today ~44% @ C=841) |
-| **S3** | `S3ScalarInline` / planned `T.theory.s3_*` | Uses `i` / general `x ± g(i; params)` without autokey; not simple linear S2 | Planned expr-inline hist / module | **896B** (same 1 B/rune roof) | Required once Spec row exists |
+| **S3** | `S3ScalarInline` / planned `T.theory.s3_*` | Uses `i` / general `x ± g(i; params)` without autokey; not simple linear S2 | `TheoryHistChi2S3` (ExprLower caps) | **896B** (same 1 B/rune roof) | Required once Spec row exists |
 | **S4** | planned / `T.theory.s4_autokey` | `z29_autokey_shift` shapes (e.g. vigenere_lag) | Planned `TheoryHistChi2S4` AutokeyRing+hist | **896B** unless traffic model differs | Required once Spec row exists |
 | **S5** | planned / poly keystream Spec | Low-degree poly / bitmask-like keystreams beyond `b0+b1·i` | Twin or S3 module | **896B** | Required once Spec row exists |
 
@@ -90,7 +90,7 @@ Classify decrypt HotLoop via `TheoryHistChi2Emit::select_strategy` / emit. Prefe
 | S0 | yes | n/a (bytecode) | yes (`TheoryChi2Batch`) | **fail** today (~69–75B ≈ 8% of 896B) |
 | S1 | yes | yes | yes | **fail** today (~396B ≈ 44% of 896B) |
 | S2 | yes (linear match) | yes when `match_s2_linear` | yes | **fail** today (~188B ≈ 21% of 896B @ C=9) |
-| S3 | yes | **stub → soft S0** | no | blocked on emit+runtime |
+| S3 | yes | yes when ExprLower within caps | yes (`TheoryHistChi2S3`) | blocked on fair Spec row |
 | S4 | **hard S0 today** | no | no | blocked on S4 twin |
 | S5 | partial (S2 classify, emit often soft S0) | no | no | blocked until match/emit |
 

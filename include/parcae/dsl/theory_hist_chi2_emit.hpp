@@ -8,6 +8,7 @@
 #include "parcae/dsl/dsl_launch_plan.hpp"
 #include "parcae/dsl/dsl_optimize.hpp"
 #include "parcae/dsl/dsl_rule_id.hpp"
+#include "parcae/dsl/theory_hist_expr_lower.hpp"
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/theory_shape_match.hpp"
 #include "parcae/dsl/z29_bytecode.hpp"
@@ -29,7 +30,7 @@
 /// Classify via `Z29ExprNormalize` + `TheoryShapeMatch` (name-irrelevant), then:
 /// ShapeInline Atbash/Caesar/Affine-decrypt → in-lib `TheoryHistChi2Shape`;
 /// Affine encrypt-form → S1 soft twin; LinearKeystream → S2; FxOnly → S1;
-/// Autokey/prefer_branch → S0; else S3 stub→S0.
+/// Autokey/prefer_branch → S0; KeyedGeneral/Poly → S3 (ExprLower within caps) else soft S0.
 ///
 /// No C++ namespaces. Emitted CUDA uses file-scope `__global__` names —
 /// never anonymous `namespace {}`.
@@ -41,6 +42,11 @@ public:
     static constexpr std::uint16_t kMaxSlots = 64;
     static constexpr std::size_t kMaxCandidates = 16384;
     static constexpr std::size_t kMaxTokens = 1u << 22;
+
+    /// S3 ExprLower caps (alias TheoryHistExprLower).
+    static constexpr std::uint32_t kS3MaxProgramOps = TheoryHistExprLower::kMaxProgramOps;
+    static constexpr std::uint16_t kS3MaxDeviceStack = TheoryHistExprLower::kMaxDeviceStack;
+    static constexpr std::uint16_t kS3MaxSlots = TheoryHistExprLower::kMaxSlots;
 
     enum class Strategy : std::uint8_t {
         /// HotLoop bytecode interpreter (`TheoryChi2Batch`) — always available.
@@ -254,6 +260,42 @@ public:
         std::uint8_t const_b1_ = 0;
     };
 
+    /// S3 scalar plan: bounded ExprLower program (in-lib twin uses same ops/imm as S0).
+    class S3ScalarPlan {
+    public:
+        S3ScalarPlan(std::uint32_t op_count, std::uint16_t max_stack, std::uint16_t slot_count,
+                     bool binds_index_i, std::string device_cpp)
+            : op_count_(op_count), max_stack_(max_stack), slot_count_(slot_count),
+              binds_index_i_(binds_index_i), device_cpp_(std::move(device_cpp)) {}
+
+        [[nodiscard]] static S3ScalarPlan from_lowered(const TheoryHistExprLower::Lowered& low) {
+            return S3ScalarPlan{low.op_count(), low.max_stack(), low.slot_count(),
+                                low.binds_index_i(), low.device_cpp()};
+        }
+
+        [[nodiscard]] std::uint32_t op_count() const noexcept { return op_count_; }
+
+        [[nodiscard]] std::uint16_t max_stack() const noexcept { return max_stack_; }
+
+        [[nodiscard]] std::uint16_t slot_count() const noexcept { return slot_count_; }
+
+        [[nodiscard]] bool binds_index_i() const noexcept { return binds_index_i_; }
+
+        [[nodiscard]] const std::string& device_cpp() const noexcept { return device_cpp_; }
+
+        [[nodiscard]] bool within_caps() const noexcept {
+            return op_count_ <= kS3MaxProgramOps && max_stack_ <= kS3MaxDeviceStack &&
+                   slot_count_ <= kS3MaxSlots && binds_index_i_;
+        }
+
+    private:
+        std::uint32_t op_count_ = 0;
+        std::uint16_t max_stack_ = 0;
+        std::uint16_t slot_count_ = 0;
+        bool binds_index_i_ = false;
+        std::string device_cpp_;
+    };
+
     class Selection {
     public:
         Selection(Strategy strategy, std::string reason,
@@ -283,12 +325,13 @@ public:
                    std::string header_text, std::string cu_text, std::string kernel_symbol,
                    std::optional<S1LutPlan> s1_lut = std::nullopt,
                    std::optional<S2LinearPlan> s2_linear = std::nullopt,
-                   std::optional<ShapePlan> shape = std::nullopt)
+                   std::optional<ShapePlan> shape = std::nullopt,
+                   std::optional<S3ScalarPlan> s3_scalar = std::nullopt)
             : intended_(intended), emitted_(emitted), specialized_(specialized),
               reason_(std::move(reason)), header_text_(std::move(header_text)),
               cu_text_(std::move(cu_text)), kernel_symbol_(std::move(kernel_symbol)),
               s1_lut_(std::move(s1_lut)), s2_linear_(std::move(s2_linear)),
-              shape_(std::move(shape)) {}
+              shape_(std::move(shape)), s3_scalar_(std::move(s3_scalar)) {}
 
         [[nodiscard]] Strategy intended_strategy() const noexcept { return intended_; }
 
@@ -311,6 +354,10 @@ public:
         }
 
         [[nodiscard]] const std::optional<ShapePlan>& shape() const noexcept { return shape_; }
+
+        [[nodiscard]] const std::optional<S3ScalarPlan>& s3_scalar() const noexcept {
+            return s3_scalar_;
+        }
 
         [[nodiscard]] bool is_shape_inline() const noexcept {
             return emitted_ == Strategy::ShapeInline;
@@ -354,6 +401,7 @@ public:
         std::optional<S1LutPlan> s1_lut_;
         std::optional<S2LinearPlan> s2_linear_;
         std::optional<ShapePlan> shape_;
+        std::optional<S3ScalarPlan> s3_scalar_;
     };
 
     [[nodiscard]] static const char* strategy_str(Strategy s) noexcept {
@@ -446,7 +494,7 @@ public:
                                  plan};
             case TheoryShapeMatch::ShapeId::PolyKeystream:
                 return Selection{Strategy::S3ScalarInline,
-                                 std::string("shape PolyKeystream — S3/S5 stub (") +
+                                 std::string("shape PolyKeystream — S3 scalar candidate (") +
                                      matched.value().reason() + ")",
                                  plan};
             case TheoryShapeMatch::ShapeId::KeyedGeneral:
@@ -494,7 +542,7 @@ public:
 
     /// Emit fused-hist sources for decrypt search path.
     /// ShapeInline → S1 LUT soft twin (+ ShapePlan); S1 → LUT-29; S2 linear → uchar4;
-    /// else soft S0 fallback.
+    /// S3 ExprLower within caps → scalar twin; else soft S0 fallback.
     [[nodiscard]] static StatusOr<EmitBundle>
     emit_decrypt_hist(const TheoryIr& theory, std::string_view cipher_var = "x",
                       const std::vector<DslOptimize::Hoist>& decrypt_hoists = {}) {
@@ -585,20 +633,43 @@ public:
                                   bundle.value().reason(), bundle.value().header_text(),
                                   bundle.value().cu_text(), bundle.value().kernel_symbol(),
                                   bundle.value().s1_lut(), bundle.value().s2_linear(),
-                                  sel.shape()};
+                                  sel.shape(), bundle.value().s3_scalar()};
+            }
+            // Non-linear ±g(i) still classified S2 by heuristic — try S3 ExprLower.
+            StatusOr<EmitBundle> s3_from_s2 = try_emit_s3(theory, cipher_var, sel.reason(),
+                                                          sel.shape());
+            if (s3_from_s2.ok() && s3_from_s2.value().specialized()) {
+                return s3_from_s2;
             }
             return EmitBundle{Strategy::S2Uchar4Inline, Strategy::S0Bytecode, false,
-                              std::string("S2 classified but keystream is not linear b0+b1*i; "
-                                          "fallback S0 (") +
+                              std::string("S2 classified but keystream is not linear b0+b1*i and "
+                                          "S3 lower failed; fallback S0 (") +
                                   sel.reason() + ")",
                               "", "", "", std::nullopt, std::nullopt, sel.shape()};
         }
 
-        // S3 emit not implemented yet — soft S0 fallback (export stays correct).
+        if (sel.strategy() == Strategy::S3ScalarInline) {
+            if (!decrypt_hoists.empty()) {
+                return EmitBundle{Strategy::S3ScalarInline, Strategy::S0Bytecode, false,
+                                  std::string("S3 classified but decrypt hoists not yet wired; "
+                                              "fallback S0 (") +
+                                      sel.reason() + ")",
+                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
+            }
+            StatusOr<EmitBundle> s3 = try_emit_s3(theory, cipher_var, sel.reason(), sel.shape());
+            if (s3.ok()) {
+                return s3;
+            }
+            return EmitBundle{Strategy::S3ScalarInline, Strategy::S0Bytecode, false,
+                              std::string("S3 ExprLower failed; fallback S0 (") +
+                                  s3.status().message() + "; " + sel.reason() + ")",
+                              "", "", "", std::nullopt, std::nullopt, sel.shape()};
+        }
+
+        // Remaining strategies (should not reach) — soft S0.
         return EmitBundle{sel.strategy(), Strategy::S0Bytecode, false,
-                          std::string("skeleton: ") + strategy_str(sel.strategy()) +
-                              " classified but emit not implemented; fallback S0 (" + sel.reason() +
-                              ")",
+                          std::string("unhandled strategy ") + strategy_str(sel.strategy()) +
+                              "; fallback S0 (" + sel.reason() + ")",
                           "", "", "", std::nullopt, std::nullopt, sel.shape()};
     }
 
@@ -683,6 +754,78 @@ private:
             return DslOptimize::depends_on_var(l, "i");
         }
         return false;
+    }
+
+    [[nodiscard]] static StatusOr<EmitBundle>
+    try_emit_s3(const TheoryIr& theory, std::string_view cipher_var, const std::string& select_reason,
+                const std::optional<ShapePlan>& shape) {
+        StatusOr<TheoryHistExprLower::Lowered> lowered =
+            TheoryHistExprLower::lower_decrypt(theory, cipher_var);
+        if (!lowered.ok()) {
+            return EmitBundle{Strategy::S3ScalarInline, Strategy::S0Bytecode, false,
+                              std::string("S3 ExprLower soft S0: ") + lowered.status().message() +
+                                  " (" + select_reason + ")",
+                              "", "", "", std::nullopt, std::nullopt, shape};
+        }
+        const S3ScalarPlan plan = S3ScalarPlan::from_lowered(lowered.value());
+        if (!plan.within_caps()) {
+            return EmitBundle{Strategy::S3ScalarInline, Strategy::S0Bytecode, false,
+                              std::string("S3 beyond caps; fallback S0 (") + select_reason + ")",
+                              "", "", "", std::nullopt, std::nullopt, shape};
+        }
+        return emit_s3_scalar_sources(theory, plan, select_reason, shape);
+    }
+
+    [[nodiscard]] static StatusOr<EmitBundle>
+    emit_s3_scalar_sources(const TheoryIr& theory, const S3ScalarPlan& plan,
+                           const std::string& select_reason,
+                           const std::optional<ShapePlan>& shape) {
+        const std::string& id = theory.name();
+        const std::string kern = id + "_s3_hist_kernel";
+        const std::string guard = "PARCAE_EMIT_" + id + "_S3_HIST_HPP";
+        const std::string cls = to_pascal(id) + "S3Hist";
+
+        std::ostringstream hdr;
+        hdr << "// Generated by TheoryHistChi2Emit (S3 scalar) — do not hand-edit.\n";
+        hdr << "#ifndef " << guard << "\n";
+        hdr << "#define " << guard << "\n\n";
+        hdr << "#include \"parcae/core/status.hpp\"\n\n";
+        hdr << "#include <cstddef>\n";
+        hdr << "#include <cstdint>\n\n";
+        hdr << "/// S3 scalar fused χ² hist for `" << id << "` "
+            << "(bounded ExprLower; ops=" << plan.op_count() << ").\n";
+        hdr << "/// Runtime twin: TheoryHistChi2S3::launch_async.\n";
+        hdr << "/// Device fragment: " << plan.device_cpp() << "\n";
+        hdr << "class " << cls << " {\n";
+        hdr << "public:\n";
+        hdr << "    static constexpr std::size_t alphabet_size = 29;\n";
+        hdr << "    static constexpr std::uint32_t max_program_ops = "
+            << kS3MaxProgramOps << ";\n";
+        hdr << "    [[nodiscard]] static Status launch_async(\n";
+        hdr << "        const std::uint8_t* device_in, const std::uint8_t* device_ops,\n";
+        hdr << "        const std::uint8_t* device_imm, std::uint32_t op_count,\n";
+        hdr << "        const std::uint8_t* device_slots, std::uint16_t slot_count,\n";
+        hdr << "        std::uint16_t cipher_slot, std::uint16_t index_slot,\n";
+        hdr << "        const double* device_probabilities, std::uint32_t* device_counts,\n";
+        hdr << "        double* device_scores, std::uint8_t* device_lane_err,\n";
+        hdr << "        std::size_t candidate_count, std::size_t token_count);\n";
+        hdr << "private:\n";
+        hdr << "    " << cls << "() = delete;\n";
+        hdr << "};\n\n";
+        hdr << "#endif // " << guard << "\n";
+
+        std::ostringstream cu;
+        cu << "// Generated by TheoryHistChi2Emit (S3 scalar) — do not hand-edit.\n";
+        cu << "// File-scope kernel (no anonymous namespace). Prefer linking "
+              "TheoryHistChi2S3 for search.\n";
+        cu << "#include \"" << cls << ".hpp\"\n\n";
+        cu << "// Device decrypt fragment (reference): " << plan.device_cpp() << "\n";
+        cu << "// In-lib twin evaluates the bounded bytecode program via "
+              "TheoryHistChi2S3.\n";
+
+        return EmitBundle{Strategy::S3ScalarInline, Strategy::S3ScalarInline, true,
+                          std::string("S3 scalar emit: ") + select_reason, hdr.str(), cu.str(),
+                          kern, std::nullopt, std::nullopt, shape, plan};
     }
 
     [[nodiscard]] static StatusOr<EmitBundle>

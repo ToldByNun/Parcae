@@ -1986,6 +1986,102 @@ private:
                                          "GpuCandidateExport::theory S0 sync", progress);
     }
 
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s3(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
+        TheoryExportCache& cache, TheoryDeviceScratch& scratch, CudaStreamPair& streams,
+        BatchRunner::Progress progress, TheoryFuseMode mode, TheoryLaunchTicket* ticket_out) {
+        NvtxRange nvtx_s3("specialized_s3");
+        if (!entry.hist_plan().s3_scalar().has_value()) {
+            return Status::error("GpuCandidateExport::theory S3 missing scalar plan");
+        }
+        const TheoryHistChi2Emit::S3ScalarPlan& plan = *entry.hist_plan().s3_scalar();
+        if (!plan.within_caps()) {
+            return Status::error("GpuCandidateExport::theory S3 plan beyond caps");
+        }
+        const Z29Bytecode::Program& prog = entry.program();
+        if (!prog.binds_index_i) {
+            return Status::error("GpuCandidateExport::theory S3 requires binds_index_i");
+        }
+        const std::size_t C = params_list.size();
+        const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.slot_names.size());
+        const std::uint16_t max_stack = prog.max_stack == 0 ? 8 : prog.max_stack;
+        if (static_cast<std::uint32_t>(entry.ops_u8().size()) != plan.op_count() ||
+            max_stack > TheoryHistChi2Emit::kS3MaxDeviceStack ||
+            slot_count > TheoryHistChi2Emit::kS3MaxSlots ||
+            entry.ops_u8().size() > TheoryHistChi2Emit::kS3MaxProgramOps) {
+            return Status::error("GpuCandidateExport::theory S3 program/plan mismatch or over caps");
+        }
+
+        const std::vector<std::uint8_t>& ops = entry.ops_u8();
+        std::vector<std::uint8_t> slots(C * slot_count, 0);
+        {
+            NvtxRange nvtx_bind("bind_slots_s3");
+            for (std::size_t c = 0; c < C; ++c) {
+                StatusOr<std::vector<Index29>> bound =
+                    Z29Bytecode::bind_theory_slots(prog, entry.theory(), params_list[c]);
+                if (!bound.ok()) {
+                    return bound.status();
+                }
+                if (bound.value().size() != slot_count) {
+                    return Status::error("GpuCandidateExport::theory S3 slot bind size mismatch");
+                }
+                for (std::uint16_t s = 0; s < slot_count; ++s) {
+                    slots[c * slot_count + s] = bound.value()[s].value();
+                }
+            }
+        }
+
+        const auto host_in = to_bytes(cipher);
+        {
+            NvtxRange nvtx_h2d("h2d");
+            Status resident =
+                ensure_theory_resident(scratch, host_in, freqs, C, streams.copy());
+            if (!resident.ok()) {
+                return resident;
+            }
+            Status prog_up = cache.ensure_device_program();
+            if (!prog_up.ok()) {
+                return prog_up;
+            }
+            Status slots_up =
+                scratch.upload_slots_async(slots, C, slot_count, streams.copy());
+            if (!slots_up.ok()) {
+                return slots_up;
+            }
+            scratch.commit_param_slab();
+        }
+
+        if (mode == TheoryFuseMode::StageH2D) {
+            Status h2d_ev = streams.record_h2d_done();
+            if (!h2d_ev.ok()) {
+                return h2d_ev;
+            }
+            if (ticket_out != nullptr) {
+                ticket_out->phase_ = TheoryLaunchTicket::Phase::Staged;
+                ticket_out->kind_ = TheoryLaunchTicket::Kind::S0; // same ABI staging as S0
+                ticket_out->candidate_count_ = C;
+                ticket_out->token_count_ = host_in.size();
+                ticket_out->op_count_ = static_cast<std::uint32_t>(ops.size());
+                ticket_out->slot_count_ = slot_count;
+                ticket_out->cipher_slot_ = prog.cipher_slot;
+                ticket_out->index_slot_ = prog.index_slot;
+                ticket_out->max_stack_ = max_stack;
+                ticket_out->binds_index_i_ = 1u;
+            }
+            return std::vector<double>{};
+        }
+        auto launch = [&](cudaStream_t compute) {
+            return TheoryHistChi2Launch::launch_s3_scalar_async(
+                scratch.cipher(), cache.device_ops().data(), cache.device_imm().data(),
+                static_cast<std::uint32_t>(ops.size()), scratch.slots(), slot_count,
+                prog.cipher_slot, prog.index_slot, scratch.probs(), scratch.counts(),
+                scratch.scores(), scratch.lane_err(), C, host_in.size(), max_stack, compute);
+        };
+        return launch_theory_stream_copy(scratch, streams, C, launch,
+                                         "GpuCandidateExport::theory S3 sync", progress);
+    }
+
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_shape_atbash(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const std::vector<nlohmann::json>& params_list, TheoryDeviceScratch& scratch,
@@ -2402,7 +2498,7 @@ private:
         const TheoryExportCache::Entry& entry = *prepared.value();
         const TheoryExportCache::HistPlan& hist = entry.hist_plan();
 
-        // Prefer ShapeInline twins (Atbash/Caesar/Affine) → S1 soft → S1 → S2 → S0.
+        // Prefer ShapeInline twins → S1 soft → S1 → S2 → S3 → S0.
         if (hist.specialized() && hist.has_shape_atbash_kernel()) {
             StatusOr<std::vector<double>> shape =
                 fused_theory_scores_shape_atbash(cipher, freqs, params_list, scratch, streams,
@@ -2466,6 +2562,18 @@ private:
                 cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
                 return s2;
             }
+        }
+        if (hist.specialized() &&
+            hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::S3ScalarInline &&
+            hist.s3_scalar()) {
+            StatusOr<std::vector<double>> s3 =
+                fused_theory_scores_s3(cipher, freqs, entry, params_list, cache, scratch, streams,
+                                       progress, mode, ticket_out);
+            if (s3.ok()) {
+                cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S3ScalarInline);
+                return s3;
+            }
+            // Soft fallback S0 (caps / bind).
         }
 
         return fused_theory_scores_s0(cipher, freqs, entry, params_list, cache, scratch, streams,

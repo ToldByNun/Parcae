@@ -347,7 +347,7 @@ matching shapes. After `DslOptimize` / IR build, `TheoryHistChi2Emit` selects:
 | **S1** `S1Lut29` | Decrypt `f(x; params)` only | `TheoryHistChi2S1` |
 | **S2** `S2Uchar4Inline` | `x ± (b0 + b1·i)` / bitmask_blend-shaped | `TheoryHistChi2S2` |
 | **S0** `S0Bytecode` | Default + soft-fallback | `TheoryChi2Batch` |
-| **S3** `S3ScalarInline` | Planned scalar inline | TBD |
+| **S3** `S3ScalarInline` | Bounded ExprLower + `TheoryHistChi2S3` | Soft S0 beyond caps |
 
 `TheoryExportCache` stores the `HistPlan`; `GpuCandidateExport::theory_*`
 prefers specialized launches and soft-falls back to S0 on failure

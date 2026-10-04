@@ -256,7 +256,7 @@ TEST_CASE("TheoryHistChi2Emit S2 widen const b0 + b1*i specializes",
     REQUIRE(bundle.value().s2_linear()->b1_name() == "b1");
 }
 
-TEST_CASE("TheoryHistChi2Emit non-linear keystream is S3 stub → S0",
+TEST_CASE("TheoryHistChi2Emit non-linear keystream specializes S3",
           "[dsl][emit][hist][chi2]") {
     const TheoryIr theory = make_nonlinear_s2_theory();
     REQUIRE(TheoryHistChi2Emit::select_strategy(theory).strategy() ==
@@ -267,8 +267,13 @@ TEST_CASE("TheoryHistChi2Emit non-linear keystream is S3 stub → S0",
         TheoryHistChi2Emit::emit_decrypt_hist(theory);
     REQUIRE(bundle.ok());
     REQUIRE(bundle.value().intended_strategy() == TheoryHistChi2Emit::Strategy::S3ScalarInline);
-    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
-    REQUIRE_FALSE(bundle.value().specialized());
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S3ScalarInline);
+    REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().s3_scalar().has_value());
+    REQUIRE(bundle.value().s3_scalar()->within_caps());
+    REQUIRE(bundle.value().s3_scalar()->binds_index_i());
+    REQUIRE(bundle.value().kernel_symbol() == "emit_quad_stream_s3_hist_kernel");
+    REQUIRE(bundle.value().cu_text().find("namespace {") == std::string::npos);
 }
 
 TEST_CASE("TheoryHistChi2Emit ShapeInline caesar uses HistFast shape twin",
@@ -316,14 +321,35 @@ TEST_CASE("TheoryHistChi2Emit ShapeInline affine decrypt uses HistFast shape twi
     REQUIRE(bundle.value().kernel_symbol() == "theory_hist_chi2_shape_affine_kernel");
 }
 
-TEST_CASE("TheoryHistChi2Emit S3 still soft-falls back to S0", "[dsl][emit][hist][chi2]") {
+TEST_CASE("TheoryHistChi2Emit S3 ExprLower specializes Mul(x,i)-shaped",
+          "[dsl][emit][hist][chi2]") {
     StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
         TheoryHistChi2Emit::emit_decrypt_hist(make_complex_i_theory());
     REQUIRE(bundle.ok());
     REQUIRE(bundle.value().intended_strategy() == TheoryHistChi2Emit::Strategy::S3ScalarInline);
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S3ScalarInline);
+    REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().s3_scalar().has_value());
+}
+
+TEST_CASE("TheoryHistChi2Emit prefer_branch stays hard S0 (not S3)",
+          "[dsl][emit][hist][chi2]") {
+    const StatusOr<ParamIr> c = ParamIr::make("c", 0, 1);
+    REQUIRE(c.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        Z29Expr::var("c"), Z29Expr::sub(Z29Expr::constant(28).value(), x), x,
+        /*prefer_branch=*/true);
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "emit_prefer_branch", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {c.value()}, expr, expr,
+        std::string("prefer_branch → S0."));
+    REQUIRE(theory.ok());
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory.value());
+    REQUIRE(bundle.ok());
     REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
     REQUIRE_FALSE(bundle.value().specialized());
-    REQUIRE(bundle.value().reason().find("skeleton") != std::string::npos);
 }
 
 #if defined(PARCAE_HAS_CUDA)
@@ -717,6 +743,114 @@ TEST_CASE("TheoryHistChi2 S2 linear golden: bytecode χ² == specialized χ²",
     REQUIRE(scores_bc.size() == scores_s2.size());
     for (std::size_t c = 0; c < C; ++c) {
         REQUIRE(scores_bc[c] == scores_s2[c]);
+    }
+}
+
+TEST_CASE("TheoryHistChi2 S3 scalar golden: bytecode χ² == specialized χ²",
+          "[dsl][emit][hist][chi2][cuda][golden]") {
+    REQUIRE(ParcaeCuda::available());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const TheoryIr theory = make_nonlinear_s2_theory();
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().s3_scalar().has_value());
+    REQUIRE(bundle.value().s3_scalar()->within_caps());
+
+    const StatusOr<Z29Bytecode::Program> prog =
+        Z29Bytecode::compile_theory(theory, TransformDirection::Decrypt);
+    REQUIRE(prog.ok());
+    REQUIRE(prog.value().binds_index_i);
+
+    std::vector<Index29> cipher;
+    for (std::uint8_t i = 0; i < 48; ++i) {
+        cipher.push_back(Index29{static_cast<std::uint8_t>((i * 5u + 2u) % 29u)});
+    }
+    const std::vector<std::uint8_t> host_in = to_bytes(cipher);
+
+    std::vector<nlohmann::json> params_list;
+    for (int b0 = 0; b0 < 3; ++b0) {
+        for (int b1 = 0; b1 < 3; ++b1) {
+            params_list.push_back(nlohmann::json{{"b0", b0}, {"b1", b1}});
+        }
+    }
+    const std::size_t C = params_list.size();
+
+    const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.value().slot_names.size());
+    std::vector<std::uint8_t> ops;
+    ops.reserve(prog.value().ops.size());
+    for (Z29Bytecode::Op op : prog.value().ops) {
+        ops.push_back(Z29Bytecode::op_as_u8(op));
+    }
+    std::vector<std::uint8_t> slots(C * slot_count, 0);
+    for (std::size_t c = 0; c < C; ++c) {
+        StatusOr<std::vector<Index29>> bound =
+            Z29Bytecode::bind_theory_slots(prog.value(), theory, params_list[c]);
+        REQUIRE(bound.ok());
+        for (std::uint16_t s = 0; s < slot_count; ++s) {
+            slots[c * slot_count + s] = bound.value()[s].value();
+        }
+    }
+
+    StatusOr<DeviceBuffer<std::uint8_t>> device_in = DeviceBuffer<std::uint8_t>::from_host(host_in);
+    REQUIRE(device_in.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_ops = DeviceBuffer<std::uint8_t>::from_host(ops);
+    REQUIRE(device_ops.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_imm =
+        DeviceBuffer<std::uint8_t>::from_host(prog.value().imm);
+    REQUIRE(device_imm.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_slots = DeviceBuffer<std::uint8_t>::from_host(slots);
+    REQUIRE(device_slots.ok());
+    StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
+        std::span<const double>(freqs.value().probabilities().data(),
+                                freqs.value().probabilities().size()));
+    REQUIRE(device_probs.ok());
+    StatusOr<DeviceBuffer<std::uint32_t>> device_counts_bc =
+        DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2Launch::alphabet_size);
+    REQUIRE(device_counts_bc.ok());
+    StatusOr<DeviceBuffer<std::uint32_t>> device_counts_s3 =
+        DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2Launch::alphabet_size);
+    REQUIRE(device_counts_s3.ok());
+    StatusOr<DeviceBuffer<double>> device_scores_bc = DeviceBuffer<double>::allocate(C);
+    REQUIRE(device_scores_bc.ok());
+    StatusOr<DeviceBuffer<double>> device_scores_s3 = DeviceBuffer<double>::allocate(C);
+    REQUIRE(device_scores_s3.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_err = DeviceBuffer<std::uint8_t>::allocate(C);
+    REQUIRE(device_err.ok());
+
+    const std::uint16_t max_stack =
+        prog.value().max_stack == 0 ? 8 : prog.value().max_stack;
+
+    REQUIRE(TheoryHistChi2Launch::launch_bytecode_async(
+                device_in.value().data(), device_ops.value().data(), device_imm.value().data(),
+                static_cast<std::uint32_t>(ops.size()), device_slots.value().data(), slot_count,
+                prog.value().cipher_slot, prog.value().index_slot,
+                prog.value().binds_index_i ? 1u : 0u, max_stack, device_probs.value().data(),
+                device_counts_bc.value().data(), device_scores_bc.value().data(),
+                device_err.value().data(), C, host_in.size())
+                .ok());
+    REQUIRE(CudaError::to_status(cudaDeviceSynchronize(), "S3 golden bytecode sync").ok());
+
+    REQUIRE(TheoryHistChi2Launch::launch_s3_scalar_async(
+                device_in.value().data(), device_ops.value().data(), device_imm.value().data(),
+                static_cast<std::uint32_t>(ops.size()), device_slots.value().data(), slot_count,
+                prog.value().cipher_slot, prog.value().index_slot, device_probs.value().data(),
+                device_counts_s3.value().data(), device_scores_s3.value().data(),
+                device_err.value().data(), C, host_in.size(), max_stack)
+                .ok());
+    REQUIRE(CudaError::to_status(cudaDeviceSynchronize(), "S3 golden specialized sync").ok());
+
+    std::vector<double> scores_bc(C, 0.0);
+    std::vector<double> scores_s3(C, 0.0);
+    REQUIRE(device_scores_bc.value().copy_to_host(scores_bc).ok());
+    REQUIRE(device_scores_s3.value().copy_to_host(scores_s3).ok());
+    for (std::size_t c = 0; c < C; ++c) {
+        REQUIRE(scores_bc[c] == scores_s3[c]);
     }
 }
 

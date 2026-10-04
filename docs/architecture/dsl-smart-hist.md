@@ -63,7 +63,7 @@ Python HotLoop decrypt_step
 | Normalize | `Z29ExprNormalize` ([`z29_expr_normalize.hpp`](../../include/parcae/dsl/z29_expr_normalize.hpp)) | Fold, commute, atbash-as-arith, affine/caesar/linear normal forms — **shipping** |
 | Match | `TheoryShapeMatch` ([`theory_shape_match.hpp`](../../include/parcae/dsl/theory_shape_match.hpp)) | `ShapeId` from normalized tree + `cipher_var` — **shipping** |
 | Emit | `TheoryHistChi2Emit` | Existing façade; must run normalize+match before generic S1 |
-| Lower (long tail) | `TheoryHistExprLower` | Device decrypt fragment for S3 / module |
+| Lower (long tail) | `TheoryHistExprLower` | Device decrypt fragment for S3 / module — **shipping** (bounded caps) |
 | Module | `TheoryHistModule` | Optional cubin/NVRTC by URI+digest; soft S0 on fail |
 | Hist primitives | `HistFast` | Shared decode with catalog (`dec_atbash`, caesar, affine, …) |
 
@@ -255,7 +255,7 @@ private:
 | `TheoryShapeMatch` | **Shipping** (`[dsl][shape]`) | ShapeId ladder; name-irrelevant; autokey / prefer_branch / non-inv affine |
 | Self-written Atbash/Caesar/Affine-decrypt | `ShapeInline` + `TheoryHistChi2Shape` twins | Affine encrypt-form S1 soft; S3/S4/S5 |
 | Name / API required for fast path | Effective yes (catalog) | **No** — algebra only |
-| S3 / S4 / S5 | Stub or hard S0 | Real launch or module |
+| S3 / S4 / S5 | S3 ExprLower+launch shipping; S4/S5 stub | Real launch or module |
 | Emit sources / `hist_module` | Discarded / null | `hist_plan` + optional module load |
 | `has_specialized` | Always false | True when module/shape plan present |
 | Fair specialize Caesar bytecode | S1 when eligible | Keep; shape twins supersede when richer |
@@ -268,7 +268,7 @@ Declare this smartness workstream complete only when **all** apply:
 
 - [ ] Self-written Atbash / Caesar / Affine (pure arith HotLoop) → shape twin; scores ≡ bytecode; fair Kernel SLO in catalog twin class (`parcae-bench --suite dsl_smart`; noise under `profiles/dsl_smart/`)
 - [x] Self-written linear `x±(b0+b1·i)` → S2 (widened), not S0
-- [ ] Non-linear `i` customs → S3 or module (unless caps / prefer_branch / pre-S4 autokey)
+- [x] Non-linear `i` customs → S3 or module (unless caps / prefer_branch / pre-S4 autokey)
 - [ ] Autokey customs → S4 when implemented
 - [ ] Normalize + match name-irrelevant goldens green
 - [ ] Edge matrix above locked in Catch2
