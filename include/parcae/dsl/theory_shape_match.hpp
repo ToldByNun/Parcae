@@ -88,6 +88,18 @@ public:
             return (has_const_b0_ || !b0_name_.empty()) && (has_const_b1_ || !b1_name_.empty());
         }
 
+        /// Autokey lag: param name and/or folded const (vigenere_lag-class).
+        [[nodiscard]] const std::string& lag_name() const noexcept { return lag_name_; }
+
+        [[nodiscard]] bool has_const_lag() const noexcept { return has_const_lag_; }
+
+        [[nodiscard]] std::uint8_t const_lag() const noexcept { return const_lag_; }
+
+        /// True when Autokey match carries a bindable lag (param or const).
+        [[nodiscard]] bool autokey_lag_ok() const noexcept {
+            return has_const_lag_ || !lag_name_.empty();
+        }
+
         void set_shift_name(std::string name) { shift_name_ = std::move(name); }
 
         void set_const_shift(std::uint8_t v) {
@@ -131,6 +143,16 @@ public:
             const_b1_ = v;
         }
 
+        void set_autokey_lag(std::string lag_name, bool cipher_minus_ks) {
+            lag_name_ = std::move(lag_name);
+            cipher_minus_ks_ = cipher_minus_ks;
+        }
+
+        void set_const_lag(std::uint8_t v) {
+            has_const_lag_ = true;
+            const_lag_ = v;
+        }
+
     private:
         ShapeId shape_ = ShapeId::Unknown;
         std::string reason_;
@@ -140,6 +162,7 @@ public:
         std::string b_name_;
         std::string b0_name_;
         std::string b1_name_;
+        std::string lag_name_;
         bool cipher_minus_ks_ = false;
         bool has_const_shift_ = false;
         std::uint8_t const_shift_ = 0;
@@ -151,6 +174,8 @@ public:
         std::uint8_t const_b0_ = 0;
         bool has_const_b1_ = false;
         std::uint8_t const_b1_ = 0;
+        bool has_const_lag_ = false;
+        std::uint8_t const_lag_ = 0;
         bool affine_decrypt_ = false;
     };
 
@@ -222,7 +247,12 @@ private:
                          std::move(owned)};
         }
         if (has_autokey(expr)) {
-            return Match{ShapeId::Autokey, "contains z29_autokey_shift", std::move(owned)};
+            if (std::optional<Match> m = try_autokey_lag(expr, owned, cipher_var)) {
+                return std::move(*m);
+            }
+            return Match{ShapeId::Autokey,
+                         "contains z29_autokey_shift but not vigenere_lag Add/Sub form",
+                         std::move(owned)};
         }
         if (!DslOptimize::depends_on_var(expr, cipher_var)) {
             return Match{ShapeId::Unknown, "decrypt does not reference cipher_var",
@@ -321,6 +351,61 @@ private:
         if (expr.kind() == Z29Expr::Kind::Atbash && expr.arg() &&
             is_cipher_var(*expr.arg(), cipher_var)) {
             return Match{ShapeId::Atbash, "Atbash(cipher)", std::move(owned)};
+        }
+        return std::nullopt;
+    }
+
+    /// Vigenere-lag / CTAK class: `cipher ± z29_autokey_shift(cipher, lag)`.
+    /// After normalize, Sub → `Add(cipher, Neg(Call(...)))`.
+    [[nodiscard]] static std::optional<Match>
+    try_autokey_lag(const Z29Expr& expr, Z29Expr::Ptr owned, std::string_view cipher_var) {
+        using Kind = Z29Expr::Kind;
+        const Z29Expr* key_call = nullptr;
+        bool cipher_minus_ks = false;
+
+        if (expr.kind() == Kind::Add && expr.left() && expr.right() &&
+            is_cipher_var(*expr.left(), cipher_var)) {
+            const Z29Expr* rhs = expr.right().get();
+            if (rhs->kind() == Kind::Neg && rhs->arg()) {
+                cipher_minus_ks = true;
+                rhs = rhs->arg().get();
+            }
+            if (rhs->kind() == Kind::Call && rhs->name() == "z29_autokey_shift") {
+                key_call = rhs;
+            }
+        } else if (expr.kind() == Kind::Sub && expr.left() && expr.right() &&
+                   is_cipher_var(*expr.left(), cipher_var) &&
+                   expr.right()->kind() == Kind::Call &&
+                   expr.right()->name() == "z29_autokey_shift") {
+            cipher_minus_ks = true;
+            key_call = expr.right().get();
+        }
+
+        if (key_call == nullptr || key_call->args().size() != 2 || !key_call->args()[0] ||
+            !key_call->args()[1]) {
+            return std::nullopt;
+        }
+        if (!is_cipher_var(*key_call->args()[0], cipher_var)) {
+            return std::nullopt;
+        }
+        // Lag must not depend on cipher / stream index (param or const only).
+        const Z29Expr& lag = *key_call->args()[1];
+        if (DslOptimize::depends_on_var(lag, cipher_var) || DslOptimize::depends_on_var(lag, "i")) {
+            return std::nullopt;
+        }
+
+        Match m{ShapeId::Autokey,
+                cipher_minus_ks ? "Add(cipher, Neg(autokey_shift)) vigenere_lag"
+                                : "Add(cipher, autokey_shift) vigenere_lag",
+                std::move(owned)};
+        if (lag.kind() == Kind::Var) {
+            m.set_autokey_lag(lag.name(), cipher_minus_ks);
+            return m;
+        }
+        if (lag.kind() == Kind::Const) {
+            m.set_autokey_lag(std::string{}, cipher_minus_ks);
+            m.set_const_lag(lag.const_value());
+            return m;
         }
         return std::nullopt;
     }

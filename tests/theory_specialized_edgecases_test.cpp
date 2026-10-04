@@ -111,7 +111,7 @@ constexpr const char* kSha =
         TheoryIr::make("edge_autokey", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
                        TheoryIr::InterruptMode::NoneByDesign, {lag.value()},
                        Z29Expr::add(x, prior), Z29Expr::sub(x, prior),
-                       std::string("Autokey forces S0."));
+                       std::string("Autokey S4 AutokeyRing."));
     REQUIRE(th.ok());
     return th.value();
 }
@@ -359,7 +359,8 @@ TEST_CASE("specialized S2 vs bytecode: scores + top-k order match",
     std::filesystem::remove_all(root, ec);
 }
 
-TEST_CASE("Autokey theory forces S0 hist launch", "[cuda][theory][edge][autokey]") {
+TEST_CASE("Autokey theory prefers S4 AutokeyRing; χ² ≡ bytecode",
+          "[cuda][theory][edge][autokey][s4]") {
     REQUIRE(ParcaeCuda::available());
 
     const std::filesystem::path root =
@@ -371,8 +372,8 @@ TEST_CASE("Autokey theory forces S0 hist launch", "[cuda][theory][edge][autokey]
     const TheoryIr theory = make_autokey();
     REQUIRE(install_theory(root / "theories", theory).ok());
     REQUIRE(TheoryHistChi2Emit::select_strategy(theory).strategy() ==
-            TheoryHistChi2Emit::Strategy::S0Bytecode);
-    REQUIRE_FALSE(TheoryHistChi2Emit::emit_decrypt_hist(theory).value().specialized());
+            TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+    REQUIRE(TheoryHistChi2Emit::emit_decrypt_hist(theory).value().specialized());
 
     StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
         std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
@@ -387,13 +388,22 @@ TEST_CASE("Autokey theory forces S0 hist launch", "[cuda][theory][edge][autokey]
         cache.ensure(root / "theories", "parcae://theories/edge_autokey@1",
                      TransformDirection::Decrypt);
     REQUIRE(prepared.ok());
-    REQUIRE_FALSE(prepared.value()->hist_plan().specialized());
+    REQUIRE(prepared.value()->hist_plan().specialized());
+    REQUIRE(prepared.value()->hist_plan().emitted_strategy() ==
+            TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+    REQUIRE(prepared.value()->hist_plan().s4_autokey().has_value());
 
     StatusOr<std::vector<double>> gpu = GpuCandidateExport::theory_scores_only(
         cipher, freqs.value(), root / "theories", "parcae://theories/edge_autokey@1", params_list,
         TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
     REQUIRE(gpu.ok());
-    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+
+    const std::vector<double> bytecode =
+        launch_bytecode_scores(theory, cipher, params_list, freqs.value());
+    for (std::size_t c = 0; c < bytecode.size(); ++c) {
+        REQUIRE(gpu.value()[c] == bytecode[c]);
+    }
 
     for (std::size_t c = 0; c < params_list.size(); ++c) {
         StatusOr<std::vector<Index29>> plain =

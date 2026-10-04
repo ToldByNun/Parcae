@@ -249,7 +249,7 @@ TEST_CASE("TheoryShapeMatch KeyedGeneral uses i non-linear", "[dsl][shape]") {
     REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::KeyedGeneral);
 }
 
-TEST_CASE("TheoryShapeMatch Autokey negative/special", "[dsl][shape]") {
+TEST_CASE("TheoryShapeMatch Autokey vigenere_lag binds lag", "[dsl][shape]") {
     const Z29Expr::Ptr expr = Z29Expr::sub(
         TheoryShapeMatchTestUtil::x(),
         Z29Expr::call("z29_autokey_shift",
@@ -257,6 +257,23 @@ TEST_CASE("TheoryShapeMatch Autokey negative/special", "[dsl][shape]") {
     const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
     REQUIRE(m.ok());
     REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::Autokey);
+    REQUIRE(m.value().autokey_lag_ok());
+    REQUIRE(m.value().lag_name() == "L");
+    REQUIRE(m.value().cipher_minus_ks());
+}
+
+TEST_CASE("TheoryShapeMatch Autokey name-irrelevant custom still Autokey", "[dsl][shape]") {
+    // Theory name is unrelated to catalog autokey_lag / vigenere — math wins.
+    const TheoryIr theory = TheoryShapeMatchTestUtil::make_theory(
+        "foo_stream_custom",
+        Z29Expr::sub(TheoryShapeMatchTestUtil::x(),
+                     Z29Expr::call("z29_autokey_shift",
+                                   {TheoryShapeMatchTestUtil::x(),
+                                    TheoryShapeMatchTestUtil::v("lag")})));
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match_theory(theory);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::Autokey);
+    REQUIRE(m.value().lag_name() == "lag");
 }
 
 TEST_CASE("TheoryShapeMatch prefer_branch Select is Unknown", "[dsl][shape]") {

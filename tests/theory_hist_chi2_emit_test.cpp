@@ -51,7 +51,7 @@ namespace {
         TheoryIr::make("emit_autokey", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
                        TheoryIr::InterruptMode::NoneByDesign, {lag.value()},
                        Z29Expr::add(x, prior), Z29Expr::sub(x, prior),
-                       std::string("Autokey forces S0."));
+                       std::string("Autokey S4 AutokeyRing."));
     REQUIRE(theory.ok());
     return theory.value();
 }
@@ -185,11 +185,25 @@ TEST_CASE("TheoryHistChi2Emit selects S3 for non-± keystream with i",
     REQUIRE(sel.strategy() == TheoryHistChi2Emit::Strategy::S3ScalarInline);
 }
 
-TEST_CASE("TheoryHistChi2Emit forces S0 for autokey", "[dsl][emit][hist][chi2]") {
+TEST_CASE("TheoryHistChi2Emit selects S4 AutokeyRing for vigenere_lag",
+          "[dsl][emit][hist][chi2][s4]") {
     const TheoryIr theory = make_autokey_theory();
     const TheoryHistChi2Emit::Selection sel = TheoryHistChi2Emit::select_strategy(theory);
-    REQUIRE(sel.strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
-    REQUIRE_FALSE(sel.is_specialized());
+    REQUIRE(sel.strategy() == TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+    REQUIRE(sel.is_specialized());
+    REQUIRE(sel.shape().has_value());
+    REQUIRE(sel.shape()->autokey_lag_ok());
+    REQUIRE(sel.shape()->lag_name() == "lag");
+
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+    REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().s4_autokey().has_value());
+    REQUIRE(bundle.value().s4_autokey()->lag_name() == "lag");
+    REQUIRE(bundle.value().s4_autokey()->cipher_minus_ks());
+    REQUIRE_FALSE(bundle.value().header_text().empty());
 }
 
 TEST_CASE("TheoryHistChi2Emit S2 linear progressive emits uchar4 sources",

@@ -8,6 +8,7 @@
 #include "theory_hist_chi2_s1.hpp"
 #include "theory_hist_chi2_s2.hpp"
 #include "theory_hist_chi2_s3.hpp"
+#include "theory_hist_chi2_s4.hpp"
 #include "theory_hist_chi2_shape.hpp"
 #include "theory_hist_module.hpp"
 
@@ -21,6 +22,7 @@
 /// S0: `TheoryChi2Batch` bytecode. ShapeInline Atbash: `TheoryHistChi2Shape`.
 /// S1: `TheoryHistChi2S1` LUT-29 twin. S2 linear: `TheoryHistChi2S2` uchar4 twin.
 /// S3: `TheoryHistChi2S3` bounded ExprLower scalar twin.
+/// S4: `TheoryHistChi2S4` AutokeyRing + hist (vigenere_lag class).
 /// Module: `TheoryHistModule` cubin/NVRTC cache (URI+digest); fail → soft S0.
 /// `GpuCandidateExport` prefers module then in-lib twins when present;
 /// otherwise bytecode.
@@ -175,6 +177,17 @@ public:
             device_in, device_ops, device_imm, op_count, device_slots, slot_count, cipher_slot,
             index_slot, device_probabilities, device_counts, device_scores, device_lane_err,
             candidate_count, token_count, max_stack, stream);
+    }
+
+    /// S4 AutokeyRing twin (`device_lags` length C).
+    [[nodiscard]] static Status launch_s4_autokey_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_lags,
+        const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+        std::size_t candidate_count, std::size_t token_count, bool cipher_minus_ks,
+        cudaStream_t stream = nullptr) {
+        return TheoryHistChi2S4::launch_autokey_async(
+            device_in, device_lags, device_probabilities, device_counts, device_scores,
+            candidate_count, token_count, cipher_minus_ks, stream);
     }
 
 private:

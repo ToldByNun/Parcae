@@ -30,7 +30,8 @@
 /// Classify via `Z29ExprNormalize` + `TheoryShapeMatch` (name-irrelevant), then:
 /// ShapeInline Atbash/Caesar/Affine-decrypt → in-lib `TheoryHistChi2Shape`;
 /// Affine encrypt-form → S1 soft twin; LinearKeystream → S2; FxOnly → S1;
-/// Autokey/prefer_branch → S0; KeyedGeneral/Poly → S3 (ExprLower within caps) else soft S0.
+/// Autokey vigenere_lag → S4 AutokeyRing; prefer_branch → S0; KeyedGeneral/Poly → S3
+/// (ExprLower within caps) else soft S0.
 ///
 /// No C++ namespaces. Emitted CUDA uses file-scope `__global__` names —
 /// never anonymous `namespace {}`.
@@ -60,6 +61,8 @@ public:
         /// Algebraic Atbash / Caesar / Affine (`TheoryShapeMatch`); runtime may
         /// use S1 twin until dedicated HistFast shape kernels ship.
         ShapeInline,
+        /// `z29_autokey_shift` vigenere_lag class — AutokeyRing + hist twin.
+        S4AutokeyRing,
         /// Optional cubin / NVRTC module (`TheoryHistModule`) for a theory URI.
         ModuleLoaded,
     };
@@ -77,6 +80,7 @@ public:
             p.b_name_ = m.b_name();
             p.b0_name_ = m.b0_name();
             p.b1_name_ = m.b1_name();
+            p.lag_name_ = m.lag_name();
             p.cipher_minus_ks_ = m.cipher_minus_ks();
             p.affine_decrypt_ = m.affine_decrypt();
             p.has_const_shift_ = m.has_const_shift();
@@ -89,6 +93,8 @@ public:
             p.const_b0_ = m.const_b0();
             p.has_const_b1_ = m.has_const_b1();
             p.const_b1_ = m.const_b1();
+            p.has_const_lag_ = m.has_const_lag();
+            p.const_lag_ = m.const_lag();
             return p;
         }
 
@@ -105,6 +111,8 @@ public:
         [[nodiscard]] const std::string& b0_name() const noexcept { return b0_name_; }
 
         [[nodiscard]] const std::string& b1_name() const noexcept { return b1_name_; }
+
+        [[nodiscard]] const std::string& lag_name() const noexcept { return lag_name_; }
 
         [[nodiscard]] bool cipher_minus_ks() const noexcept { return cipher_minus_ks_; }
 
@@ -130,8 +138,16 @@ public:
 
         [[nodiscard]] std::uint8_t const_b1() const noexcept { return const_b1_; }
 
+        [[nodiscard]] bool has_const_lag() const noexcept { return has_const_lag_; }
+
+        [[nodiscard]] std::uint8_t const_lag() const noexcept { return const_lag_; }
+
         [[nodiscard]] bool linear_coeffs_ok() const noexcept {
             return (has_const_b0_ || !b0_name_.empty()) && (has_const_b1_ || !b1_name_.empty());
+        }
+
+        [[nodiscard]] bool autokey_lag_ok() const noexcept {
+            return has_const_lag_ || !lag_name_.empty();
         }
 
         [[nodiscard]] bool is_shape_inline() const noexcept {
@@ -166,6 +182,7 @@ public:
         std::string b_name_;
         std::string b0_name_;
         std::string b1_name_;
+        std::string lag_name_;
         bool cipher_minus_ks_ = false;
         bool affine_decrypt_ = false;
         bool has_const_shift_ = false;
@@ -178,6 +195,46 @@ public:
         std::uint8_t const_b0_ = 0;
         bool has_const_b1_ = false;
         std::uint8_t const_b1_ = 0;
+        bool has_const_lag_ = false;
+        std::uint8_t const_lag_ = 0;
+    };
+
+    /// S4 AutokeyRing plan: `out = cipher ± AutokeyRing::shift(cipher, t, lag)`.
+    class S4AutokeyPlan {
+    public:
+        S4AutokeyPlan(std::string lag_name, bool cipher_minus_ks)
+            : lag_name_(std::move(lag_name)), cipher_minus_ks_(cipher_minus_ks) {}
+
+        [[nodiscard]] static S4AutokeyPlan from_shape(const ShapePlan& shape) {
+            S4AutokeyPlan p{shape.lag_name(), shape.cipher_minus_ks()};
+            if (shape.has_const_lag()) {
+                p.set_const_lag(shape.const_lag());
+            }
+            return p;
+        }
+
+        [[nodiscard]] const std::string& lag_name() const noexcept { return lag_name_; }
+
+        [[nodiscard]] bool cipher_minus_ks() const noexcept { return cipher_minus_ks_; }
+
+        [[nodiscard]] bool has_const_lag() const noexcept { return has_const_lag_; }
+
+        [[nodiscard]] std::uint8_t const_lag() const noexcept { return const_lag_; }
+
+        [[nodiscard]] bool lag_ok() const noexcept {
+            return has_const_lag_ || !lag_name_.empty();
+        }
+
+        void set_const_lag(std::uint8_t v) {
+            has_const_lag_ = true;
+            const_lag_ = v;
+        }
+
+    private:
+        std::string lag_name_;
+        bool cipher_minus_ks_ = true;
+        bool has_const_lag_ = false;
+        std::uint8_t const_lag_ = 0;
     };
 
     /// S1 plan: params in `TheoryIr::params()` order; LUT rows are `C × 29`.
@@ -328,12 +385,14 @@ public:
                    std::optional<S1LutPlan> s1_lut = std::nullopt,
                    std::optional<S2LinearPlan> s2_linear = std::nullopt,
                    std::optional<ShapePlan> shape = std::nullopt,
-                   std::optional<S3ScalarPlan> s3_scalar = std::nullopt)
+                   std::optional<S3ScalarPlan> s3_scalar = std::nullopt,
+                   std::optional<S4AutokeyPlan> s4_autokey = std::nullopt)
             : intended_(intended), emitted_(emitted), specialized_(specialized),
               reason_(std::move(reason)), header_text_(std::move(header_text)),
               cu_text_(std::move(cu_text)), kernel_symbol_(std::move(kernel_symbol)),
               s1_lut_(std::move(s1_lut)), s2_linear_(std::move(s2_linear)),
-              shape_(std::move(shape)), s3_scalar_(std::move(s3_scalar)) {}
+              shape_(std::move(shape)), s3_scalar_(std::move(s3_scalar)),
+              s4_autokey_(std::move(s4_autokey)) {}
 
         [[nodiscard]] Strategy intended_strategy() const noexcept { return intended_; }
 
@@ -359,6 +418,10 @@ public:
 
         [[nodiscard]] const std::optional<S3ScalarPlan>& s3_scalar() const noexcept {
             return s3_scalar_;
+        }
+
+        [[nodiscard]] const std::optional<S4AutokeyPlan>& s4_autokey() const noexcept {
+            return s4_autokey_;
         }
 
         [[nodiscard]] bool is_shape_inline() const noexcept {
@@ -404,6 +467,7 @@ public:
         std::optional<S2LinearPlan> s2_linear_;
         std::optional<ShapePlan> shape_;
         std::optional<S3ScalarPlan> s3_scalar_;
+        std::optional<S4AutokeyPlan> s4_autokey_;
     };
 
     [[nodiscard]] static const char* strategy_str(Strategy s) noexcept {
@@ -418,6 +482,8 @@ public:
             return "S3_scalar_inline";
         case Strategy::ShapeInline:
             return "ShapeInline";
+        case Strategy::S4AutokeyRing:
+            return "S4_autokey";
         case Strategy::ModuleLoaded:
             return "Module";
         }
@@ -455,9 +521,6 @@ public:
         }
 
         const Z29Expr& dec = *theory.decrypt_step();
-        if (expr_has_autokey(dec)) {
-            return Selection{Strategy::S0Bytecode, "autokey_shift requires S0 (or ring emit later)"};
-        }
         if (expr_has_prefer_branch_select(dec)) {
             return Selection{Strategy::S0Bytecode, "prefer_branch Select is S0-only"};
         }
@@ -507,8 +570,14 @@ public:
                                      matched.value().reason() + ")",
                                  plan};
             case TheoryShapeMatch::ShapeId::Autokey:
+                if (matched.value().autokey_lag_ok()) {
+                    return Selection{Strategy::S4AutokeyRing,
+                                     std::string("shape Autokey — S4 AutokeyRing (") +
+                                         matched.value().reason() + ")",
+                                     plan};
+                }
                 return Selection{Strategy::S0Bytecode,
-                                 std::string("shape Autokey — S0 until S4 (") +
+                                 std::string("shape Autokey — S0 (no lag bind; ") +
                                      matched.value().reason() + ")",
                                  plan};
             case TheoryShapeMatch::ShapeId::Unknown:
@@ -668,6 +737,32 @@ public:
                               std::string("S3 ExprLower failed; fallback S0 (") +
                                   s3.status().message() + "; " + sel.reason() + ")",
                               "", "", "", std::nullopt, std::nullopt, sel.shape()};
+        }
+
+        if (sel.strategy() == Strategy::S4AutokeyRing) {
+            if (!decrypt_hoists.empty()) {
+                return EmitBundle{Strategy::S4AutokeyRing, Strategy::S0Bytecode, false,
+                                  std::string("S4 classified but decrypt hoists not yet wired; "
+                                              "fallback S0 (") +
+                                      sel.reason() + ")",
+                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
+            }
+            if (!sel.shape() || !sel.shape()->autokey_lag_ok()) {
+                return EmitBundle{Strategy::S4AutokeyRing, Strategy::S0Bytecode, false,
+                                  std::string("S4 classified but lag bind incomplete; fallback S0 (") +
+                                      sel.reason() + ")",
+                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
+            }
+            StatusOr<EmitBundle> bundle =
+                emit_s4_autokey_sources(theory, S4AutokeyPlan::from_shape(*sel.shape()),
+                                        sel.reason(), sel.shape());
+            if (!bundle.ok()) {
+                return EmitBundle{Strategy::S4AutokeyRing, Strategy::S0Bytecode, false,
+                                  std::string("S4 emit failed: ") + bundle.status().message() +
+                                      "; fallback S0 (" + sel.reason() + ")",
+                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
+            }
+            return bundle;
         }
 
         // Remaining strategies (should not reach) — soft S0.
@@ -830,6 +925,56 @@ private:
         return EmitBundle{Strategy::S3ScalarInline, Strategy::S3ScalarInline, true,
                           std::string("S3 scalar emit: ") + select_reason, hdr.str(), cu.str(),
                           kern, std::nullopt, std::nullopt, shape, plan};
+    }
+
+    [[nodiscard]] static StatusOr<EmitBundle>
+    emit_s4_autokey_sources(const TheoryIr& theory, const S4AutokeyPlan& plan,
+                            const std::string& select_reason,
+                            const std::optional<ShapePlan>& shape) {
+        if (!plan.lag_ok()) {
+            return Status::error("TheoryHistChi2Emit::emit_s4_autokey: lag bind incomplete");
+        }
+        const std::string& id = theory.name();
+        const std::string kern = id + "_s4_hist_kernel";
+        const std::string guard = "PARCAE_EMIT_" + id + "_S4_HIST_HPP";
+        const std::string cls = to_pascal(id) + "S4Hist";
+        const std::string lag_api = plan.has_const_lag() ? "lag" : plan.lag_name();
+
+        std::ostringstream hdr;
+        hdr << "// Generated by TheoryHistChi2Emit (S4 AutokeyRing) — do not hand-edit.\n";
+        hdr << "#ifndef " << guard << "\n";
+        hdr << "#define " << guard << "\n\n";
+        hdr << "#include \"parcae/core/status.hpp\"\n\n";
+        hdr << "#include <cstddef>\n";
+        hdr << "#include <cstdint>\n\n";
+        hdr << "/// S4 AutokeyRing fused χ² hist for `" << id << "` "
+            << "(lag=" << lag_api << ", cipher_minus_ks="
+            << (plan.cipher_minus_ks() ? "true" : "false") << ").\n";
+        hdr << "/// Runtime twin: TheoryHistChi2S4::launch_autokey_async.\n";
+        hdr << "class " << cls << " {\n";
+        hdr << "public:\n";
+        hdr << "    static constexpr std::size_t alphabet_size = 29;\n";
+        hdr << "    [[nodiscard]] static Status launch_autokey_async(\n";
+        hdr << "        const std::uint8_t* device_in, const std::uint8_t* device_lags,\n";
+        hdr << "        const double* device_probabilities, std::uint32_t* device_counts,\n";
+        hdr << "        double* device_scores, std::size_t candidate_count, "
+               "std::size_t token_count);\n";
+        hdr << "private:\n";
+        hdr << "    " << cls << "() = delete;\n";
+        hdr << "};\n\n";
+        hdr << "#endif // " << guard << "\n";
+
+        std::ostringstream cu;
+        cu << "// Generated by TheoryHistChi2Emit (S4 AutokeyRing) — do not hand-edit.\n";
+        cu << "// File-scope kernel (no anonymous namespace). Prefer linking "
+              "TheoryHistChi2S4 for search.\n";
+        cu << "#include \"" << cls << ".hpp\"\n\n";
+        cu << "// In-lib twin: theory_hist_chi2_s4_autokey_kernel via "
+              "TheoryHistChi2S4.\n";
+
+        return EmitBundle{Strategy::S4AutokeyRing, Strategy::S4AutokeyRing, true,
+                          std::string("S4 AutokeyRing emit: ") + select_reason, hdr.str(),
+                          cu.str(), kern, std::nullopt, std::nullopt, shape, std::nullopt, plan};
     }
 
     [[nodiscard]] static StatusOr<EmitBundle>

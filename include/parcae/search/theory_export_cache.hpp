@@ -44,10 +44,11 @@ public:
                  std::optional<TheoryHistChi2Emit::S1LutPlan> s1,
                  std::optional<TheoryHistChi2Emit::S2LinearPlan> s2, std::string cipher_var,
                  std::optional<TheoryHistChi2Emit::ShapePlan> shape = std::nullopt,
-                 std::optional<TheoryHistChi2Emit::S3ScalarPlan> s3 = std::nullopt)
+                 std::optional<TheoryHistChi2Emit::S3ScalarPlan> s3 = std::nullopt,
+                 std::optional<TheoryHistChi2Emit::S4AutokeyPlan> s4 = std::nullopt)
             : emitted_(emitted), specialized_(specialized), s1_(std::move(s1)),
               s2_(std::move(s2)), cipher_var_(std::move(cipher_var)), shape_(std::move(shape)),
-              s3_(std::move(s3)) {}
+              s3_(std::move(s3)), s4_(std::move(s4)) {}
 
         [[nodiscard]] TheoryHistChi2Emit::Strategy emitted_strategy() const noexcept {
             return emitted_;
@@ -71,6 +72,11 @@ public:
         [[nodiscard]] const std::optional<TheoryHistChi2Emit::S3ScalarPlan>&
         s3_scalar() const noexcept {
             return s3_;
+        }
+
+        [[nodiscard]] const std::optional<TheoryHistChi2Emit::S4AutokeyPlan>&
+        s4_autokey() const noexcept {
+            return s4_;
         }
 
         [[nodiscard]] const std::string& cipher_var() const noexcept { return cipher_var_; }
@@ -110,6 +116,7 @@ public:
         std::string cipher_var_ = "x";
         std::optional<TheoryHistChi2Emit::ShapePlan> shape_;
         std::optional<TheoryHistChi2Emit::S3ScalarPlan> s3_;
+        std::optional<TheoryHistChi2Emit::S4AutokeyPlan> s4_;
     };
 
     /// Prepared host theory + bytecode for one (root, uri, direction) key.
@@ -303,7 +310,7 @@ private:
                 hist_plan = HistPlan{bundle.value().emitted_strategy(), true,
                                      bundle.value().s1_lut(), bundle.value().s2_linear(),
                                      cipher_var, bundle.value().shape(),
-                                     bundle.value().s3_scalar()};
+                                     bundle.value().s3_scalar(), bundle.value().s4_autokey()};
             } else {
                 hist_plan = HistPlan{TheoryHistChi2Emit::Strategy::S0Bytecode, false, std::nullopt,
                                      std::nullopt, cipher_var,

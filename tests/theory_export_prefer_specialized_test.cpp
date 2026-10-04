@@ -334,6 +334,67 @@ TEST_CASE("GpuCandidateExport prefers S1 device-bake for residual FxOnly; χ² p
     }
 }
 
+/// Name/catalog-irrelevant vigenere_lag custom (not `autokey_lag` catalog id).
+[[nodiscard]] TheoryIr make_vigenere_lag_custom() {
+    const StatusOr<ParamIr> lag = ParamIr::make("delay", 1, 28);
+    REQUIRE(lag.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr prior = Z29Expr::call("z29_autokey_shift", {x, Z29Expr::var("delay")});
+    const StatusOr<TheoryIr> th = TheoryIr::make(
+        "export_prefer_lag_stream", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign, {lag.value()}, Z29Expr::add(x, prior),
+        Z29Expr::sub(x, prior), std::string("Custom vigenere_lag without catalog API."));
+    REQUIRE(th.ok());
+    return th.value();
+}
+
+TEST_CASE("GpuCandidateExport prefers S4 AutokeyRing for custom vigenere_lag",
+          "[search][export][theory][specialized][cuda][s4]") {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_export_prefer_s4";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const TheoryIr theory = make_vigenere_lag_custom();
+    REQUIRE(install_theory(root / "theories", theory).ok());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = make_cipher(48);
+    std::vector<nlohmann::json> params_list;
+    for (int lag = 1; lag <= 6; ++lag) {
+        params_list.push_back(nlohmann::json{{"delay", lag}});
+    }
+
+    TheoryExportCache cache;
+    StatusOr<const TheoryExportCache::Entry*> prepared = cache.ensure(
+        root / "theories", "parcae://theories/export_prefer_lag_stream@1",
+        TransformDirection::Decrypt);
+    REQUIRE(prepared.ok());
+    REQUIRE(prepared.value()->hist_plan().emitted_strategy() ==
+            TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+
+    StatusOr<std::vector<double>> gpu_scores = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/export_prefer_lag_stream@1",
+        params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
+    REQUIRE(gpu_scores.ok());
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+
+    for (std::size_t c = 0; c < params_list.size(); ++c) {
+        StatusOr<std::vector<Index29>> plain =
+            TheoryDispatch::apply(theory, cipher, params_list[c], TransformDirection::Decrypt);
+        REQUIRE(plain.ok());
+        StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
+        REQUIRE(cpu.ok());
+        REQUIRE(gpu_scores.value()[c] == cpu.value());
+    }
+
+    std::filesystem::remove_all(root, ec);
+}
+
 TEST_CASE("GpuCandidateExport prefers S2 linear hist; soft S0 for non-specialized",
           "[search][export][theory][specialized][cuda]") {
     const std::filesystem::path root =

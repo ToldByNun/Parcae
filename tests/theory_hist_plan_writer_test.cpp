@@ -38,7 +38,24 @@ namespace {
     const StatusOr<TheoryIr> theory = TheoryIr::make(
         "plan_autokey", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
         TheoryIr::InterruptMode::NoneByDesign, {lag.value()}, Z29Expr::add(x, prior),
-        Z29Expr::sub(x, prior), std::string("Speculative. autokey soft-fall plan."));
+        Z29Expr::sub(x, prior), std::string("Speculative. S4 autokey plan."));
+    REQUIRE(theory.ok());
+    return theory.value();
+}
+
+[[nodiscard]] TheoryIr make_prefer_branch_s0() {
+    const StatusOr<ParamIr> c = ParamIr::make("c", 0, 1);
+    REQUIRE(c.ok());
+    const StatusOr<Z29Expr::Ptr> lit28 = Z29Expr::constant(28);
+    REQUIRE(lit28.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr dec =
+        Z29Expr::select(Z29Expr::var("c"), Z29Expr::sub(lit28.value(), x), x,
+                        /*prefer_branch=*/true);
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "plan_prefer_branch", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {c.value()}, x, dec,
+        std::string("prefer_branch soft-fall S0."));
     REQUIRE(theory.ok());
     return theory.value();
 }
@@ -61,10 +78,27 @@ TEST_CASE("TheoryHistPlanWriter prepares S2 specialized plan + sources",
     REQUIRE(bundle.value().plan_json().at("s2_linear").at("cipher_minus_ks") == true);
 }
 
-TEST_CASE("TheoryHistPlanWriter soft-fall still writes safe S0 plan", "[dsl][hist][plan]") {
+TEST_CASE("TheoryHistPlanWriter prepares S4 AutokeyRing plan", "[dsl][hist][plan][s4]") {
     const TheoryIr theory = make_autokey();
     StatusOr<TheoryHistPlanWriter::Bundle> bundle =
         TheoryHistPlanWriter::prepare(theory, "parcae://theories/plan_autokey@1");
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().write_sources());
+    REQUIRE(bundle.value().summary().emitted_strategy() == "S4_autokey");
+    REQUIRE(bundle.value().summary().shape_peak_tier().has_value());
+    REQUIRE(*bundle.value().summary().shape_peak_tier() == "T.theory.s4_autokey");
+    REQUIRE(bundle.value().plan_json().at("s4_autokey").is_object());
+    REQUIRE(bundle.value().plan_json().at("s4_autokey").at("lag_name") == "lag");
+    REQUIRE(TheoryHistPlanWriter::validate_plan_json(bundle.value().plan_json(),
+                                                     "parcae://theories/plan_autokey@1")
+                .ok());
+}
+
+TEST_CASE("TheoryHistPlanWriter soft-fall still writes safe S0 plan", "[dsl][hist][plan]") {
+    const TheoryIr theory = make_prefer_branch_s0();
+    StatusOr<TheoryHistPlanWriter::Bundle> bundle =
+        TheoryHistPlanWriter::prepare(theory, "parcae://theories/plan_prefer_branch@1");
     REQUIRE(bundle.ok());
     REQUIRE_FALSE(bundle.value().specialized());
     REQUIRE_FALSE(bundle.value().write_sources());

@@ -48,7 +48,7 @@ private:
 | `theory_chi2_batch.hpp` | `TheoryChi2Batch` | Done (fused bytecode hist + χ²; S0 path via `TheoryHistChi2Launch`) |
 | `theory_hist_expr_lower.hpp` | `TheoryHistExprLower` | Done (bounded S3 lower + caps; soft S0 beyond) |
 | `theory_hist_plan_writer.hpp` | `TheoryHistPlanWriter` | Done (`hist/hist_plan.json` + sources; schema validate) |
-| `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S3 select; S1/S2/S3 emit + goldens; S4 TBD) |
+| `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S4 select; S1/S2/S3/S4 emit + goldens; S5 TBD) |
 | `theory_hist_chi2_launch.hpp` | `TheoryHistChi2Launch` | Done (CUDA façade: S0 / Shape / S1 / S2 / S3) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_s1.hpp` | `TheoryHistChi2S1` | Done (LUT-29 twin + device bake from slots) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_s2.hpp` | `TheoryHistChi2S2` | Done (linear uchar4 twin) — under `Parcae/Parcae/cuda/` |

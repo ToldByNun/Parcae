@@ -137,7 +137,7 @@ public:
         friend class GpuCandidateExport;
         friend class TheoryExportPipeline;
 
-        enum class Kind : std::uint8_t { S0, S1, S2, ShapeAtbash, ShapeCaesar, ShapeAffine };
+        enum class Kind : std::uint8_t { S0, S1, S2, S4, ShapeAtbash, ShapeCaesar, ShapeAffine };
 
         Phase phase_ = Phase::Idle;
         Kind kind_ = Kind::S0;
@@ -1083,6 +1083,12 @@ public:
         case TheoryLaunchTicket::Kind::S2:
             launched = TheoryHistChi2Launch::launch_s2_linear_async(
                 scratch.cipher(), scratch.b0(), scratch.b1(), scratch.probs(), scratch.counts(),
+                scratch.scores(), ticket.candidate_count_, ticket.token_count_,
+                ticket.cipher_minus_ks_, streams.compute());
+            break;
+        case TheoryLaunchTicket::Kind::S4:
+            launched = TheoryHistChi2Launch::launch_s4_autokey_async(
+                scratch.cipher(), scratch.b0(), scratch.probs(), scratch.counts(),
                 scratch.scores(), ticket.candidate_count_, ticket.token_count_,
                 ticket.cipher_minus_ks_, streams.compute());
             break;
@@ -2580,6 +2586,89 @@ private:
                                          "GpuCandidateExport::theory S2 sync", progress);
     }
 
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s4(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
+        TheoryDeviceScratch& scratch, CudaStreamPair& streams, BatchRunner::Progress progress,
+        TheoryFuseMode mode, TheoryLaunchTicket* ticket_out) {
+        NvtxRange nvtx_s4("specialized_s4");
+        if (!entry.hist_plan().s4_autokey().has_value()) {
+            return Status::error("GpuCandidateExport::theory S4 missing autokey plan");
+        }
+        const TheoryHistChi2Emit::S4AutokeyPlan& plan = *entry.hist_plan().s4_autokey();
+        if (!plan.lag_ok()) {
+            return Status::error("GpuCandidateExport::theory S4 incomplete lag bind");
+        }
+        const Z29Bytecode::Program& prog = entry.program();
+        const std::optional<std::uint16_t> ilag =
+            plan.has_const_lag() ? std::nullopt : find_slot_index(prog, plan.lag_name());
+        if (!plan.has_const_lag() && !ilag.has_value()) {
+            return Status::error("GpuCandidateExport::theory S4 lag slot not found");
+        }
+
+        const std::size_t C = params_list.size();
+        const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.slot_names.size());
+        std::vector<std::uint8_t> host_lags(C, 0);
+        std::vector<std::uint8_t> host_zero(C, 0);
+        {
+            NvtxRange nvtx_bind("bind_slots_s4");
+            for (std::size_t c = 0; c < C; ++c) {
+                if (plan.has_const_lag()) {
+                    host_lags[c] = plan.const_lag();
+                    continue;
+                }
+                StatusOr<std::vector<Index29>> bound =
+                    Z29Bytecode::bind_theory_slots(prog, entry.theory(), params_list[c]);
+                if (!bound.ok()) {
+                    return bound.status();
+                }
+                if (bound.value().size() != slot_count) {
+                    return Status::error("GpuCandidateExport::theory S4 slot bind size mismatch");
+                }
+                host_lags[c] = bound.value()[*ilag].value();
+            }
+        }
+
+        const auto host_in = to_bytes(cipher);
+        {
+            NvtxRange nvtx_h2d("h2d");
+            Status resident =
+                ensure_theory_resident(scratch, host_in, freqs, C, streams.copy());
+            if (!resident.ok()) {
+                return resident;
+            }
+            // Reuse b0 slab for per-candidate lags; b1 unused zeros.
+            Status lags_up =
+                scratch.upload_b0_b1_async(host_lags, host_zero, C, streams.copy());
+            if (!lags_up.ok()) {
+                return lags_up;
+            }
+            scratch.commit_param_slab();
+        }
+
+        if (mode == TheoryFuseMode::StageH2D) {
+            Status h2d_ev = streams.record_h2d_done();
+            if (!h2d_ev.ok()) {
+                return h2d_ev;
+            }
+            if (ticket_out != nullptr) {
+                ticket_out->phase_ = TheoryLaunchTicket::Phase::Staged;
+                ticket_out->kind_ = TheoryLaunchTicket::Kind::S4;
+                ticket_out->candidate_count_ = C;
+                ticket_out->token_count_ = host_in.size();
+                ticket_out->cipher_minus_ks_ = plan.cipher_minus_ks();
+            }
+            return std::vector<double>{};
+        }
+        auto launch = [&](cudaStream_t compute) {
+            return TheoryHistChi2Launch::launch_s4_autokey_async(
+                scratch.cipher(), scratch.b0(), scratch.probs(), scratch.counts(),
+                scratch.scores(), C, host_in.size(), plan.cipher_minus_ks(), compute);
+        };
+        return launch_theory_stream_copy(scratch, streams, C, launch,
+                                         "GpuCandidateExport::theory S4 sync", progress);
+    }
+
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const std::filesystem::path& theories_root, std::string_view theory_uri_text,
@@ -2698,6 +2787,18 @@ private:
                 return s3;
             }
             // Soft fallback S0 (caps / bind).
+        }
+        if (hist.specialized() &&
+            hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::S4AutokeyRing &&
+            hist.s4_autokey()) {
+            StatusOr<std::vector<double>> s4 =
+                fused_theory_scores_s4(cipher, freqs, entry, params_list, scratch, streams,
+                                       progress, mode, ticket_out);
+            if (s4.ok()) {
+                cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+                return s4;
+            }
+            // Soft fallback S0 (lag bind).
         }
 
         return fused_theory_scores_s0(cipher, freqs, entry, params_list, cache, scratch, streams,

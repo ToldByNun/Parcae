@@ -72,8 +72,9 @@ Affine-decrypt use in-lib `TheoryHistChi2Shape`; Affine encrypt-form still S1
 soft twin; residual FxOnly uses **device LUT bake** into `TheoryDeviceScratch`
 (bind slots on host; bake+hist on device; domain → +inf via `lane_err`); S3
 ExprLower in-lib twin; `TheoryHistModule` cubin/NVRTC cache by URI+digest;
-`has_specialized` true when a module is cached; launch prefer
-`Module→ShapeInline→S1→S2→S3→S0` (module fail → soft S0).
+`has_specialized` true when a module is cached; S4 AutokeyRing for
+vigenere_lag-class; launch prefer
+`Module→ShapeInline→S1→S2→S3→S4→S0` (module/twin fail → soft S0).
 
 ---
 
@@ -256,7 +257,7 @@ private:
 | `TheoryShapeMatch` | **Shipping** (`[dsl][shape]`) | ShapeId ladder; name-irrelevant; autokey / prefer_branch / non-inv affine |
 | Self-written Atbash/Caesar/Affine-decrypt | `ShapeInline` + `TheoryHistChi2Shape` twins | Affine encrypt-form S1 soft; S3/S4/S5 |
 | Name / API required for fast path | Effective yes (catalog) | **No** — algebra only |
-| S3 / S4 / S5 | S3 ExprLower+launch shipping; S4/S5 stub | Real launch or module |
+| S3 / S4 / S5 | S3 ExprLower+launch; S4 AutokeyRing shipping; S5 stub | Real launch or module |
 | Emit sources / `hist_module` | `hist_plan.json` (+ optional `hist/*.{hpp,cu}`); `TheoryHistModule` load by URI+digest | `hist_plan` + optional module load |
 | `has_specialized` | True when `TheoryHistModule` has URI | True when module/shape plan present |
 | Fair specialize Caesar bytecode | S1 when eligible | Keep; shape twins supersede when richer |
@@ -270,7 +271,7 @@ Declare this smartness workstream complete only when **all** apply:
 - [ ] Self-written Atbash / Caesar / Affine (pure arith HotLoop) → shape twin; scores ≡ bytecode; fair Kernel SLO in catalog twin class (`parcae-bench --suite dsl_smart`; noise under `profiles/dsl_smart/`)
 - [x] Self-written linear `x±(b0+b1·i)` → S2 (widened), not S0
 - [x] Non-linear `i` customs → S3 or module (unless caps / prefer_branch / pre-S4 autokey)
-- [ ] Autokey customs → S4 when implemented
+- [x] Autokey customs → S4 AutokeyRing (vigenere_lag class; name-irrelevant)
 - [ ] Normalize + match name-irrelevant goldens green
 - [ ] Edge matrix above locked in Catch2
 - [ ] `%peak ≤ 100` after traffic-model pass; Spec not lowered to quiet max

@@ -205,6 +205,16 @@ public:
                                         {"binds_index_i", s3.binds_index_i()},
                                         {"device_cpp", s3.device_cpp()}};
         }
+        if (emit.s4_autokey().has_value()) {
+            const auto& s4 = *emit.s4_autokey();
+            nlohmann::json s4j{{"lag_name", s4.lag_name()},
+                               {"cipher_minus_ks", s4.cipher_minus_ks()},
+                               {"has_const_lag", s4.has_const_lag()}};
+            if (s4.has_const_lag()) {
+                s4j["const_lag"] = s4.const_lag();
+            }
+            plan["s4_autokey"] = std::move(s4j);
+        }
         if (emit.shape().has_value()) {
             const auto& sh = *emit.shape();
             plan["shape"] = nlohmann::json{
@@ -215,6 +225,7 @@ public:
                 {"b_name", sh.b_name()},
                 {"b0_name", sh.b0_name()},
                 {"b1_name", sh.b1_name()},
+                {"lag_name", sh.lag_name()},
                 {"cipher_minus_ks", sh.cipher_minus_ks()},
                 {"affine_decrypt", sh.affine_decrypt()},
             };
@@ -372,6 +383,8 @@ private:
             return std::nullopt; // Spec row TBD
         case TheoryHistChi2Emit::Strategy::ShapeInline:
             return std::string{"T.theory.s1_lut29"};
+        case TheoryHistChi2Emit::Strategy::S4AutokeyRing:
+            return std::string{"T.theory.s4_autokey"};
         case TheoryHistChi2Emit::Strategy::ModuleLoaded:
             return std::string{"T.theory.caesar_bytecode"};
         }
