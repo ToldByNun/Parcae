@@ -87,11 +87,20 @@ TEST_CASE("DslCompile end-to-end quadratic_polynomial_stream", "[dsl][compile]")
                                              "emitted" / "QuadraticPolynomialStreamKernel.cu"));
     REQUIRE(std::filesystem::is_regular_file(root / "quadratic_polynomial_stream" / "1" /
                                              "envelope.json"));
+    REQUIRE(std::filesystem::is_regular_file(root / "quadratic_polynomial_stream" / "1" /
+                                             "hist" / "hist_plan.json"));
+    REQUIRE(result.value().artifacts().front().paths().hist_plan().has_value());
+    REQUIRE(*result.value().artifacts().front().paths().hist_plan() == "hist/hist_plan.json");
+    REQUIRE_FALSE(result.value().artifacts().front().hist().is_null());
+    REQUIRE(result.value().artifacts().front().hist().at("specialized").is_boolean());
 
     StatusOr<TheoryArtifact> loaded = TheoryRegistry::load(root, "quadratic_polynomial_stream", 1);
     REQUIRE(loaded.ok());
     REQUIRE(loaded.value().paths().cuda_source().has_value());
     REQUIRE(*loaded.value().paths().cuda_source() == "emitted/QuadraticPolynomialStreamKernel.cu");
+    REQUIRE(loaded.value().paths().hist_plan().has_value());
+    REQUIRE(*loaded.value().paths().hist_plan() == "hist/hist_plan.json");
+    REQUIRE_FALSE(loaded.value().hist().is_null());
     REQUIRE(loaded.value().paths().envelope_template().has_value());
     REQUIRE(*loaded.value().paths().envelope_template() == "envelope.json");
     REQUIRE_FALSE(TheoryRegistry::is_stale_spec(loaded.value()));

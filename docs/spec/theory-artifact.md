@@ -224,9 +224,11 @@ and humans (full detail lives in `hist_plan.json` when present):
 | `reason` | Non-empty diagnostic when `specialized` is false or intended ≠ emitted |
 | `shape_peak_tier` | Optional `BenchTierSpec` id for PRIMARY ≥90% gate of the **emitted** strategy |
 
-`parcae-compile` **SHOULD** eventually write `hist` + `paths.hist_plan` when
-`TheoryHistChi2Emit` runs at compile time. Until then, `hist: null` is the
-shipping default; search still classifies at runtime via `TheoryExportCache`.
+`parcae-compile` **writes** `hist` + `paths.hist_plan` when `TheoryHistChi2Emit`
+succeeds at compile time (including soft-fallback plans with `specialized: false`).
+Emit failure leaves `hist: null` / `paths.hist_*` null — search still classifies
+at runtime via `TheoryExportCache`. Specialized emits also write optional
+`hist/*.{hpp,cu}` sources (in-lib twins remain the launch path until modules).
 
 ### `hist/hist_plan.json` (`parcae.theory_hist_plan.v0`)
 
@@ -237,14 +239,15 @@ When `paths.hist_plan` is set, the file **MUST** be JSON:
   "schema": "parcae.theory_hist_plan.v0",
   "theory_uri": "parcae://theories/quadratic_polynomial_stream@1",
   "intended_strategy": "S3_scalar_inline",
-  "emitted_strategy": "S0_bytecode",
-  "specialized": false,
+  "emitted_strategy": "S3_scalar_inline",
+  "specialized": true,
   "cipher_var": "x",
   "reason": "…",
   "s1_lut": null,
   "s2_linear": null,
-  "s3": null,
-  "s4_autokey": null
+  "s3": { "op_count": 12, "max_stack": 4, "slot_count": 4, "binds_index_i": true, "device_cpp": "…" },
+  "s4_autokey": null,
+  "shape": null
 }
 ```
 
@@ -255,10 +258,15 @@ When `paths.hist_plan` is set, the file **MUST** be JSON:
 | `intended_strategy` / `emitted_strategy` / `specialized` / `reason` | Same semantics as top-level `hist` |
 | `cipher_var` | HotLoop cipher binding name (default `"x"`) |
 | `s1_lut` | `null` or `{ "param_names": ["…"] }` matching `TheoryHistChi2Emit::S1LutPlan` |
-| `s2_linear` | `null` or `{ "b0_name", "b1_name", "cipher_minus_ks": bool }` |
-| `s3` / `s4_autokey` | `null` until those strategies persist plans |
+| `s2_linear` | `null` or `{ "b0_name", "b1_name", "cipher_minus_ks": bool, … }` |
+| `s3` | `null` or `{ "op_count", "max_stack", "slot_count", "binds_index_i", "device_cpp" }` |
+| `s4_autokey` | `null` until S4 persists plans |
+| `shape` | `null` or shape-match digest (`shape_id`, names, flags) |
+| Soft-fall | When `specialized` is `false`, `emitted_strategy` **MUST** be `S0_bytecode` |
 
 Plan files are **search/hist** metadata — not a substitute for `apply_ir.json`.
+`TheoryArtifact::load` / registry load **MUST** validate `hist_plan.json` schema
+when `paths.hist_plan` is set.
 
 ### `verification`
 

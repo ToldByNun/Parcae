@@ -23,8 +23,10 @@
 #include "parcae/dsl/theory_apply_ir.hpp"
 #include "parcae/dsl/theory_artifact.hpp"
 #include "parcae/dsl/theory_envelope_bridge.hpp"
+#include "parcae/dsl/theory_hist_plan_writer.hpp"
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/theory_registry.hpp"
+#include "parcae/dsl/theory_uri.hpp"
 
 #include <array>
 #include <cctype>
@@ -301,6 +303,27 @@ public:
             paths.set_envelope_template(std::string("envelope.json"));
             paths.set_apply_ir(std::string("apply_ir.json"));
 
+            // Fused hist plan (search χ²). Soft-fall still writes a plan; emit failure
+            // leaves hist null (safe default — runtime classifies via TheoryExportCache).
+            std::optional<TheoryHistPlanWriter::Bundle> hist_bundle;
+            {
+                StatusOr<TheoryUri> uri =
+                    TheoryUri::make(theory.name(), options.artifact_version());
+                if (!uri.ok()) {
+                    return uri.status();
+                }
+                StatusOr<TheoryHistPlanWriter::Bundle> prepared = TheoryHistPlanWriter::prepare(
+                    optimized.value().theory(), uri.value().to_string(), "x");
+                if (prepared.ok()) {
+                    hist_bundle = std::move(prepared.value());
+                    paths.set_hist_plan(std::string(TheoryHistPlanWriter::Bundle::plan_rel()));
+                    if (hist_bundle->write_sources()) {
+                        paths.set_hist_header(hist_bundle->header_rel());
+                        paths.set_hist_source(hist_bundle->source_rel());
+                    }
+                }
+            }
+
             std::vector<TheoryArtifact::Param> params;
             for (const ParamIr& p : theory.params()) {
                 params.emplace_back(p.name(), static_cast<std::int64_t>((p.min)()),
@@ -334,6 +357,9 @@ public:
                 return artifact.status();
             }
             artifact.value().set_dsl_ignores_applied(result.dsl_ignores_applied_);
+            if (hist_bundle.has_value()) {
+                artifact.value().set_hist(hist_bundle->summary().to_json());
+            }
 
             Status stored = artifact.value().store(theories_root);
             if (!stored.ok()) {
@@ -359,6 +385,13 @@ public:
                 return w;
             }
 
+            if (hist_bundle.has_value()) {
+                Status hw = TheoryHistPlanWriter::write(dir, *hist_bundle);
+                if (!hw.ok()) {
+                    return hw;
+                }
+            }
+
             StatusOr<TheoryEnvelopeBridge::Envelope> envelope =
                 TheoryEnvelopeBridge::template_for(artifact.value());
             if (!envelope.ok()) {
@@ -374,7 +407,7 @@ public:
                 return ir_written;
             }
 
-            // Registry gate: freshly written artifacts must load.
+            // Registry gate: freshly written artifacts must load (incl. hist_plan schema).
             StatusOr<TheoryArtifact> reloaded =
                 TheoryRegistry::load(theories_root, theory.name(), options.artifact_version());
             if (!reloaded.ok()) {

@@ -221,8 +221,10 @@ separate ([theory-artifact.md](../spec/theory-artifact.md),
 | **Stream twin** | `emitted/*Kernel.{hpp,cu}` (`paths.cuda_*`) | `DslEmitCuda` | Bit-identity apply / smoke |
 | **Fused hist** | `hist/` (`paths.hist_*`, optional `hist` manifest object) | `TheoryHistChi2Emit` (+ normalize / `ShapeId` match) | Search fused χ² Kernel SLO |
 
-Shipping default: stream twins written; `hist` / `paths.hist_*` often null;
-search classifies at runtime. Stream-twin success ≠ hist Kernel SLO Done.
+Shipping default: stream twins written; `hist` / `paths.hist_plan` written when
+emit succeeds (soft-fall plans included); emit failure → `hist` null (runtime
+classify via `TheoryExportCache` still works). Stream-twin success ≠ hist Kernel
+SLO Done.
 
 **Customs without presets:** HotLoop math that is algebraically Atbash / Caesar /
 Affine / linear keystream must match a fast hist shape **without** catalog

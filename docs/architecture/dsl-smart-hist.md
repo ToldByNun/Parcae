@@ -256,7 +256,7 @@ private:
 | Self-written Atbash/Caesar/Affine-decrypt | `ShapeInline` + `TheoryHistChi2Shape` twins | Affine encrypt-form S1 soft; S3/S4/S5 |
 | Name / API required for fast path | Effective yes (catalog) | **No** — algebra only |
 | S3 / S4 / S5 | S3 ExprLower+launch shipping; S4/S5 stub | Real launch or module |
-| Emit sources / `hist_module` | Discarded / null | `hist_plan` + optional module load |
+| Emit sources / `hist_module` | `hist_plan.json` (+ optional `hist/*.{hpp,cu}`); module null | `hist_plan` + optional module load |
 | `has_specialized` | Always false | True when module/shape plan present |
 | Fair specialize Caesar bytecode | S1 when eligible | Keep; shape twins supersede when richer |
 

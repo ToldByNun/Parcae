@@ -6,6 +6,7 @@
 #include "parcae/core/version.hpp"
 #include "parcae/dsl/dsl_spec_version.hpp"
 #include "parcae/dsl/dsl_verifier.hpp"
+#include "parcae/dsl/theory_hist_plan_writer.hpp"
 #include "parcae/dsl/theory_ir.hpp"
 #include "parcae/dsl/theory_uri.hpp"
 
@@ -123,6 +124,22 @@ public:
             return verify_report_;
         }
 
+        [[nodiscard]] const std::optional<std::string>& hist_plan() const noexcept {
+            return hist_plan_;
+        }
+
+        [[nodiscard]] const std::optional<std::string>& hist_header() const noexcept {
+            return hist_header_;
+        }
+
+        [[nodiscard]] const std::optional<std::string>& hist_source() const noexcept {
+            return hist_source_;
+        }
+
+        [[nodiscard]] const std::optional<std::string>& hist_module() const noexcept {
+            return hist_module_;
+        }
+
         void set_cpu_reference(std::optional<std::string> path) {
             cpu_reference_ = std::move(path);
         }
@@ -141,6 +158,14 @@ public:
             verify_report_ = std::move(path);
         }
 
+        void set_hist_plan(std::optional<std::string> path) { hist_plan_ = std::move(path); }
+
+        void set_hist_header(std::optional<std::string> path) { hist_header_ = std::move(path); }
+
+        void set_hist_source(std::optional<std::string> path) { hist_source_ = std::move(path); }
+
+        void set_hist_module(std::optional<std::string> path) { hist_module_ = std::move(path); }
+
         [[nodiscard]] nlohmann::json to_json() const {
             return nlohmann::json{
                 {"cpu_reference", opt_path(cpu_reference_)},
@@ -149,6 +174,10 @@ public:
                 {"envelope_template", opt_path(envelope_template_)},
                 {"apply_ir", opt_path(apply_ir_)},
                 {"verify_report", opt_path(verify_report_)},
+                {"hist_plan", opt_path(hist_plan_)},
+                {"hist_header", opt_path(hist_header_)},
+                {"hist_source", opt_path(hist_source_)},
+                {"hist_module", opt_path(hist_module_)},
             };
         }
 
@@ -173,7 +202,60 @@ public:
             if (!s.ok()) {
                 return s;
             }
-            return check_rel(verify_report_, "verify_report");
+            s = check_rel(verify_report_, "verify_report");
+            if (!s.ok()) {
+                return s;
+            }
+            s = check_rel(hist_plan_, "hist_plan");
+            if (!s.ok()) {
+                return s;
+            }
+            s = check_rel(hist_header_, "hist_header");
+            if (!s.ok()) {
+                return s;
+            }
+            s = check_rel(hist_source_, "hist_source");
+            if (!s.ok()) {
+                return s;
+            }
+            s = check_rel(hist_module_, "hist_module");
+            if (!s.ok()) {
+                return s;
+            }
+            // Product split: stream twins stay under emitted/; fused hist under hist/.
+            s = reject_prefix(cuda_header_, "hist/", "cuda_header");
+            if (!s.ok()) {
+                return s;
+            }
+            s = reject_prefix(cuda_source_, "hist/", "cuda_source");
+            if (!s.ok()) {
+                return s;
+            }
+            s = require_prefix(hist_plan_, "hist/", "hist_plan");
+            if (!s.ok()) {
+                return s;
+            }
+            s = require_prefix(hist_header_, "hist/", "hist_header");
+            if (!s.ok()) {
+                return s;
+            }
+            s = require_prefix(hist_source_, "hist/", "hist_source");
+            if (!s.ok()) {
+                return s;
+            }
+            s = require_prefix(hist_module_, "hist/", "hist_module");
+            if (!s.ok()) {
+                return s;
+            }
+            s = reject_prefix(hist_header_, "emitted/", "hist_header");
+            if (!s.ok()) {
+                return s;
+            }
+            s = reject_prefix(hist_source_, "emitted/", "hist_source");
+            if (!s.ok()) {
+                return s;
+            }
+            return reject_prefix(hist_module_, "emitted/", "hist_module");
         }
 
     private:
@@ -189,12 +271,44 @@ public:
             return check_relative_path(*path, field);
         }
 
+        [[nodiscard]] static bool starts_with_dir(std::string_view path, std::string_view prefix) {
+            return path.size() >= prefix.size() && path.substr(0, prefix.size()) == prefix;
+        }
+
+        [[nodiscard]] static Status require_prefix(const std::optional<std::string>& path,
+                                                   std::string_view prefix, std::string_view field) {
+            if (!path.has_value()) {
+                return Status::success();
+            }
+            if (!starts_with_dir(*path, prefix)) {
+                return Status::error("TheoryArtifact.paths." + std::string(field) +
+                                     " must live under " + std::string(prefix));
+            }
+            return Status::success();
+        }
+
+        [[nodiscard]] static Status reject_prefix(const std::optional<std::string>& path,
+                                                  std::string_view prefix, std::string_view field) {
+            if (!path.has_value()) {
+                return Status::success();
+            }
+            if (starts_with_dir(*path, prefix)) {
+                return Status::error("TheoryArtifact.paths." + std::string(field) +
+                                     " must not point into " + std::string(prefix));
+            }
+            return Status::success();
+        }
+
         std::optional<std::string> cpu_reference_;
         std::optional<std::string> cuda_header_;
         std::optional<std::string> cuda_source_;
         std::optional<std::string> envelope_template_;
         std::optional<std::string> apply_ir_;
         std::optional<std::string> verify_report_;
+        std::optional<std::string> hist_plan_;
+        std::optional<std::string> hist_header_;
+        std::optional<std::string> hist_source_;
+        std::optional<std::string> hist_module_;
     };
 
     [[nodiscard]] static constexpr std::string_view fusion_status_str(FusionStatus s) noexcept {
@@ -329,6 +443,11 @@ public:
         dsl_ignores_applied_ = std::move(flags);
     }
 
+    /// Fused-hist summary (`null` when compile skipped hist or older artifacts).
+    void set_hist(nlohmann::json hist) { hist_ = std::move(hist); }
+
+    [[nodiscard]] const nlohmann::json& hist() const noexcept { return hist_; }
+
     [[nodiscard]] const std::vector<std::string>& dsl_ignores_applied() const noexcept {
         return dsl_ignores_applied_;
     }
@@ -373,6 +492,7 @@ public:
             {"verification", verification_.to_json()},
             {"fusion", nlohmann::json{{"status", std::string(fusion_status_str(fusion_))}}},
             {"paths", paths_.to_json()},
+            {"hist", hist_.is_null() ? nlohmann::json(nullptr) : hist_},
             {"sweep", sweep_},
             {"interrupts", nlohmann::json{{"mode", std::string(interrupt_mode_str(interrupts_))}}},
         };
@@ -504,6 +624,14 @@ public:
         a.paths_ = std::move(paths.value());
         a.sweep_ = std::move(sweep);
 
+        if (root.contains("hist") && !root.at("hist").is_null()) {
+            StatusOr<nlohmann::json> hist = parse_hist(root.at("hist"));
+            if (!hist.ok()) {
+                return hist.status();
+            }
+            a.hist_ = std::move(hist.value());
+        }
+
         if (root.contains("dsl_ignores_applied")) {
             if (!root.at("dsl_ignores_applied").is_array()) {
                 return Status::error("TheoryArtifact.dsl_ignores_applied must be an array");
@@ -605,6 +733,16 @@ public:
         if (a.value().name() != uri.value().name() ||
             a.value().version() != uri.value().version()) {
             return Status::error("manifest name/version does not match artifact directory");
+        }
+        if (a.value().paths().hist_plan().has_value()) {
+            const std::filesystem::path plan_path =
+                artifact_dir(theories_root, a.value().name(), a.value().version()) /
+                *a.value().paths().hist_plan();
+            StatusOr<nlohmann::json> plan =
+                TheoryHistPlanWriter::load_plan(plan_path, a.value().uri().to_string());
+            if (!plan.ok()) {
+                return plan.status();
+            }
         }
         return a;
     }
@@ -817,11 +955,61 @@ private:
         }
         paths.set_verify_report(std::move(rep.value()));
 
+        StatusOr<std::optional<std::string>> hplan = read_opt("hist_plan");
+        if (!hplan.ok()) {
+            return hplan.status();
+        }
+        paths.set_hist_plan(std::move(hplan.value()));
+
+        StatusOr<std::optional<std::string>> hhdr = read_opt("hist_header");
+        if (!hhdr.ok()) {
+            return hhdr.status();
+        }
+        paths.set_hist_header(std::move(hhdr.value()));
+
+        StatusOr<std::optional<std::string>> hsrc = read_opt("hist_source");
+        if (!hsrc.ok()) {
+            return hsrc.status();
+        }
+        paths.set_hist_source(std::move(hsrc.value()));
+
+        StatusOr<std::optional<std::string>> hmod = read_opt("hist_module");
+        if (!hmod.ok()) {
+            return hmod.status();
+        }
+        paths.set_hist_module(std::move(hmod.value()));
+
         Status s = paths.validate();
         if (!s.ok()) {
             return s;
         }
         return paths;
+    }
+
+    [[nodiscard]] static StatusOr<nlohmann::json> parse_hist(const nlohmann::json& hist) {
+        if (!hist.is_object()) {
+            return Status::error("TheoryArtifact.hist must be an object when set");
+        }
+        for (const char* key : {"intended_strategy", "emitted_strategy", "reason"}) {
+            if (!hist.contains(key) || !hist.at(key).is_string() ||
+                hist.at(key).get<std::string>().empty()) {
+                return Status::error(std::string("TheoryArtifact.hist.") + key +
+                                     " must be a non-empty string");
+            }
+        }
+        if (!hist.contains("specialized") || !hist.at("specialized").is_boolean()) {
+            return Status::error("TheoryArtifact.hist.specialized must be a boolean");
+        }
+        if (hist.contains("shape_peak_tier") && !hist.at("shape_peak_tier").is_null() &&
+            !hist.at("shape_peak_tier").is_string()) {
+            return Status::error("TheoryArtifact.hist.shape_peak_tier must be string or null");
+        }
+        if (!hist.at("specialized").get<bool>() &&
+            hist.at("emitted_strategy").get<std::string>() != "S0_bytecode") {
+            return Status::error(
+                "TheoryArtifact.hist: soft-fallback must emit S0_bytecode");
+        }
+        return hist;
     }
 
     TheoryUri uri_;
@@ -844,6 +1032,7 @@ private:
     FusionStatus fusion_ = FusionStatus::NotApplicable;
     InterruptMode interrupts_ = InterruptMode::ElementwiseDefault;
     Paths paths_;
+    nlohmann::json hist_ = nullptr;
     nlohmann::json sweep_ = nullptr;
 };
 
