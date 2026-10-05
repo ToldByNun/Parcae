@@ -56,6 +56,28 @@ namespace {
     return theory.value();
 }
 
+[[nodiscard]] TheoryIr make_poly_keystream_theory() {
+    const StatusOr<ParamIr> b0 = ParamIr::make("b0", 0, 28);
+    const StatusOr<ParamIr> b1 = ParamIr::make("b1", 0, 28);
+    const StatusOr<ParamIr> b2 = ParamIr::make("b2", 0, 28);
+    REQUIRE(b0.ok());
+    REQUIRE(b1.ok());
+    REQUIRE(b2.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr i = Z29Expr::var("i");
+    const Z29Expr::Ptr ks =
+        Z29Expr::add(Z29Expr::var("b0"),
+                     Z29Expr::add(Z29Expr::mul(Z29Expr::var("b1"), i),
+                                  Z29Expr::mul(Z29Expr::var("b2"), Z29Expr::mul(i, i))));
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "emit_poly_stream", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign, {b0.value(), b1.value(), b2.value()},
+        Z29Expr::add(x, ks), Z29Expr::sub(x, ks),
+        std::string("S5 poly / bitmask_blend-class keystream."));
+    REQUIRE(theory.ok());
+    return theory.value();
+}
+
 [[nodiscard]] TheoryIr make_complex_i_theory() {
     // Uses i but root is Mul — not simple ± keystream → S3.
     const StatusOr<ParamIr> k = ParamIr::make("k", 0, 28);
@@ -203,6 +225,30 @@ TEST_CASE("TheoryHistChi2Emit selects S4 AutokeyRing for vigenere_lag",
     REQUIRE(bundle.value().s4_autokey().has_value());
     REQUIRE(bundle.value().s4_autokey()->lag_name() == "lag");
     REQUIRE(bundle.value().s4_autokey()->cipher_minus_ks());
+    REQUIRE_FALSE(bundle.value().header_text().empty());
+}
+
+TEST_CASE("TheoryHistChi2Emit selects S5 for poly / bitmask_blend keystream",
+          "[dsl][emit][hist][chi2][s5]") {
+    const TheoryIr theory = make_poly_keystream_theory();
+    const TheoryHistChi2Emit::Selection sel = TheoryHistChi2Emit::select_strategy(theory);
+    REQUIRE(sel.strategy() == TheoryHistChi2Emit::Strategy::S5PolyKeystream);
+    REQUIRE(sel.is_specialized());
+    REQUIRE(sel.shape().has_value());
+    REQUIRE(sel.shape()->shape() == TheoryShapeMatch::ShapeId::PolyKeystream);
+    REQUIRE(sel.shape()->poly_coeffs_ok());
+
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S5PolyKeystream);
+    REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().s5_poly().has_value());
+    REQUIRE(bundle.value().s5_poly()->b0_name() == "b0");
+    REQUIRE(bundle.value().s5_poly()->b1_name() == "b1");
+    REQUIRE(bundle.value().s5_poly()->b2_name() == "b2");
+    REQUIRE(bundle.value().s5_poly()->cipher_minus_ks());
+    REQUIRE(bundle.value().header_text().find("TheoryHistChi2S5") != std::string::npos);
     REQUIRE_FALSE(bundle.value().header_text().empty());
 }
 

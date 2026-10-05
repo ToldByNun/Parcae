@@ -9,6 +9,7 @@
 #include "theory_hist_chi2_s2.hpp"
 #include "theory_hist_chi2_s3.hpp"
 #include "theory_hist_chi2_s4.hpp"
+#include "theory_hist_chi2_s5.hpp"
 #include "theory_hist_chi2_shape.hpp"
 #include "theory_hist_module.hpp"
 
@@ -188,6 +189,18 @@ public:
         return TheoryHistChi2S4::launch_autokey_async(
             device_in, device_lags, device_probabilities, device_counts, device_scores,
             candidate_count, token_count, cipher_minus_ks, stream);
+    }
+
+    /// S5 quadratic poly twin (`device_b0/b1/b2` length C).
+    [[nodiscard]] static Status launch_s5_poly_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_b0,
+        const std::uint8_t* device_b1, const std::uint8_t* device_b2,
+        const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+        std::size_t candidate_count, std::size_t token_count, bool cipher_minus_ks,
+        cudaStream_t stream = nullptr) {
+        return TheoryHistChi2S5::launch_poly_async(
+            device_in, device_b0, device_b1, device_b2, device_probabilities, device_counts,
+            device_scores, candidate_count, token_count, cipher_minus_ks, stream);
     }
 
 private:

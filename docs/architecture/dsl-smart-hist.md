@@ -113,6 +113,7 @@ it.
 | `a * x + b` with inv(a) in domain | `Affine` |
 | `x - (b0 + b1 * i)` progressive-style | `LinearKeystream` |
 | `x - (b1 * i)` / `x ± i` / const `b0`/`b1` Lits | `LinearKeystream` (widened) |
+| `x - (b0 + b1*i + b2*i*i)` / bitmask_blend-class | `PolyKeystream` |
 | Theory named `foo_bar` that is Atbash arith | still `Atbash` |
 | `family` / URI string mentioning “caesar” but math is affine | `Affine` (math wins) |
 
@@ -257,7 +258,7 @@ private:
 | `TheoryShapeMatch` | **Shipping** (`[dsl][shape]`) | ShapeId ladder; name-irrelevant; autokey / prefer_branch / non-inv affine |
 | Self-written Atbash/Caesar/Affine-decrypt | `ShapeInline` + `TheoryHistChi2Shape` twins | Affine encrypt-form S1 soft; S3/S4/S5 |
 | Name / API required for fast path | Effective yes (catalog) | **No** — algebra only |
-| S3 / S4 / S5 | S3 ExprLower+launch; S4 AutokeyRing shipping; S5 stub | Real launch or module |
+| S3 / S4 / S5 | S3 ExprLower+launch; S4 AutokeyRing; S5 poly twin shipping | Fair Spec / traffic model |
 | Emit sources / `hist_module` | `hist_plan.json` (+ optional `hist/*.{hpp,cu}`); `TheoryHistModule` load by URI+digest | `hist_plan` + optional module load |
 | `has_specialized` | True when `TheoryHistModule` has URI | True when module/shape plan present |
 | Fair specialize Caesar bytecode | S1 when eligible | Keep; shape twins supersede when richer |
@@ -272,6 +273,7 @@ Declare this smartness workstream complete only when **all** apply:
 - [x] Self-written linear `x±(b0+b1·i)` → S2 (widened), not S0
 - [x] Non-linear `i` customs → S3 or module (unless caps / prefer_branch / pre-S4 autokey)
 - [x] Autokey customs → S4 AutokeyRing (vigenere_lag class; name-irrelevant)
+- [x] Poly / bitmask_blend-class `b0+b1·i+b2·i·i` → S5 twin (name-irrelevant)
 - [ ] Normalize + match name-irrelevant goldens green
 - [ ] Edge matrix above locked in Catch2
 - [ ] `%peak ≤ 100` after traffic-model pass; Spec not lowered to quiet max

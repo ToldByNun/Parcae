@@ -30,7 +30,8 @@
 /// Classify via `Z29ExprNormalize` + `TheoryShapeMatch` (name-irrelevant), then:
 /// ShapeInline Atbash/Caesar/Affine-decrypt → in-lib `TheoryHistChi2Shape`;
 /// Affine encrypt-form → S1 soft twin; LinearKeystream → S2; FxOnly → S1;
-/// Autokey vigenere_lag → S4 AutokeyRing; prefer_branch → S0; KeyedGeneral/Poly → S3
+/// Autokey vigenere_lag → S4 AutokeyRing; prefer_branch → S0; PolyKeystream → S5;
+/// KeyedGeneral → S3
 /// (ExprLower within caps) else soft S0.
 ///
 /// No C++ namespaces. Emitted CUDA uses file-scope `__global__` names —
@@ -63,6 +64,8 @@ public:
         ShapeInline,
         /// `z29_autokey_shift` vigenere_lag class — AutokeyRing + hist twin.
         S4AutokeyRing,
+        /// Quadratic `b0+b1·i+b2·i·i` / bitmask_blend-class poly keystream.
+        S5PolyKeystream,
         /// Optional cubin / NVRTC module (`TheoryHistModule`) for a theory URI.
         ModuleLoaded,
     };
@@ -80,6 +83,7 @@ public:
             p.b_name_ = m.b_name();
             p.b0_name_ = m.b0_name();
             p.b1_name_ = m.b1_name();
+            p.b2_name_ = m.b2_name();
             p.lag_name_ = m.lag_name();
             p.cipher_minus_ks_ = m.cipher_minus_ks();
             p.affine_decrypt_ = m.affine_decrypt();
@@ -93,6 +97,8 @@ public:
             p.const_b0_ = m.const_b0();
             p.has_const_b1_ = m.has_const_b1();
             p.const_b1_ = m.const_b1();
+            p.has_const_b2_ = m.has_const_b2();
+            p.const_b2_ = m.const_b2();
             p.has_const_lag_ = m.has_const_lag();
             p.const_lag_ = m.const_lag();
             return p;
@@ -111,6 +117,8 @@ public:
         [[nodiscard]] const std::string& b0_name() const noexcept { return b0_name_; }
 
         [[nodiscard]] const std::string& b1_name() const noexcept { return b1_name_; }
+
+        [[nodiscard]] const std::string& b2_name() const noexcept { return b2_name_; }
 
         [[nodiscard]] const std::string& lag_name() const noexcept { return lag_name_; }
 
@@ -138,12 +146,20 @@ public:
 
         [[nodiscard]] std::uint8_t const_b1() const noexcept { return const_b1_; }
 
+        [[nodiscard]] bool has_const_b2() const noexcept { return has_const_b2_; }
+
+        [[nodiscard]] std::uint8_t const_b2() const noexcept { return const_b2_; }
+
         [[nodiscard]] bool has_const_lag() const noexcept { return has_const_lag_; }
 
         [[nodiscard]] std::uint8_t const_lag() const noexcept { return const_lag_; }
 
         [[nodiscard]] bool linear_coeffs_ok() const noexcept {
             return (has_const_b0_ || !b0_name_.empty()) && (has_const_b1_ || !b1_name_.empty());
+        }
+
+        [[nodiscard]] bool poly_coeffs_ok() const noexcept {
+            return linear_coeffs_ok() && (has_const_b2_ || !b2_name_.empty());
         }
 
         [[nodiscard]] bool autokey_lag_ok() const noexcept {
@@ -182,6 +198,7 @@ public:
         std::string b_name_;
         std::string b0_name_;
         std::string b1_name_;
+        std::string b2_name_;
         std::string lag_name_;
         bool cipher_minus_ks_ = false;
         bool affine_decrypt_ = false;
@@ -195,8 +212,76 @@ public:
         std::uint8_t const_b0_ = 0;
         bool has_const_b1_ = false;
         std::uint8_t const_b1_ = 0;
+        bool has_const_b2_ = false;
+        std::uint8_t const_b2_ = 0;
         bool has_const_lag_ = false;
         std::uint8_t const_lag_ = 0;
+    };
+
+    /// S5 quadratic poly plan: `ks = b0 + b1·i + b2·i·i` (period-29 table).
+    class S5PolyPlan {
+    public:
+        S5PolyPlan(std::string b0_name, std::string b1_name, std::string b2_name,
+                   bool cipher_minus_ks)
+            : b0_name_(std::move(b0_name)), b1_name_(std::move(b1_name)),
+              b2_name_(std::move(b2_name)), cipher_minus_ks_(cipher_minus_ks) {}
+
+        [[nodiscard]] static S5PolyPlan from_shape(const ShapePlan& shape) {
+            S5PolyPlan p{shape.b0_name(), shape.b1_name(), shape.b2_name(),
+                         shape.cipher_minus_ks()};
+            if (shape.has_const_b0()) {
+                p.set_const_b0(shape.const_b0());
+            }
+            if (shape.has_const_b1()) {
+                p.set_const_b1(shape.const_b1());
+            }
+            if (shape.has_const_b2()) {
+                p.set_const_b2(shape.const_b2());
+            }
+            return p;
+        }
+
+        [[nodiscard]] const std::string& b0_name() const noexcept { return b0_name_; }
+        [[nodiscard]] const std::string& b1_name() const noexcept { return b1_name_; }
+        [[nodiscard]] const std::string& b2_name() const noexcept { return b2_name_; }
+        [[nodiscard]] bool cipher_minus_ks() const noexcept { return cipher_minus_ks_; }
+        [[nodiscard]] bool has_const_b0() const noexcept { return has_const_b0_; }
+        [[nodiscard]] bool has_const_b1() const noexcept { return has_const_b1_; }
+        [[nodiscard]] bool has_const_b2() const noexcept { return has_const_b2_; }
+        [[nodiscard]] std::uint8_t const_b0() const noexcept { return const_b0_; }
+        [[nodiscard]] std::uint8_t const_b1() const noexcept { return const_b1_; }
+        [[nodiscard]] std::uint8_t const_b2() const noexcept { return const_b2_; }
+
+        [[nodiscard]] bool coeffs_ok() const noexcept {
+            return (has_const_b0_ || !b0_name_.empty()) &&
+                   (has_const_b1_ || !b1_name_.empty()) &&
+                   (has_const_b2_ || !b2_name_.empty());
+        }
+
+        void set_const_b0(std::uint8_t v) {
+            has_const_b0_ = true;
+            const_b0_ = v;
+        }
+        void set_const_b1(std::uint8_t v) {
+            has_const_b1_ = true;
+            const_b1_ = v;
+        }
+        void set_const_b2(std::uint8_t v) {
+            has_const_b2_ = true;
+            const_b2_ = v;
+        }
+
+    private:
+        std::string b0_name_;
+        std::string b1_name_;
+        std::string b2_name_;
+        bool cipher_minus_ks_ = true;
+        bool has_const_b0_ = false;
+        bool has_const_b1_ = false;
+        bool has_const_b2_ = false;
+        std::uint8_t const_b0_ = 0;
+        std::uint8_t const_b1_ = 0;
+        std::uint8_t const_b2_ = 0;
     };
 
     /// S4 AutokeyRing plan: `out = cipher ± AutokeyRing::shift(cipher, t, lag)`.
@@ -386,13 +471,14 @@ public:
                    std::optional<S2LinearPlan> s2_linear = std::nullopt,
                    std::optional<ShapePlan> shape = std::nullopt,
                    std::optional<S3ScalarPlan> s3_scalar = std::nullopt,
-                   std::optional<S4AutokeyPlan> s4_autokey = std::nullopt)
+                   std::optional<S4AutokeyPlan> s4_autokey = std::nullopt,
+                   std::optional<S5PolyPlan> s5_poly = std::nullopt)
             : intended_(intended), emitted_(emitted), specialized_(specialized),
               reason_(std::move(reason)), header_text_(std::move(header_text)),
               cu_text_(std::move(cu_text)), kernel_symbol_(std::move(kernel_symbol)),
               s1_lut_(std::move(s1_lut)), s2_linear_(std::move(s2_linear)),
               shape_(std::move(shape)), s3_scalar_(std::move(s3_scalar)),
-              s4_autokey_(std::move(s4_autokey)) {}
+              s4_autokey_(std::move(s4_autokey)), s5_poly_(std::move(s5_poly)) {}
 
         [[nodiscard]] Strategy intended_strategy() const noexcept { return intended_; }
 
@@ -422,6 +508,10 @@ public:
 
         [[nodiscard]] const std::optional<S4AutokeyPlan>& s4_autokey() const noexcept {
             return s4_autokey_;
+        }
+
+        [[nodiscard]] const std::optional<S5PolyPlan>& s5_poly() const noexcept {
+            return s5_poly_;
         }
 
         [[nodiscard]] bool is_shape_inline() const noexcept {
@@ -468,6 +558,7 @@ public:
         std::optional<ShapePlan> shape_;
         std::optional<S3ScalarPlan> s3_scalar_;
         std::optional<S4AutokeyPlan> s4_autokey_;
+        std::optional<S5PolyPlan> s5_poly_;
     };
 
     [[nodiscard]] static const char* strategy_str(Strategy s) noexcept {
@@ -484,6 +575,8 @@ public:
             return "ShapeInline";
         case Strategy::S4AutokeyRing:
             return "S4_autokey";
+        case Strategy::S5PolyKeystream:
+            return "S5_poly";
         case Strategy::ModuleLoaded:
             return "Module";
         }
@@ -560,8 +653,14 @@ public:
                                      matched.value().reason() + ")",
                                  plan};
             case TheoryShapeMatch::ShapeId::PolyKeystream:
+                if (matched.value().poly_coeffs_ok()) {
+                    return Selection{Strategy::S5PolyKeystream,
+                                     std::string("shape PolyKeystream — S5 poly twin (") +
+                                         matched.value().reason() + ")",
+                                     plan};
+                }
                 return Selection{Strategy::S3ScalarInline,
-                                 std::string("shape PolyKeystream — S3 scalar candidate (") +
+                                 std::string("shape PolyKeystream — S3 (incomplete coeffs; ") +
                                      matched.value().reason() + ")",
                                  plan};
             case TheoryShapeMatch::ShapeId::KeyedGeneral:
@@ -719,6 +818,32 @@ public:
                                           "S3 lower failed; fallback S0 (") +
                                   sel.reason() + ")",
                               "", "", "", std::nullopt, std::nullopt, sel.shape()};
+        }
+
+        if (sel.strategy() == Strategy::S5PolyKeystream) {
+            if (!decrypt_hoists.empty()) {
+                return EmitBundle{Strategy::S5PolyKeystream, Strategy::S0Bytecode, false,
+                                  std::string("S5 classified but decrypt hoists not yet wired; "
+                                              "fallback S0 (") +
+                                      sel.reason() + ")",
+                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
+            }
+            if (!sel.shape() || !sel.shape()->poly_coeffs_ok()) {
+                return EmitBundle{Strategy::S5PolyKeystream, Strategy::S0Bytecode, false,
+                                  std::string("S5 classified but poly coeffs incomplete; "
+                                              "fallback S0 (") +
+                                      sel.reason() + ")",
+                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
+            }
+            StatusOr<EmitBundle> bundle = emit_s5_poly_sources(
+                theory, S5PolyPlan::from_shape(*sel.shape()), sel.reason(), sel.shape());
+            if (!bundle.ok()) {
+                return EmitBundle{Strategy::S5PolyKeystream, Strategy::S0Bytecode, false,
+                                  std::string("S5 emit failed: ") + bundle.status().message() +
+                                      "; fallback S0 (" + sel.reason() + ")",
+                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
+            }
+            return bundle;
         }
 
         if (sel.strategy() == Strategy::S3ScalarInline) {
@@ -975,6 +1100,52 @@ private:
         return EmitBundle{Strategy::S4AutokeyRing, Strategy::S4AutokeyRing, true,
                           std::string("S4 AutokeyRing emit: ") + select_reason, hdr.str(),
                           cu.str(), kern, std::nullopt, std::nullopt, shape, std::nullopt, plan};
+    }
+
+    [[nodiscard]] static StatusOr<EmitBundle>
+    emit_s5_poly_sources(const TheoryIr& theory, const S5PolyPlan& plan,
+                         const std::string& select_reason,
+                         const std::optional<ShapePlan>& shape) {
+        if (!plan.coeffs_ok()) {
+            return Status::error("TheoryHistChi2Emit::emit_s5_poly: coeffs incomplete");
+        }
+        const std::string& id = theory.name();
+        const std::string kern = id + "_s5_hist_kernel";
+        const std::string guard = "PARCAE_EMIT_" + id + "_S5_HIST_HPP";
+        const std::string cls = to_pascal(id) + "S5Hist";
+
+        std::ostringstream hdr;
+        hdr << "// Generated by TheoryHistChi2Emit (S5 poly keystream) — do not hand-edit.\n";
+        hdr << "#ifndef " << guard << "\n";
+        hdr << "#define " << guard << "\n\n";
+        hdr << "#include \"parcae/core/status.hpp\"\n\n";
+        hdr << "#include <cstddef>\n";
+        hdr << "#include <cstdint>\n\n";
+        hdr << "/// S5 quadratic fused χ² hist for `" << id << "` "
+            << "(b0+b1·i+b2·i·i).\n";
+        hdr << "/// Runtime twin: TheoryHistChi2S5::launch_poly_async.\n";
+        hdr << "class " << cls << " {\n";
+        hdr << "public:\n";
+        hdr << "    static constexpr std::size_t alphabet_size = 29;\n";
+        hdr << "    [[nodiscard]] static Status launch_poly_async(\n";
+        hdr << "        const std::uint8_t* device_in, const std::uint8_t* device_b0,\n";
+        hdr << "        const std::uint8_t* device_b1, const std::uint8_t* device_b2,\n";
+        hdr << "        const double* device_probabilities, std::uint32_t* device_counts,\n";
+        hdr << "        double* device_scores, std::size_t candidate_count, "
+               "std::size_t token_count);\n";
+        hdr << "private:\n";
+        hdr << "    " << cls << "() = delete;\n";
+        hdr << "};\n\n";
+        hdr << "#endif // " << guard << "\n";
+
+        std::ostringstream cu;
+        cu << "// Generated by TheoryHistChi2Emit (S5 poly) — do not hand-edit.\n";
+        cu << "// Prefer linking TheoryHistChi2S5 for search.\n";
+        cu << "#include \"" << cls << ".hpp\"\n";
+
+        return EmitBundle{Strategy::S5PolyKeystream, Strategy::S5PolyKeystream, true,
+                          std::string("S5 poly emit: ") + select_reason, hdr.str(), cu.str(), kern,
+                          std::nullopt, std::nullopt, shape, std::nullopt, std::nullopt, plan};
     }
 
     [[nodiscard]] static StatusOr<EmitBundle>

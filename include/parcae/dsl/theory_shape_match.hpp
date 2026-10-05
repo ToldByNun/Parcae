@@ -100,6 +100,17 @@ public:
             return has_const_lag_ || !lag_name_.empty();
         }
 
+        [[nodiscard]] const std::string& b2_name() const noexcept { return b2_name_; }
+
+        [[nodiscard]] bool has_const_b2() const noexcept { return has_const_b2_; }
+
+        [[nodiscard]] std::uint8_t const_b2() const noexcept { return const_b2_; }
+
+        /// Quadratic poly: b0/b1/b2 each param or const.
+        [[nodiscard]] bool poly_coeffs_ok() const noexcept {
+            return linear_coeffs_ok() && (has_const_b2_ || !b2_name_.empty());
+        }
+
         void set_shift_name(std::string name) { shift_name_ = std::move(name); }
 
         void set_const_shift(std::uint8_t v) {
@@ -133,6 +144,13 @@ public:
             cipher_minus_ks_ = cipher_minus_ks;
         }
 
+        void set_poly(std::string b0, std::string b1, std::string b2, bool cipher_minus_ks) {
+            b0_name_ = std::move(b0);
+            b1_name_ = std::move(b1);
+            b2_name_ = std::move(b2);
+            cipher_minus_ks_ = cipher_minus_ks;
+        }
+
         void set_const_b0(std::uint8_t v) {
             has_const_b0_ = true;
             const_b0_ = v;
@@ -141,6 +159,11 @@ public:
         void set_const_b1(std::uint8_t v) {
             has_const_b1_ = true;
             const_b1_ = v;
+        }
+
+        void set_const_b2(std::uint8_t v) {
+            has_const_b2_ = true;
+            const_b2_ = v;
         }
 
         void set_autokey_lag(std::string lag_name, bool cipher_minus_ks) {
@@ -162,6 +185,7 @@ public:
         std::string b_name_;
         std::string b0_name_;
         std::string b1_name_;
+        std::string b2_name_;
         std::string lag_name_;
         bool cipher_minus_ks_ = false;
         bool has_const_shift_ = false;
@@ -174,6 +198,8 @@ public:
         std::uint8_t const_b0_ = 0;
         bool has_const_b1_ = false;
         std::uint8_t const_b1_ = 0;
+        bool has_const_b2_ = false;
+        std::uint8_t const_b2_ = 0;
         bool has_const_lag_ = false;
         std::uint8_t const_lag_ = 0;
         bool affine_decrypt_ = false;
@@ -757,51 +783,182 @@ private:
         return std::nullopt;
     }
 
-    /// Low-degree: `b0 + b1*i + b2*i*i` as Add(Add(b0, Mul(b1,i)), Mul(b2, Mul(i,i))).
+    /// Low-degree quadratic: `b0 + b1·i + b2·i·i` (bitmask_blend / poly2 class).
+    /// Flattens Add trees; accepts Mul(b2,Mul(i,i)) and left-assoc Mul(Mul(b2,i),i).
     [[nodiscard]] static std::optional<Match>
     try_poly_keystream(const Z29Expr& expr, Z29Expr::Ptr owned, std::string_view cipher_var) {
         using Kind = Z29Expr::Kind;
-        if (expr.kind() != Kind::Add || !expr.left() || !expr.right()) {
+        bool cipher_minus_ks = false;
+        const Z29Expr* ks = nullptr;
+
+        if (expr.kind() == Kind::Add && expr.left() && expr.right() &&
+            is_cipher_var(*expr.left(), cipher_var)) {
+            ks = expr.right().get();
+            if (ks->kind() == Kind::Neg && ks->arg()) {
+                cipher_minus_ks = true;
+                ks = ks->arg().get();
+            }
+        } else if (expr.kind() == Kind::Sub && expr.left() && expr.right() &&
+                   is_cipher_var(*expr.left(), cipher_var)) {
+            cipher_minus_ks = true;
+            ks = expr.right().get();
+        } else {
             return std::nullopt;
         }
-        if (!is_cipher_var(*expr.left(), cipher_var)) {
+        if (ks == nullptr || DslOptimize::depends_on_var(*ks, cipher_var)) {
             return std::nullopt;
         }
-        const Z29Expr& ks = *expr.right();
-        // Unwrap Neg for minus forms.
-        const Z29Expr* ksp = &ks;
-        if (ks.kind() == Kind::Neg && ks.arg()) {
-            ksp = ks.arg().get();
-        }
-        if (!ksp || ksp->kind() != Kind::Add || !ksp->left() || !ksp->right()) {
-            return std::nullopt;
-        }
-        // Outer Add(linear_or_b0b1, Mul(b2, Mul(i,i)))
-        auto is_i_squared_mul = [](const Z29Expr& e) -> bool {
-            if (e.kind() != Kind::Mul || !e.left() || !e.right()) {
+
+        struct PolyCoeffs {
+            std::string b0_name;
+            std::string b1_name;
+            std::string b2_name;
+            bool has_const_b0 = false;
+            bool has_const_b1 = false;
+            bool has_const_b2 = false;
+            std::uint8_t const_b0 = 0;
+            std::uint8_t const_b1 = 0;
+            std::uint8_t const_b2 = 0;
+            bool saw_b0 = false;
+            bool saw_b1 = false;
+            bool saw_b2 = false;
+
+            [[nodiscard]] bool ok() const noexcept {
+                return saw_b0 && saw_b1 && saw_b2 &&
+                       (has_const_b0 || !b0_name.empty()) &&
+                       (has_const_b1 || !b1_name.empty()) &&
+                       (has_const_b2 || !b2_name.empty());
+            }
+        };
+
+        auto match_b2_ii = [](const Z29Expr& e, PolyCoeffs& out) -> bool {
+            if (e.kind() != Kind::Mul || !e.left() || !e.right() || out.saw_b2) {
                 return false;
             }
-            // Mul(b2, Mul(i,i)) or Mul(Mul(i,i), b2)
             auto is_ii = [](const Z29Expr& m) {
                 return m.kind() == Kind::Mul && m.left() && m.right() &&
                        m.left()->kind() == Kind::Var && m.left()->name() == "i" &&
                        m.right()->kind() == Kind::Var && m.right()->name() == "i";
             };
-            if (is_ii(*e.right()) && e.left()->kind() == Kind::Var && e.left()->name() != "i") {
+            std::string name;
+            bool has_c = false;
+            std::uint8_t cv = 0;
+            if (is_ii(*e.right()) && match_scalar_coeff(*e.left(), name, has_c, cv)) {
+                out.saw_b2 = true;
+                out.b2_name = std::move(name);
+                out.has_const_b2 = has_c;
+                out.const_b2 = cv;
                 return true;
             }
-            if (is_ii(*e.left()) && e.right()->kind() == Kind::Var && e.right()->name() != "i") {
+            if (is_ii(*e.left()) && match_scalar_coeff(*e.right(), name, has_c, cv)) {
+                out.saw_b2 = true;
+                out.b2_name = std::move(name);
+                out.has_const_b2 = has_c;
+                out.const_b2 = cv;
+                return true;
+            }
+            if (e.right()->kind() == Kind::Var && e.right()->name() == "i" &&
+                e.left()->kind() == Kind::Mul && e.left()->left() && e.left()->right()) {
+                const Z29Expr& ml = *e.left()->left();
+                const Z29Expr& mr = *e.left()->right();
+                if (mr.kind() == Kind::Var && mr.name() == "i" &&
+                    match_scalar_coeff(ml, name, has_c, cv)) {
+                    out.saw_b2 = true;
+                    out.b2_name = std::move(name);
+                    out.has_const_b2 = has_c;
+                    out.const_b2 = cv;
+                    return true;
+                }
+                if (ml.kind() == Kind::Var && ml.name() == "i" &&
+                    match_scalar_coeff(mr, name, has_c, cv)) {
+                    out.saw_b2 = true;
+                    out.b2_name = std::move(name);
+                    out.has_const_b2 = has_c;
+                    out.const_b2 = cv;
+                    return true;
+                }
+            }
+            if (e.left()->kind() == Kind::Var && e.left()->name() == "i" &&
+                e.right()->kind() == Kind::Mul && e.right()->left() && e.right()->right()) {
+                const Z29Expr& ml = *e.right()->left();
+                const Z29Expr& mr = *e.right()->right();
+                if (mr.kind() == Kind::Var && mr.name() == "i" &&
+                    match_scalar_coeff(ml, name, has_c, cv)) {
+                    out.saw_b2 = true;
+                    out.b2_name = std::move(name);
+                    out.has_const_b2 = has_c;
+                    out.const_b2 = cv;
+                    return true;
+                }
+                if (ml.kind() == Kind::Var && ml.name() == "i" &&
+                    match_scalar_coeff(mr, name, has_c, cv)) {
+                    out.saw_b2 = true;
+                    out.b2_name = std::move(name);
+                    out.has_const_b2 = has_c;
+                    out.const_b2 = cv;
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        auto collect = [&](auto&& self, const Z29Expr& e, PolyCoeffs& out) -> bool {
+            if (e.kind() == Kind::Add && e.left() && e.right()) {
+                return self(self, *e.left(), out) && self(self, *e.right(), out);
+            }
+            if (match_b2_ii(e, out)) {
+                return true;
+            }
+            if (std::optional<LinearCoeffs> mul = match_mul_b1_i_term(e)) {
+                if (out.saw_b1) {
+                    return false;
+                }
+                out.saw_b1 = true;
+                out.b1_name = std::move(mul->b1_name);
+                out.has_const_b1 = mul->has_const_b1;
+                out.const_b1 = mul->const_b1;
+                return true;
+            }
+            std::string name;
+            bool has_c = false;
+            std::uint8_t cv = 0;
+            if (match_scalar_coeff(e, name, has_c, cv)) {
+                if (out.saw_b0) {
+                    return false;
+                }
+                out.saw_b0 = true;
+                out.b0_name = std::move(name);
+                out.has_const_b0 = has_c;
+                out.const_b0 = cv;
                 return true;
             }
             return false;
         };
-        if (is_i_squared_mul(*ksp->right()) && match_b0_b1_i(*ksp->left())) {
-            return Match{ShapeId::PolyKeystream, "cipher ± (b0+b1*i+b2*i*i)", std::move(owned)};
+
+        PolyCoeffs coeffs;
+        if (!collect(collect, *ks, coeffs) || !coeffs.ok()) {
+            return std::nullopt;
         }
-        if (is_i_squared_mul(*ksp->left()) && match_b0_b1_i(*ksp->right())) {
-            return Match{ShapeId::PolyKeystream, "cipher ± (b0+b1*i+b2*i*i)", std::move(owned)};
+        if (!coeffs.has_const_b0 && !coeffs.has_const_b1 && !coeffs.has_const_b2) {
+            if (coeffs.b0_name == coeffs.b1_name || coeffs.b0_name == coeffs.b2_name ||
+                coeffs.b1_name == coeffs.b2_name) {
+                return std::nullopt;
+            }
         }
-        return std::nullopt;
+
+        Match m{ShapeId::PolyKeystream, "cipher ± (b0+b1*i+b2*i*i) poly/bitmask_blend",
+                std::move(owned)};
+        m.set_poly(coeffs.b0_name, coeffs.b1_name, coeffs.b2_name, cipher_minus_ks);
+        if (coeffs.has_const_b0) {
+            m.set_const_b0(coeffs.const_b0);
+        }
+        if (coeffs.has_const_b1) {
+            m.set_const_b1(coeffs.const_b1);
+        }
+        if (coeffs.has_const_b2) {
+            m.set_const_b2(coeffs.const_b2);
+        }
+        return m;
     }
 };
 

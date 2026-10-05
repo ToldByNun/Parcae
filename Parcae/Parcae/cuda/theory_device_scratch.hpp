@@ -71,6 +71,7 @@ public:
         DeviceBuffer<std::uint8_t> new_luts[kParamSlabs];
         DeviceBuffer<std::uint8_t> new_b0[kParamSlabs];
         DeviceBuffer<std::uint8_t> new_b1[kParamSlabs];
+        DeviceBuffer<std::uint8_t> new_b2[kParamSlabs];
         DeviceBuffer<std::uint8_t> new_lane_err;
 
         if (grow_T) {
@@ -124,10 +125,16 @@ public:
                 if (!b1.ok()) {
                     return b1.status();
                 }
+                StatusOr<DeviceBuffer<std::uint8_t>> b2 =
+                    DeviceBuffer<std::uint8_t>::allocate(need_C);
+                if (!b2.ok()) {
+                    return b2.status();
+                }
                 new_slots[s] = std::move(slots.value());
                 new_luts[s] = std::move(luts.value());
                 new_b0[s] = std::move(b0.value());
                 new_b1[s] = std::move(b1.value());
+                new_b2[s] = std::move(b2.value());
             }
             new_counts = std::move(counts.value());
             new_scores = std::move(scores.value());
@@ -153,6 +160,7 @@ public:
                 luts_[s] = std::move(new_luts[s]);
                 b0_[s] = std::move(new_b0[s]);
                 b1_[s] = std::move(new_b1[s]);
+                b2_[s] = std::move(new_b2[s]);
             }
             capacity_C_ = need_C;
             live_C_ = 0;
@@ -273,6 +281,23 @@ public:
         return Status::success();
     }
 
+    /// H2D S5 quadratic coeffs (b0/b1/b2) into the current write slab.
+    [[nodiscard]] Status upload_b0_b1_b2_async(std::span<const std::uint8_t> b0,
+                                               std::span<const std::uint8_t> b1,
+                                               std::span<const std::uint8_t> b2,
+                                               std::size_t candidate_count,
+                                               cudaStream_t stream = nullptr) {
+        Status base = upload_b0_b1_async(b0, b1, candidate_count, stream);
+        if (!base.ok()) {
+            return base;
+        }
+        if (b2.size() != candidate_count) {
+            return Status::error("TheoryDeviceScratch::upload_b0_b1_b2_async b2 size mismatch");
+        }
+        return h2d_async(b2_[write_slab_].data(), b2,
+                         "TheoryDeviceScratch::upload_b0_b1_b2_async b2", stream);
+    }
+
     /// Publish the write slab as the launch slab and advance the write index.
     void commit_param_slab() noexcept {
         launch_slab_ = write_slab_;
@@ -323,6 +348,9 @@ public:
     [[nodiscard]] std::uint8_t* b1() noexcept { return b1_[launch_slab_].data(); }
     [[nodiscard]] const std::uint8_t* b1() const noexcept { return b1_[launch_slab_].data(); }
 
+    [[nodiscard]] std::uint8_t* b2() noexcept { return b2_[launch_slab_].data(); }
+    [[nodiscard]] const std::uint8_t* b2() const noexcept { return b2_[launch_slab_].data(); }
+
     [[nodiscard]] std::uint8_t* lane_err() noexcept { return lane_err_.data(); }
     [[nodiscard]] const std::uint8_t* lane_err() const noexcept { return lane_err_.data(); }
 
@@ -350,6 +378,7 @@ public:
             luts_[s].reset();
             b0_[s].reset();
             b1_[s].reset();
+            b2_[s].reset();
         }
         lane_err_.reset();
         capacity_C_ = 0;
@@ -390,6 +419,7 @@ private:
     DeviceBuffer<std::uint8_t> luts_[kParamSlabs];
     DeviceBuffer<std::uint8_t> b0_[kParamSlabs];
     DeviceBuffer<std::uint8_t> b1_[kParamSlabs];
+    DeviceBuffer<std::uint8_t> b2_[kParamSlabs];
     DeviceBuffer<std::uint8_t> lane_err_;
 
     std::size_t capacity_C_ = 0;

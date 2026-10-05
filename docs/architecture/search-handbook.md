@@ -423,10 +423,13 @@ under `emitted/` ([theory-artifact.md](../spec/theory-artifact.md)):
 |----------|------|-------------|
 | **S1** LUT-29 | Decrypt is `f(x; params)` only (caesar/affine-shaped) | `theory_hist_chi2_s1_lut_kernel` |
 | **S2** linear uchar4 | `x ± (b0 + b1·i)` / bitmask_blend-shaped | `theory_hist_chi2_s2_linear_kernel` |
-| **S0** bytecode | Everything else (autokey, unmatched HotLoops) — also soft-fallback if S1/S2 launch fails | `theory_chi2_hist_kernel` via `TheoryChi2Batch` |
+| **S5** poly uchar4 | `x ± (b0+b1·i+b2·i·i)` bitmask_blend-class | `theory_hist_chi2_s5_poly_kernel` |
+| **S3** ExprLower | bounded `g(i)` / keyed general within caps | `theory_hist_chi2_s3_*` |
+| **S4** AutokeyRing | `z29_autokey_shift` vigenere_lag | `theory_hist_chi2_s4_autokey_kernel` |
+| **S0** bytecode | Soft-fallback / unmatched / prefer_branch | `theory_chi2_hist_kernel` via `TheoryChi2Batch` |
 
 Host materialize still uses `Z29Bytecode`. `export_backend=cuda` stays set for
-S0/S1/S2. Edgecases (Div0 → `+inf`, empty interrupt reject, Autokey → S0):
+specialized + soft S0. Edgecases (Div0 → `+inf`, empty interrupt reject):
 Catch2 `[cuda][theory][edge]`.
 
 ```bash

@@ -226,6 +226,7 @@
     <CudaCompile Include="cuda\hist_fast_parity.cu" />
     <CudaCompile Include="cuda\theory_hist_module.cu" />
     <CudaCompile Include="cuda\theory_hist_chi2_s4.cu" />
+    <CudaCompile Include="cuda\theory_hist_chi2_s5.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -196,6 +196,57 @@ TEST_CASE("TheoryShapeMatch LinearKeystream b0 + const*i", "[dsl][shape]") {
     REQUIRE(m.value().const_b1() == 3);
 }
 
+TEST_CASE("TheoryShapeMatch PolyKeystream quadratic bitmask_blend class", "[dsl][shape][s5]") {
+    const Z29Expr::Ptr i = TheoryShapeMatchTestUtil::v("i");
+    const Z29Expr::Ptr ks = Z29Expr::add(
+        TheoryShapeMatchTestUtil::v("b0"),
+        Z29Expr::add(Z29Expr::mul(TheoryShapeMatchTestUtil::v("b1"), i),
+                     Z29Expr::mul(TheoryShapeMatchTestUtil::v("b2"), Z29Expr::mul(i, i))));
+    const Z29Expr::Ptr expr = Z29Expr::sub(TheoryShapeMatchTestUtil::x(), ks);
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::PolyKeystream);
+    REQUIRE(m.value().poly_coeffs_ok());
+    REQUIRE(m.value().b0_name() == "b0");
+    REQUIRE(m.value().b1_name() == "b1");
+    REQUIRE(m.value().b2_name() == "b2");
+    REQUIRE(m.value().cipher_minus_ks());
+}
+
+TEST_CASE("TheoryShapeMatch PolyKeystream left-assoc Mul(Mul(b2,i),i)", "[dsl][shape][s5]") {
+    const Z29Expr::Ptr i = TheoryShapeMatchTestUtil::v("i");
+    const Z29Expr::Ptr b2ii =
+        Z29Expr::mul(Z29Expr::mul(TheoryShapeMatchTestUtil::v("c2"), i), i);
+    const Z29Expr::Ptr ks = Z29Expr::add(
+        TheoryShapeMatchTestUtil::v("c0"),
+        Z29Expr::add(Z29Expr::mul(TheoryShapeMatchTestUtil::v("c1"), i), b2ii));
+    const Z29Expr::Ptr expr = Z29Expr::sub(TheoryShapeMatchTestUtil::x(), ks);
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::PolyKeystream);
+    REQUIRE(m.value().b0_name() == "c0");
+    REQUIRE(m.value().b1_name() == "c1");
+    REQUIRE(m.value().b2_name() == "c2");
+}
+
+TEST_CASE("TheoryShapeMatch PolyKeystream name-irrelevant custom still poly",
+          "[dsl][shape][s5]") {
+    const Z29Expr::Ptr i = TheoryShapeMatchTestUtil::v("i");
+    const Z29Expr::Ptr ks = Z29Expr::add(
+        TheoryShapeMatchTestUtil::v("alpha"),
+        Z29Expr::add(
+            Z29Expr::mul(TheoryShapeMatchTestUtil::v("beta"), i),
+            Z29Expr::mul(TheoryShapeMatchTestUtil::v("gamma"), Z29Expr::mul(i, i))));
+    const TheoryIr theory = TheoryShapeMatchTestUtil::make_theory(
+        "bitmask_blend_custom", Z29Expr::sub(TheoryShapeMatchTestUtil::x(), ks));
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match_theory(theory);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::PolyKeystream);
+    REQUIRE(m.value().b0_name() == "alpha");
+    REQUIRE(m.value().b1_name() == "beta");
+    REQUIRE(m.value().b2_name() == "gamma");
+}
+
 TEST_CASE("TheoryShapeMatch LinearKeystream bare i is b0=0 b1=1", "[dsl][shape]") {
     const Z29Expr::Ptr expr =
         Z29Expr::sub(TheoryShapeMatchTestUtil::x(), TheoryShapeMatchTestUtil::v("i"));

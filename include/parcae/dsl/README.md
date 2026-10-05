@@ -47,12 +47,14 @@ private:
 | `z29_bytecode_device.hpp` | `Z29BytecodeDevice` | Done (host/device `eval_at` twin) |
 | `theory_chi2_batch.hpp` | `TheoryChi2Batch` | Done (fused bytecode hist + χ²; S0 path via `TheoryHistChi2Launch`) |
 | `theory_hist_expr_lower.hpp` | `TheoryHistExprLower` | Done (bounded S3 lower + caps; soft S0 beyond) |
-| `theory_hist_plan_writer.hpp` | `TheoryHistPlanWriter` | Done (`hist/hist_plan.json` + sources; schema validate) |
-| `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S4 select; S1/S2/S3/S4 emit + goldens; S5 TBD) |
-| `theory_hist_chi2_launch.hpp` | `TheoryHistChi2Launch` | Done (CUDA façade: S0 / Shape / S1 / S2 / S3) — under `Parcae/Parcae/cuda/` |
+| `theory_hist_plan_writer.hpp` | `TheoryHistPlanWriter` | Done (`hist/hist_plan.json` + sources; schema validate; s1–s5 + shape) |
+| `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S5 select; S1–S5 emit + goldens) |
+| `theory_hist_chi2_launch.hpp` | `TheoryHistChi2Launch` | Done (CUDA façade: S0 / Shape / S1–S5 / Module) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_s1.hpp` | `TheoryHistChi2S1` | Done (LUT-29 twin + device bake from slots) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_s2.hpp` | `TheoryHistChi2S2` | Done (linear uchar4 twin) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_s3.hpp` | `TheoryHistChi2S3` | Done (bounded ExprLower scalar twin) — under `Parcae/Parcae/cuda/` |
+| `theory_hist_chi2_s4.hpp` | `TheoryHistChi2S4` | Done (AutokeyRing twin) — under `Parcae/Parcae/cuda/` |
+| `theory_hist_chi2_s5.hpp` | `TheoryHistChi2S5` | Done (quadratic poly / bitmask_blend twin) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_shape.hpp` | `TheoryHistChi2Shape` | Done (Atbash/Caesar/Affine-decrypt twins) — under `Parcae/Parcae/cuda/` |
 | `param_ir.hpp` | `ParamIr` | Done |
 | `primitive_ir.hpp` | `PrimitiveIr` | Done |
@@ -142,7 +144,7 @@ Compile still emits CPU/CUDA transform text + bytecode. Separately,
 | S1 | `f(x; params)` only | `TheoryHistChi2S1` LUT-29 |
 | S2 | `x ± (b0 + b1·i)` | `TheoryHistChi2S2` linear uchar4 |
 | S0 | unmatched / Autokey / soft-fallback | `TheoryChi2Batch` bytecode interpreter |
-| S3–S5 | planned (expr inline / autokey ring / poly) | see contract |
+| S3–S5 | Done (ExprLower / AutokeyRing / poly twin) | see contract |
 
 Target smart path: `Z29ExprNormalize` → `TheoryShapeMatch` (`Atbash` /
 `Caesar` / `Affine` / … by **algebra**, not catalog API) → shared `HistFast`

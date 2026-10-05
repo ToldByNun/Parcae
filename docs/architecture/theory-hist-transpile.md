@@ -81,7 +81,7 @@ Classify decrypt HotLoop via `TheoryHistChi2Emit::select_strategy` / emit. Prefe
 | **S2** | `S2Uchar4Inline` / `T.theory.s2_linear` / `T.theory.progressive` | `x ± (b0 + b1·i)` (+ widened linear family over time) | `TheoryHistChi2S2` | **896B** | Required (today ~44% @ C=841) |
 | **S3** | `S3ScalarInline` / planned `T.theory.s3_*` | Uses `i` / general `x ± g(i; params)` without autokey; not simple linear S2 | `TheoryHistChi2S3` (ExprLower caps) | **896B** (same 1 B/rune roof) | Required once Spec row exists |
 | **S4** | shipping / `T.theory.s4_autokey` | `z29_autokey_shift` vigenere_lag class | `TheoryHistChi2S4` AutokeyRing+hist | **896B** unless traffic model differs | Required |
-| **S5** | planned / poly keystream Spec | Low-degree poly / bitmask-like keystreams beyond `b0+b1·i` | Twin or S3 module | **896B** | Required once Spec row exists |
+| **S5** | shipping / shares `T.theory.s2_linear` traffic class | Low-degree poly `b0+b1·i+b2·i·i` / bitmask_blend-class | `TheoryHistChi2S5` period-29 ks table | **896B** | Required (fair Spec row TBD) |
 
 ### Shipping vs planned (honest snapshot)
 
@@ -92,9 +92,9 @@ Classify decrypt HotLoop via `TheoryHistChi2Emit::select_strategy` / emit. Prefe
 | S2 | yes (linear match) | yes when `match_s2_linear` | yes | **fail** today (~188B ≈ 21% of 896B @ C=9) |
 | S3 | yes | yes when ExprLower within caps | yes (`TheoryHistChi2S3`) | blocked on fair Spec row |
 | S4 | **shipping** AutokeyRing twin | yes (lag plan) | yes | soft S0 on bind fail |
-| S5 | partial (S2 classify, emit often soft S0) | no | no | blocked until match/emit |
+| S5 | **shipping** PolyKeystream | yes (b0/b1/b2 plan) | yes (`TheoryHistChi2S5`) | soft S0 on bind fail; fair Spec TBD |
 
-Non-linear `x ± g(i)` (e.g. quadratic) may **classify** S2 then soft-fall S0 when linear match fails — treat as S3/S5 work, not as “S2 done.”
+Quadratic `x ± (b0+b1·i+b2·i·i)` classifies **S5** (after linear S2 fails), not soft-fall S0.
 
 ---
 

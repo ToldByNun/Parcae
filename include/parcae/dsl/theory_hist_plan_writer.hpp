@@ -177,6 +177,7 @@ public:
                             {"s2_linear", nullptr},
                             {"s3", nullptr},
                             {"s4_autokey", nullptr},
+                            {"s5_poly", nullptr},
                             {"shape", nullptr}};
 
         if (emit.s1_lut().has_value()) {
@@ -215,6 +216,26 @@ public:
             }
             plan["s4_autokey"] = std::move(s4j);
         }
+        if (emit.s5_poly().has_value()) {
+            const auto& s5 = *emit.s5_poly();
+            nlohmann::json s5j{{"b0_name", s5.b0_name()},
+                               {"b1_name", s5.b1_name()},
+                               {"b2_name", s5.b2_name()},
+                               {"cipher_minus_ks", s5.cipher_minus_ks()},
+                               {"has_const_b0", s5.has_const_b0()},
+                               {"has_const_b1", s5.has_const_b1()},
+                               {"has_const_b2", s5.has_const_b2()}};
+            if (s5.has_const_b0()) {
+                s5j["const_b0"] = s5.const_b0();
+            }
+            if (s5.has_const_b1()) {
+                s5j["const_b1"] = s5.const_b1();
+            }
+            if (s5.has_const_b2()) {
+                s5j["const_b2"] = s5.const_b2();
+            }
+            plan["s5_poly"] = std::move(s5j);
+        }
         if (emit.shape().has_value()) {
             const auto& sh = *emit.shape();
             plan["shape"] = nlohmann::json{
@@ -225,6 +246,7 @@ public:
                 {"b_name", sh.b_name()},
                 {"b0_name", sh.b0_name()},
                 {"b1_name", sh.b1_name()},
+                {"b2_name", sh.b2_name()},
                 {"lag_name", sh.lag_name()},
                 {"cipher_minus_ks", sh.cipher_minus_ks()},
                 {"affine_decrypt", sh.affine_decrypt()},
@@ -273,7 +295,7 @@ public:
         if (!plan.contains("specialized") || !plan.at("specialized").is_boolean()) {
             return Status::error("hist_plan.specialized must be a boolean");
         }
-        for (const char* key : {"s1_lut", "s2_linear", "s3", "s4_autokey", "shape"}) {
+        for (const char* key : {"s1_lut", "s2_linear", "s3", "s4_autokey", "s5_poly", "shape"}) {
             if (plan.contains(key) && !plan.at(key).is_null() && !plan.at(key).is_object()) {
                 return Status::error(std::string("hist_plan.") + key +
                                      " must be null or an object");
@@ -301,6 +323,12 @@ public:
             }
             if (!s3.contains("binds_index_i") || !s3.at("binds_index_i").is_boolean()) {
                 return Status::error("hist_plan.s3.binds_index_i must be a boolean");
+            }
+        }
+        if (plan.contains("s5_poly") && plan.at("s5_poly").is_object()) {
+            const auto& s5 = plan.at("s5_poly");
+            if (!s5.contains("cipher_minus_ks") || !s5.at("cipher_minus_ks").is_boolean()) {
+                return Status::error("hist_plan.s5_poly.cipher_minus_ks must be a boolean");
             }
         }
         // Soft-fall invariant: specialized false ⇒ emitted is S0 (safe search default).
@@ -385,6 +413,8 @@ private:
             return std::string{"T.theory.s1_lut29"};
         case TheoryHistChi2Emit::Strategy::S4AutokeyRing:
             return std::string{"T.theory.s4_autokey"};
+        case TheoryHistChi2Emit::Strategy::S5PolyKeystream:
+            return std::string{"T.theory.s2_linear"}; // same traffic class (period-29 ks table)
         case TheoryHistChi2Emit::Strategy::ModuleLoaded:
             return std::string{"T.theory.caesar_bytecode"};
         }

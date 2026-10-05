@@ -137,7 +137,16 @@ public:
         friend class GpuCandidateExport;
         friend class TheoryExportPipeline;
 
-        enum class Kind : std::uint8_t { S0, S1, S2, S4, ShapeAtbash, ShapeCaesar, ShapeAffine };
+        enum class Kind : std::uint8_t {
+            S0,
+            S1,
+            S2,
+            S4,
+            S5,
+            ShapeAtbash,
+            ShapeCaesar,
+            ShapeAffine
+        };
 
         Phase phase_ = Phase::Idle;
         Kind kind_ = Kind::S0;
@@ -1090,6 +1099,12 @@ public:
             launched = TheoryHistChi2Launch::launch_s4_autokey_async(
                 scratch.cipher(), scratch.b0(), scratch.probs(), scratch.counts(),
                 scratch.scores(), ticket.candidate_count_, ticket.token_count_,
+                ticket.cipher_minus_ks_, streams.compute());
+            break;
+        case TheoryLaunchTicket::Kind::S5:
+            launched = TheoryHistChi2Launch::launch_s5_poly_async(
+                scratch.cipher(), scratch.b0(), scratch.b1(), scratch.b2(), scratch.probs(),
+                scratch.counts(), scratch.scores(), ticket.candidate_count_, ticket.token_count_,
                 ticket.cipher_minus_ks_, streams.compute());
             break;
         case TheoryLaunchTicket::Kind::ShapeAtbash:
@@ -2669,6 +2684,104 @@ private:
                                          "GpuCandidateExport::theory S4 sync", progress);
     }
 
+    [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores_s5(
+        std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
+        const TheoryExportCache::Entry& entry, const std::vector<nlohmann::json>& params_list,
+        TheoryDeviceScratch& scratch, CudaStreamPair& streams, BatchRunner::Progress progress,
+        TheoryFuseMode mode, TheoryLaunchTicket* ticket_out) {
+        NvtxRange nvtx_s5("specialized_s5");
+        if (!entry.hist_plan().s5_poly().has_value()) {
+            return Status::error("GpuCandidateExport::theory S5 missing poly plan");
+        }
+        const TheoryHistChi2Emit::S5PolyPlan& plan = *entry.hist_plan().s5_poly();
+        if (!plan.coeffs_ok()) {
+            return Status::error("GpuCandidateExport::theory S5 incomplete poly coeffs");
+        }
+        const Z29Bytecode::Program& prog = entry.program();
+        const std::optional<std::uint16_t> ib0 =
+            plan.has_const_b0() ? std::nullopt : find_slot_index(prog, plan.b0_name());
+        const std::optional<std::uint16_t> ib1 =
+            plan.has_const_b1() ? std::nullopt : find_slot_index(prog, plan.b1_name());
+        const std::optional<std::uint16_t> ib2 =
+            plan.has_const_b2() ? std::nullopt : find_slot_index(prog, plan.b2_name());
+        if (!plan.has_const_b0() && !ib0.has_value()) {
+            return Status::error("GpuCandidateExport::theory S5 b0 slot not found");
+        }
+        if (!plan.has_const_b1() && !ib1.has_value()) {
+            return Status::error("GpuCandidateExport::theory S5 b1 slot not found");
+        }
+        if (!plan.has_const_b2() && !ib2.has_value()) {
+            return Status::error("GpuCandidateExport::theory S5 b2 slot not found");
+        }
+
+        const std::size_t C = params_list.size();
+        const std::uint16_t slot_count = static_cast<std::uint16_t>(prog.slot_names.size());
+        std::vector<std::uint8_t> host_b0(C, 0);
+        std::vector<std::uint8_t> host_b1(C, 0);
+        std::vector<std::uint8_t> host_b2(C, 0);
+        {
+            NvtxRange nvtx_bind("bind_slots_s5");
+            for (std::size_t c = 0; c < C; ++c) {
+                if (plan.has_const_b0() && plan.has_const_b1() && plan.has_const_b2()) {
+                    host_b0[c] = plan.const_b0();
+                    host_b1[c] = plan.const_b1();
+                    host_b2[c] = plan.const_b2();
+                    continue;
+                }
+                StatusOr<std::vector<Index29>> bound =
+                    Z29Bytecode::bind_theory_slots(prog, entry.theory(), params_list[c]);
+                if (!bound.ok()) {
+                    return bound.status();
+                }
+                if (bound.value().size() != slot_count) {
+                    return Status::error("GpuCandidateExport::theory S5 slot bind size mismatch");
+                }
+                host_b0[c] = plan.has_const_b0() ? plan.const_b0() : bound.value()[*ib0].value();
+                host_b1[c] = plan.has_const_b1() ? plan.const_b1() : bound.value()[*ib1].value();
+                host_b2[c] = plan.has_const_b2() ? plan.const_b2() : bound.value()[*ib2].value();
+            }
+        }
+
+        const auto host_in = to_bytes(cipher);
+        {
+            NvtxRange nvtx_h2d("h2d");
+            Status resident =
+                ensure_theory_resident(scratch, host_in, freqs, C, streams.copy());
+            if (!resident.ok()) {
+                return resident;
+            }
+            Status coeffs_up =
+                scratch.upload_b0_b1_b2_async(host_b0, host_b1, host_b2, C, streams.copy());
+            if (!coeffs_up.ok()) {
+                return coeffs_up;
+            }
+            scratch.commit_param_slab();
+        }
+
+        if (mode == TheoryFuseMode::StageH2D) {
+            Status h2d_ev = streams.record_h2d_done();
+            if (!h2d_ev.ok()) {
+                return h2d_ev;
+            }
+            if (ticket_out != nullptr) {
+                ticket_out->phase_ = TheoryLaunchTicket::Phase::Staged;
+                ticket_out->kind_ = TheoryLaunchTicket::Kind::S5;
+                ticket_out->candidate_count_ = C;
+                ticket_out->token_count_ = host_in.size();
+                ticket_out->cipher_minus_ks_ = plan.cipher_minus_ks();
+            }
+            return std::vector<double>{};
+        }
+        auto launch = [&](cudaStream_t compute) {
+            return TheoryHistChi2Launch::launch_s5_poly_async(
+                scratch.cipher(), scratch.b0(), scratch.b1(), scratch.b2(), scratch.probs(),
+                scratch.counts(), scratch.scores(), C, host_in.size(), plan.cipher_minus_ks(),
+                compute);
+        };
+        return launch_theory_stream_copy(scratch, streams, C, launch,
+                                         "GpuCandidateExport::theory S5 sync", progress);
+    }
+
     [[nodiscard]] static StatusOr<std::vector<double>> fused_theory_scores(
         std::span<const Index29> cipher, const ExpectedFrequencyTable& freqs,
         const std::filesystem::path& theories_root, std::string_view theory_uri_text,
@@ -2697,7 +2810,7 @@ private:
         const TheoryExportCache::Entry& entry = *prepared.value();
         const TheoryExportCache::HistPlan& hist = entry.hist_plan();
 
-        // Prefer module (URI+digest cache) → ShapeInline → S1 → S2 → S3 → S0.
+        // Prefer module → ShapeInline → S1 → S2 → S5 → S3 → S4 → S0.
         try_load_hist_module(theories_root, theory_uri_text);
         if (TheoryHistChi2Launch::has_specialized(theory_uri_text)) {
             StatusOr<std::vector<double>> mod = fused_theory_scores_module(
@@ -2775,6 +2888,18 @@ private:
                 cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
                 return s2;
             }
+        }
+        if (hist.specialized() &&
+            hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::S5PolyKeystream &&
+            hist.s5_poly()) {
+            StatusOr<std::vector<double>> s5 =
+                fused_theory_scores_s5(cipher, freqs, entry, params_list, scratch, streams,
+                                       progress, mode, ticket_out);
+            if (s5.ok()) {
+                cache.note_hist_launch(TheoryHistChi2Emit::Strategy::S5PolyKeystream);
+                return s5;
+            }
+            // Soft fallback S0 (coeff bind).
         }
         if (hist.specialized() &&
             hist.emitted_strategy() == TheoryHistChi2Emit::Strategy::S3ScalarInline &&

@@ -43,6 +43,28 @@ namespace {
     return theory.value();
 }
 
+[[nodiscard]] TheoryIr make_poly_keystream() {
+    const StatusOr<ParamIr> b0 = ParamIr::make("b0", 0, 28);
+    const StatusOr<ParamIr> b1 = ParamIr::make("b1", 0, 28);
+    const StatusOr<ParamIr> b2 = ParamIr::make("b2", 0, 28);
+    REQUIRE(b0.ok());
+    REQUIRE(b1.ok());
+    REQUIRE(b2.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr i = Z29Expr::var("i");
+    const Z29Expr::Ptr ks =
+        Z29Expr::add(Z29Expr::var("b0"),
+                     Z29Expr::add(Z29Expr::mul(Z29Expr::var("b1"), i),
+                                  Z29Expr::mul(Z29Expr::var("b2"), Z29Expr::mul(i, i))));
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "plan_poly", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign, {b0.value(), b1.value(), b2.value()},
+        Z29Expr::add(x, ks), Z29Expr::sub(x, ks),
+        std::string("Speculative. S5 poly plan."));
+    REQUIRE(theory.ok());
+    return theory.value();
+}
+
 [[nodiscard]] TheoryIr make_prefer_branch_s0() {
     const StatusOr<ParamIr> c = ParamIr::make("c", 0, 1);
     REQUIRE(c.ok());
@@ -95,6 +117,26 @@ TEST_CASE("TheoryHistPlanWriter prepares S4 AutokeyRing plan", "[dsl][hist][plan
                 .ok());
 }
 
+TEST_CASE("TheoryHistPlanWriter prepares S5 poly plan", "[dsl][hist][plan][s5]") {
+    const TheoryIr theory = make_poly_keystream();
+    StatusOr<TheoryHistPlanWriter::Bundle> bundle =
+        TheoryHistPlanWriter::prepare(theory, "parcae://theories/plan_poly@1");
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().write_sources());
+    REQUIRE(bundle.value().summary().emitted_strategy() == "S5_poly");
+    REQUIRE(bundle.value().summary().shape_peak_tier().has_value());
+    REQUIRE(*bundle.value().summary().shape_peak_tier() == "T.theory.s2_linear");
+    REQUIRE(bundle.value().plan_json().at("s5_poly").is_object());
+    REQUIRE(bundle.value().plan_json().at("s5_poly").at("b0_name") == "b0");
+    REQUIRE(bundle.value().plan_json().at("s5_poly").at("b1_name") == "b1");
+    REQUIRE(bundle.value().plan_json().at("s5_poly").at("b2_name") == "b2");
+    REQUIRE(bundle.value().plan_json().at("s5_poly").at("cipher_minus_ks") == true);
+    REQUIRE(TheoryHistPlanWriter::validate_plan_json(bundle.value().plan_json(),
+                                                     "parcae://theories/plan_poly@1")
+                .ok());
+}
+
 TEST_CASE("TheoryHistPlanWriter soft-fall still writes safe S0 plan", "[dsl][hist][plan]") {
     const TheoryIr theory = make_prefer_branch_s0();
     StatusOr<TheoryHistPlanWriter::Bundle> bundle =
@@ -142,6 +184,7 @@ TEST_CASE("TheoryHistPlanWriter rejects specialized=false with non-S0 emit",
                        {"s1_lut", nullptr},
                        {"s2_linear", nullptr},
                        {"s3", nullptr},
-                       {"s4_autokey", nullptr}};
+                       {"s4_autokey", nullptr},
+                       {"s5_poly", nullptr}};
     REQUIRE_FALSE(TheoryHistPlanWriter::validate_plan_json(bad).ok());
 }

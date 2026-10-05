@@ -32,6 +32,7 @@ set(PARCAE_CUDA_SOURCES
   theory_hist_chi2_s1.cu
   theory_hist_chi2_s2.cu
   theory_hist_chi2_s4.cu
+  theory_hist_chi2_s5.cu
   theory_hist_chi2_shape.cu
   theory_hist_module.cu
   hist_fast_parity.cu

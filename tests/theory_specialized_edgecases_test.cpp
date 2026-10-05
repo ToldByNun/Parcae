@@ -116,6 +116,28 @@ constexpr const char* kSha =
     return th.value();
 }
 
+[[nodiscard]] TheoryIr make_poly_keystream() {
+    const StatusOr<ParamIr> b0 = ParamIr::make("b0", 0, 28);
+    const StatusOr<ParamIr> b1 = ParamIr::make("b1", 0, 28);
+    const StatusOr<ParamIr> b2 = ParamIr::make("b2", 0, 28);
+    REQUIRE(b0.ok());
+    REQUIRE(b1.ok());
+    REQUIRE(b2.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr i = Z29Expr::var("i");
+    const Z29Expr::Ptr ks =
+        Z29Expr::add(Z29Expr::var("b0"),
+                     Z29Expr::add(Z29Expr::mul(Z29Expr::var("b1"), i),
+                                  Z29Expr::mul(Z29Expr::var("b2"), Z29Expr::mul(i, i))));
+    const StatusOr<TheoryIr> th = TheoryIr::make(
+        "edge_poly", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign, {b0.value(), b1.value(), b2.value()},
+        Z29Expr::add(x, ks), Z29Expr::sub(x, ks),
+        std::string("Edge S5 poly / bitmask_blend."));
+    REQUIRE(th.ok());
+    return th.value();
+}
+
 [[nodiscard]] TheoryIr make_div0_const() {
     // decrypt always divides by 0 → domain error / +inf on S0.
     const Z29Expr::Ptr x = Z29Expr::var("x");
@@ -398,6 +420,70 @@ TEST_CASE("Autokey theory prefers S4 AutokeyRing; χ² ≡ bytecode",
         TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
     REQUIRE(gpu.ok());
     REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+
+    const std::vector<double> bytecode =
+        launch_bytecode_scores(theory, cipher, params_list, freqs.value());
+    for (std::size_t c = 0; c < bytecode.size(); ++c) {
+        REQUIRE(gpu.value()[c] == bytecode[c]);
+    }
+
+    for (std::size_t c = 0; c < params_list.size(); ++c) {
+        StatusOr<std::vector<Index29>> plain =
+            TheoryDispatch::apply(theory, cipher, params_list[c], TransformDirection::Decrypt);
+        REQUIRE(plain.ok());
+        StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
+        REQUIRE(cpu.ok());
+        REQUIRE(gpu.value()[c] == cpu.value());
+    }
+
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE("Poly keystream prefers S5 twin; χ² ≡ bytecode",
+          "[cuda][theory][edge][poly][s5]") {
+    REQUIRE(ParcaeCuda::available());
+
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_theory_edge_poly";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const TheoryIr theory = make_poly_keystream();
+    REQUIRE(install_theory(root / "theories", theory).ok());
+    REQUIRE(TheoryHistChi2Emit::select_strategy(theory).strategy() ==
+            TheoryHistChi2Emit::Strategy::S5PolyKeystream);
+    REQUIRE(TheoryHistChi2Emit::emit_decrypt_hist(theory).value().specialized());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = make_cipher(32);
+    std::vector<nlohmann::json> params_list;
+    for (int b0 = 0; b0 < 2; ++b0) {
+        for (int b1 = 0; b1 < 2; ++b1) {
+            for (int b2 = 0; b2 < 2; ++b2) {
+                params_list.push_back(nlohmann::json{{"b0", b0}, {"b1", b1}, {"b2", b2}});
+            }
+        }
+    }
+
+    TheoryExportCache cache;
+    StatusOr<const TheoryExportCache::Entry*> prepared =
+        cache.ensure(root / "theories", "parcae://theories/edge_poly@1",
+                     TransformDirection::Decrypt);
+    REQUIRE(prepared.ok());
+    REQUIRE(prepared.value()->hist_plan().specialized());
+    REQUIRE(prepared.value()->hist_plan().emitted_strategy() ==
+            TheoryHistChi2Emit::Strategy::S5PolyKeystream);
+    REQUIRE(prepared.value()->hist_plan().s5_poly().has_value());
+
+    StatusOr<std::vector<double>> gpu = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/edge_poly@1", params_list,
+        TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
+    REQUIRE(gpu.ok());
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S5PolyKeystream);
 
     const std::vector<double> bytecode =
         launch_bytecode_scores(theory, cipher, params_list, freqs.value());

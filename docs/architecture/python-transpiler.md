@@ -348,8 +348,10 @@ matching shapes. After `DslOptimize` / IR build, `TheoryHistChi2Emit` selects:
 |----------|-------|-------------|
 | **S1** `S1Lut29` | Decrypt `f(x; params)` only | `TheoryHistChi2S1` |
 | **S2** `S2Uchar4Inline` | `x ± (b0 + b1·i)` / bitmask_blend-shaped | `TheoryHistChi2S2` |
+| **S5** `S5PolyKeystream` | `x ± (b0+b1·i+b2·i·i)` poly / bitmask_blend-class | `TheoryHistChi2S5` |
 | **S0** `S0Bytecode` | Default + soft-fallback | `TheoryChi2Batch` |
 | **S3** `S3ScalarInline` | Bounded ExprLower + `TheoryHistChi2S3` | Soft S0 beyond caps |
+| **S4** `S4AutokeyRing` | `z29_autokey_shift` vigenere_lag | `TheoryHistChi2S4` |
 
 `TheoryExportCache` stores the `HistPlan`; `GpuCandidateExport::theory_*`
 prefers specialized launches and soft-falls back to S0 on failure
@@ -367,7 +369,7 @@ Throughput tables and Kernel SLO vs campaign wall:
 [search-handbook.md](search-handbook.md) § Theory URI.
 
 Headers: `theory_hist_chi2_emit.hpp` (DSL),
-`theory_hist_chi2_{launch,s1,s2}.*` under `Parcae/Parcae/cuda/`.
+`theory_hist_chi2_{launch,s1,s2,s3,s4,s5,shape}.*` under `Parcae/Parcae/cuda/`.
 
 ---
 

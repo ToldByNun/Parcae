@@ -348,6 +348,29 @@ TEST_CASE("GpuCandidateExport prefers S1 device-bake for residual FxOnly; χ² p
     return th.value();
 }
 
+/// bitmask_blend-class quadratic: name irrelevant to catalog poly2 / progressive.
+[[nodiscard]] TheoryIr make_bitmask_blend_poly() {
+    const StatusOr<ParamIr> alpha = ParamIr::make("alpha", 0, 28);
+    const StatusOr<ParamIr> beta = ParamIr::make("beta", 0, 28);
+    const StatusOr<ParamIr> gamma = ParamIr::make("gamma", 0, 28);
+    REQUIRE(alpha.ok());
+    REQUIRE(beta.ok());
+    REQUIRE(gamma.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr i = Z29Expr::var("i");
+    const Z29Expr::Ptr ks =
+        Z29Expr::add(Z29Expr::var("alpha"),
+                     Z29Expr::add(Z29Expr::mul(Z29Expr::var("beta"), i),
+                                  Z29Expr::mul(Z29Expr::var("gamma"), Z29Expr::mul(i, i))));
+    const StatusOr<TheoryIr> th = TheoryIr::make(
+        "export_prefer_bitmask_blend", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign, {alpha.value(), beta.value(), gamma.value()},
+        Z29Expr::add(x, ks), Z29Expr::sub(x, ks),
+        std::string("Custom poly keystream without catalog API."));
+    REQUIRE(th.ok());
+    return th.value();
+}
+
 TEST_CASE("GpuCandidateExport prefers S4 AutokeyRing for custom vigenere_lag",
           "[search][export][theory][specialized][cuda][s4]") {
     const std::filesystem::path root =
@@ -382,6 +405,62 @@ TEST_CASE("GpuCandidateExport prefers S4 AutokeyRing for custom vigenere_lag",
         params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
     REQUIRE(gpu_scores.ok());
     REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+
+    for (std::size_t c = 0; c < params_list.size(); ++c) {
+        StatusOr<std::vector<Index29>> plain =
+            TheoryDispatch::apply(theory, cipher, params_list[c], TransformDirection::Decrypt);
+        REQUIRE(plain.ok());
+        StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
+        REQUIRE(cpu.ok());
+        REQUIRE(gpu_scores.value()[c] == cpu.value());
+    }
+
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE("GpuCandidateExport prefers S5 poly for bitmask_blend-class custom",
+          "[search][export][theory][specialized][cuda][s5]") {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_export_prefer_s5";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const TheoryIr theory = make_bitmask_blend_poly();
+    REQUIRE(install_theory(root / "theories", theory).ok());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = make_cipher(48);
+    std::vector<nlohmann::json> params_list;
+    for (int a = 0; a < 2; ++a) {
+        for (int b = 0; b < 2; ++b) {
+            for (int g = 0; g < 2; ++g) {
+                params_list.push_back(nlohmann::json{{"alpha", a}, {"beta", b}, {"gamma", g}});
+            }
+        }
+    }
+
+    TheoryExportCache cache;
+    StatusOr<const TheoryExportCache::Entry*> prepared = cache.ensure(
+        root / "theories", "parcae://theories/export_prefer_bitmask_blend@1",
+        TransformDirection::Decrypt);
+    REQUIRE(prepared.ok());
+    REQUIRE(prepared.value()->hist_plan().emitted_strategy() ==
+            TheoryHistChi2Emit::Strategy::S5PolyKeystream);
+    REQUIRE(prepared.value()->hist_plan().s5_poly().has_value());
+    REQUIRE(prepared.value()->hist_plan().s5_poly()->b0_name() == "alpha");
+    REQUIRE(prepared.value()->hist_plan().s5_poly()->b1_name() == "beta");
+    REQUIRE(prepared.value()->hist_plan().s5_poly()->b2_name() == "gamma");
+
+    StatusOr<std::vector<double>> gpu_scores = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories",
+        "parcae://theories/export_prefer_bitmask_blend@1", params_list,
+        TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
+    REQUIRE(gpu_scores.ok());
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S5PolyKeystream);
 
     for (std::size_t c = 0; c < params_list.size(); ++c) {
         StatusOr<std::vector<Index29>> plain =
