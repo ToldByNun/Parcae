@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <parcae/dsl/param_ir.hpp>
+#include <parcae/dsl/dsl_optimize.hpp>
 #include <parcae/dsl/theory_hist_chi2_emit.hpp>
 #include <parcae/dsl/theory_ir.hpp>
 #include <parcae/dsl/theory_shape_match.hpp>
@@ -52,6 +53,31 @@ namespace {
                        TheoryIr::InterruptMode::NoneByDesign, {lag.value()},
                        Z29Expr::add(x, prior), Z29Expr::sub(x, prior),
                        std::string("Autokey S4 AutokeyRing."));
+    REQUIRE(theory.ok());
+    return theory.value();
+}
+
+[[nodiscard]] TheoryIr make_autokey_const_lag_theory() {
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const StatusOr<Z29Expr::Ptr> lag = Z29Expr::constant(5);
+    REQUIRE(lag.ok());
+    const Z29Expr::Ptr prior = Z29Expr::call("z29_autokey_shift", {x, lag.value()});
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "emit_autokey_const_lag", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign, {}, Z29Expr::add(x, prior),
+        Z29Expr::sub(x, prior), std::string("Autokey S4 with folded const lag."));
+    REQUIRE(theory.ok());
+    return theory.value();
+}
+
+[[nodiscard]] TheoryIr make_autokey_unbound_lag_theory() {
+    // lag = i → Autokey shape but no bindable lag → hard S0.
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr prior = Z29Expr::call("z29_autokey_shift", {x, Z29Expr::var("i")});
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "emit_autokey_bad_lag", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign, {}, Z29Expr::add(x, prior),
+        Z29Expr::sub(x, prior), std::string("Autokey without lag bind → S0."));
     REQUIRE(theory.ok());
     return theory.value();
 }
@@ -228,6 +254,38 @@ TEST_CASE("TheoryHistChi2Emit selects S4 AutokeyRing for vigenere_lag",
     REQUIRE_FALSE(bundle.value().header_text().empty());
 }
 
+TEST_CASE("TheoryHistChi2Emit S4 AutokeyRing for const lag",
+          "[dsl][emit][hist][chi2][s4]") {
+    const TheoryIr theory = make_autokey_const_lag_theory();
+    const TheoryHistChi2Emit::Selection sel = TheoryHistChi2Emit::select_strategy(theory);
+    REQUIRE(sel.strategy() == TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+    REQUIRE(sel.shape()->has_const_lag());
+    REQUIRE(sel.shape()->const_lag() == 5);
+
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+    REQUIRE(bundle.value().s4_autokey().has_value());
+    REQUIRE(bundle.value().s4_autokey()->has_const_lag());
+    REQUIRE(bundle.value().s4_autokey()->const_lag() == 5);
+    REQUIRE(bundle.value().header_text().find("TheoryHistChi2S4") != std::string::npos);
+}
+
+TEST_CASE("TheoryHistChi2Emit Autokey without lag bind soft-falls S0",
+          "[dsl][emit][hist][chi2][s4]") {
+    const TheoryIr theory = make_autokey_unbound_lag_theory();
+    const TheoryHistChi2Emit::Selection sel = TheoryHistChi2Emit::select_strategy(theory);
+    REQUIRE(sel.strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+    REQUIRE_FALSE(sel.is_specialized());
+
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+    REQUIRE_FALSE(bundle.value().specialized());
+}
+
 TEST_CASE("TheoryHistChi2Emit selects S5 for poly / bitmask_blend keystream",
           "[dsl][emit][hist][chi2][s5]") {
     const TheoryIr theory = make_poly_keystream_theory();
@@ -392,8 +450,8 @@ TEST_CASE("TheoryHistChi2Emit S3 ExprLower specializes Mul(x,i)-shaped",
     REQUIRE(bundle.value().s3_scalar().has_value());
 }
 
-TEST_CASE("TheoryHistChi2Emit prefer_branch stays hard S0 (not S3)",
-          "[dsl][emit][hist][chi2]") {
+TEST_CASE("TheoryHistChi2Emit prefer_branch stays hard S0 until measured twin",
+          "[dsl][emit][hist][chi2][prefer_branch]") {
     const StatusOr<ParamIr> c = ParamIr::make("c", 0, 1);
     REQUIRE(c.ok());
     const Z29Expr::Ptr x = Z29Expr::var("x");
@@ -405,11 +463,67 @@ TEST_CASE("TheoryHistChi2Emit prefer_branch stays hard S0 (not S3)",
         TheoryIr::InterruptMode::ElementwiseDefault, {c.value()}, expr, expr,
         std::string("prefer_branch → S0."));
     REQUIRE(theory.ok());
+
+    const TheoryHistChi2Emit::Selection sel =
+        TheoryHistChi2Emit::select_strategy(theory.value());
+    REQUIRE(sel.strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+    REQUIRE(sel.reason().find("measured twin") != std::string::npos);
+
     StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
         TheoryHistChi2Emit::emit_decrypt_hist(theory.value());
     REQUIRE(bundle.ok());
     REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
     REQUIRE_FALSE(bundle.value().specialized());
+    REQUIRE(bundle.value().reason().find("measured twin") != std::string::npos);
+}
+
+TEST_CASE("TheoryHistChi2Emit Affine ShapeInline stays specialized despite inv hoists",
+          "[dsl][emit][hist][chi2][hoist]") {
+    // Policy: ShapeInline twins ignore HotLoop temps; keep specialized when
+    // DslOptimize surfaces decrypt inv-hoists (export/plan_writer path).
+    const TheoryIr theory = make_affine_theory();
+    StatusOr<DslOptimize::TheoryResult> opt = DslOptimize::optimize_theory(theory);
+    REQUIRE(opt.ok());
+    REQUIRE(opt.value().decrypt().inv_hoists() >= 1);
+
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist_optimized(theory);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::ShapeInline);
+    REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().has_shape_affine_kernel());
+}
+
+TEST_CASE("TheoryHistChi2Emit S1 soft-falls S0 when decrypt inv hoists present",
+          "[dsl][emit][hist][chi2][hoist]") {
+    // FxOnly body-eval path: Add(x, inv(k)) — not Affine decrypt / Caesar.
+    // Hoist prelude is not wired into S1 hist; must soft-fall S0 (no wrong scores).
+    const StatusOr<ParamIr> k = ParamIr::make("k", 1, 28);
+    REQUIRE(k.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr body = Z29Expr::add(x, Z29Expr::inv(Z29Expr::var("k")));
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "emit_fx_plus_inv", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {k.value()}, body, body,
+        std::string("FxOnly + inv → S1 classify, hoist soft S0."));
+    REQUIRE(theory.ok());
+
+    REQUIRE(TheoryHistChi2Emit::select_strategy(theory.value()).strategy() ==
+            TheoryHistChi2Emit::Strategy::S1Lut29);
+
+    StatusOr<TheoryHistChi2Emit::EmitBundle> no_hoist =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory.value());
+    REQUIRE(no_hoist.ok());
+    REQUIRE(no_hoist.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29);
+    REQUIRE(no_hoist.value().specialized());
+
+    StatusOr<TheoryHistChi2Emit::EmitBundle> with_hoist =
+        TheoryHistChi2Emit::emit_decrypt_hist_optimized(theory.value());
+    REQUIRE(with_hoist.ok());
+    REQUIRE(with_hoist.value().intended_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29);
+    REQUIRE(with_hoist.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+    REQUIRE_FALSE(with_hoist.value().specialized());
+    REQUIRE(with_hoist.value().reason().find("hoists") != std::string::npos);
 }
 
 #if defined(PARCAE_HAS_CUDA)

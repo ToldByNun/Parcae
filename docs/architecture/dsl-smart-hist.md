@@ -54,7 +54,7 @@ Python HotLoop decrypt_step
   → Z29ExprNormalize          (algebraic rewrite; CPU; idempotent)
   → TheoryShapeMatch          (ShapeId + param bindings; name-irrelevant)
   → TheoryHistChi2Emit        (plans / sources; prefer shape before generic S1)
-  → TheoryHistChi2Launch      (shape twins | S1 | S2 | S3/module | S4 | S0)
+  → TheoryHistChi2Launch      (shape | S1 | S2 | S5 | S3/module | S4 | S0)
   → GpuCandidateExport        (prefer specialized; soft-fallback S0)
 ```
 
@@ -73,8 +73,8 @@ soft twin; residual FxOnly uses **device LUT bake** into `TheoryDeviceScratch`
 (bind slots on host; bake+hist on device; domain → +inf via `lane_err`); S3
 ExprLower in-lib twin; `TheoryHistModule` cubin/NVRTC cache by URI+digest;
 `has_specialized` true when a module is cached; S4 AutokeyRing for
-vigenere_lag-class; launch prefer
-`Module→ShapeInline→S1→S2→S3→S4→S0` (module/twin fail → soft S0).
+vigenere_lag-class (name-irrelevant); S5 poly/bitmask_blend twin; launch prefer
+`Module→ShapeInline→S1→S2→S5→S3→S4→S0` (module/twin fail → soft S0).
 
 ---
 
@@ -114,11 +114,24 @@ it.
 | `x - (b0 + b1 * i)` progressive-style | `LinearKeystream` |
 | `x - (b1 * i)` / `x ± i` / const `b0`/`b1` Lits | `LinearKeystream` (widened) |
 | `x - (b0 + b1*i + b2*i*i)` / bitmask_blend-class | `PolyKeystream` |
+| `x ± z29_autokey_shift(x, lag)` (any theory name) | `Autokey` → S4 |
 | Theory named `foo_bar` that is Atbash arith | still `Atbash` |
 | `family` / URI string mentioning “caesar” but math is affine | `Affine` (math wins) |
 
 `DslPeakSanity::suggest_tier` name heuristics are **ops / diary only**. They
 MUST NOT drive Kernel SLO launch routing.
+
+### Hoists + `prefer_branch` policy (locked)
+
+| Situation | Hist policy | Rationale |
+|-----------|-------------|-----------|
+| `prefer_branch` Select (`#ignore DSL_FLAG:divergent_branch`) | **Hard S0** | Divergent CUDA HotLoop twin not measured; stay on bytecode until a twin exists and fair Spec is proven |
+| Mux `Select` without `prefer_branch` | May specialize (S1/S3/…) | Predicated / lane-uniform mux is OK for hist |
+| Decrypt `inv` hoists + ShapeInline Atbash/Caesar/Affine-decrypt | **Stay specialized** | Shape twins own device `inv(a)` / fixed maps; HotLoop temps unused |
+| Decrypt `inv` hoists + S1/S2/S3/S4/S5 body-eval | **Soft S0** | Hist kernels lack hoist prelude; soft-fall avoids wrong scores |
+| Soft S0 / hard S0 | Scores ≡ CPU bytecode; `export_backend=cuda` | Soft-fallback gate unchanged |
+
+Catch2 tags: `[prefer_branch]`, `[hoist]` under emit / plan / export / edge.
 
 ---
 
@@ -187,9 +200,10 @@ reach the same normal form without them.
 | Self-written Atbash arith vs `z29_atbash` Call | Same `ShapeId`; scores ≡; both specialized when twins ship |
 | Affine with non-invertible `a` | No false Affine match; lane `+inf` / soft S0; no UB |
 | Div0 / inv domain | Lane `+inf`; interrupt rules unchanged |
-| Autokey in decrypt | S4 when shipped; until then hard S0; scores ≡ CPU |
-| `prefer_branch` Select | S0 until a measured divergent specialized path exists |
-| Hoists on S1 | Soft S0 until wired; test locks the policy |
+| Autokey in decrypt | S4 AutokeyRing when lag bindable (param/const); unbound lag → hard S0; scores ≡ CPU |
+| `prefer_branch` / divergent Select | **Hard S0** until a measured twin exists (`#ignore DSL_FLAG:divergent_branch`). Catch2 `[prefer_branch]` |
+| Hoists on ShapeInline Affine/Atbash/Caesar | Stay specialized (device twin; no HotLoop temps) — `[dsl][emit][hist][hoist]` |
+| Hoists on S1/S2/S3/S4/S5 body-eval | Soft S0 + parity; no wrong scores — `[hoist]` export/edge |
 | Caps (`ops` / `stack` / `slots`) | S0 or stable reject; never UB |
 | Empty cipher / `C=0` / `T=0` | Reject |
 | Non-empty host interrupt | Reject export |
@@ -262,6 +276,8 @@ private:
 | Emit sources / `hist_module` | `hist_plan.json` (+ optional `hist/*.{hpp,cu}`); `TheoryHistModule` load by URI+digest | `hist_plan` + optional module load |
 | `has_specialized` | True when `TheoryHistModule` has URI | True when module/shape plan present |
 | Fair specialize Caesar bytecode | S1 when eligible | Keep; shape twins supersede when richer |
+| `prefer_branch` / divergent Select | **Hard S0** (documented; Catch2 locked) | Measured divergent twin TBD |
+| Decrypt `inv` hoists | ShapeInline keep; S1–S5 soft S0 | Wire hoist prelude into body-eval hist later |
 
 ---
 
@@ -274,6 +290,8 @@ Declare this smartness workstream complete only when **all** apply:
 - [x] Non-linear `i` customs → S3 or module (unless caps / prefer_branch / pre-S4 autokey)
 - [x] Autokey customs → S4 AutokeyRing (vigenere_lag class; name-irrelevant)
 - [x] Poly / bitmask_blend-class `b0+b1·i+b2·i·i` → S5 twin (name-irrelevant)
+- [x] `prefer_branch` / divergent Select → hard S0 until measured twin; explicit tests
+- [x] Decrypt hoists → soft S0 on S1–S5; ShapeInline Affine/Atbash/Caesar keep specialized
 - [ ] Normalize + match name-irrelevant goldens green
 - [ ] Edge matrix above locked in Catch2
 - [ ] `%peak ≤ 100` after traffic-model pass; Spec not lowered to quiet max

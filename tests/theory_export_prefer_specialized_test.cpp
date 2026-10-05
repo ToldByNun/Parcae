@@ -371,6 +371,35 @@ TEST_CASE("GpuCandidateExport prefers S1 device-bake for residual FxOnly; χ² p
     return th.value();
 }
 
+[[nodiscard]] TheoryIr make_prefer_branch_custom() {
+    const StatusOr<ParamIr> c = ParamIr::make("c", 0, 1);
+    REQUIRE(c.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        Z29Expr::var("c"), Z29Expr::sub(Z29Expr::constant(28).value(), x), x,
+        /*prefer_branch=*/true);
+    const StatusOr<TheoryIr> th = TheoryIr::make(
+        "export_prefer_divergent", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {c.value()}, expr, expr,
+        std::string("prefer_branch divergent Select → hard S0."));
+    REQUIRE(th.ok());
+    return th.value();
+}
+
+/// FxOnly + inv(k): S1 without hoists; export optimize path soft-falls S0.
+[[nodiscard]] TheoryIr make_fx_plus_inv() {
+    const StatusOr<ParamIr> k = ParamIr::make("k", 1, 28);
+    REQUIRE(k.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr body = Z29Expr::add(x, Z29Expr::inv(Z29Expr::var("k")));
+    const StatusOr<TheoryIr> th = TheoryIr::make(
+        "export_prefer_fx_inv", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {k.value()}, body, body,
+        std::string("FxOnly + inv hoist soft S0."));
+    REQUIRE(th.ok());
+    return th.value();
+}
+
 TEST_CASE("GpuCandidateExport prefers S4 AutokeyRing for custom vigenere_lag",
           "[search][export][theory][specialized][cuda][s4]") {
     const std::filesystem::path root =
@@ -414,6 +443,61 @@ TEST_CASE("GpuCandidateExport prefers S4 AutokeyRing for custom vigenere_lag",
         REQUIRE(cpu.ok());
         REQUIRE(gpu_scores.value()[c] == cpu.value());
     }
+
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE("GpuCandidateExport prefers S4 for const-lag custom Autokey",
+          "[search][export][theory][specialized][cuda][s4]") {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_export_prefer_s4_const";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const StatusOr<Z29Expr::Ptr> lag = Z29Expr::constant(4);
+    REQUIRE(lag.ok());
+    const Z29Expr::Ptr prior = Z29Expr::call("z29_autokey_shift", {x, lag.value()});
+    const StatusOr<TheoryIr> th = TheoryIr::make(
+        "export_prefer_const_lag", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign, {}, Z29Expr::add(x, prior),
+        Z29Expr::sub(x, prior), std::string("Const-lag Autokey without catalog API."));
+    REQUIRE(th.ok());
+    const TheoryIr theory = th.value();
+    REQUIRE(install_theory(root / "theories", theory).ok());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = make_cipher(40);
+    // No params — lag is folded const.
+    const std::vector<nlohmann::json> params_list{nlohmann::json::object()};
+
+    TheoryExportCache cache;
+    StatusOr<const TheoryExportCache::Entry*> prepared = cache.ensure(
+        root / "theories", "parcae://theories/export_prefer_const_lag@1",
+        TransformDirection::Decrypt);
+    REQUIRE(prepared.ok());
+    REQUIRE(prepared.value()->hist_plan().emitted_strategy() ==
+            TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+    REQUIRE(prepared.value()->hist_plan().s4_autokey().has_value());
+    REQUIRE(prepared.value()->hist_plan().s4_autokey()->has_const_lag());
+    REQUIRE(prepared.value()->hist_plan().s4_autokey()->const_lag() == 4);
+
+    StatusOr<std::vector<double>> gpu_scores = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/export_prefer_const_lag@1",
+        params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
+    REQUIRE(gpu_scores.ok());
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S4AutokeyRing);
+
+    StatusOr<std::vector<Index29>> plain =
+        TheoryDispatch::apply(theory, cipher, params_list[0], TransformDirection::Decrypt);
+    REQUIRE(plain.ok());
+    StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
+    REQUIRE(cpu.ok());
+    REQUIRE(gpu_scores.value()[0] == cpu.value());
 
     std::filesystem::remove_all(root, ec);
 }
@@ -517,6 +601,99 @@ TEST_CASE("GpuCandidateExport prefers S2 linear hist; soft S0 for non-specialize
         REQUIRE(cpu.ok());
         REQUIRE(gpu_scores.value()[c] == cpu.value());
     }
+}
+
+TEST_CASE("GpuCandidateExport prefer_branch divergent Select stays hard S0",
+          "[search][export][theory][specialized][cuda][prefer_branch]") {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_export_prefer_branch";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const TheoryIr theory = make_prefer_branch_custom();
+    REQUIRE(install_theory(root / "theories", theory).ok());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = make_cipher(48);
+    std::vector<nlohmann::json> params_list{nlohmann::json{{"c", 0}}, nlohmann::json{{"c", 1}}};
+
+    TheoryExportCache cache;
+    StatusOr<const TheoryExportCache::Entry*> prepared = cache.ensure(
+        root / "theories", "parcae://theories/export_prefer_divergent@1",
+        TransformDirection::Decrypt);
+    REQUIRE(prepared.ok());
+    REQUIRE_FALSE(prepared.value()->hist_plan().specialized());
+    REQUIRE(prepared.value()->hist_plan().emitted_strategy() ==
+            TheoryHistChi2Emit::Strategy::S0Bytecode);
+
+    StatusOr<std::vector<double>> gpu_scores = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/export_prefer_divergent@1",
+        params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
+    REQUIRE(gpu_scores.ok());
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+
+    for (std::size_t c = 0; c < params_list.size(); ++c) {
+        StatusOr<std::vector<Index29>> plain =
+            TheoryDispatch::apply(theory, cipher, params_list[c], TransformDirection::Decrypt);
+        REQUIRE(plain.ok());
+        StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
+        REQUIRE(cpu.ok());
+        REQUIRE(gpu_scores.value()[c] == cpu.value());
+    }
+
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST_CASE("GpuCandidateExport FxOnly+inv soft-falls S0 on decrypt hoists; scores ≡ CPU",
+          "[search][export][theory][specialized][cuda][hoist]") {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_export_prefer_hoist";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const TheoryIr theory = make_fx_plus_inv();
+    REQUIRE(install_theory(root / "theories", theory).ok());
+    REQUIRE(TheoryHistChi2Emit::select_strategy(theory).strategy() ==
+            TheoryHistChi2Emit::Strategy::S1Lut29);
+    REQUIRE_FALSE(TheoryHistChi2Emit::emit_decrypt_hist_optimized(theory).value().specialized());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = make_cipher(48);
+    std::vector<nlohmann::json> params_list{nlohmann::json{{"k", 1}}, nlohmann::json{{"k", 3}},
+                                            nlohmann::json{{"k", 5}}};
+
+    TheoryExportCache cache;
+    StatusOr<const TheoryExportCache::Entry*> prepared = cache.ensure(
+        root / "theories", "parcae://theories/export_prefer_fx_inv@1", TransformDirection::Decrypt);
+    REQUIRE(prepared.ok());
+    REQUIRE_FALSE(prepared.value()->hist_plan().specialized());
+    REQUIRE(prepared.value()->hist_plan().emitted_strategy() ==
+            TheoryHistChi2Emit::Strategy::S0Bytecode);
+
+    StatusOr<std::vector<double>> gpu_scores = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/export_prefer_fx_inv@1",
+        params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
+    REQUIRE(gpu_scores.ok());
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+
+    for (std::size_t c = 0; c < params_list.size(); ++c) {
+        StatusOr<std::vector<Index29>> plain =
+            TheoryDispatch::apply(theory, cipher, params_list[c], TransformDirection::Decrypt);
+        REQUIRE(plain.ok());
+        StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
+        REQUIRE(cpu.ok());
+        REQUIRE(gpu_scores.value()[c] == cpu.value());
+    }
+
+    std::filesystem::remove_all(root, ec);
 }
 
 #else

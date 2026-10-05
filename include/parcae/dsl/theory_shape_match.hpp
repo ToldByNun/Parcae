@@ -269,7 +269,8 @@ private:
     [[nodiscard]] static Match match_normalized(const Z29Expr& expr, Z29Expr::Ptr owned,
                                                 std::string_view cipher_var) {
         if (has_prefer_branch(expr)) {
-            return Match{ShapeId::Unknown, "prefer_branch Select is Unknown until specialized",
+            return Match{ShapeId::Unknown,
+                         "prefer_branch / divergent Select stays S0 until a measured twin exists",
                          std::move(owned)};
         }
         if (has_autokey(expr)) {

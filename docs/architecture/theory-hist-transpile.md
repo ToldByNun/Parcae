@@ -167,12 +167,12 @@ private:
 
 | Case | Required behavior |
 |------|-------------------|
-| Autokey HotLoop | Today S0; target S4 when matched. Scores must match oracle either way |
+| Autokey HotLoop | S4 AutokeyRing when vigenere_lag lag binds (param/const); else hard S0. Scores ≡ oracle |
 | Div0 / inv domain | Lane `+inf`; soft S0 if specialized path cannot bind |
 | Non-empty interrupt | Reject export |
 | Empty interrupt | Allowed |
-| `prefer_branch` Select | S0 until a measured divergent specialized path exists; S0 peak gate still holds |
-| Decrypt hoists | Must not silently wrong-score; wire into S1/S3 or soft S0 with parity |
+| `prefer_branch` Select | **Hard S0** until a measured divergent specialized twin exists; S0 peak gate still holds. Mux Select without the flag may still specialize. |
+| Decrypt `inv` hoists | **Keep soft S0** on body-eval hist (S1/S2/S3/S4/S5) until a hoist prelude is wired into those kernels. **ShapeInline** Atbash/Caesar/Affine-decrypt twins still specialize (device twin owns `inv(a)`; ignores HotLoop temps). Never silently wrong-score. |
 | Caps (ops/stack/slots/C/T) | S0 or stable `DslRuleId` reject — no UB |
 | Top-k parity | CPU bytecode ≡ specialized (and ≡ S0) on fixed grids |
 | Short T / campaign | Document as wall only |

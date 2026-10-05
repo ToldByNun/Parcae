@@ -144,8 +144,9 @@ public:
         if (theory_uri.empty()) {
             return Status::error("TheoryHistPlanWriter: empty theory_uri");
         }
+        // Optimize so decrypt inv-hoists reach emit (soft S0 on body-eval paths).
         StatusOr<TheoryHistChi2Emit::EmitBundle> emit =
-            TheoryHistChi2Emit::emit_decrypt_hist(theory, cipher_var);
+            TheoryHistChi2Emit::emit_decrypt_hist_optimized(theory, cipher_var);
         if (!emit.ok()) {
             return emit.status();
         }

@@ -625,6 +625,54 @@ TEST_CASE("fused theory export rejects non-empty interrupt",
     std::filesystem::remove_all(root, ec);
 }
 
+TEST_CASE("prefer_branch divergent Select stays hard S0; χ² ≡ CPU",
+          "[cuda][theory][edge][prefer_branch]") {
+    REQUIRE(ParcaeCuda::available());
+
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_theory_edge_prefer_branch";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const StatusOr<ParamIr> c = ParamIr::make("c", 0, 1);
+    REQUIRE(c.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        Z29Expr::var("c"), Z29Expr::sub(Z29Expr::constant(28).value(), x), x,
+        /*prefer_branch=*/true);
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "edge_prefer_branch", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {c.value()}, expr, expr,
+        std::string("Edge prefer_branch hard S0."));
+    REQUIRE(theory.ok());
+    REQUIRE(install_theory(root / "theories", theory.value()).ok());
+    REQUIRE(TheoryHistChi2Emit::select_strategy(theory.value()).strategy() ==
+            TheoryHistChi2Emit::Strategy::S0Bytecode);
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = make_cipher(32);
+    std::vector<nlohmann::json> params_list{nlohmann::json{{"c", 0}}, nlohmann::json{{"c", 1}}};
+
+    TheoryExportCache cache;
+    StatusOr<std::vector<double>> gpu = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/edge_prefer_branch@1",
+        params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
+    REQUIRE(gpu.ok());
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+
+    const std::vector<double> bytecode =
+        launch_bytecode_scores(theory.value(), cipher, params_list, freqs.value());
+    for (std::size_t i = 0; i < bytecode.size(); ++i) {
+        REQUIRE(gpu.value()[i] == bytecode[i]);
+    }
+
+    std::filesystem::remove_all(root, ec);
+}
+
 #else
 
 TEST_CASE("theory specialized edgecases skipped without CUDA",

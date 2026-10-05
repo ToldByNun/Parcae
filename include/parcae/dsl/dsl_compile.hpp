@@ -312,8 +312,10 @@ public:
                 if (!uri.ok()) {
                     return uri.status();
                 }
+                // Use Inv-reinstated apply IR (not hoisted temps) so Affine/shape match;
+                // prepare re-optimizes and soft-falls S0 when body-eval paths see hoists.
                 StatusOr<TheoryHistPlanWriter::Bundle> prepared = TheoryHistPlanWriter::prepare(
-                    optimized.value().theory(), uri.value().to_string(), "x");
+                    apply_theory.value(), uri.value().to_string(), "x");
                 if (prepared.ok()) {
                     hist_bundle = std::move(prepared.value());
                     paths.set_hist_plan(std::string(TheoryHistPlanWriter::Bundle::plan_rel()));

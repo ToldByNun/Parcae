@@ -30,9 +30,11 @@
 /// Classify via `Z29ExprNormalize` + `TheoryShapeMatch` (name-irrelevant), then:
 /// ShapeInline Atbash/Caesar/Affine-decrypt → in-lib `TheoryHistChi2Shape`;
 /// Affine encrypt-form → S1 soft twin; LinearKeystream → S2; FxOnly → S1;
-/// Autokey vigenere_lag → S4 AutokeyRing; prefer_branch → S0; PolyKeystream → S5;
-/// KeyedGeneral → S3
+/// Autokey vigenere_lag → S4 AutokeyRing; PolyKeystream → S5; KeyedGeneral → S3
 /// (ExprLower within caps) else soft S0.
+/// `prefer_branch` / divergent Select → hard S0 until a measured twin exists.
+/// Decrypt `inv` hoists → soft S0 on body-eval paths (S1/S2/S3/S4/S5); ShapeInline
+/// Atbash/Caesar/Affine twins may specialize (they ignore HotLoop temps).
 ///
 /// No C++ namespaces. Emitted CUDA uses file-scope `__global__` names —
 /// never anonymous `namespace {}`.
@@ -615,7 +617,9 @@ public:
 
         const Z29Expr& dec = *theory.decrypt_step();
         if (expr_has_prefer_branch_select(dec)) {
-            return Selection{Strategy::S0Bytecode, "prefer_branch Select is S0-only"};
+            return Selection{Strategy::S0Bytecode,
+                             "prefer_branch / divergent Select stays S0 until a measured twin "
+                             "exists"};
         }
 
         const bool uses_cipher = DslOptimize::depends_on_var(dec, cipher_var);
@@ -712,9 +716,29 @@ public:
         return plan.coeffs_ok() ? std::optional<S2LinearPlan>{std::move(plan)} : std::nullopt;
     }
 
+    /// Optimize decrypt (`inv` hoist detection), reinstate Inv for match/bytecode-shaped
+    /// apply IR, then emit with hoist list so body-eval paths soft-fall S0 when needed.
+    [[nodiscard]] static StatusOr<EmitBundle>
+    emit_decrypt_hist_optimized(const TheoryIr& theory, std::string_view cipher_var = "x") {
+        StatusOr<DslOptimize::TheoryResult> opt =
+            DslOptimize::optimize_theory(theory, cipher_var);
+        if (!opt.ok()) {
+            return emit_decrypt_hist(theory, cipher_var);
+        }
+        StatusOr<TheoryIr> apply = DslOptimize::theory_for_apply(opt.value());
+        if (!apply.ok()) {
+            return emit_decrypt_hist(theory, cipher_var);
+        }
+        return emit_decrypt_hist(apply.value(), cipher_var, opt.value().decrypt().hoists());
+    }
+
     /// Emit fused-hist sources for decrypt search path.
     /// ShapeInline → S1 LUT soft twin (+ ShapePlan); S1 → LUT-29; S2 linear → uchar4;
     /// S3 ExprLower within caps → scalar twin; else soft S0 fallback.
+    ///
+    /// When `decrypt_hoists` is non-empty: ShapeInline Atbash/Caesar/Affine twins still
+    /// specialize (device twin ignores HotLoop temps); S1 soft / S1–S5 soft-fall S0 until
+    /// a hoist prelude is wired into those hist kernels.
     [[nodiscard]] static StatusOr<EmitBundle>
     emit_decrypt_hist(const TheoryIr& theory, std::string_view cipher_var = "x",
                       const std::vector<DslOptimize::Hoist>& decrypt_hoists = {}) {
@@ -730,13 +754,6 @@ public:
         }
 
         if (sel.strategy() == Strategy::ShapeInline) {
-            if (!decrypt_hoists.empty()) {
-                return EmitBundle{Strategy::ShapeInline, Strategy::S0Bytecode, false,
-                                  std::string("ShapeInline classified but decrypt hoists not yet "
-                                              "wired; fallback S0 (") +
-                                      sel.reason() + ")",
-                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
-            }
             if (sel.shape() && sel.shape()->has_shape_hist_kernel()) {
                 const char* kern = "theory_hist_chi2_shape_atbash_kernel";
                 if (sel.shape()->has_shape_caesar_kernel()) {
@@ -747,6 +764,13 @@ public:
                 return EmitBundle{Strategy::ShapeInline, Strategy::ShapeInline, true,
                                   std::string("ShapeInline hist twin: ") + sel.reason(), "", "",
                                   kern, std::nullopt, std::nullopt, sel.shape()};
+            }
+            if (!decrypt_hoists.empty()) {
+                return EmitBundle{Strategy::ShapeInline, Strategy::S0Bytecode, false,
+                                  std::string("ShapeInline S1 soft twin: decrypt hoists not yet "
+                                              "wired; fallback S0 (") +
+                                      sel.reason() + ")",
+                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
             }
             StatusOr<EmitBundle> soft = emit_s1_lut_sources(theory, cipher_var, sel.reason());
             if (!soft.ok()) {
@@ -786,6 +810,13 @@ public:
         }
 
         if (sel.strategy() == Strategy::S2Uchar4Inline) {
+            if (!decrypt_hoists.empty()) {
+                return EmitBundle{Strategy::S2Uchar4Inline, Strategy::S0Bytecode, false,
+                                  std::string("S2 classified but decrypt hoists not yet wired; "
+                                              "fallback S0 (") +
+                                      sel.reason() + ")",
+                                  "", "", "", std::nullopt, std::nullopt, sel.shape()};
+            }
             std::optional<S2LinearPlan> plan;
             if (sel.shape() &&
                 sel.shape()->shape() == TheoryShapeMatch::ShapeId::LinearKeystream &&

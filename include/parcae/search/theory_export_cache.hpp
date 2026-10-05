@@ -311,8 +311,9 @@ private:
 
         HistPlan hist_plan;
         if (direction == TransformDirection::Decrypt) {
+            // Apply IR is Inv-reinstated; re-optimize to surface decrypt hoists for soft S0.
             StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
-                TheoryHistChi2Emit::emit_decrypt_hist(theory.value(), cipher_var);
+                TheoryHistChi2Emit::emit_decrypt_hist_optimized(theory.value(), cipher_var);
             if (bundle.ok() && bundle.value().specialized()) {
                 hist_plan = HistPlan{bundle.value().emitted_strategy(), true,
                                      bundle.value().s1_lut(), bundle.value().s2_linear(),

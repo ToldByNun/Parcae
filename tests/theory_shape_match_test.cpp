@@ -300,7 +300,7 @@ TEST_CASE("TheoryShapeMatch KeyedGeneral uses i non-linear", "[dsl][shape]") {
     REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::KeyedGeneral);
 }
 
-TEST_CASE("TheoryShapeMatch Autokey vigenere_lag binds lag", "[dsl][shape]") {
+TEST_CASE("TheoryShapeMatch Autokey vigenere_lag binds lag", "[dsl][shape][s4]") {
     const Z29Expr::Ptr expr = Z29Expr::sub(
         TheoryShapeMatchTestUtil::x(),
         Z29Expr::call("z29_autokey_shift",
@@ -313,7 +313,62 @@ TEST_CASE("TheoryShapeMatch Autokey vigenere_lag binds lag", "[dsl][shape]") {
     REQUIRE(m.value().cipher_minus_ks());
 }
 
-TEST_CASE("TheoryShapeMatch Autokey name-irrelevant custom still Autokey", "[dsl][shape]") {
+TEST_CASE("TheoryShapeMatch Autokey Add+Neg decrypt form", "[dsl][shape][s4]") {
+    const Z29Expr::Ptr prior = Z29Expr::call(
+        "z29_autokey_shift",
+        {TheoryShapeMatchTestUtil::x(), TheoryShapeMatchTestUtil::v("delay")});
+    const Z29Expr::Ptr expr =
+        Z29Expr::add(TheoryShapeMatchTestUtil::x(), Z29Expr::neg(prior));
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::Autokey);
+    REQUIRE(m.value().autokey_lag_ok());
+    REQUIRE(m.value().lag_name() == "delay");
+    REQUIRE(m.value().cipher_minus_ks());
+}
+
+TEST_CASE("TheoryShapeMatch Autokey Add encrypt form (cipher + shift)", "[dsl][shape][s4]") {
+    const Z29Expr::Ptr prior = Z29Expr::call(
+        "z29_autokey_shift",
+        {TheoryShapeMatchTestUtil::x(), TheoryShapeMatchTestUtil::v("lag")});
+    const Z29Expr::Ptr expr = Z29Expr::add(TheoryShapeMatchTestUtil::x(), prior);
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::Autokey);
+    REQUIRE(m.value().autokey_lag_ok());
+    REQUIRE_FALSE(m.value().cipher_minus_ks());
+}
+
+TEST_CASE("TheoryShapeMatch Autokey const lag binds", "[dsl][shape][s4]") {
+    const Z29Expr::Ptr expr = Z29Expr::sub(
+        TheoryShapeMatchTestUtil::x(),
+        Z29Expr::call("z29_autokey_shift",
+                      {TheoryShapeMatchTestUtil::x(), TheoryShapeMatchTestUtil::lit(3)}));
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::Autokey);
+    REQUIRE(m.value().autokey_lag_ok());
+    REQUIRE(m.value().has_const_lag());
+    REQUIRE(m.value().const_lag() == 3);
+    REQUIRE(m.value().lag_name().empty());
+    REQUIRE(m.value().cipher_minus_ks());
+}
+
+TEST_CASE("TheoryShapeMatch Autokey lag depending on i is unbound Autokey",
+          "[dsl][shape][s4]") {
+    // Still Autokey shape (contains Call), but no lag bind → emit soft S0.
+    const Z29Expr::Ptr expr = Z29Expr::sub(
+        TheoryShapeMatchTestUtil::x(),
+        Z29Expr::call("z29_autokey_shift",
+                      {TheoryShapeMatchTestUtil::x(), TheoryShapeMatchTestUtil::v("i")}));
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::Autokey);
+    REQUIRE_FALSE(m.value().autokey_lag_ok());
+}
+
+TEST_CASE("TheoryShapeMatch Autokey name-irrelevant custom still Autokey",
+          "[dsl][shape][s4]") {
     // Theory name is unrelated to catalog autokey_lag / vigenere — math wins.
     const TheoryIr theory = TheoryShapeMatchTestUtil::make_theory(
         "foo_stream_custom",
@@ -327,7 +382,8 @@ TEST_CASE("TheoryShapeMatch Autokey name-irrelevant custom still Autokey", "[dsl
     REQUIRE(m.value().lag_name() == "lag");
 }
 
-TEST_CASE("TheoryShapeMatch prefer_branch Select is Unknown", "[dsl][shape]") {
+TEST_CASE("TheoryShapeMatch prefer_branch Select is Unknown until measured twin",
+          "[dsl][shape][prefer_branch]") {
     const Z29Expr::Ptr expr = Z29Expr::select(
         TheoryShapeMatchTestUtil::v("c"),
         Z29Expr::sub(TheoryShapeMatchTestUtil::lit(28), TheoryShapeMatchTestUtil::x()),
@@ -336,6 +392,7 @@ TEST_CASE("TheoryShapeMatch prefer_branch Select is Unknown", "[dsl][shape]") {
     REQUIRE(m.ok());
     REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::Unknown);
     REQUIRE(m.value().reason().find("prefer_branch") != std::string::npos);
+    REQUIRE(m.value().reason().find("measured twin") != std::string::npos);
 }
 
 TEST_CASE("TheoryShapeMatch name-irrelevant: theory name foo_bar still Atbash", "[dsl][shape]") {

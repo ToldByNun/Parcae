@@ -48,7 +48,7 @@ private:
 | `theory_chi2_batch.hpp` | `TheoryChi2Batch` | Done (fused bytecode hist + χ²; S0 path via `TheoryHistChi2Launch`) |
 | `theory_hist_expr_lower.hpp` | `TheoryHistExprLower` | Done (bounded S3 lower + caps; soft S0 beyond) |
 | `theory_hist_plan_writer.hpp` | `TheoryHistPlanWriter` | Done (`hist/hist_plan.json` + sources; schema validate; s1–s5 + shape) |
-| `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S5 select; S1–S5 emit + goldens) |
+| `theory_hist_chi2_emit.hpp` | `TheoryHistChi2Emit` | Done (S0–S5 select/emit; prefer_branch hard S0; inv-hoist soft S0 on S1–S5; ShapeInline keep) |
 | `theory_hist_chi2_launch.hpp` | `TheoryHistChi2Launch` | Done (CUDA façade: S0 / Shape / S1–S5 / Module) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_s1.hpp` | `TheoryHistChi2S1` | Done (LUT-29 twin + device bake from slots) — under `Parcae/Parcae/cuda/` |
 | `theory_hist_chi2_s2.hpp` | `TheoryHistChi2S2` | Done (linear uchar4 twin) — under `Parcae/Parcae/cuda/` |
@@ -92,6 +92,7 @@ Tests: `[dsl][golden]` smart-compiler acceptance matrix (scope / divergence / ig
 Tests: `[dsl][hostglue]` OuterControl range-for / bounded while; E035 negatives.
 Tests: `[dsl][build][select]` HotLoop If/IfExp → Z29Expr Select + fold.
 Tests: `[dsl][emit][select]` CPU/CUDA Select mux + `prefer_branch` conditional.
+Hist policy: `[prefer_branch]` / `[hoist]` under emit / plan / export / edge.
 Tests: `[dsl][scope]` DslExecScope + DslScopeAnalyzer OuterControl vs HotLoop.
 Tests: `[dsl][ingest][fuzz]` adversarial mutations + limit rejects (no crash).
 Tests: `[dsl][applicator]` IR → Index29 stream apply_into.
@@ -103,7 +104,7 @@ CPU↔CUDA mirror; inv-domain + poly2 \(29^4\) hard gates.
 Tests: `[dsl][fuse]` / `[dsl][fuse][koan][parity]` / `[dsl][fuse][catalog]` DslFuse +
 catalog builtins (`matrix_mix` / `autokey_lag`) + Koan-1 vs ComposeTransform.
 Tests: `[dsl][examples][matrix]` `theories/examples/matrix_builtins_example.py` compile.
-Tests: `[dsl][emit][hist][chi2]` strategy select + S1/S2 emit; `[cuda][golden]` bytecode χ² == specialized; `[cuda][theory][edge]` top-k / Autokey→S0 / Div0 +inf / interrupt reject.
+Tests: `[dsl][emit][hist][chi2]` strategy select + S1–S5 emit; `[cuda][golden]` bytecode χ² == specialized; `[cuda][theory][edge]` top-k / Autokey→S4 / Div0 +inf / interrupt reject.
 Tests: `[dsl][optimize]` DslOptimize const-fold + inv hoist.
 Tests: `[dsl][launch]` DslLaunchPlan vs HistFast / 1D twin formula.
 Tests: `[dsl][peak]` DslPeakSanity vs `BenchTierSpec` ceilings / SLO (incl. `T.theory.*`).
@@ -143,16 +144,19 @@ Compile still emits CPU/CUDA transform text + bytecode. Separately,
 |----------|-------|---------|
 | S1 | `f(x; params)` only | `TheoryHistChi2S1` LUT-29 |
 | S2 | `x ± (b0 + b1·i)` | `TheoryHistChi2S2` linear uchar4 |
-| S0 | unmatched / Autokey / soft-fallback | `TheoryChi2Batch` bytecode interpreter |
-| S3–S5 | Done (ExprLower / AutokeyRing / poly twin) | see contract |
+| S5 | `x ± (b0+b1·i+b2·i·i)` | `TheoryHistChi2S5` poly twin |
+| S3 | bounded `g(i)` / keyed general | `TheoryHistChi2S3` ExprLower |
+| S4 | `z29_autokey_shift` vigenere_lag | `TheoryHistChi2S4` AutokeyRing |
+| S0 | unmatched / soft-fallback | `TheoryChi2Batch` bytecode interpreter |
 
 Target smart path: `Z29ExprNormalize` → `TheoryShapeMatch` (`Atbash` /
 `Caesar` / `Affine` / … by **algebra**, not catalog API) → shared `HistFast`
 twins — [`dsl-smart-hist.md`](../../../docs/architecture/dsl-smart-hist.md).
 
-`GpuCandidateExport` prefers S1/S2 when the cached `HistPlan` matches; launch
-failure soft-falls back to S0 with `export_backend=cuda` unchanged. Soft-fallback
-still requires the **S0** fair Kernel SLO ≥90% Spec peak. Normative rules:
+`GpuCandidateExport` prefers specialized hist when the cached `HistPlan` matches
+(`ShapeInline→S1→S2→S5→S3→S4→S0`); launch failure soft-falls back to S0 with
+`export_backend=cuda` unchanged. Soft-fallback still requires the **S0** fair
+Kernel SLO ≥90% Spec peak. Normative rules:
 [`theory-hist-transpile.md`](../../../docs/architecture/theory-hist-transpile.md),
 [`dsl-smart-hist.md`](../../../docs/architecture/dsl-smart-hist.md).
 Artifact **stream** (`emitted/`, `paths.cuda_*`) vs **fused hist** (`hist/`,

@@ -137,7 +137,8 @@ TEST_CASE("TheoryHistPlanWriter prepares S5 poly plan", "[dsl][hist][plan][s5]")
                 .ok());
 }
 
-TEST_CASE("TheoryHistPlanWriter soft-fall still writes safe S0 plan", "[dsl][hist][plan]") {
+TEST_CASE("TheoryHistPlanWriter soft-fall still writes safe S0 plan",
+          "[dsl][hist][plan][prefer_branch]") {
     const TheoryIr theory = make_prefer_branch_s0();
     StatusOr<TheoryHistPlanWriter::Bundle> bundle =
         TheoryHistPlanWriter::prepare(theory, "parcae://theories/plan_prefer_branch@1");
@@ -146,7 +147,34 @@ TEST_CASE("TheoryHistPlanWriter soft-fall still writes safe S0 plan", "[dsl][his
     REQUIRE_FALSE(bundle.value().write_sources());
     REQUIRE(bundle.value().summary().emitted_strategy() == "S0_bytecode");
     REQUIRE(bundle.value().summary().specialized() == false);
+    REQUIRE(bundle.value().summary().reason().find("measured twin") != std::string::npos);
+    REQUIRE(bundle.value().plan_json().at("reason").get<std::string>().find("measured twin") !=
+            std::string::npos);
     REQUIRE(TheoryHistPlanWriter::validate_plan_json(bundle.value().plan_json()).ok());
+}
+
+TEST_CASE("TheoryHistPlanWriter Affine ShapeInline stays specialized with inv hoists",
+          "[dsl][hist][plan][hoist]") {
+    const StatusOr<ParamIr> a = ParamIr::make("a", 1, 28);
+    const StatusOr<ParamIr> b = ParamIr::make("b", 0, 28);
+    REQUIRE(a.ok());
+    REQUIRE(b.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "plan_affine_hoist", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {a.value(), b.value()},
+        Z29Expr::add(Z29Expr::mul(Z29Expr::var("a"), x), Z29Expr::var("b")),
+        Z29Expr::mul(Z29Expr::inv(Z29Expr::var("a")), Z29Expr::sub(x, Z29Expr::var("b"))),
+        std::string("Affine decrypt with inv hoist."));
+    REQUIRE(theory.ok());
+
+    StatusOr<TheoryHistPlanWriter::Bundle> bundle =
+        TheoryHistPlanWriter::prepare(theory.value(), "parcae://theories/plan_affine_hoist@1");
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().specialized());
+    REQUIRE(bundle.value().summary().emitted_strategy() == "ShapeInline");
+    REQUIRE(bundle.value().plan_json().at("shape").is_object());
+    REQUIRE(bundle.value().plan_json().at("shape").at("shape_id") == "Affine");
 }
 
 TEST_CASE("TheoryHistPlanWriter write + reload validates schema", "[dsl][hist][plan]") {

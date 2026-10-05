@@ -175,7 +175,9 @@ flowchart TB
 `Z29Expr::Select` + applicator eval + `DslOptimize` dead-arm fold.
 CPU/CUDA emit uses `Z29::select` / `Z29Device::select` for uniform mux;
 honored `#ignore DSL_FLAG:divergent_branch` sets `prefer_branch` and emits a
-real C++/CUDA conditional (warp-divergence risk on device).
+real C++/CUDA conditional (warp-divergence risk on device). Fused theory hist
+keeps `prefer_branch` on **hard S0** until a measured divergent twin exists
+([dsl-smart-hist.md](dsl-smart-hist.md) § Hoists + prefer_branch).
 
 **Planned classes** (not all landed yet; names are stable targets):
 
