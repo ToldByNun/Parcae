@@ -1,0 +1,10 @@
+==PROF== Connected to process 9672 (C:\Users\mikaj\Documents\GitHub\Parcae\build-rel-cuda\tools\Release\parcae-bench.exe)
+==PROF== Disconnected from process 9672
+==ERROR== The application returned an error code (1).
+"ID","Process ID","Process Name","Host Name","Kernel Name","Context","Stream","Block Size","Grid Size","Device","CC","Section Name","Metric Name","Metric Unit","Metric Value"
+"0","9672","parcae-bench.exe","127.0.0.1","atbash_chi2_hist_kernel(const unsigned char *, unsigned int *, unsigned long long)","1","7","(256, 1, 1)","(512, 64, 1)","0","12.0","Command line profiler metrics","dram__bytes.sum","byte","2.980.096"
+"0","9672","parcae-bench.exe","127.0.0.1","atbash_chi2_hist_kernel(const unsigned char *, unsigned int *, unsigned long long)","1","7","(256, 1, 1)","(512, 64, 1)","0","12.0","Command line profiler metrics","dram__bytes_read.sum","","n/a"
+"0","9672","parcae-bench.exe","127.0.0.1","atbash_chi2_hist_kernel(const unsigned char *, unsigned int *, unsigned long long)","1","7","(256, 1, 1)","(512, 64, 1)","0","12.0","Command line profiler metrics","dram__bytes_write.sum","","n/a"
+"0","9672","parcae-bench.exe","127.0.0.1","atbash_chi2_hist_kernel(const unsigned char *, unsigned int *, unsigned long long)","1","7","(256, 1, 1)","(512, 64, 1)","0","12.0","Command line profiler metrics","dram__throughput.avg.pct_of_peak_sustained_elapsed","%","0,75"
+"0","9672","parcae-bench.exe","127.0.0.1","atbash_chi2_hist_kernel(const unsigned char *, unsigned int *, unsigned long long)","1","7","(256, 1, 1)","(512, 64, 1)","0","12.0","Command line profiler metrics","gpu__time_duration.avg","ns","446.592"
+"0","9672","parcae-bench.exe","127.0.0.1","atbash_chi2_hist_kernel(const unsigned char *, unsigned int *, unsigned long long)","1","7","(256, 1, 1)","(512, 64, 1)","0","12.0","Command line profiler metrics","sm__throughput.avg.pct_of_peak_sustained_elapsed","%","57,29"

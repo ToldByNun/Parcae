@@ -150,6 +150,13 @@ scripts/research/falsify_nt_keystreams_lp2.py
 !/docs/architecture/profiles/export_duty/pre_residency/SUMMARY.md
 !/docs/architecture/profiles/export_duty/pre_residency/README.md
 !/docs/architecture/profiles/export_duty/pre_residency/*.json
+!/docs/architecture/profiles/cache_bound/
+!/docs/architecture/profiles/cache_bound/SUMMARY.md
+!/docs/architecture/profiles/cache_bound/*.json
+!/docs/architecture/profiles/cache_bound/*_metrics.csv
+!/docs/architecture/profiles/traffic_model/
+!/docs/architecture/profiles/traffic_model/SUMMARY.md
+!/docs/architecture/profiles/traffic_model/*.json
 *.ncu-rep
 *.nsys-rep
 *.nsys-rep.sqlite
@@ -167,3 +174,7 @@ docs/architecture/profiles/export_duty/*.txt
 docs/architecture/profiles/export_duty/*.sqlite
 docs/architecture/profiles/export_duty/pre_residency/*.txt
 docs/architecture/profiles/export_duty/pre_residency/*.sqlite
+docs/architecture/profiles/cache_bound/*.sqlite
+docs/architecture/profiles/cache_bound/capture_log.txt
+docs/architecture/profiles/traffic_model/*.sqlite
+docs/architecture/profiles/traffic_model/capture_log.txt

@@ -1,0 +1,38 @@
+﻿{
+    "plate":  "cache_bound",
+    "hardware":  "RTX 5070 Ti sm_120",
+    "dram_bw_gbs":  896,
+    "fair_tokens":  1048576,
+    "ncu_tokens":  262144,
+    "ncu_ok":  true,
+    "ncu_fallback":  false,
+    "ncu_perm_denied":  false,
+    "skip_ncu":  false,
+    "kernels":  [
+                    {
+                        "tag":  "caesar_hist",
+                        "ncu_rep":  true,
+                        "csv":  true
+                    },
+                    {
+                        "tag":  "atbash_hist",
+                        "ncu_rep":  true,
+                        "csv":  true
+                    },
+                    {
+                        "tag":  "s1_lut",
+                        "ncu_rep":  true,
+                        "csv":  true
+                    },
+                    {
+                        "tag":  "s2_linear",
+                        "ncu_rep":  true,
+                        "csv":  true
+                    },
+                    {
+                        "tag":  "affine_hist",
+                        "ncu_rep":  true,
+                        "csv":  true
+                    }
+                ]
+}

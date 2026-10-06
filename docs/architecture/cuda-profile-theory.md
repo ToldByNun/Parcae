@@ -96,9 +96,21 @@ Post–specialized capture (vs commit-4 baseline):
 | Duration | Derive runes/s |
 | `sm__throughput.avg.pct_of_peak_sustained_elapsed` | Compute headroom |
 | `dram__throughput.avg.pct_of_peak_sustained_elapsed` | Memory bound? |
-| Issue-slot utilization / warp stall reasons | `stall_inst_fetch`, `stall_exec_dependency`, `stall_memory_throttle` |
-| L1/L2 sectors on global loads | Bytecode `ops`/`imm` streaming |
+| `dram__bytes.sum` (+ read/write if available) | Absolute DRAM GB/s and bytes/rune |
+| Issue-slot utilization / warp stall reasons | `stall_inst_fetch`, `stall_exec_dependency`, `stall_memory_throttle` (often **n/a on sm_120**) |
+| L2 hit rate / L1–L2 sectors on global loads | `lts__t_sector_hit_rate.pct`, L1TEX global-load sectors — L2 vs DRAM |
 | Achieved occupancy; grid vs active warps | Underfill at short `T` |
+
+Canonical metric lists live in
+[`profile_theory_hist.ps1`](../../scripts/cuda/profile_theory_hist.ps1):
+
+- `-MetricsPreset baseline` — SM/DRAM % + stalls + duration (legacy captures)
+- `-MetricsPreset cache_bound` — baseline + `dram__bytes.sum` + L1/L2 counters
+- `-ExportCsv` — write `<Tag>_metrics.csv` from the `.ncu-rep`
+
+L2/DRAM absolute plate (Caesar / Atbash / S1 / S2 / Affine):
+[`scripts/cuda/capture_cache_bound.ps1`](../../scripts/cuda/capture_cache_bound.ps1)
+→ [`profiles/cache_bound/`](profiles/cache_bound/).
 
 ### Commands
 
@@ -243,11 +255,15 @@ Repro specialized: [`scripts/cuda/capture_theory_specialized.ps1`](../../scripts
 **S0 climb baseline (S0 vs Caesar twin only):**
 [`scripts/cuda/capture_s0_climb_baseline.ps1`](../../scripts/cuda/capture_s0_climb_baseline.ps1) →
 [`profiles/s0-climb/`](profiles/s0-climb/).  
+**Cache / DRAM absolute (L2 + `dram__bytes.sum`):**
+[`scripts/cuda/capture_cache_bound.ps1`](../../scripts/cuda/capture_cache_bound.ps1) →
+[`profiles/cache_bound/`](profiles/cache_bound/).  
 Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 [`profiles/specialized/SUMMARY.md`](profiles/specialized/SUMMARY.md),
 [`profiles/s0-climb/SUMMARY.md`](profiles/s0-climb/SUMMARY.md),
 [`profiles/hist_local_caesar/SUMMARY.md`](profiles/hist_local_caesar/SUMMARY.md),
-[`profiles/export_duty/SUMMARY.md`](profiles/export_duty/SUMMARY.md).
+[`profiles/export_duty/SUMMARY.md`](profiles/export_duty/SUMMARY.md),
+[`profiles/cache_bound/SUMMARY.md`](profiles/cache_bound/SUMMARY.md).
 
 ### Progress log
 
@@ -285,6 +301,7 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-06 | **traffic_model** | `profiles/traffic_model/` | ncu Atbash+totient hist | C=512 T=262144 | bytes/rune **0.01111** → peak **≈80.7 TB** | DRAM SoL ~0.4–1% | Spec not quiet-max | shared-cipher occupancy class |
 | 2026-10-06 | **kernel_slo_requiet** | `profiles/kernel_slo/` + `dsl_smart/` | slo extended ×2 + dsl_smart ×3 | fair F.*/customs | Atbash/totient `%peak≤100` under 80.7 TB | — | re-quiet ACCEPTANCE | model gate **PASS**; stretch still compute-bound |
 | 2026-10-06 | **dsl_smart_e2e** | `profiles/dsl_smart/` | fair customs ×3 (Atbash/Caesar/Affine/linear/autokey + twins) | fair T=1M | Caesar stretch ~**87%**; Atbash model OK ~2% of 80.7 TB; linear ~43%; autokey ~53%; Affine `%peak>100` intermittent | — | quiet E2E ACCEPTANCE | **PARTIAL PASS** — see SUMMARY; edge tags green |
+| 2026-10-06 | **cache_bound** | `profiles/cache_bound/` | Caesar / Atbash / S1 / S2 / Affine | ncu T=262k + fair JSON | Affine **17.08 GB/s** DRAM (≈16.9); Caesar 28.6; Atbash 4.8; S1 27.4; S2 7.7 | L2 hit Atbash **98.5%** / Affine **97.6%**; DRAM SoL 0.5–3.1% | `-MetricsPreset cache_bound` + CSV | **PASS harness** — all ≪896 GB/s; bytes/rune ≪1 (shared cipher L2) |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 

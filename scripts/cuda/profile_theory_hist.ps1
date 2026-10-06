@@ -10,6 +10,9 @@
   Metric definitions and acceptance rules:
     docs/architecture/cuda-profile-theory.md
 
+  MetricsPreset 'cache_bound' adds dram__bytes.sum + L1/L2 sector / hit-rate
+  counters used by scripts/cuda/capture_cache_bound.ps1.
+
 .PARAMETER Mode
   ncu | nsys | both
 
@@ -29,16 +32,28 @@
   Basename prefix for report files.
 
 .PARAMETER NcuSet
-  ncu --set value (default: full). Use 'none' with -NcuMetrics for a custom list.
+  ncu --set value (default: full). Use 'none' with -NcuMetrics / -MetricsPreset
+  for a custom list.
 
 .PARAMETER NcuMetrics
   Optional comma-separated --metrics list (overrides --set when non-empty).
+  When empty, -MetricsPreset may supply the list.
+
+.PARAMETER MetricsPreset
+  none | baseline | cache_bound
+  - none: use -NcuSet / -NcuMetrics only (default)
+  - baseline: SM/DRAM % + stalls + duration (same list as capture_theory_*.ps1)
+  - cache_bound: baseline + dram__bytes.sum + L1/L2 sector / hit-rate metrics
 
 .PARAMETER LaunchSkip
   Skip this many matching kernel launches before collecting (default 4 = warmups).
 
 .PARAMETER LaunchCount
   Number of matching launches to profile (default 1).
+
+.PARAMETER ExportCsv
+  After a successful ncu collection, import the .ncu-rep and write
+  <OutDir>/<Tag>_metrics.csv (raw page). Soft-fails if import is unavailable.
 
 .PARAMETER CheckToolsOnly
   Verify nsys/ncu resolvable and exit 0/1; do not run a workload.
@@ -62,15 +77,52 @@ param(
 
     [string] $NcuMetrics = '',
 
+    [ValidateSet('none', 'baseline', 'cache_bound')]
+    [string] $MetricsPreset = 'none',
+
     [int] $LaunchSkip = 4,
 
     [int] $LaunchCount = 1,
+
+    [switch] $ExportCsv,
 
     [switch] $CheckToolsOnly
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+function Get-ParcaeNcuMetricsPreset {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('baseline', 'cache_bound')]
+        [string] $Name
+    )
+    $baseline = @(
+        'sm__throughput.avg.pct_of_peak_sustained_elapsed',
+        'dram__throughput.avg.pct_of_peak_sustained_elapsed',
+        'launch__occupancy_limit_blocks',
+        'sm__warps_active.avg.pct_of_peak_sustained_active',
+        'smsp__warp_issue_stalled_inst_fetch_per_warp_active.pct',
+        'smsp__warp_issue_stalled_memory_throttle_per_warp_active.pct',
+        'smsp__warp_issue_stalled_exec_dependency_per_warp_active.pct',
+        'gpu__time_duration.sum'
+    )
+    if ($Name -eq 'baseline') {
+        return ($baseline -join ',')
+    }
+    # cache_bound: absolute DRAM bytes + L1/L2 residency evidence.
+    # Some stall / sector names may be n/a on sm_120 — capture script falls back.
+    $cache = $baseline + @(
+        'dram__bytes.sum',
+        'lts__t_sector_hit_rate.pct',
+        'lts__t_sectors_srcunit_tex_lookup_hit.sum',
+        'lts__t_sectors_srcunit_tex_lookup_miss.sum',
+        'l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum',
+        'l1tex__t_sectors_pipe_lsu_mem_global_op_ld_lookup_hit.sum'
+    )
+    return ($cache -join ',')
+}
 
 function Resolve-NvidiaTool {
     param(
@@ -136,6 +188,13 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $OutDir = (Resolve-Path -LiteralPath $OutDir).Path
 $exeFull = (Resolve-Path -LiteralPath $Exe).Path
 
+# Resolve metrics: explicit -NcuMetrics wins; else preset; else --set.
+$resolvedMetrics = $NcuMetrics
+if ([string]::IsNullOrWhiteSpace($resolvedMetrics) -and $MetricsPreset -ne 'none') {
+    $resolvedMetrics = Get-ParcaeNcuMetricsPreset -Name $MetricsPreset
+    Write-Host "MetricsPreset: $MetricsPreset"
+}
+
 Write-Host "OutDir: $OutDir"
 Write-Host "Exe:    $exeFull"
 Write-Host "Args:   $($ExeArgs -join ' ')"
@@ -155,8 +214,8 @@ if ($needNcu) {
         '--export', $ncuBase,
         '--force-overwrite'
     )
-    if (-not [string]::IsNullOrWhiteSpace($NcuMetrics)) {
-        $ncuArgs += @('--metrics', $NcuMetrics)
+    if (-not [string]::IsNullOrWhiteSpace($resolvedMetrics)) {
+        $ncuArgs += @('--metrics', $resolvedMetrics)
     } elseif ($NcuSet -ne 'none') {
         $ncuArgs += @('--set', $NcuSet)
     }
@@ -173,6 +232,32 @@ if ($needNcu) {
         }
     }
     Write-Host "ncu report: ${ncuBase}.ncu-rep (or tool default extension)"
+
+    if ($ExportCsv -and $null -ne $repPath) {
+        $csvPath = Join-Path $OutDir "${Tag}_metrics.csv"
+        Write-Host "=== ncu CSV export -> $csvPath ==="
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            & $ncuPath --import $repPath.FullName --csv --page raw 2>$null |
+                Set-Content -Path $csvPath -Encoding utf8
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $csvPath) -or
+                (Get-Item -LiteralPath $csvPath).Length -eq 0) {
+                # Fallback page name used by some Nsight Compute builds.
+                & $ncuPath --import $repPath.FullName --csv --page details 2>$null |
+                    Set-Content -Path $csvPath -Encoding utf8
+            }
+            if ((Test-Path -LiteralPath $csvPath) -and (Get-Item -LiteralPath $csvPath).Length -gt 0) {
+                Write-Host "CSV ok: $csvPath"
+            } else {
+                Write-Warning "ncu CSV export empty/failed for $Tag (report still valid)."
+            }
+        } catch {
+            Write-Warning "ncu CSV export failed for ${Tag}: $_"
+        } finally {
+            $ErrorActionPreference = $prevEap
+        }
+    }
 }
 
 if ($needNsys) {

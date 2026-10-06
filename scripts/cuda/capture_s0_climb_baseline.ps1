@@ -37,17 +37,6 @@ $profileScript = Join-Path $repoRoot 'scripts\cuda\profile_theory_hist.ps1'
 $logPath = Join-Path $outDir 'capture_log.txt'
 Start-Transcript -Path $logPath -Force | Out-Null
 
-$ncuMetrics = @(
-    'sm__throughput.avg.pct_of_peak_sustained_elapsed',
-    'dram__throughput.avg.pct_of_peak_sustained_elapsed',
-    'launch__occupancy_limit_blocks',
-    'sm__warps_active.avg.pct_of_peak_sustained_active',
-    'smsp__warp_issue_stalled_inst_fetch_per_warp_active.pct',
-    'smsp__warp_issue_stalled_memory_throttle_per_warp_active.pct',
-    'smsp__warp_issue_stalled_exec_dependency_per_warp_active.pct',
-    'gpu__time_duration.sum'
-) -join ','
-
 $theoryNcuArgs = @('--suite', 'theory', '--allow-cuda', '--tokens', "$NcuTokens",
     '--repeats', "$NcuRepeats", '--no-compare-catalog', '--data-dir', $DataDir)
 $theoryNsysArgs = @('--suite', 'theory', '--allow-cuda', '--tokens', "$NcuTokens",
@@ -84,7 +73,7 @@ function Invoke-NcuKernel {
             -OutDir $outDir `
             -Tag $Tag `
             -NcuSet none `
-            -NcuMetrics $ncuMetrics `
+            -MetricsPreset baseline `
             -LaunchSkip 4 `
             -LaunchCount 1
     } catch {

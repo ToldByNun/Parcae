@@ -36,17 +36,6 @@ $outDir = Join-Path $repoRoot 'docs\architecture\profiles\baseline'
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $profileScript = Join-Path $repoRoot 'scripts\cuda\profile_theory_hist.ps1'
 
-$ncuMetrics = @(
-    'sm__throughput.avg.pct_of_peak_sustained_elapsed',
-    'dram__throughput.avg.pct_of_peak_sustained_elapsed',
-    'launch__occupancy_limit_blocks',
-    'sm__warps_active.avg.pct_of_peak_sustained_active',
-    'smsp__warp_issue_stalled_inst_fetch_per_warp_active.pct',
-    'smsp__warp_issue_stalled_memory_throttle_per_warp_active.pct',
-    'smsp__warp_issue_stalled_exec_dependency_per_warp_active.pct',
-    'gpu__time_duration.sum'
-) -join ','
-
 Write-Host '=== cudaEvent: theory suite (fair T) ==='
 $theoryJson = & $bench --suite theory --allow-cuda --tokens $FairTokens --repeats $FairRepeats `
     --campaign-grid --json --data-dir $DataDir 2>&1
@@ -70,7 +59,7 @@ try {
         -OutDir $outDir `
         -Tag 'theory_hist' `
         -NcuSet none `
-        -NcuMetrics $ncuMetrics `
+        -MetricsPreset baseline `
         -LaunchSkip 4 `
         -LaunchCount 1
 } catch {
@@ -87,7 +76,7 @@ try {
         -OutDir $outDir `
         -Tag 'caesar_hist' `
         -NcuSet none `
-        -NcuMetrics $ncuMetrics `
+        -MetricsPreset baseline `
         -LaunchSkip 4 `
         -LaunchCount 1
 } catch {
@@ -104,7 +93,7 @@ try {
         -OutDir $outDir `
         -Tag 'affine_hist' `
         -NcuSet none `
-        -NcuMetrics $ncuMetrics `
+        -MetricsPreset baseline `
         -LaunchSkip 4 `
         -LaunchCount 1
 } catch {
