@@ -84,9 +84,9 @@ Prefer order when multiple apply (first match wins after normalize):
 
 | Prefer | ShapeId | Math (after normalize) | Runtime twin (target) | Spec peak class |
 |--------|---------|------------------------|-----------------------|-----------------|
-| 1 | `Atbash` | `atbash(x)` equivalent (incl. pure arith) | Shape hist on `HistFast::dec_atbash` | shared-cipher occupancy (~**80.7 TB**; ncu 0.01111 B/rune) |
+| 1 | `Atbash` | `atbash(x)` equivalent (incl. pure arith) | Shape hist on `HistFast::dec_atbash` | compute roof **2.0 TB** (DRAM diary ≈80.7 TB) |
 | 2 | `Caesar` | `x ± shift` | Shape hist / Caesar decode | **896B** |
-| 3 | `Affine` | invertible `a·x+b` | Shape hist / affine decode | **896B** |
+| 3 | `Affine` | invertible `a·x+b` | Shape hist / affine decode | Affine shared-cipher ≈**47.0 TB** |
 | 4 | `LinearKeystream` | `x ± (b0 + b1·i)` (+ widened linear) | `TheoryHistChi2S2` | **896B** (`T.theory.s2_linear`) |
 | 5 | `FxOnly` | other `f(x; params)`, no stream `i` | S1 device LUT bake → hist (no host `eval_at×29×C`) | **896B** (`T.theory.s1_lut29`) |
 | 6 | `KeyedGeneral` | uses `i`, not linear S2 | S3 expr-inline or module | **896B** (row when Spec exists) |
@@ -136,21 +136,27 @@ Catch2 tags: `[prefer_branch]`, `[hoist]` under emit / plan / export / edge.
 
 ---
 
-## 4. Done and stretch vs 896B DRAM roof
+## 4. Done and stretch vs shape `estimated_peak`
 
-Canonical peak: physical GDDR7 roof on the reference plate —
+Canonical peaks on the reference plate:
 
 ```text
+# Unique-key (Caesar / S1 / S2 / …)
 estimated_peak = 896e9 / 1 B_cipher_per_rune = 896B runes/s
+
+# Shared-cipher Atbash / totient / dsl_smart Atbash
+estimated_peak = kSharedCipherComputeRoofRps = 2.0e12
+# DRAM occupancy diary (~80.7 TB) is NOT the Done gate for this class.
 ```
 
 | Gate | Rule | Notes |
 |------|------|-------|
 | **Done (PRIMARY)** | `fair_kernel_runes_per_s ≥ 0.90 × estimated_peak(emitted_shape)` **and** ≥ `slo_floor` | Same as `BenchTierSpec::pass_tier`; fair `T ≥ 2^20` |
-| **Stretch** | ≥ **80%** of 896B (≈716.8B) | Interim climb bar; never replaces Done |
+| **Stretch** | ≥ **80%** of shape `estimated_peak` | Interim climb bar; never replaces Done |
 | **checkpoint_50B** | Annotation only when peak ≫ 50B | Never replaces Done |
-| **Model** | Printed `%peak` must stay ≤ **100** | If `>100`, fix bytes/rune (or shape peak), **do not** lower Spec to quiet max |
+| **Model** | Printed `%peak` must stay ≤ **100** | If `>100`, fix roof model, **do not** lower Spec to quiet max |
 | **Campaign wall** | Never PRIMARY | Short page `T` / scheduler wall = ops only |
+| **Shared-cipher Done** | Compute roof only | **DRAM-bound is not required** (cipher L2-resident; hist atomic-bound) |
 
 ```text
 done(emitted)  ⇔  KernelSLO ≥ 0.90 × peak(emitted)  ∧  ≥ slo_floor(emitted)
@@ -162,9 +168,9 @@ Soft-fallback to S0: scores ≡ bytecode oracle; PRIMARY for that launch is the
 distinct traffic row exists). Specialize-away raises absolute RPS; it does not
 delete the soft-fallback correctness duty.
 
-Self-written shape twins share the **same** traffic model as their catalog
-counterparts (e.g. Atbash shape twin ↔ `F.atbash` shared-cipher occupancy roof).
-See [`profiles/traffic_model/SUMMARY.md`](profiles/traffic_model/SUMMARY.md).
+Self-written shape twins share the **same** peak class as their catalog
+counterparts (e.g. Atbash shape twin ↔ `F.atbash` compute roof **2.0 TB**;
+DRAM diary in [`profiles/traffic_model/SUMMARY.md`](profiles/traffic_model/SUMMARY.md)).
 
 Metric B quiet plate: [`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md).  
 Smart-customs ACCEPTANCE digests: [`profiles/dsl_smart/SUMMARY.md`](profiles/dsl_smart/SUMMARY.md)
@@ -289,8 +295,8 @@ Declare this smartness workstream complete only when **all** apply:
 - [x] Self-written Atbash / Caesar / Affine (pure arith HotLoop) → shape twin;
   scores ≡ bytecode; fair Kernel SLO in catalog twin class
   (`parcae-bench --suite dsl_smart`; noise under `profiles/dsl_smart/`)
-  — Atbash model OK @ ~80.7 TB; Caesar twin stretch-class; Affine tracks catalog
-  (unique-key intermittent `%peak>100` separate)
+  — Atbash under compute roof **2.0 TB**; Caesar twin stretch-class; Affine tracks
+  catalog (~47.0 TB DRAM shared-cipher)
 - [x] Self-written linear `x±(b0+b1·i)` → S2 (widened), not S0
 - [x] Non-linear `i` customs → S3 or module (unless caps / prefer_branch / pre-S4 autokey)
 - [x] Autokey customs → S4 AutokeyRing (vigenere_lag class; name-irrelevant)

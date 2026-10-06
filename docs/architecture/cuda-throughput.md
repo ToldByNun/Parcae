@@ -9,29 +9,35 @@
 
 ## What `estimated_peak` means (physical, not measured)
 
-`BenchTierSpec::estimated_peak` is the **DRAM roofline** for fused decrypt+χ² hist:
+`BenchTierSpec::estimated_peak` is the shape ceiling used by Done/Stretch:
 
 ```text
+# Unique-key fused hist (Caesar / S1 / S2 / Vigenère / …)
 peak_runes/s = DRAM_BW / bytes_cipher_per_rune
              = 896e9 B/s / 1 B/rune
              = 896B runes/s
+
+# Shared-cipher occupancy (F.atbash / F.totient / dsl_smart Atbash)
+peak_runes/s = kSharedCipherComputeRoofRps   # SM/atomic capacity
+             = 2.0e12                         # frozen 2026-10-06 identity hist
+# DRAM occupancy diary (ncu 0.01111 B/rune → ≈80.7 TB) is NOT the Done gate.
 ```
 
-That is what the GPU **could** sustain if the kernel were memory-bound at one
-cipher byte per `(candidate,token)`. It is **not** “best bench run we saw”.
-`%peak = measured / peak` is therefore ≤ **100%** by construction (physics).
-If a quiet run ever prints &gt;100%, the traffic model is wrong — fix the model,
-do not celebrate “super-linear” silicon.
+Unique-key peaks are what the GPU **could** sustain if memory-bound at the
+traffic model. Shared-cipher Atbash/totient peaks are the **compute roof**
+(identity occupancy hist calibration) — cipher is L2-resident and hist is
+atomic-bound, so 90% of the DRAM diary (~80.7 TB) is not a reachable Done.
+`%peak = measured / peak` is therefore ≤ **100%** by construction. If a quiet
+run ever prints &gt;100%, the roof model is wrong — fix the model, do not
+celebrate “super-linear” silicon.
 
 Quiet ACCEPTANCE ([`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md)):
 Caesar twin stretch (~**87%** median); fair specialize ~**76%**; S1 noisy;
-F.vigenere/beaufort ≥90% under 1 B/rune. Atbash/totient use the **shared-cipher
-occupancy** traffic class (~**0.01111 B/rune**, ncu 2026-10-06 → peak ≈**80.7 TB**)
-so `%peak≤100` ([`profiles/traffic_model/SUMMARY.md`](profiles/traffic_model/SUMMARY.md)).
-Affine uses the **Affine shared-cipher** class (~**0.01906 B/rune**, cache_bound
-ncu → peak ≈**47.0 TB**) — same honesty fix for intermittent `%peak>100` under
-896B. DRAM SoL still ~few % — Done deferred until memory-bound. Hard-S0 interpreter
-remains ~**7–8%**.
+F.vigenere/beaufort ≥90% under 1 B/rune. Atbash/totient Done uses the
+**compute roof** (**2.0 TB**); DRAM occupancy (~**80.7 TB**, ncu 0.01111 B/rune)
+is diary only ([`profiles/traffic_model/SUMMARY.md`](profiles/traffic_model/SUMMARY.md)).
+Affine uses the **Affine shared-cipher** DRAM class (~**0.01906 B/rune** →
+≈**47.0 TB**). Hard-S0 interpreter remains ~**7–8%**.
 
 `ThroughputTiers` / `DslPeakSanity` delegate to `BenchTierSpec`
 (Catch2 `[bench][spec]` / `[dsl][peak]`).
@@ -134,11 +140,11 @@ are far below 90% — that is expected until kernels are memory-bound.
 
 | Tier | Workload | Ceiling (runes/s) | SLO floor |
 |------|----------|-------------------|-----------|
-| F.atbash | Atbash fused χ² (C=512 occupancy pad) | **≈80.7 TB** (0.01111 B/rune ncu) | ≥15B |
+| F.atbash | Atbash fused χ² (C=512 occupancy pad) | **2.0 TB** (compute roof; DRAM diary ≈80.7 TB) | ≥15B |
 | F.affine | Affine fused χ² (812 shared cipher) | **≈47.0 TB** (0.01906 B/rune ncu) | ≥15B |
 | F.vigenere | Vigenère fused χ² (key len 8) | **896B** | ≥3B |
 | F.beaufort | Beaufort fused χ² (key len 8) | **896B** | ≥3B |
-| F.totient | Totient stream fused χ² (C=512) | **≈80.7 TB** (shared-cipher class) | ≥3B |
+| F.totient | Totient stream fused χ² (C=512) | **2.0 TB** (same compute roof as Atbash) | ≥3B |
 
 ### Compose
 
@@ -149,15 +155,19 @@ are far below 90% — that is expected until kernels are memory-bound.
 
 ## Recalibration rule
 
-1. Peak = **physical DRAM roofline**, not measured max. Derive from
+1. Unique-key peak = **physical DRAM roofline**, not measured max. Derive from
    `device_peak_dram_bytes_per_s / bytes_per_rune` (RTX 5070 Ti → 896e9 /
-   448e9). Do **not** raise or lower the Spec to chase quiet-run medians.
+   448e9). Shared-cipher Atbash/totient peak = **compute roof**
+   (`kSharedCipherComputeRoofRps`); recalibrate only from identity occupancy
+   hist (`HistOccupancyRoof`), never from Atbash quiet max. Do **not** raise
+   or lower Spec to chase production quiet-run medians.
 2. Run `parcae-bench --suite slo --extended --allow-cuda` (or compat
    `parcae-throughput-tiers`) on a quiet GPU to measure **progress toward**
    that roof (`%peak`), not to redefine it.
 3. `%peak` **must stay ≤100**. If a quiet run prints **&gt;100**, the Spec
-   peak or BW assumption is wrong (wrong bytes/rune or wrong DRAM GB/s) —
-   fix the roof model, not “raise to absorb” a measured outlier.
+   peak or BW assumption is wrong (wrong bytes/rune, wrong DRAM GB/s, or
+   compute roof too low) — fix the roof model, not “raise to absorb” a
+   measured outlier.
 4. PRIMARY / climb pass = **≥90% of the DRAM roof**. Below that is unfinished
    specialize work, not a calibration problem.
 5. If mins fall under 90% of the roof while the kernel is already memory-bound

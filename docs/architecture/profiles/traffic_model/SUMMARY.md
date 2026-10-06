@@ -48,11 +48,30 @@ Applied to: `F.atbash`, `F.totient`, `T.dsl_smart.custom_atbash`,
 
 ## Sanity after Atbash/totient model fix
 
-With the shared-cipher roof, quiet Atbash ~1350B → **`%peak ≈ 1.7%`** (≤100).
-Totient ~880B → **`%peak ≈ 1.1%`**. Matches DRAM SoL (compute-bound; Done
-deferred until memory-bound).
+With the shared-cipher **DRAM diary**, quiet Atbash ~1350B → **`%peak ≈ 1.7%`**
+of 80.7 TB (≤100). Totient ~880B → **`%peak ≈ 1.1%`**. Matches DRAM SoL
+(compute/L2-bound).
 
 **Spec was not lowered to quiet max** — bytes/rune came from ncu DRAM counters.
+
+### Compute roof Done gate (2026-10-06)
+
+90% of ≈80.7 TB is not a reachable Done while hist is atomic-bound and cipher
+is L2-resident. Spec therefore freezes a separate **compute roof**:
+
+| Constant | Value | Role |
+|----------|-------|------|
+| `kDramRooflineSharedCipherOccupancyPeak` | ≈**80.7e12** | Traffic **diary** (ncu bytes/rune) |
+| `kSharedCipherComputeRoofRps` | **2.0e12** | **Done / Stretch** gate (`estimated_peak`) |
+
+Calibration: `HistOccupancyRoof` identity hist+finalize @ C=512 T=2^20
+(`[cuda][hist][compute_roof]`). Quiet identity plate ~1.2–2.2 TB (median ~1.6 TB);
+Spec freezes **2.0 TB** with plate-noise headroom. Applied to `F.atbash`,
+`F.totient`, `T.dsl_smart.custom_atbash`, `T.dsl_smart.compare_Fatbash`.
+
+**DRAM-bound is not required** for Done on this traffic class — `pass_tier`
+uses the compute roof only. Quiet Atbash ~1.1–1.7 TB → **~55–85%** of 2.0 TB
+(stretch climb; absolute climb remains Commit 8).
 
 ## Affine shared-cipher (2026-10-06)
 

@@ -50,7 +50,7 @@ TEST_CASE("BenchTierSpec dsl_smart tiers share fair Kernel SLO roof", "[bench][d
     REQUIRE(BenchTierSpec::dsl_smart_compare_autokey.candidates == 28u);
 
     REQUIRE(BenchTierSpec::dsl_smart_atbash.estimated_peak ==
-            BenchTierSpec::kDramRooflineSharedCipherOccupancyPeak);
+            BenchTierSpec::kSharedCipherComputeRoofRps);
     REQUIRE(BenchTierSpec::dsl_smart_linear.estimated_peak ==
             BenchTierSpec::kDramRooflineHistPeak);
     REQUIRE(BenchTierSpec::dsl_smart_autokey.estimated_peak ==
@@ -129,7 +129,7 @@ TEST_CASE("BenchDslSmartSuite short-T customs vs catalog twins", "[bench][dsl_sm
     }
 
     REQUIRE(doc.value().rows()[0].estimated_peak() ==
-            BenchTierSpec::kDramRooflineSharedCipherOccupancyPeak);
+            BenchTierSpec::kSharedCipherComputeRoofRps);
     REQUIRE(doc.value().rows()[2].estimated_peak() == BenchTierSpec::kDramRooflineHistPeak);
     REQUIRE(doc.value().rows()[6].estimated_peak() == BenchTierSpec::kDramRooflineHistPeak);
     REQUIRE(doc.value().rows()[8].estimated_peak() == BenchTierSpec::kDramRooflineHistPeak);

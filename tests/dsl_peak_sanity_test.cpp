@@ -15,7 +15,7 @@ TEST_CASE("DslPeakSanity peaks match DRAM-roofline plateaus", "[dsl][peak]") {
     REQUIRE(DslPeakSanity::estimated_peak("T2") == 896.0e9);
     REQUIRE(DslPeakSanity::estimated_peak("T3") == 448.0e9);
     REQUIRE(DslPeakSanity::estimated_peak("F.atbash") ==
-            BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak());
+            BenchTierSpec::shared_cipher_compute_roof_rps());
     REQUIRE(DslPeakSanity::estimated_peak("F.affine") ==
             BenchTierSpec::dram_roofline_affine_shared_cipher_peak());
     REQUIRE(DslPeakSanity::estimated_peak("C.koan1_fused") == 896.0e9);

@@ -4,10 +4,10 @@
 **Hardware reference:** RTX 5070 Ti (sm_120) — same plate as [`cuda-throughput.md`](cuda-throughput.md)  
 **Canonical catalog metric:** `BenchTimer` — 4 warmups + **median-of-3** `cudaEvent`, setup excluded  
 **Theory acceptance (PRIMARY):** measured ≥ **90%** of the theory-shape
-`estimated_peak` — **physical DRAM roofline** (**896B** @ 1 B cipher/rune on
-RTX 5070 Ti), **not** a measured quiet max. Applies to **every** strategy that
-runs, **including S0 bytecode**. Soft-fallback to S0 does not waive the S0 peak
-gate. Normative contract: [`theory-hist-transpile.md`](theory-hist-transpile.md).
+`estimated_peak`. Unique-key shapes use the physical DRAM roofline (**896B** @
+1 B cipher/rune on RTX 5070 Ti). Shared-cipher Atbash/totient use the **compute
+roof** (**2.0 TB**). Soft-fallback to S0 does not waive the S0 peak gate.
+Normative contract: [`theory-hist-transpile.md`](theory-hist-transpile.md).
 Smart customs (name-irrelevant ShapeId / stretch 80% / Done 90%):
 [`dsl-smart-hist.md`](dsl-smart-hist.md).
 
@@ -227,8 +227,8 @@ wall **~53×** vs [`pre_residency/`](profiles/export_duty/pre_residency/) (PASS)
 
 **Metric B ACCEPTANCE (2026-10-03):** quiet fair theory ×3 + slo extended ×2 →
 [`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md) — **PARTIAL PASS**
-(Caesar twin stretch; S1 under 80%; Atbash/totient traffic model fixed — shared-cipher
-occupancy ~**80.7 TB**, ncu 0.01111 B/rune; `%peak≤100`).
+(Caesar twin stretch; S1 under 80%; Atbash/totient traffic diary ~**80.7 TB**;
+Done gate = compute roof **2.0 TB**; `%peak≤100`).
 
 **DSL smart E2E (2026-10-06):** fair customs Atbash/Caesar/Affine/linear/autokey +
 twins → [`profiles/dsl_smart/SUMMARY.md`](profiles/dsl_smart/SUMMARY.md) — **PARTIAL PASS**
@@ -247,8 +247,10 @@ After each meaningful change:
 2. Save **nsys** report (`.nsys-rep`) + one-line stats summary.
 3. Append a row to the progress table below (Ist Kernel SLO vs 90% Ziel).
 4. Do **not** mark done until Kernel SLO ≥ **0.90 × estimated_peak** for that
-   theory shape. Peak = DRAM roof (`BenchTierSpec::dram_roofline_hist_peak`),
-   documented with BW assumption + bytes/rune + date + GPU.
+   theory shape. Unique-key peak = DRAM roof
+   (`BenchTierSpec::dram_roofline_hist_peak`); shared-cipher Atbash/totient peak =
+   compute roof (`kSharedCipherComputeRoofRps`). Document BW / bytes/rune or
+   identity-hist calib + date + GPU.
 
 Repro baseline: [`scripts/cuda/capture_theory_baseline.ps1`](../../scripts/cuda/capture_theory_baseline.ps1).  
 Repro specialized: [`scripts/cuda/capture_theory_specialized.ps1`](../../scripts/cuda/capture_theory_specialized.ps1).  
@@ -303,6 +305,7 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-06 | **dsl_smart_e2e** | `profiles/dsl_smart/` | fair customs ×3 (Atbash/Caesar/Affine/linear/autokey + twins) | fair T=1M | Caesar stretch ~**87%**; Atbash model OK ~2% of 80.7 TB; linear ~43%; autokey ~53%; Affine `%peak>100` intermittent | — | quiet E2E ACCEPTANCE | **PARTIAL PASS** — see SUMMARY; edge tags green |
 | 2026-10-06 | **cache_bound** | `profiles/cache_bound/` | Caesar / Atbash / S1 / S2 / Affine | ncu T=262k + fair JSON | Affine **17.08 GB/s** DRAM (≈16.9); Caesar 28.6; Atbash 4.8; S1 27.4; S2 7.7 | L2 hit Atbash **98.5%** / Affine **97.6%**; DRAM SoL 0.5–3.1% | `-MetricsPreset cache_bound` + CSV | **PASS harness** — all ≪896 GB/s; bytes/rune ≪1 (shared cipher L2) |
 | 2026-10-06 | **affine_traffic** | `profiles/traffic_model/` + Spec | `affine_chi2_hist_kernel` | C=812 T=262k | bytes/rune **0.01906** → peak **≈47.0 TB** | L2 97.6% DRAM 1.8% | Spec `kHistBytesPerRuneAffineSharedCipher` | **PASS model** — F.affine / dsl_smart Affine `%peak≤100`; not quiet-max |
+| 2026-10-06 | **compute_roof** | Spec + `HistOccupancyRoof` | identity hist vs Atbash @ C=512 T=1M | fair | identity ~1.2–2.2 TB; Spec freeze **2.0 TB** | DRAM diary 80.7 TB | `kSharedCipherComputeRoofRps` | **PASS Spec** — Atbash/totient Done = compute roof; DRAM-bound N/A |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 

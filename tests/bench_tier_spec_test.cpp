@@ -14,21 +14,40 @@ TEST_CASE("BenchTierSpec DRAM roofline is physical BW / 1 B cipher/rune", "[benc
     REQUIRE(BenchTierSpec::dram_roofline_hist_peak() == 896.0e9);
 }
 
-TEST_CASE("BenchTierSpec shared-cipher occupancy peak is ncu bytes/rune class",
+TEST_CASE("BenchTierSpec shared-cipher occupancy DRAM peak is diary traffic model",
           "[bench][spec][traffic]") {
     // atbash ncu: 1.490688e6 / (512*262144) ≈ 0.01111 B/rune → ~80.7 TB runes/s
     REQUIRE(BenchTierSpec::kHistBytesPerRuneSharedCipherOccupancy == 0.01111);
-    const double peak = BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak();
-    REQUIRE(peak ==
+    const double diary = BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak();
+    REQUIRE(diary ==
             Approx(BenchTierSpec::kDramBandwidthBytesPerSec /
                    BenchTierSpec::kHistBytesPerRuneSharedCipherOccupancy)
                 .epsilon(1e-12));
-    REQUIRE(peak > BenchTierSpec::dram_roofline_hist_peak());
-    REQUIRE(BenchTierSpec::estimated_peak("F.atbash") == peak);
-    REQUIRE(BenchTierSpec::estimated_peak("F.totient") == peak);
-    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_atbash") == peak);
-    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.compare_Fatbash") == peak);
-    // Unique-key families stay on 1 B/rune roof.
+    REQUIRE(diary > BenchTierSpec::dram_roofline_hist_peak());
+    // Diary is not the Done gate — estimated_peak uses compute roof.
+    REQUIRE(BenchTierSpec::estimated_peak("F.atbash") != diary);
+    REQUIRE(BenchTierSpec::estimated_peak("F.totient") != diary);
+}
+
+TEST_CASE("BenchTierSpec shared-cipher compute roof gates Atbash/totient Done",
+          "[bench][spec][traffic][compute_roof]") {
+    REQUIRE(BenchTierSpec::kSharedCipherComputeRoofRps == 2.0e12);
+    const double roof = BenchTierSpec::shared_cipher_compute_roof_rps();
+    REQUIRE(roof == BenchTierSpec::kSharedCipherComputeRoofRps);
+    // Below DRAM diary; above unique-key 896B DRAM roof.
+    REQUIRE(roof < BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak());
+    REQUIRE(roof > BenchTierSpec::dram_roofline_hist_peak());
+    REQUIRE(BenchTierSpec::estimated_peak("F.atbash") == roof);
+    REQUIRE(BenchTierSpec::estimated_peak("F.totient") == roof);
+    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_atbash") == roof);
+    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.compare_Fatbash") == roof);
+    REQUIRE(BenchTierSpec::dsl_smart_atbash.estimated_peak == roof);
+    REQUIRE(BenchTierSpec::dsl_smart_compare_atbash.estimated_peak == roof);
+    // Quiet Atbash-class RPS stays ≤100 under compute roof (not DRAM diary).
+    REQUIRE(BenchTierSpec::percent_peak(1678.0e9, roof) < 100.0);
+    REQUIRE(BenchTierSpec::percent_peak(1600.0e9, roof) < 100.0);
+    REQUIRE(BenchTierSpec::percent_peak(1109.0e9, roof) < 100.0);
+    // Unique-key families stay on 1 B/rune DRAM roof.
     REQUIRE(BenchTierSpec::estimated_peak("F.vigenere") == 896.0e9);
 }
 
@@ -153,9 +172,9 @@ TEST_CASE("BenchTierSpec theory rows use DRAM roofline peak", "[bench][spec]") {
     REQUIRE(BenchTierSpec::estimated_peak("T.theory.caesar_bytecode") == 896.0e9);
     REQUIRE(BenchTierSpec::estimated_peak("T.theory.s1_lut29") == 896.0e9);
     REQUIRE(BenchTierSpec::estimated_peak("F.atbash") ==
-            BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak());
+            BenchTierSpec::shared_cipher_compute_roof_rps());
     REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_atbash") ==
-            BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak());
+            BenchTierSpec::shared_cipher_compute_roof_rps());
     REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.compare_caesar") == 896.0e9);
     REQUIRE(BenchTierSpec::slo_floor("T.theory.s1_lut29") == 15.0e9);
     REQUIRE(BenchTierSpec::slo_floor("T.dsl_smart.custom_affine") == 15.0e9);

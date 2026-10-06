@@ -28,6 +28,7 @@ set(PARCAE_CUDA_SOURCES
   chi2_batch_score.cu
   caesar_chi2_batch.cu
   family_chi2_batch.cu
+  hist_occupancy_roof.cu
   theory_chi2_batch.cu
   theory_hist_chi2_s1.cu
   theory_hist_chi2_s2.cu

@@ -11,10 +11,13 @@
 
 This document freezes **what “done” means** for theory search fused χ²: every
 hist strategy that actually runs — **including S0 bytecode** — must meet the
-**≥90% of physical DRAM-roofline** Kernel SLO gate on a quiet 5070 Ti
-(`estimated_peak` = **896B** runes/s @ 1 B cipher/rune — what the GPU *could*
-do if memory-bound, **not** a measured quiet max). Soft-fallback to S0 is
-allowed for coverage; it is **not** an exemption from the S0 peak gate.
+**≥90% of shape `estimated_peak`** Kernel SLO gate on a quiet 5070 Ti.
+Unique-key shapes use the physical DRAM roof (`estimated_peak` = **896B**
+runes/s @ 1 B cipher/rune). Shared-cipher Atbash/totient / dsl_smart Atbash
+use the **compute roof** (**2.0 TB**) — DRAM-bound is **not** required for
+that traffic class (see [`dsl-smart-hist.md`](dsl-smart-hist.md) §4). Soft-
+fallback to S0 is allowed for coverage; it is **not** an exemption from the
+S0 peak gate.
 
 How self-written HotLoop math (no catalog API / no builtin preset) must reach
 catalog-class hist speed is normative in [`dsl-smart-hist.md`](dsl-smart-hist.md)
@@ -37,7 +40,7 @@ done(strategy) ⇔  fair_kernel_runes_per_s >= 0.90 * BenchTierSpec.estimated_pe
 | Fair grid | Token length **`T ≥ 2^20`** (same floor as `BenchTierSpec::fair_gate_tokens()`). Shorter T is underfill — measurement-only, **not** a fail gate |
 | Shape id | Spec row for the **strategy that actually launched** (S0 / S1 / S2 / …), not “wishful” specialized id after soft fallback |
 | Pass math | Identical to `BenchTierSpec::pass_tier` (`peak_band_pct = 90`, raw band 89.5 so printed 90% matches) |
-| Catalog stretch | Document `%` of the same DRAM roof (`F.atbash` 896B, Caesar twin, …). Stretch **never** replaces PRIMARY |
+| Catalog stretch | Document `%` of shape `estimated_peak` (`F.atbash` compute roof, Caesar twin DRAM roof, …). Stretch **never** replaces PRIMARY |
 | Campaign wall | `research/run.log` / scheduler wall / short page `T` — **ops diary only**, never PRIMARY |
 
 ### S0 is not a free pass
@@ -181,25 +184,36 @@ Catch2 anchors (extend as strategies land): `[cuda][theory][edge]`, `[cuda][gold
 
 ---
 
-## 8. Peak model (physical DRAM roofline)
+## 8. Peak model (DRAM roof + shared-cipher compute roof)
 
-`estimated_peak` is **not** a measured quiet max. For fused hist on RTX 5070 Ti:
+`estimated_peak` is **not** a measured production quiet max. For fused hist on
+RTX 5070 Ti:
 
 ```text
+# Unique-key
 peak_runes/s = published_GDDR7_BW / bytes_cipher_per_rune
-             = 896e9 / 1     →  896B   (S0/S1/S2/T1/F.*)
+             = 896e9 / 1     →  896B   (S0/S1/S2/T1/F.vigenere/…)
              = 896e9 / 2     →  448B   (T3 bigram)
+
+# Shared-cipher Atbash / totient / dsl_smart Atbash
+peak_runes/s = kSharedCipherComputeRoofRps →  2.0 TB
+# DRAM diary (ncu 0.01111 B/rune → ≈80.7 TB) is not the Done gate.
 ```
 
 Rules:
 
-1. Derive peak from **device DRAM BW** and the traffic model (bytes/rune). Do
-   **not** raise/lower Spec to chase quiet-run medians.
+1. Unique-key peak from **device DRAM BW** and the traffic model (bytes/rune).
+   Shared-cipher Atbash/totient peak from **identity occupancy hist**
+   (`HistOccupancyRoof`); freeze with date+GPU comment. Do **not** raise/lower
+   Spec to chase production quiet-run medians (or Atbash quiet max).
 2. Quiet fair runs measure **progress toward** the roof (`%peak`). Done =
-   ≥90% of the roof (≈806B @ 1 B/rune).
-3. `%peak` **must stay ≤100**. A print **&gt;100** means the traffic model or
-   published BW is wrong — fix the roof, do not “absorb” a measured outlier.
-4. Append measured progress rows to [`cuda-profile-theory.md`](cuda-profile-theory.md).
+   ≥90% of shape `estimated_peak`.
+3. `%peak` **must stay ≤100**. A print **&gt;100** means the roof model is wrong —
+   fix the roof, do not “absorb” a measured outlier.
+4. For shared-cipher Atbash/totient: **DRAM-bound is not required** for Done
+   (cipher L2-resident; hist atomic-bound). Unique-key rows keep DRAM-bound
+   aspiration.
+5. Append measured progress rows to [`cuda-profile-theory.md`](cuda-profile-theory.md).
    Profile dirs use descriptive tags (`s0_climb`, `s3_expr`, `s4_autokey`) — never `phase*`.
 
 Optional separate Spec row for **autokey-as-S0** only if its bytes/rune traffic

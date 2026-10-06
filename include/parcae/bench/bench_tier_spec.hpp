@@ -14,11 +14,16 @@
 ///
 /// Metric: `repeats × C × T / elapsed` (setup excluded).
 ///
-/// **`estimated_peak` = physical DRAM roofline** for fused decrypt+χ² hist on the
-/// calibration GPU (RTX 5070 Ti): published GDDR7 bandwidth / minimum cipher
-/// bytes per rune. This is what the silicon *could* do if the kernel were
-/// memory-bound at 1 B/rune — **not** a measured “best run”. `%peak` cannot
-/// exceed 100 by physics; if it does, the traffic model is wrong.
+/// **`estimated_peak`** for fused decrypt+χ² hist on the calibration GPU
+/// (RTX 5070 Ti):
+///   - **Unique-key** shapes (Caesar / S1 / S2 / Vigenère / …): physical **DRAM
+///     roofline** = GDDR7 BW / cipher bytes per rune (what silicon *could* do
+///     if memory-bound).
+///   - **Shared-cipher occupancy** (F.atbash / F.totient / dsl_smart Atbash):
+///     **SM/atomic compute roof** (`kSharedCipherComputeRoofRps`), calibrated
+///     from identity occupancy hist. DRAM occupancy peak stays diary-only —
+///     Done does **not** require DRAM-bound for this traffic class.
+/// `%peak` cannot exceed 100 by construction; if it does, the roof model is wrong.
 /// See `docs/architecture/cuda-throughput.md`.
 ///
 /// Pass rule (same as historical `ThroughputTiers::pass_tier`):
@@ -26,7 +31,7 @@
 /// Display bands (`slo_max`) are expectations only — faster than max still passes.
 class BenchTierSpec {
 public:
-    /// ≥90% of physical DRAM roofline (89.5% raw so rounded display of 90% matches).
+    /// ≥90% of shape `estimated_peak` (89.5% raw so rounded display of 90% matches).
     static constexpr double peak_band_pct = 90.0;
     static constexpr double peak_band_raw = 89.5;
 
@@ -45,11 +50,21 @@ public:
     ///   `atbash_chi2_hist_kernel` @ C=512 T=262144: `dram__bytes.sum`=1.490688 MB
     ///     → bytes/rune = 1.490688e6/(512·262144) ≈ **0.01111**
     ///   `totient_chi2_hist_kernel` same grid: 1.47 MB → ≈ **0.0110**
-    /// DRAM SoL ~0.4–1% (compute-bound). Peak = BW/bytes ≈ **80.7 TB** runes/s.
-    /// Do **not** use quiet max as Spec; this is the measured traffic model.
+    /// DRAM SoL ~0.4–1% (compute/L2-bound). Peak = BW/bytes ≈ **80.7 TB** runes/s.
+    /// **Diary only** — not `estimated_peak` for Atbash/totient Done (see compute roof).
     static constexpr double kHistBytesPerRuneSharedCipherOccupancy = 0.01111;
     static constexpr double kDramRooflineSharedCipherOccupancyPeak =
         kDramBandwidthBytesPerSec / kHistBytesPerRuneSharedCipherOccupancy;
+
+    /// Shared-cipher **compute** roof (runes/s) — Done / Stretch gate for
+    /// `F.atbash` / `F.totient` / dsl_smart Atbash. Calibrated 2026-10-06 on
+    /// RTX 5070 Ti via `HistOccupancyRoof` identity hist+finalize @ C=512 T=2^20
+    /// fat-64 (`[cuda][hist][compute_roof]`): quiet identity plate ~1.2–2.2 TB
+    /// (median ~1.6 TB). Spec freezes **2.0e12** with plate-noise headroom so
+    /// quiet Atbash (~1.1–1.7 TB) stays `%peak≤100`. Not Atbash quiet max; not
+    /// the DRAM occupancy diary (~80.7 TB). DRAM-bound is **not** required for
+    /// Done on this traffic class (cipher is L2-resident; hist is atomic-bound).
+    static constexpr double kSharedCipherComputeRoofRps = 2.0e12;
 
     /// Affine fused hist (F.affine / dsl_smart Affine) — shared cipher across C=812
     /// unique (a,b) lanes. ncu 2026-10-06 RTX 5070 Ti (`profiles/cache_bound/` +
@@ -67,8 +82,14 @@ public:
         return kDramRooflineHistPeak;
     }
 
+    /// Diary accessor — traffic-model DRAM ceiling; not the Done gate.
     [[nodiscard]] static constexpr double dram_roofline_shared_cipher_occupancy_peak() noexcept {
         return kDramRooflineSharedCipherOccupancyPeak;
+    }
+
+    /// Done / Stretch gate for Atbash / totient / dsl_smart Atbash.
+    [[nodiscard]] static constexpr double shared_cipher_compute_roof_rps() noexcept {
+        return kSharedCipherComputeRoofRps;
     }
 
     [[nodiscard]] static constexpr double dram_roofline_affine_shared_cipher_peak() noexcept {
@@ -90,7 +111,7 @@ public:
         double slo_min;
         /// Display band upper bound (runes/s); 0 = no upper bound (e.g. T3).
         double slo_max;
-        /// Physical DRAM-roofline ceiling (runes/s) — see `dram_roofline_hist_peak`.
+        /// Shape ceiling for Done/Stretch (runes/s) — DRAM roof or compute roof.
         double estimated_peak;
     };
 
@@ -163,7 +184,7 @@ public:
     // Fair Kernel SLO only (T≥2^20). Campaign wall is never PRIMARY.
 
     /// Custom Atbash arith (`28-x`) vs catalog `F.atbash` occupancy (C=512).
-    /// Peak = shared-cipher occupancy DRAM roof (ncu bytes/rune), not 1 B/rune.
+    /// Peak = shared-cipher compute roof (SM/atomic); DRAM occupancy is diary.
     static constexpr Tier dsl_smart_atbash{"T.dsl_smart.custom_atbash",
                                           "Self-written Atbash arith → ShapeInline twin",
                                           512u,
@@ -171,7 +192,7 @@ public:
                                           8u,
                                           15.0e9,
                                           0.0,
-                                          kDramRooflineSharedCipherOccupancyPeak};
+                                          kSharedCipherComputeRoofRps};
 
     /// Catalog `FamilyChi2Batch` atbash twin (same C/T as custom_atbash).
     static constexpr Tier dsl_smart_compare_atbash{"T.dsl_smart.compare_Fatbash",
@@ -181,7 +202,7 @@ public:
                                                   8u,
                                                   15.0e9,
                                                   0.0,
-                                                  kDramRooflineSharedCipherOccupancyPeak};
+                                                  kSharedCipherComputeRoofRps};
 
     /// Custom Caesar → ShapeInline (`HistFast::dec_caesar`).
     static constexpr Tier dsl_smart_caesar{"T.dsl_smart.custom_caesar",
@@ -315,9 +336,9 @@ public:
 
     // --- Peak / SLO tables (incl. F.* / C.* extended rows) --------------------
 
-    /// Physical DRAM-roofline ceilings (runes/s). Default fused hist @ 1 B cipher/rune → 896B.
-    /// Atbash/totient occupancy-padded shared-cipher → ncu bytes/rune class (~80.7 TB).
-    /// Affine shared-cipher (C=812) → ncu bytes/rune class (~47.0 TB).
+    /// Shape ceilings (runes/s). Default fused hist @ 1 B cipher/rune → 896B DRAM.
+    /// Atbash/totient / dsl_smart Atbash → shared-cipher **compute** roof (2.0 TB).
+    /// Affine shared-cipher (C=812) → ncu bytes/rune DRAM class (~47.0 TB).
     [[nodiscard]] static constexpr double estimated_peak(std::string_view tier) noexcept {
         if (tier == "T1") {
             return t1.estimated_peak;
@@ -328,10 +349,10 @@ public:
         if (tier == "T3") {
             return t3.estimated_peak;
         }
-        // Shared-cipher occupancy pad (C=512): Atbash identical lanes / totient starts.
+        // Shared-cipher occupancy pad (C=512): Done gated on SM/atomic compute roof.
         if (tier == "F.atbash" || tier == "F.totient" || tier == "T.dsl_smart.custom_atbash" ||
             tier == "T.dsl_smart.compare_Fatbash") {
-            return dram_roofline_shared_cipher_occupancy_peak();
+            return shared_cipher_compute_roof_rps();
         }
         // Affine shared cipher across unique (a,b) lanes (C=812).
         if (tier == "F.affine" || tier == "T.dsl_smart.custom_affine" ||
