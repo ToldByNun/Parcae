@@ -5,14 +5,15 @@ nsys / ncu outputs from
 
 Binary reports (`.ncu-rep` / `.nsys-rep`) are **gitignored**. Text summaries and
 JSON digests under `baseline/` / `specialized/` / `s0-climb/` / `kernel_slo/` /
-`roof_hist/` / `export_duty/` / `dsl_smart/` may be committed — see
+`roof_hist/` / `export_duty/` / `dsl_smart/` / `traffic_model/` may be committed — see
 [`baseline/SUMMARY.md`](baseline/SUMMARY.md),
 [`specialized/SUMMARY.md`](specialized/SUMMARY.md),
 [`s0-climb/SUMMARY.md`](s0-climb/SUMMARY.md),
 [`kernel_slo/SUMMARY.md`](kernel_slo/SUMMARY.md),
 [`roof_hist/SUMMARY.md`](roof_hist/SUMMARY.md),
-[`export_duty/SUMMARY.md`](export_duty/SUMMARY.md), and
-[`dsl_smart/`](dsl_smart/) (customs without presets).
+[`export_duty/SUMMARY.md`](export_duty/SUMMARY.md),
+[`dsl_smart/`](dsl_smart/) (customs without presets), and
+[`traffic_model/SUMMARY.md`](traffic_model/SUMMARY.md) (Atbash/totient bytes/rune).
 
 Wrapper: [`scripts/cuda/profile_theory_hist.ps1`](../../../scripts/cuda/profile_theory_hist.ps1)  
 Baseline capture: [`scripts/cuda/capture_theory_baseline.ps1`](../../../scripts/cuda/capture_theory_baseline.ps1)  

@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <parcae/bench/bench_tier_spec.hpp>
@@ -5,10 +6,31 @@
 #include <parcae/dsl/dsl_peak_sanity.hpp>
 #include <string_view>
 
+using Catch::Approx;
+
 TEST_CASE("BenchTierSpec DRAM roofline is physical BW / 1 B cipher/rune", "[bench][spec]") {
     REQUIRE(BenchTierSpec::kDramBandwidthBytesPerSec == 896.0e9);
     REQUIRE(BenchTierSpec::kHistCipherBytesPerRune == 1.0);
     REQUIRE(BenchTierSpec::dram_roofline_hist_peak() == 896.0e9);
+}
+
+TEST_CASE("BenchTierSpec shared-cipher occupancy peak is ncu bytes/rune class",
+          "[bench][spec][traffic]") {
+    // atbash ncu: 1.490688e6 / (512*262144) ≈ 0.01111 B/rune → ~80.7 TB runes/s
+    REQUIRE(BenchTierSpec::kHistBytesPerRuneSharedCipherOccupancy == 0.01111);
+    const double peak = BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak();
+    REQUIRE(peak ==
+            Approx(BenchTierSpec::kDramBandwidthBytesPerSec /
+                   BenchTierSpec::kHistBytesPerRuneSharedCipherOccupancy)
+                .epsilon(1e-12));
+    REQUIRE(peak > BenchTierSpec::dram_roofline_hist_peak());
+    REQUIRE(BenchTierSpec::estimated_peak("F.atbash") == peak);
+    REQUIRE(BenchTierSpec::estimated_peak("F.totient") == peak);
+    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_atbash") == peak);
+    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.compare_Fatbash") == peak);
+    // Unique-key families stay on 1 B/rune roof.
+    REQUIRE(BenchTierSpec::estimated_peak("F.affine") == 896.0e9);
+    REQUIRE(BenchTierSpec::estimated_peak("F.vigenere") == 896.0e9);
 }
 
 TEST_CASE("BenchTierSpec T1 config matches canonical SLO table", "[bench][spec]") {
@@ -110,8 +132,10 @@ TEST_CASE("BenchTierSpec theory rows use DRAM roofline peak", "[bench][spec]") {
 
     REQUIRE(BenchTierSpec::estimated_peak("T.theory.caesar_bytecode") == 896.0e9);
     REQUIRE(BenchTierSpec::estimated_peak("T.theory.s1_lut29") == 896.0e9);
-    REQUIRE(BenchTierSpec::estimated_peak("F.atbash") == 896.0e9);
-    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_atbash") == 896.0e9);
+    REQUIRE(BenchTierSpec::estimated_peak("F.atbash") ==
+            BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak());
+    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_atbash") ==
+            BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak());
     REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.compare_caesar") == 896.0e9);
     REQUIRE(BenchTierSpec::slo_floor("T.theory.s1_lut29") == 15.0e9);
     REQUIRE(BenchTierSpec::slo_floor("T.dsl_smart.custom_affine") == 15.0e9);

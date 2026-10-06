@@ -84,7 +84,7 @@ Prefer order when multiple apply (first match wins after normalize):
 
 | Prefer | ShapeId | Math (after normalize) | Runtime twin (target) | Spec peak class |
 |--------|---------|------------------------|-----------------------|-----------------|
-| 1 | `Atbash` | `atbash(x)` equivalent (incl. pure arith) | Shape hist on `HistFast::dec_atbash` | **896B** (fix model if `%peak>100`) |
+| 1 | `Atbash` | `atbash(x)` equivalent (incl. pure arith) | Shape hist on `HistFast::dec_atbash` | shared-cipher occupancy (~**80.7 TB**; ncu 0.01111 B/rune) |
 | 2 | `Caesar` | `x ± shift` | Shape hist / Caesar decode | **896B** |
 | 3 | `Affine` | invertible `a·x+b` | Shape hist / affine decode | **896B** |
 | 4 | `LinearKeystream` | `x ± (b0 + b1·i)` (+ widened linear) | `TheoryHistChi2S2` | **896B** (`T.theory.s2_linear`) |
@@ -163,8 +163,8 @@ distinct traffic row exists). Specialize-away raises absolute RPS; it does not
 delete the soft-fallback correctness duty.
 
 Self-written shape twins share the **same** traffic model as their catalog
-counterparts (e.g. Atbash shape twin ↔ `F.atbash`). If catalog Atbash prints
-`%peak>100`, that is a **model defect** for both paths.
+counterparts (e.g. Atbash shape twin ↔ `F.atbash` shared-cipher occupancy roof).
+See [`profiles/traffic_model/SUMMARY.md`](profiles/traffic_model/SUMMARY.md).
 
 Metric B quiet plate: [`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md).  
 Smart-customs ACCEPTANCE digests: [`profiles/dsl_smart/SUMMARY.md`](profiles/dsl_smart/SUMMARY.md)
@@ -286,7 +286,11 @@ private:
 
 Declare this smartness workstream complete only when **all** apply:
 
-- [ ] Self-written Atbash / Caesar / Affine (pure arith HotLoop) → shape twin; scores ≡ bytecode; fair Kernel SLO in catalog twin class (`parcae-bench --suite dsl_smart`; noise under `profiles/dsl_smart/`)
+- [x] Self-written Atbash / Caesar / Affine (pure arith HotLoop) → shape twin;
+  scores ≡ bytecode; fair Kernel SLO in catalog twin class
+  (`parcae-bench --suite dsl_smart`; noise under `profiles/dsl_smart/`)
+  — Atbash model OK @ ~80.7 TB; Caesar twin stretch-class; Affine tracks catalog
+  (unique-key intermittent `%peak>100` separate)
 - [x] Self-written linear `x±(b0+b1·i)` → S2 (widened), not S0
 - [x] Non-linear `i` customs → S3 or module (unless caps / prefer_branch / pre-S4 autokey)
 - [x] Autokey customs → S4 AutokeyRing (vigenere_lag class; name-irrelevant)
@@ -295,7 +299,8 @@ Declare this smartness workstream complete only when **all** apply:
 - [x] Decrypt hoists → soft S0 on S1–S5; ShapeInline Affine/Atbash/Caesar keep specialized
 - [ ] Normalize + match name-irrelevant goldens green
 - [ ] Edge matrix above locked in Catch2
-- [ ] `%peak ≤ 100` after traffic-model pass; Spec not lowered to quiet max
+- [x] `%peak ≤ 100` after traffic-model pass; Spec not lowered to quiet max
+  ([`profiles/traffic_model/SUMMARY.md`](profiles/traffic_model/SUMMARY.md))
 - [ ] Style: no namespaces; no `phase*` / Commit-N labels in tree
 - [ ] Campaign wall never used as Done evidence
 - [ ] Base contract [`theory-hist-transpile.md`](theory-hist-transpile.md) S0–S5 peak gates still hold for the **emitted** strategy

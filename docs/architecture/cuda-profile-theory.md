@@ -215,7 +215,8 @@ wall **~53×** vs [`pre_residency/`](profiles/export_duty/pre_residency/) (PASS)
 
 **Metric B ACCEPTANCE (2026-10-03):** quiet fair theory ×3 + slo extended ×2 →
 [`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md) — **PARTIAL PASS**
-(Caesar twin stretch; S1 under 80%; Atbash/totient `%peak>100` model flag).
+(Caesar twin stretch; S1 under 80%; Atbash/totient traffic model fixed — shared-cipher
+occupancy ~**80.7 TB**, ncu 0.01111 B/rune; `%peak≤100`).
 Alloc pool **skipped** (warm `cudaMalloc` ~0.2% API). Fair S1 stayed
 ≥ ~400B class (**482B**).
 
@@ -277,6 +278,8 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-03 | **s2_ks29** | `profiles/roof_hist/` | `theory_hist_chi2_s2_linear_kernel` | 841×1M | **403.1B** S2 (was **343B**) | — | shared `ks[29]` precompute | ALU cut; ~**45%** of 896B; Caesar/S1 flat |
 | 2026-10-03 | **s0_specialize** | `profiles/roof_hist/` | fair `T.theory.caesar_bytecode` → S1 | 29×1M | **707.6B** (`specialize_S1`; was ~61–68B S0) | — | emit prefer S1 in suite; export already S1/S2 | ~**79%** of 896B; ≈ S1 twin; hard-S0 unchanged |
 | 2026-10-03 | **kernel_slo_accept** | `profiles/kernel_slo/` | theory fair ×3 + slo extended ×2 | fair 29×1M; F.* grids | twin med **783B** / specialize med **681B** / S1 noisy; F.vigenere·beaufort ≥90%; Atbash·totient `%peak>100` | — | quiet ACCEPTANCE | metric B **PARTIAL PASS** — see SUMMARY |
+| 2026-10-06 | **traffic_model** | `profiles/traffic_model/` | ncu Atbash+totient hist | C=512 T=262144 | bytes/rune **0.01111** → peak **≈80.7 TB** | DRAM SoL ~0.4–1% | Spec not quiet-max | shared-cipher occupancy class |
+| 2026-10-06 | **kernel_slo_requiet** | `profiles/kernel_slo/` + `dsl_smart/` | slo extended ×2 + dsl_smart ×3 | fair F.*/customs | Atbash/totient `%peak≤100` under 80.7 TB | — | re-quiet ACCEPTANCE | model gate **PASS**; stretch still compute-bound |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 

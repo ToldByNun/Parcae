@@ -35,12 +35,28 @@ public:
     /// Minimum DRAM traffic model for fused hist: one cipher byte per (c,t) rune.
     static constexpr double kHistCipherBytesPerRune = 1.0;
     /// Absolute physical ceiling (runes/s) = BW / bytes_per_rune. Same for every
-    /// fused hist shape that streams ≥1 B cipher/rune (S0/S1/S2/T1/F.*).
+    /// fused hist shape that streams ≥1 B cipher/rune (S0/S1/S2/T1/F.* unique-key).
     /// Named constant (not a call) so MSVC can use it in `static constexpr Tier` inits.
     static constexpr double kDramRooflineHistPeak =
         kDramBandwidthBytesPerSec / kHistCipherBytesPerRune;
+
+    /// Shared-cipher occupancy-padded hist (F.atbash C=512 identical lanes;
+    /// F.totient C=512 starts). ncu 2026-10-06 RTX 5070 Ti (`profiles/traffic_model/`):
+    ///   `atbash_chi2_hist_kernel` @ C=512 T=262144: `dram__bytes.sum`=1.490688 MB
+    ///     → bytes/rune = 1.490688e6/(512·262144) ≈ **0.01111**
+    ///   `totient_chi2_hist_kernel` same grid: 1.47 MB → ≈ **0.0110**
+    /// DRAM SoL ~0.4–1% (compute-bound). Peak = BW/bytes ≈ **80.7 TB** runes/s.
+    /// Do **not** use quiet max as Spec; this is the measured traffic model.
+    static constexpr double kHistBytesPerRuneSharedCipherOccupancy = 0.01111;
+    static constexpr double kDramRooflineSharedCipherOccupancyPeak =
+        kDramBandwidthBytesPerSec / kHistBytesPerRuneSharedCipherOccupancy;
+
     [[nodiscard]] static constexpr double dram_roofline_hist_peak() noexcept {
         return kDramRooflineHistPeak;
+    }
+
+    [[nodiscard]] static constexpr double dram_roofline_shared_cipher_occupancy_peak() noexcept {
+        return kDramRooflineSharedCipherOccupancyPeak;
     }
 
     /// One timed SLO tier (T1 / T2 / T3). Aggregate for MSVC `constexpr` init.
@@ -131,6 +147,7 @@ public:
     // Fair Kernel SLO only (T≥2^20). Campaign wall is never PRIMARY.
 
     /// Custom Atbash arith (`28-x`) vs catalog `F.atbash` occupancy (C=512).
+    /// Peak = shared-cipher occupancy DRAM roof (ncu bytes/rune), not 1 B/rune.
     static constexpr Tier dsl_smart_atbash{"T.dsl_smart.custom_atbash",
                                           "Self-written Atbash arith → ShapeInline twin",
                                           512u,
@@ -138,7 +155,7 @@ public:
                                           8u,
                                           15.0e9,
                                           0.0,
-                                          kDramRooflineHistPeak};
+                                          kDramRooflineSharedCipherOccupancyPeak};
 
     /// Catalog `FamilyChi2Batch` atbash twin (same C/T as custom_atbash).
     static constexpr Tier dsl_smart_compare_atbash{"T.dsl_smart.compare_Fatbash",
@@ -148,7 +165,7 @@ public:
                                                   8u,
                                                   15.0e9,
                                                   0.0,
-                                                  kDramRooflineHistPeak};
+                                                  kDramRooflineSharedCipherOccupancyPeak};
 
     /// Custom Caesar → ShapeInline (`HistFast::dec_caesar`).
     static constexpr Tier dsl_smart_caesar{"T.dsl_smart.custom_caesar",
@@ -241,7 +258,8 @@ public:
 
     // --- Peak / SLO tables (incl. F.* / C.* extended rows) --------------------
 
-    /// Physical DRAM-roofline ceilings (runes/s). Fused hist @ 1 B cipher/rune → 896B.
+    /// Physical DRAM-roofline ceilings (runes/s). Default fused hist @ 1 B cipher/rune → 896B.
+    /// Atbash/totient occupancy-padded shared-cipher → ncu bytes/rune class (~80.7 TB).
     [[nodiscard]] static constexpr double estimated_peak(std::string_view tier) noexcept {
         if (tier == "T1") {
             return t1.estimated_peak;
@@ -252,9 +270,13 @@ public:
         if (tier == "T3") {
             return t3.estimated_peak;
         }
-        if (tier == "F.atbash" || tier == "F.affine" || tier == "F.vigenere" ||
-            tier == "F.beaufort" || tier == "F.totient" || tier == "C.koan1_fused" ||
-            tier == "C.koan1_stages") {
+        // Shared-cipher occupancy pad (C=512): Atbash identical lanes / totient starts.
+        if (tier == "F.atbash" || tier == "F.totient" || tier == "T.dsl_smart.custom_atbash" ||
+            tier == "T.dsl_smart.compare_Fatbash") {
+            return dram_roofline_shared_cipher_occupancy_peak();
+        }
+        if (tier == "F.affine" || tier == "F.vigenere" || tier == "F.beaufort" ||
+            tier == "C.koan1_fused" || tier == "C.koan1_stages") {
             return dram_roofline_hist_peak();
         }
         if (tier == "T.theory.caesar_bytecode" || tier == "T.theory.s0") {
@@ -267,8 +289,7 @@ public:
             tier == "T.theory.s2") {
             return theory_s2_linear.estimated_peak;
         }
-        if (tier == "T.dsl_smart.custom_atbash" || tier == "T.dsl_smart.compare_Fatbash" ||
-            tier == "T.dsl_smart.custom_caesar" || tier == "T.dsl_smart.compare_caesar" ||
+        if (tier == "T.dsl_smart.custom_caesar" || tier == "T.dsl_smart.compare_caesar" ||
             tier == "T.dsl_smart.custom_affine" || tier == "T.dsl_smart.compare_Faffine") {
             return dram_roofline_hist_peak();
         }
