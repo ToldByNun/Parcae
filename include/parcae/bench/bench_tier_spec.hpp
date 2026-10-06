@@ -51,12 +51,28 @@ public:
     static constexpr double kDramRooflineSharedCipherOccupancyPeak =
         kDramBandwidthBytesPerSec / kHistBytesPerRuneSharedCipherOccupancy;
 
+    /// Affine fused hist (F.affine / dsl_smart Affine) — shared cipher across C=812
+    /// unique (a,b) lanes. ncu 2026-10-06 RTX 5070 Ti (`profiles/cache_bound/` +
+    /// `profiles/traffic_model/`):
+    ///   `affine_chi2_hist_kernel` @ C=812 T=262144 grid.y=64:
+    ///     `dram__bytes.sum` ≈ 4.0566 MB → bytes/rune ≈ **0.01906**
+    ///   DRAM SoL ~1.8%, L2 hit ~97.6% (compute/L2-bound; absolute ~17 GB/s).
+    /// Peak = BW/bytes ≈ **47.0 TB** runes/s. Fixes intermittent `%peak>100` under
+    /// the unique-key 1 B/rune Spec. Not quiet max.
+    static constexpr double kHistBytesPerRuneAffineSharedCipher = 0.01906;
+    static constexpr double kDramRooflineAffineSharedCipherPeak =
+        kDramBandwidthBytesPerSec / kHistBytesPerRuneAffineSharedCipher;
+
     [[nodiscard]] static constexpr double dram_roofline_hist_peak() noexcept {
         return kDramRooflineHistPeak;
     }
 
     [[nodiscard]] static constexpr double dram_roofline_shared_cipher_occupancy_peak() noexcept {
         return kDramRooflineSharedCipherOccupancyPeak;
+    }
+
+    [[nodiscard]] static constexpr double dram_roofline_affine_shared_cipher_peak() noexcept {
+        return kDramRooflineAffineSharedCipherPeak;
     }
 
     /// One timed SLO tier (T1 / T2 / T3). Aggregate for MSVC `constexpr` init.
@@ -188,6 +204,7 @@ public:
                                                   kDramRooflineHistPeak};
 
     /// Custom Affine decrypt → ShapeInline; fair C=812 (a=1..28 × b=0..28).
+    /// Peak = Affine shared-cipher DRAM roof (ncu 0.01906 B/rune), not 1 B/rune.
     static constexpr Tier dsl_smart_affine{"T.dsl_smart.custom_affine",
                                           "Self-written Affine decrypt → ShapeInline twin",
                                           812u,
@@ -195,7 +212,7 @@ public:
                                           4u,
                                           15.0e9,
                                           0.0,
-                                          kDramRooflineHistPeak};
+                                          kDramRooflineAffineSharedCipherPeak};
 
     /// Catalog `FamilyChi2Batch` affine twin (same C/T as custom_affine).
     static constexpr Tier dsl_smart_compare_affine{"T.dsl_smart.compare_Faffine",
@@ -205,7 +222,7 @@ public:
                                                   4u,
                                                   15.0e9,
                                                   0.0,
-                                                  kDramRooflineHistPeak};
+                                                  kDramRooflineAffineSharedCipherPeak};
 
     /// Custom linear `x±(b0+b1·i)` → S2 uchar4; fair C=841 (=29²).
     static constexpr Tier dsl_smart_linear{"T.dsl_smart.custom_linear",
@@ -300,6 +317,7 @@ public:
 
     /// Physical DRAM-roofline ceilings (runes/s). Default fused hist @ 1 B cipher/rune → 896B.
     /// Atbash/totient occupancy-padded shared-cipher → ncu bytes/rune class (~80.7 TB).
+    /// Affine shared-cipher (C=812) → ncu bytes/rune class (~47.0 TB).
     [[nodiscard]] static constexpr double estimated_peak(std::string_view tier) noexcept {
         if (tier == "T1") {
             return t1.estimated_peak;
@@ -315,8 +333,13 @@ public:
             tier == "T.dsl_smart.compare_Fatbash") {
             return dram_roofline_shared_cipher_occupancy_peak();
         }
-        if (tier == "F.affine" || tier == "F.vigenere" || tier == "F.beaufort" ||
-            tier == "C.koan1_fused" || tier == "C.koan1_stages") {
+        // Affine shared cipher across unique (a,b) lanes (C=812).
+        if (tier == "F.affine" || tier == "T.dsl_smart.custom_affine" ||
+            tier == "T.dsl_smart.compare_Faffine") {
+            return dram_roofline_affine_shared_cipher_peak();
+        }
+        if (tier == "F.vigenere" || tier == "F.beaufort" || tier == "C.koan1_fused" ||
+            tier == "C.koan1_stages") {
             return dram_roofline_hist_peak();
         }
         if (tier == "T.theory.caesar_bytecode" || tier == "T.theory.s0") {
@@ -330,7 +353,6 @@ public:
             return theory_s2_linear.estimated_peak;
         }
         if (tier == "T.dsl_smart.custom_caesar" || tier == "T.dsl_smart.compare_caesar" ||
-            tier == "T.dsl_smart.custom_affine" || tier == "T.dsl_smart.compare_Faffine" ||
             tier == "T.dsl_smart.custom_linear" || tier == "T.dsl_smart.compare_S2" ||
             tier == "T.dsl_smart.custom_autokey" || tier == "T.dsl_smart.compare_S4") {
             return dram_roofline_hist_peak();

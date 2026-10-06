@@ -29,7 +29,7 @@ private:
 
 | Header | Class | Status |
 |--------|-------|--------|
-| `bench_tier_spec.hpp` | `BenchTierSpec` | Done — canonical T1–T3 C/T/reps + peak/SLO tables; **`estimated_peak` = physical DRAM roofline** (RTX 5070 Ti 896 GB/s → **896B** runes/s @ 1 B/rune; T3 **448B**) — not a measured quiet max |
+| `bench_tier_spec.hpp` | `BenchTierSpec` | Done — canonical T1–T3 C/T/reps + peak/SLO tables; **`estimated_peak` = physical DRAM roofline** (RTX 5070 Ti 896 GB/s → **896B** @ 1 B/rune; T3 **448B**; Atbash/totient ~**80.7 TB** @ 0.01111 B/rune; Affine ~**47.0 TB** @ 0.01906 B/rune) — not a measured quiet max |
 | `bench_metric.hpp` | `BenchMetric` | Done — runes/s, keys/s, median-of-3 |
 | `bench_timer.hpp` | `BenchTimer` | Done — CPU steady_clock + CUDA cudaEvent protocol |
 | `bench_report.hpp` | `BenchReport` | Done — unified rows + JSON `--omit-timing` |

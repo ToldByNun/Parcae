@@ -28,7 +28,9 @@ Caesar twin stretch (~**87%** median); fair specialize ~**76%**; S1 noisy;
 F.vigenere/beaufort ≥90% under 1 B/rune. Atbash/totient use the **shared-cipher
 occupancy** traffic class (~**0.01111 B/rune**, ncu 2026-10-06 → peak ≈**80.7 TB**)
 so `%peak≤100` ([`profiles/traffic_model/SUMMARY.md`](profiles/traffic_model/SUMMARY.md)).
-DRAM SoL still ~few % — Done deferred until memory-bound. Hard-S0 interpreter
+Affine uses the **Affine shared-cipher** class (~**0.01906 B/rune**, cache_bound
+ncu → peak ≈**47.0 TB**) — same honesty fix for intermittent `%peak>100` under
+896B. DRAM SoL still ~few % — Done deferred until memory-bound. Hard-S0 interpreter
 remains ~**7–8%**.
 
 `ThroughputTiers` / `DslPeakSanity` delegate to `BenchTierSpec`
@@ -133,7 +135,7 @@ are far below 90% — that is expected until kernels are memory-bound.
 | Tier | Workload | Ceiling (runes/s) | SLO floor |
 |------|----------|-------------------|-----------|
 | F.atbash | Atbash fused χ² (C=512 occupancy pad) | **≈80.7 TB** (0.01111 B/rune ncu) | ≥15B |
-| F.affine | Affine fused χ² (812) | **896B** | ≥15B |
+| F.affine | Affine fused χ² (812 shared cipher) | **≈47.0 TB** (0.01906 B/rune ncu) | ≥15B |
 | F.vigenere | Vigenère fused χ² (key len 8) | **896B** | ≥3B |
 | F.beaufort | Beaufort fused χ² (key len 8) | **896B** | ≥3B |
 | F.totient | Totient stream fused χ² (C=512) | **≈80.7 TB** (shared-cipher class) | ≥3B |

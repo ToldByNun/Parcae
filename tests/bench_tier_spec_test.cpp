@@ -29,8 +29,28 @@ TEST_CASE("BenchTierSpec shared-cipher occupancy peak is ncu bytes/rune class",
     REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_atbash") == peak);
     REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.compare_Fatbash") == peak);
     // Unique-key families stay on 1 B/rune roof.
-    REQUIRE(BenchTierSpec::estimated_peak("F.affine") == 896.0e9);
     REQUIRE(BenchTierSpec::estimated_peak("F.vigenere") == 896.0e9);
+}
+
+TEST_CASE("BenchTierSpec Affine shared-cipher peak is ncu bytes/rune class",
+          "[bench][spec][traffic][affine]") {
+    // affine ncu cache_bound 2026-10-06: ~4.0566e6 / (812*262144) ≈ 0.01906 B/rune
+    REQUIRE(BenchTierSpec::kHistBytesPerRuneAffineSharedCipher == 0.01906);
+    const double peak = BenchTierSpec::dram_roofline_affine_shared_cipher_peak();
+    REQUIRE(peak ==
+            Approx(BenchTierSpec::kDramBandwidthBytesPerSec /
+                   BenchTierSpec::kHistBytesPerRuneAffineSharedCipher)
+                .epsilon(1e-12));
+    REQUIRE(peak > BenchTierSpec::dram_roofline_hist_peak());
+    REQUIRE(peak < BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak());
+    REQUIRE(BenchTierSpec::estimated_peak("F.affine") == peak);
+    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_affine") == peak);
+    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.compare_Faffine") == peak);
+    REQUIRE(BenchTierSpec::dsl_smart_affine.estimated_peak == peak);
+    REQUIRE(BenchTierSpec::dsl_smart_compare_affine.estimated_peak == peak);
+    // Quiet-class RPS that printed >100% under 896B stays ≤100 under Affine roof.
+    REQUIRE(BenchTierSpec::percent_peak(1142.0e9, peak) < 100.0);
+    REQUIRE(BenchTierSpec::percent_peak(885.0e9, peak) < 100.0);
 }
 
 TEST_CASE("BenchTierSpec T1 config matches canonical SLO table", "[bench][spec]") {

@@ -93,7 +93,8 @@ Notes:
 - Atbash bytes/rune **0.016** ≈ traffic_model **0.01111** (same class; small plate
   noise / counter scope).
 - Affine L2 hit **97.6%** + DRAM **17 GB/s** while fair cudaEvent can print high
-  `%peak` under 1 B/rune — traffic-model follow-up (not this commit).
+  absolute RPS — traffic model fixed in Spec (`kHistBytesPerRuneAffineSharedCipher
+  = 0.01906` → ~47.0 TB); see [`../traffic_model/SUMMARY.md`](../traffic_model/SUMMARY.md).
 
 Fair cudaEvent (`T=1048576`, H2D excluded):
 

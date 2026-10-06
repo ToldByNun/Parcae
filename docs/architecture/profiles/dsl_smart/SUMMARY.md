@@ -32,8 +32,8 @@ counterparts on the **same** C/T.
 | `T.dsl_smart.compare_Fatbash` | 512 | 1048576 | `catalog_F.atbash` | — | shared-cipher ≈**80.7 TB** |
 | `T.dsl_smart.custom_caesar` | 29 | 1048576 | `ShapeInline_caesar` | `compare_caesar` | **896B** |
 | `T.dsl_smart.compare_caesar` | 29 | 1048576 | `catalog_CaesarChi2` | — | **896B** |
-| `T.dsl_smart.custom_affine` | 812 | 1048576 | `ShapeInline_affine` | `compare_Faffine` | **896B** |
-| `T.dsl_smart.compare_Faffine` | 812 | 1048576 | `catalog_F.affine` | — | **896B** |
+| `T.dsl_smart.custom_affine` | 812 | 1048576 | `ShapeInline_affine` | `compare_Faffine` | Affine shared-cipher ≈**47.0 TB** |
+| `T.dsl_smart.compare_Faffine` | 812 | 1048576 | `catalog_F.affine` | — | Affine shared-cipher ≈**47.0 TB** |
 | `T.dsl_smart.custom_linear` | 841 | 1048576 | `S2_linear` | `compare_S2` | **896B** |
 | `T.dsl_smart.compare_S2` | 841 | 1048576 | `catalog_S2_linear` | — | **896B** |
 | `T.dsl_smart.custom_autokey` | 28 | 1048576 | `S4_autokey` | `compare_S4` | **896B** |
@@ -49,8 +49,8 @@ Sources: `dsl_smart_fair_run{1,2,3}.json` (`T=1048576`, `BenchTimer` cudaEvent).
 | `compare_Fatbash` | 1678B | 1592B | 1286B | **1592B** | **1.97%** of 80.7 TB | — |
 | `custom_caesar` | 827B | 786B | 537B | **786B** | **87.7%** of 896B | ≈ twin |
 | `compare_caesar` | 728B | 822B | 780B | **780B** | **87.0%** of 896B | — |
-| `custom_affine` | 915B | 964B | 1241B | **964B** | **107.6%** of 896B | ≈ catalog |
-| `compare_Faffine` | 956B | 1142B | 1179B | **1142B** | **127.4%** of 896B | — |
+| `custom_affine` | 915B | 964B | 1241B | **964B** | **≈2.05%** of 47.0 TB | ≈ catalog |
+| `compare_Faffine` | 956B | 1142B | 1179B | **1142B** | **≈2.43%** of 47.0 TB | — |
 | `custom_linear` | 402B | 372B | 384B | **384B** | **42.8%** of 896B | ≈ S2 twin |
 | `compare_S2` | 367B | 355B | 373B | **367B** | **41.0%** of 896B | — |
 | `custom_autokey` | 475B | 491B | 475B | **475B** | **53.1%** of 896B | ≈ S4 twin |
@@ -64,15 +64,15 @@ Sources: `dsl_smart_fair_run{1,2,3}.json` (`T=1048576`, `BenchTimer` cudaEvent).
 | `compare_Fatbash` | 1592B | 1.97% | fail | fail / N/A | **OK** |
 | `custom_caesar` | 786B | 87.7% | **PASS** | fail | **OK** |
 | `compare_caesar` | 780B | 87.0% | **PASS** | fail | **OK** |
-| `custom_affine` | 964B | 107.6% | invalid\* | invalid\* | **`%peak>100`** |
-| `compare_Faffine` | 1142B | 127.4% | invalid\* | invalid\* | **`%peak>100`** |
+| `custom_affine` | 964B | ≈2.05% | fail | fail / N/A (compute-bound) | **OK** (0.01906 B/rune) |
+| `compare_Faffine` | 1142B | ≈2.43% | fail | fail / N/A | **OK** |
 | `custom_linear` | 384B | 42.8% | fail | fail | **OK** |
 | `compare_S2` | 367B | 41.0% | fail | fail | **OK** |
 | `custom_autokey` | 475B | 53.1% | fail | fail | **OK** |
 | `compare_S4` | 489B | 54.6% | fail | fail | **OK** |
 
-\*Stretch/Done rejected while model `%peak>100` (unique-key Affine Spec stays 896B;
-separate from shared-cipher Atbash fix).
+\*Stretch/Done for Affine use the Affine shared-cipher roof (~47.0 TB); absolute
+RPS still ≪90% (compute/L2-bound). See [`../traffic_model/SUMMARY.md`](../traffic_model/SUMMARY.md).
 
 ## ACCEPTANCE verdict
 
@@ -80,7 +80,7 @@ separate from shared-cipher Atbash fix).
 |-------|--------|
 | Custom Atbash in F.atbash twin class | **PASS (model + twin)** — both ~2% of 80.7 TB |
 | Custom Caesar in CaesarChi2 twin class | **PASS (stretch)** — both ~87% of 896B |
-| Custom Affine in F.affine twin class | **PARTIAL** — tracks catalog; model intermittent `>100` |
+| Custom Affine in F.affine twin class | **PASS (model + twin)** — both ~2% of 47.0 TB; stretch/Done open |
 | Custom linear in S2 twin class | **PASS (twin)** — ~43% vs ~41%; stretch fail (compute-bound) |
 | Custom autokey in S4 twin class | **PASS (twin)** — ~53% vs ~55%; stretch fail |
 | Campaign wall used as Done evidence | **No** |
@@ -88,8 +88,8 @@ separate from shared-cipher Atbash fix).
 | Edge tags green | **PASS** — `[dsl][normalize]`, `[dsl][shape]`, `[cuda][theory][edge]`, `[search][export][theory][shape]` |
 
 **Overall: PARTIAL PASS** — twins land for Atbash/Caesar/Affine/linear/autokey;
-Caesar stretch; Atbash model OK; Affine model + linear/autokey stretch open;
-Done deferred until DRAM-bound.
+Caesar stretch; Atbash + Affine traffic models OK; linear/autokey stretch open;
+Done deferred until DRAM-/compute-roof climb.
 
 ```powershell
 .\scripts\cuda\capture_dsl_smart.ps1 -BuildDir build-rel-cuda -Runs 3

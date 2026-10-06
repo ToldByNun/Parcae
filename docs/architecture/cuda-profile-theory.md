@@ -302,6 +302,7 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-06 | **kernel_slo_requiet** | `profiles/kernel_slo/` + `dsl_smart/` | slo extended ×2 + dsl_smart ×3 | fair F.*/customs | Atbash/totient `%peak≤100` under 80.7 TB | — | re-quiet ACCEPTANCE | model gate **PASS**; stretch still compute-bound |
 | 2026-10-06 | **dsl_smart_e2e** | `profiles/dsl_smart/` | fair customs ×3 (Atbash/Caesar/Affine/linear/autokey + twins) | fair T=1M | Caesar stretch ~**87%**; Atbash model OK ~2% of 80.7 TB; linear ~43%; autokey ~53%; Affine `%peak>100` intermittent | — | quiet E2E ACCEPTANCE | **PARTIAL PASS** — see SUMMARY; edge tags green |
 | 2026-10-06 | **cache_bound** | `profiles/cache_bound/` | Caesar / Atbash / S1 / S2 / Affine | ncu T=262k + fair JSON | Affine **17.08 GB/s** DRAM (≈16.9); Caesar 28.6; Atbash 4.8; S1 27.4; S2 7.7 | L2 hit Atbash **98.5%** / Affine **97.6%**; DRAM SoL 0.5–3.1% | `-MetricsPreset cache_bound` + CSV | **PASS harness** — all ≪896 GB/s; bytes/rune ≪1 (shared cipher L2) |
+| 2026-10-06 | **affine_traffic** | `profiles/traffic_model/` + Spec | `affine_chi2_hist_kernel` | C=812 T=262k | bytes/rune **0.01906** → peak **≈47.0 TB** | L2 97.6% DRAM 1.8% | Spec `kHistBytesPerRuneAffineSharedCipher` | **PASS model** — F.affine / dsl_smart Affine `%peak≤100`; not quiet-max |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 

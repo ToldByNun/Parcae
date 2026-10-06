@@ -43,10 +43,10 @@ Spec constant: `BenchTierSpec::kHistBytesPerRuneSharedCipherOccupancy = 0.01111`
 → `kDramRooflineSharedCipherOccupancyPeak` ≈ **80.7e12** runes/s.
 
 Applied to: `F.atbash`, `F.totient`, `T.dsl_smart.custom_atbash`,
-`T.dsl_smart.compare_Fatbash`. Unique-key families (`F.affine`, Caesar, …)
-stay on **896B** @ 1 B/rune.
+`T.dsl_smart.compare_Fatbash`. Unique-key Vigenère/Beaufort/Caesar stay on
+**896B** @ 1 B/rune. Affine is a **separate** shared-cipher class (below).
 
-## Sanity after model fix
+## Sanity after Atbash/totient model fix
 
 With the shared-cipher roof, quiet Atbash ~1350B → **`%peak ≈ 1.7%`** (≤100).
 Totient ~880B → **`%peak ≈ 1.1%`**. Matches DRAM SoL (compute-bound; Done
@@ -54,19 +54,52 @@ deferred until memory-bound).
 
 **Spec was not lowered to quiet max** — bytes/rune came from ncu DRAM counters.
 
+## Affine shared-cipher (2026-10-06)
+
+Quiet Kernel SLO intermittently printed **`%peak>100`** for `F.affine` /
+`T.dsl_smart.*_affine` under the unique-key **896B** Spec (e.g. catalog median
+**1142B** → 127%). Cause: C=812 unique `(a,b)` lanes still share one cipher
+buffer → L2 residency; physical DRAM ≪ 1 B/rune.
+
+ncu from [`../cache_bound/`](../cache_bound/) (`affine_hist_metrics.csv`):
+
+| Kernel | Grid | `dram__bytes.sum` | Duration | DRAM GB/s | DRAM SoL | L2 hit | bytes/rune |
+|--------|------|-------------------|----------|-----------|----------|--------|------------|
+| `affine_chi2_hist_kernel` | (812,64)×256 @ T=262144 | **≈4.0566 MB** | 237.47 µs | **17.08** | **1.82%** | **97.6%** | **0.01906** |
+
+```text
+bytes_per_rune = 4056596.611 / (812 · 262144) ≈ 0.01906
+peak_runes/s   = 896e9 / 0.01906 ≈ 47.0 TB
+```
+
+Spec: `BenchTierSpec::kHistBytesPerRuneAffineSharedCipher = 0.01906`  
+→ `kDramRooflineAffineSharedCipherPeak` ≈ **47.0e12** runes/s.
+
+Applied to: `F.affine`, `T.dsl_smart.custom_affine`, `T.dsl_smart.compare_Faffine`.
+
+Under the Affine roof, prior quiet medians stay ≤100:
+
+| Row | Quiet RPS (dsl_smart E2E med) | % of 47.0 TB |
+|-----|-------------------------------|--------------|
+| `custom_affine` | 964B | **≈2.05%** |
+| `compare_Faffine` | 1142B | **≈2.43%** |
+
+Absolute DRAM ~**17 GB/s** matches the operator **~16.9 GB/s** observation.
+
 ## Artifacts (local / gitignored binaries)
 
 | File | Role |
 |------|------|
 | `atbash_hist.ncu-rep` | ncu Atbash hist |
 | `totient_hist.ncu-rep` | ncu Totient hist |
+| `../cache_bound/affine_hist.ncu-rep` | ncu Affine hist (cache_bound plate) |
+| `../cache_bound/affine_hist_metrics.csv` | Affine CSV (bytes + L2) |
 
 ## Follow-up
 
 Re-quiet done 2026-10-06:
 
 - [`../kernel_slo/SUMMARY.md`](../kernel_slo/SUMMARY.md) — Atbash/totient model **PASS**
-- [`../dsl_smart/SUMMARY.md`](../dsl_smart/SUMMARY.md) — custom Atbash model **PASS**
+- [`../dsl_smart/SUMMARY.md`](../dsl_smart/SUMMARY.md) — custom Atbash model **PASS**; Affine model fixed under 0.01906 B/rune (re-quiet `%peak` below)
 
-Affine unique-key intermittent `%peak>100` is a separate traffic class (still
-1 B/rune Spec).
+Affine Done still deferred (compute/L2-bound; ≪90% of 47 TB roof).
