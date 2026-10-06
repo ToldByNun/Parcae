@@ -673,6 +673,64 @@ TEST_CASE("prefer_branch divergent Select stays hard S0; χ² ≡ CPU",
     std::filesystem::remove_all(root, ec);
 }
 
+TEST_CASE("FxOnly+inv decrypt hoists soft-fall S0; χ² ≡ bytecode",
+          "[cuda][theory][edge][hoist]") {
+    REQUIRE(ParcaeCuda::available());
+
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_theory_edge_hoist";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const StatusOr<ParamIr> k = ParamIr::make("k", 1, 28);
+    REQUIRE(k.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr body = Z29Expr::add(x, Z29Expr::inv(Z29Expr::var("k")));
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "edge_fx_inv", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {k.value()}, body, body,
+        std::string("Edge FxOnly+inv soft S0."));
+    REQUIRE(theory.ok());
+    REQUIRE(install_theory(root / "theories", theory.value()).ok());
+    REQUIRE(TheoryHistChi2Emit::select_strategy(theory.value()).strategy() ==
+            TheoryHistChi2Emit::Strategy::S1Lut29);
+    REQUIRE_FALSE(
+        TheoryHistChi2Emit::emit_decrypt_hist_optimized(theory.value()).value().specialized());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = make_cipher(32);
+    std::vector<nlohmann::json> params_list{nlohmann::json{{"k", 1}}, nlohmann::json{{"k", 3}},
+                                            nlohmann::json{{"k", 7}}};
+
+    TheoryExportCache cache;
+    StatusOr<std::vector<double>> gpu = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/edge_fx_inv@1", params_list,
+        TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
+    REQUIRE(gpu.ok());
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+
+    const std::vector<double> bytecode =
+        launch_bytecode_scores(theory.value(), cipher, params_list, freqs.value());
+    for (std::size_t i = 0; i < bytecode.size(); ++i) {
+        REQUIRE(gpu.value()[i] == bytecode[i]);
+    }
+
+    for (std::size_t c = 0; c < params_list.size(); ++c) {
+        StatusOr<std::vector<Index29>> plain = TheoryDispatch::apply(
+            theory.value(), cipher, params_list[c], TransformDirection::Decrypt);
+        REQUIRE(plain.ok());
+        StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
+        REQUIRE(cpu.ok());
+        REQUIRE(gpu.value()[c] == cpu.value());
+    }
+
+    std::filesystem::remove_all(root, ec);
+}
+
 #else
 
 TEST_CASE("theory specialized edgecases skipped without CUDA",

@@ -508,6 +508,33 @@ TEST_CASE("TheoryHistChi2Emit prefer_branch stays hard S0 until measured twin",
     REQUIRE(bundle.value().reason().find("measured twin") != std::string::npos);
 }
 
+TEST_CASE("TheoryHistChi2Emit mux Select without prefer_branch may still specialize",
+          "[dsl][emit][hist][chi2][prefer_branch]") {
+    // Lane-uniform mux (no divergent_branch flag) is not hard-S0 by policy.
+    const StatusOr<ParamIr> c = ParamIr::make("c", 0, 1);
+    REQUIRE(c.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        Z29Expr::var("c"), Z29Expr::sub(Z29Expr::constant(28).value(), x), x,
+        /*prefer_branch=*/false);
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "emit_mux_select", TheoryIr::Family::Elementwise, TheoryIr::Tier::A,
+        TheoryIr::InterruptMode::ElementwiseDefault, {c.value()}, expr, expr,
+        std::string("mux Select without prefer_branch."));
+    REQUIRE(theory.ok());
+
+    const TheoryHistChi2Emit::Selection sel =
+        TheoryHistChi2Emit::select_strategy(theory.value());
+    REQUIRE(sel.strategy() != TheoryHistChi2Emit::Strategy::S0Bytecode);
+    REQUIRE(sel.strategy() == TheoryHistChi2Emit::Strategy::S1Lut29);
+
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory.value());
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S1Lut29);
+    REQUIRE(bundle.value().specialized());
+}
+
 TEST_CASE("TheoryHistChi2Emit Affine ShapeInline stays specialized despite inv hoists",
           "[dsl][emit][hist][chi2][hoist]") {
     // Policy: ShapeInline twins ignore HotLoop temps; keep specialized when
@@ -555,6 +582,41 @@ TEST_CASE("TheoryHistChi2Emit S1 soft-falls S0 when decrypt inv hoists present",
     REQUIRE(with_hoist.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
     REQUIRE_FALSE(with_hoist.value().specialized());
     REQUIRE(with_hoist.value().reason().find("hoists") != std::string::npos);
+}
+
+TEST_CASE("TheoryHistChi2Emit S2 soft-falls S0 when decrypt hoists injected",
+          "[dsl][emit][hist][chi2][hoist]") {
+    // Progressive classifies S2; hist twin has no hoist prelude → soft S0.
+    const TheoryIr theory = make_progressive_theory();
+    REQUIRE(TheoryHistChi2Emit::select_strategy(theory).strategy() ==
+            TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
+
+    const std::vector<DslOptimize::Hoist> fake_hoists{
+        DslOptimize::Hoist{"__parcae_inv_0", Z29Expr::var("b0")}};
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory, "x", fake_hoists);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().intended_strategy() == TheoryHistChi2Emit::Strategy::S2Uchar4Inline);
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+    REQUIRE_FALSE(bundle.value().specialized());
+    REQUIRE(bundle.value().reason().find("hoists") != std::string::npos);
+}
+
+TEST_CASE("TheoryHistChi2Emit S5 soft-falls S0 when decrypt hoists injected",
+          "[dsl][emit][hist][chi2][hoist]") {
+    const TheoryIr theory = make_poly_keystream_theory();
+    REQUIRE(TheoryHistChi2Emit::select_strategy(theory).strategy() ==
+            TheoryHistChi2Emit::Strategy::S5PolyKeystream);
+
+    const std::vector<DslOptimize::Hoist> fake_hoists{
+        DslOptimize::Hoist{"__parcae_inv_0", Z29Expr::var("b0")}};
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory, "x", fake_hoists);
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().intended_strategy() == TheoryHistChi2Emit::Strategy::S5PolyKeystream);
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S0Bytecode);
+    REQUIRE_FALSE(bundle.value().specialized());
+    REQUIRE(bundle.value().reason().find("hoists") != std::string::npos);
 }
 
 #if defined(PARCAE_HAS_CUDA)

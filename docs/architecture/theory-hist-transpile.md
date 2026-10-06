@@ -171,8 +171,8 @@ private:
 | Div0 / inv domain | Lane `+inf`; soft S0 if specialized path cannot bind |
 | Non-empty interrupt | Reject export |
 | Empty interrupt | Allowed |
-| `prefer_branch` Select | **Hard S0** until a measured divergent specialized twin exists; S0 peak gate still holds. Mux Select without the flag may still specialize. |
-| Decrypt `inv` hoists | **Keep soft S0** on body-eval hist (S1/S2/S3/S4/S5) until a hoist prelude is wired into those kernels. **ShapeInline** Atbash/Caesar/Affine-decrypt twins still specialize (device twin owns `inv(a)`; ignores HotLoop temps). Never silently wrong-score. |
+| `prefer_branch` Select | **Hard S0** until a measured divergent specialized twin exists (`#ignore DSL_FLAG:divergent_branch`). S0 peak gate still holds. Mux Select **without** the flag may still specialize (S1/…). Documented + Catch2 `[prefer_branch]`. |
+| Decrypt `inv` hoists | **Keep soft S0** on body-eval hist (S1/S2/S3/S4/S5) until a hoist prelude is wired into those kernels. **ShapeInline** Atbash/Caesar/Affine-decrypt twins still specialize (device twin owns `inv(a)`; ignores HotLoop temps). Never silently wrong-score. Catch2 `[hoist]`. |
 | Caps (ops/stack/slots/C/T) | S0 or stable `DslRuleId` reject — no UB |
 | Top-k parity | CPU bytecode ≡ specialized (and ≡ S0) on fixed grids |
 | Short T / campaign | Document as wall only |

@@ -460,6 +460,19 @@ TEST_CASE("TheoryShapeMatch prefer_branch Select is Unknown until measured twin"
     REQUIRE(m.value().reason().find("measured twin") != std::string::npos);
 }
 
+TEST_CASE("TheoryShapeMatch mux Select without prefer_branch is not Unknown-by-flag",
+          "[dsl][shape][prefer_branch]") {
+    const Z29Expr::Ptr expr = Z29Expr::select(
+        TheoryShapeMatchTestUtil::v("c"),
+        Z29Expr::sub(TheoryShapeMatchTestUtil::lit(28), TheoryShapeMatchTestUtil::x()),
+        TheoryShapeMatchTestUtil::x(), /*prefer_branch=*/false);
+    const StatusOr<TheoryShapeMatch::Match> m = TheoryShapeMatch::match(expr);
+    REQUIRE(m.ok());
+    REQUIRE(m.value().shape() != TheoryShapeMatch::ShapeId::Unknown);
+    // Select root is not Atbash/Caesar; falls to FxOnly (no stream i).
+    REQUIRE(m.value().shape() == TheoryShapeMatch::ShapeId::FxOnly);
+}
+
 TEST_CASE("TheoryShapeMatch name-irrelevant: theory name foo_bar still Atbash", "[dsl][shape]") {
     const TheoryIr theory = TheoryShapeMatchTestUtil::make_theory(
         "foo_bar", Z29Expr::sub(TheoryShapeMatchTestUtil::lit(28), TheoryShapeMatchTestUtil::x()));
