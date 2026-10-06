@@ -152,6 +152,7 @@ add_executable(parcae_tests
   cuda_batch_rank1_test.cpp
   cuda_caesar_chi2_batch_test.cpp
   hist_fast_parity_test.cpp
+  hist_tile_cap_test.cpp
   roof_hist_caesar_tile_test.cpp
   theory_chi2_batch_test.cpp
   search_run_test.cpp

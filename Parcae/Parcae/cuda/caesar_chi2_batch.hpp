@@ -15,7 +15,8 @@
 /// `add_private` until a path ≥ fair T1 baseline.
 ///
 /// Optional `set_hist_tile_cap` overrides `grid.y` while keeping
-/// `HistFast::add_private` (A/B vs production fat-tile).
+/// `HistFast::add_private` (A/B vs production fat-tile). Backed by
+/// `HistTileCap::kCaesar` (no anonymous namespace).
 class CaesarChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;
@@ -27,6 +28,7 @@ public:
 
     /// `0` = production (`kProductionTileCap`). Positive = override clamp
     /// (use `HistFast::max_tiles` to A/B uncapped tiling).
+    /// Forwards to `HistTileCap::set(HistTileCap::kCaesar, cap)`.
     static void set_hist_tile_cap(int cap) noexcept;
 
     [[nodiscard]] static int hist_tile_cap() noexcept;

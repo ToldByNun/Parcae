@@ -2,6 +2,7 @@
 #include "chi2_batch_score.hpp"
 #include "cuda_error.hpp"
 #include "hist_fast.hpp"
+#include "hist_tile_cap.hpp"
 
 #include <cuda_runtime_api.h>
 
@@ -9,17 +10,14 @@
 // (`kProductionTileCap=64`; see profiles/roof_hist/). Register-local /
 // 32 KiB shared-local under profiles/hist_local_caesar/ regressed fair T1 —
 // keep HistFast local APIs for research only.
-
-namespace {
-int g_hist_tile_cap = 0;
-} // namespace
+// Tile-cap override: HistTileCap::kCaesar (no anonymous namespace).
 
 void CaesarChi2Batch::set_hist_tile_cap(int cap) noexcept {
-    g_hist_tile_cap = cap < 0 ? 0 : cap;
+    HistTileCap::set(HistTileCap::kCaesar, cap);
 }
 
 int CaesarChi2Batch::hist_tile_cap() noexcept {
-    return g_hist_tile_cap;
+    return HistTileCap::get(HistTileCap::kCaesar);
 }
 
 int CaesarChi2Batch::tiles_for_public(std::size_t token_count) {
@@ -87,8 +85,7 @@ __global__ void caesar_chi2_histogram_kernel(const std::uint8_t* in, const std::
 int CaesarChi2Batch::tiles_for(std::size_t token_count) {
     static_assert(kProductionTileCap == HistFast::production_tile_cap,
                   "CaesarChi2Batch::kProductionTileCap must match HistFast");
-    const int cap = g_hist_tile_cap > 0 ? g_hist_tile_cap : HistFast::production_tile_cap;
-    return HistFast::tiles_for_capped(token_count, cap);
+    return HistTileCap::tiles_for(HistTileCap::kCaesar, token_count);
 }
 
 Status CaesarChi2Batch::validate(std::size_t candidate_count, std::size_t token_count,
