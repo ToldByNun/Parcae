@@ -824,11 +824,26 @@ private:
             bool saw_b1 = false;
             bool saw_b2 = false;
 
+            /// Quadratic term required; missing b0/b1 default to const 0 (S2-style widen).
             [[nodiscard]] bool ok() const noexcept {
-                return saw_b0 && saw_b1 && saw_b2 &&
-                       (has_const_b0 || !b0_name.empty()) &&
-                       (has_const_b1 || !b1_name.empty()) &&
-                       (has_const_b2 || !b2_name.empty());
+                return saw_b2 && (has_const_b2 || !b2_name.empty()) &&
+                       (has_const_b0 || !b0_name.empty() || !saw_b0) &&
+                       (has_const_b1 || !b1_name.empty() || !saw_b1);
+            }
+
+            void fill_missing_linear_zeros() {
+                if (!saw_b0) {
+                    saw_b0 = true;
+                    has_const_b0 = true;
+                    const_b0 = 0;
+                    b0_name.clear();
+                }
+                if (!saw_b1) {
+                    saw_b1 = true;
+                    has_const_b1 = true;
+                    const_b1 = 0;
+                    b1_name.clear();
+                }
             }
         };
 
@@ -937,14 +952,22 @@ private:
         };
 
         PolyCoeffs coeffs;
-        if (!collect(collect, *ks, coeffs) || !coeffs.ok()) {
+        if (!collect(collect, *ks, coeffs) || !coeffs.saw_b2) {
             return std::nullopt;
         }
-        if (!coeffs.has_const_b0 && !coeffs.has_const_b1 && !coeffs.has_const_b2) {
-            if (coeffs.b0_name == coeffs.b1_name || coeffs.b0_name == coeffs.b2_name ||
-                coeffs.b1_name == coeffs.b2_name) {
-                return std::nullopt;
-            }
+        coeffs.fill_missing_linear_zeros();
+        if (!coeffs.ok()) {
+            return std::nullopt;
+        }
+        // Distinct param names among non-const coeffs.
+        auto param_name = [](bool has_c, const std::string& n) -> std::string_view {
+            return has_c ? std::string_view{} : std::string_view{n};
+        };
+        const std::string_view n0 = param_name(coeffs.has_const_b0, coeffs.b0_name);
+        const std::string_view n1 = param_name(coeffs.has_const_b1, coeffs.b1_name);
+        const std::string_view n2 = param_name(coeffs.has_const_b2, coeffs.b2_name);
+        if ((!n0.empty() && n0 == n1) || (!n0.empty() && n0 == n2) || (!n1.empty() && n1 == n2)) {
+            return std::nullopt;
         }
 
         Match m{ShapeId::PolyKeystream, "cipher ± (b0+b1*i+b2*i*i) poly/bitmask_blend",

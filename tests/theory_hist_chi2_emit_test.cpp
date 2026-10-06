@@ -310,6 +310,37 @@ TEST_CASE("TheoryHistChi2Emit selects S5 for poly / bitmask_blend keystream",
     REQUIRE_FALSE(bundle.value().header_text().empty());
 }
 
+TEST_CASE("TheoryHistChi2Emit S5 for bare b2*i*i (implied b0=b1=0)",
+          "[dsl][emit][hist][chi2][s5]") {
+    const StatusOr<ParamIr> b2 = ParamIr::make("b2", 0, 28);
+    REQUIRE(b2.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr i = Z29Expr::var("i");
+    const Z29Expr::Ptr ks = Z29Expr::mul(Z29Expr::var("b2"), Z29Expr::mul(i, i));
+    const StatusOr<TheoryIr> theory = TheoryIr::make(
+        "emit_poly_bare_b2", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign, {b2.value()}, Z29Expr::add(x, ks),
+        Z29Expr::sub(x, ks), std::string("S5 bare quadratic term."));
+    REQUIRE(theory.ok());
+
+    const TheoryHistChi2Emit::Selection sel =
+        TheoryHistChi2Emit::select_strategy(theory.value());
+    REQUIRE(sel.strategy() == TheoryHistChi2Emit::Strategy::S5PolyKeystream);
+    REQUIRE(sel.shape()->has_const_b0());
+    REQUIRE(sel.shape()->const_b0() == 0);
+    REQUIRE(sel.shape()->has_const_b1());
+    REQUIRE(sel.shape()->const_b1() == 0);
+    REQUIRE(sel.shape()->b2_name() == "b2");
+
+    StatusOr<TheoryHistChi2Emit::EmitBundle> bundle =
+        TheoryHistChi2Emit::emit_decrypt_hist(theory.value());
+    REQUIRE(bundle.ok());
+    REQUIRE(bundle.value().emitted_strategy() == TheoryHistChi2Emit::Strategy::S5PolyKeystream);
+    REQUIRE(bundle.value().s5_poly()->has_const_b0());
+    REQUIRE(bundle.value().s5_poly()->has_const_b1());
+    REQUIRE(bundle.value().s5_poly()->b2_name() == "b2");
+}
+
 TEST_CASE("TheoryHistChi2Emit S2 linear progressive emits uchar4 sources",
           "[dsl][emit][hist][chi2]") {
     const TheoryIr theory = make_progressive_theory();

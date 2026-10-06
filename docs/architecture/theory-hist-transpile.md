@@ -81,7 +81,7 @@ Classify decrypt HotLoop via `TheoryHistChi2Emit::select_strategy` / emit. Prefe
 | **S2** | `S2Uchar4Inline` / `T.theory.s2_linear` / `T.theory.progressive` | `x ± (b0 + b1·i)` (+ widened linear family over time) | `TheoryHistChi2S2` | **896B** | Required (today ~44% @ C=841) |
 | **S3** | `S3ScalarInline` / planned `T.theory.s3_*` | Uses `i` / general `x ± g(i; params)` without autokey; not simple linear S2 | `TheoryHistChi2S3` (ExprLower caps) | **896B** (same 1 B/rune roof) | Required once Spec row exists |
 | **S4** | shipping / `T.theory.s4_autokey` | `z29_autokey_shift` vigenere_lag class | `TheoryHistChi2S4` AutokeyRing+hist | **896B** unless traffic model differs | Required |
-| **S5** | shipping / shares `T.theory.s2_linear` traffic class | Low-degree poly `b0+b1·i+b2·i·i` / bitmask_blend-class | `TheoryHistChi2S5` period-29 ks table | **896B** | Required (fair Spec row TBD) |
+| **S5** | shipping / shares `T.theory.s2_linear` traffic class | Low-degree poly `b0+b1·i+b2·i·i` (missing b0/b1 ⇒ 0) / bitmask_blend-class | `TheoryHistChi2S5` period-29 ks table | **896B** | Required (fair Spec row TBD) |
 
 ### Shipping vs planned (honest snapshot)
 

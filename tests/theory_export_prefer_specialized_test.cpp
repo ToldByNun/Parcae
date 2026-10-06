@@ -558,6 +558,66 @@ TEST_CASE("GpuCandidateExport prefers S5 poly for bitmask_blend-class custom",
     std::filesystem::remove_all(root, ec);
 }
 
+TEST_CASE("GpuCandidateExport prefers S5 for bare b2*i*i bitmask custom",
+          "[search][export][theory][specialized][cuda][s5]") {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_export_prefer_s5_bare";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const StatusOr<ParamIr> gamma = ParamIr::make("gamma", 0, 28);
+    REQUIRE(gamma.ok());
+    const Z29Expr::Ptr x = Z29Expr::var("x");
+    const Z29Expr::Ptr i = Z29Expr::var("i");
+    const Z29Expr::Ptr ks = Z29Expr::mul(Z29Expr::var("gamma"), Z29Expr::mul(i, i));
+    const StatusOr<TheoryIr> th = TheoryIr::make(
+        "export_prefer_bare_quad", TheoryIr::Family::KeyedStream, TheoryIr::Tier::B,
+        TheoryIr::InterruptMode::NoneByDesign, {gamma.value()}, Z29Expr::add(x, ks),
+        Z29Expr::sub(x, ks), std::string("Bare quadratic bitmask-class custom."));
+    REQUIRE(th.ok());
+    const TheoryIr theory = th.value();
+    REQUIRE(install_theory(root / "theories", theory).ok());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = make_cipher(48);
+    std::vector<nlohmann::json> params_list;
+    for (int g = 0; g < 4; ++g) {
+        params_list.push_back(nlohmann::json{{"gamma", g}});
+    }
+
+    TheoryExportCache cache;
+    StatusOr<const TheoryExportCache::Entry*> prepared = cache.ensure(
+        root / "theories", "parcae://theories/export_prefer_bare_quad@1",
+        TransformDirection::Decrypt);
+    REQUIRE(prepared.ok());
+    REQUIRE(prepared.value()->hist_plan().emitted_strategy() ==
+            TheoryHistChi2Emit::Strategy::S5PolyKeystream);
+    REQUIRE(prepared.value()->hist_plan().s5_poly()->b2_name() == "gamma");
+    REQUIRE(prepared.value()->hist_plan().s5_poly()->has_const_b0());
+    REQUIRE(prepared.value()->hist_plan().s5_poly()->has_const_b1());
+
+    StatusOr<std::vector<double>> gpu_scores = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/export_prefer_bare_quad@1",
+        params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache);
+    REQUIRE(gpu_scores.ok());
+    REQUIRE(cache.last_hist_launch() == TheoryHistChi2Emit::Strategy::S5PolyKeystream);
+
+    for (std::size_t c = 0; c < params_list.size(); ++c) {
+        StatusOr<std::vector<Index29>> plain =
+            TheoryDispatch::apply(theory, cipher, params_list[c], TransformDirection::Decrypt);
+        REQUIRE(plain.ok());
+        StatusOr<double> cpu = Chi2EnglishGp::score(plain.value(), freqs.value());
+        REQUIRE(cpu.ok());
+        REQUIRE(gpu_scores.value()[c] == cpu.value());
+    }
+
+    std::filesystem::remove_all(root, ec);
+}
+
 TEST_CASE("GpuCandidateExport prefers S2 linear hist; soft S0 for non-specialized",
           "[search][export][theory][specialized][cuda]") {
     const std::filesystem::path root =

@@ -91,7 +91,7 @@ Prefer order when multiple apply (first match wins after normalize):
 | 5 | `FxOnly` | other `f(x; params)`, no stream `i` | S1 device LUT bake → hist (no host `eval_at×29×C`) | **896B** (`T.theory.s1_lut29`) |
 | 6 | `KeyedGeneral` | uses `i`, not linear S2 | S3 expr-inline or module | **896B** (row when Spec exists) |
 | 7 | `Autokey` | contains `z29_autokey_shift` | S4 AutokeyRing+hist | **896B** (unless traffic differs) |
-| 8 | `PolyKeystream` | low-degree / bitmask-like beyond linear | S5 twin or S3 module | **896B** |
+| 8 | `PolyKeystream` | low-degree / bitmask-like beyond linear (`b2·i²` required; missing b0/b1 ⇒ 0) | S5 twin | **896B** |
 | 9 | `Unknown` | caps / unsupported / prefer_branch (until twin) | S0 bytecode | **896B** (soft-fallback gate) |
 
 Export prefer order (document; implement as each lands):
@@ -114,6 +114,7 @@ it.
 | `x - (b0 + b1 * i)` progressive-style | `LinearKeystream` |
 | `x - (b1 * i)` / `x ± i` / const `b0`/`b1` Lits | `LinearKeystream` (widened) |
 | `x - (b0 + b1*i + b2*i*i)` / bitmask_blend-class | `PolyKeystream` |
+| `x - (b2*i*i)` / `x - (b0 + b2*i*i)` (implied zeros) | `PolyKeystream` |
 | `x ± z29_autokey_shift(x, lag)` (any theory name) | `Autokey` → S4 |
 | Theory named `foo_bar` that is Atbash arith | still `Atbash` |
 | `family` / URI string mentioning “caesar” but math is affine | `Affine` (math wins) |
