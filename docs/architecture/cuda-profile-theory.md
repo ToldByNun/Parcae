@@ -217,7 +217,11 @@ wall **~53×** vs [`pre_residency/`](profiles/export_duty/pre_residency/) (PASS)
 [`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md) — **PARTIAL PASS**
 (Caesar twin stretch; S1 under 80%; Atbash/totient traffic model fixed — shared-cipher
 occupancy ~**80.7 TB**, ncu 0.01111 B/rune; `%peak≤100`).
-Alloc pool **skipped** (warm `cudaMalloc` ~0.2% API). Fair S1 stayed
+
+**DSL smart E2E (2026-10-06):** fair customs Atbash/Caesar/Affine/linear/autokey +
+twins → [`profiles/dsl_smart/SUMMARY.md`](profiles/dsl_smart/SUMMARY.md) — **PARTIAL PASS**
+(Caesar stretch ~87%; Atbash model OK; linear/autokey twin-class; Affine model open).
+Edge tags green. Alloc pool **skipped** (warm `cudaMalloc` ~0.2% API). Fair S1 stayed
 ≥ ~400B class (**482B**).
 
 ---
@@ -280,6 +284,7 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-03 | **kernel_slo_accept** | `profiles/kernel_slo/` | theory fair ×3 + slo extended ×2 | fair 29×1M; F.* grids | twin med **783B** / specialize med **681B** / S1 noisy; F.vigenere·beaufort ≥90%; Atbash·totient `%peak>100` | — | quiet ACCEPTANCE | metric B **PARTIAL PASS** — see SUMMARY |
 | 2026-10-06 | **traffic_model** | `profiles/traffic_model/` | ncu Atbash+totient hist | C=512 T=262144 | bytes/rune **0.01111** → peak **≈80.7 TB** | DRAM SoL ~0.4–1% | Spec not quiet-max | shared-cipher occupancy class |
 | 2026-10-06 | **kernel_slo_requiet** | `profiles/kernel_slo/` + `dsl_smart/` | slo extended ×2 + dsl_smart ×3 | fair F.*/customs | Atbash/totient `%peak≤100` under 80.7 TB | — | re-quiet ACCEPTANCE | model gate **PASS**; stretch still compute-bound |
+| 2026-10-06 | **dsl_smart_e2e** | `profiles/dsl_smart/` | fair customs ×3 (Atbash/Caesar/Affine/linear/autokey + twins) | fair T=1M | Caesar stretch ~**87%**; Atbash model OK ~2% of 80.7 TB; linear ~43%; autokey ~53%; Affine `%peak>100` intermittent | — | quiet E2E ACCEPTANCE | **PARTIAL PASS** — see SUMMARY; edge tags green |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 

@@ -207,6 +207,46 @@ public:
                                                   0.0,
                                                   kDramRooflineHistPeak};
 
+    /// Custom linear `x±(b0+b1·i)` → S2 uchar4; fair C=841 (=29²).
+    static constexpr Tier dsl_smart_linear{"T.dsl_smart.custom_linear",
+                                          "Self-written linear → S2 twin",
+                                          841u,
+                                          1048576u,
+                                          4u,
+                                          15.0e9,
+                                          0.0,
+                                          kDramRooflineHistPeak};
+
+    /// TheoryHistChi2S2 twin (same C/T as custom_linear).
+    static constexpr Tier dsl_smart_compare_linear{"T.dsl_smart.compare_S2",
+                                                  "Catalog S2 linear twin (same C/T)",
+                                                  841u,
+                                                  1048576u,
+                                                  4u,
+                                                  15.0e9,
+                                                  0.0,
+                                                  kDramRooflineHistPeak};
+
+    /// Custom autokey vigenere_lag → S4 AutokeyRing; fair C=28 (lag 1..28).
+    static constexpr Tier dsl_smart_autokey{"T.dsl_smart.custom_autokey",
+                                           "Self-written autokey → S4 AutokeyRing twin",
+                                           28u,
+                                           1048576u,
+                                           8u,
+                                           15.0e9,
+                                           0.0,
+                                           kDramRooflineHistPeak};
+
+    /// S4 AutokeyRing twin (same C/T as custom_autokey).
+    static constexpr Tier dsl_smart_compare_autokey{"T.dsl_smart.compare_S4",
+                                                   "Catalog S4 AutokeyRing twin (same C/T)",
+                                                   28u,
+                                                   1048576u,
+                                                   8u,
+                                                   15.0e9,
+                                                   0.0,
+                                                   kDramRooflineHistPeak};
+
     static constexpr std::size_t primary_tier_count = 3;
 
     /// Optional interim checkpoint when `estimated_peak ≫ 50B` (never replaces 90% gate).
@@ -290,7 +330,9 @@ public:
             return theory_s2_linear.estimated_peak;
         }
         if (tier == "T.dsl_smart.custom_caesar" || tier == "T.dsl_smart.compare_caesar" ||
-            tier == "T.dsl_smart.custom_affine" || tier == "T.dsl_smart.compare_Faffine") {
+            tier == "T.dsl_smart.custom_affine" || tier == "T.dsl_smart.compare_Faffine" ||
+            tier == "T.dsl_smart.custom_linear" || tier == "T.dsl_smart.compare_S2" ||
+            tier == "T.dsl_smart.custom_autokey" || tier == "T.dsl_smart.compare_S4") {
             return dram_roofline_hist_peak();
         }
         return 0.0;
@@ -314,7 +356,9 @@ public:
             tier == "T.theory.s2" || tier == "T.dsl_smart.custom_atbash" ||
             tier == "T.dsl_smart.compare_Fatbash" || tier == "T.dsl_smart.custom_caesar" ||
             tier == "T.dsl_smart.compare_caesar" || tier == "T.dsl_smart.custom_affine" ||
-            tier == "T.dsl_smart.compare_Faffine") {
+            tier == "T.dsl_smart.compare_Faffine" || tier == "T.dsl_smart.custom_linear" ||
+            tier == "T.dsl_smart.compare_S2" || tier == "T.dsl_smart.custom_autokey" ||
+            tier == "T.dsl_smart.compare_S4") {
             return 15.0e9;
         }
         if (tier == "F.vigenere" || tier == "F.beaufort" || tier == "F.totient") {
@@ -357,6 +401,18 @@ public:
         }
         if (id == std::string_view{dsl_smart_compare_affine.id}) {
             return &dsl_smart_compare_affine;
+        }
+        if (id == std::string_view{dsl_smart_linear.id}) {
+            return &dsl_smart_linear;
+        }
+        if (id == std::string_view{dsl_smart_compare_linear.id}) {
+            return &dsl_smart_compare_linear;
+        }
+        if (id == std::string_view{dsl_smart_autokey.id}) {
+            return &dsl_smart_autokey;
+        }
+        if (id == std::string_view{dsl_smart_compare_autokey.id}) {
+            return &dsl_smart_compare_autokey;
         }
         return nullptr;
     }

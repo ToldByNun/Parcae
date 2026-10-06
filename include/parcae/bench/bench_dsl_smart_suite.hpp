@@ -32,9 +32,10 @@
 /// Fair Kernel-SLO microbench for hand-written HotLoop customs
 /// (`docs/architecture/dsl-smart-hist.md` → `profiles/dsl_smart/`).
 ///
-/// Rows pair self-written ShapeInline twins with catalog `F.atbash` /
-/// CaesarChi2 / `F.affine` on the **same** C/T. PRIMARY gate is fair
-/// `T≥2^20` vs 896B DRAM roof — campaign wall is never PRIMARY.
+/// Rows pair self-written twins with catalog / specialized counterparts on the
+/// **same** C/T: ShapeInline Atbash/Caesar/Affine, S2 linear, S4 autokey.
+/// PRIMARY gate is fair `T≥2^20` vs shape `estimated_peak` — campaign wall is
+/// never PRIMARY.
 ///
 /// CLI: `parcae-bench --suite dsl_smart --allow-cuda`.
 class BenchDslSmartSuite {
@@ -130,9 +131,6 @@ public:
             const BenchTierSpec::Tier& tier = BenchTierSpec::dsl_smart_affine;
             const std::size_t reps =
                 options.repeats() == 0 ? tier.repeats : options.repeats();
-            // Catch2 short-T may shrink C via options: when T is underfill and
-            // candidates not overridden, keep Spec C; for tiny smoke use Spec C
-            // only when fair — else allow smaller via tokens-only path (still Spec C).
             StatusOr<BenchReport::Row> custom = run_custom_affine(
                 freqs, tier.candidates, fair_T, reps, tier.id, tier.workload, &tier);
             if (!custom.ok()) {
@@ -143,6 +141,52 @@ public:
             if (options.compare_catalog()) {
                 const BenchTierSpec::Tier& cmp = BenchTierSpec::dsl_smart_compare_affine;
                 StatusOr<BenchReport::Row> cat = run_catalog_affine(
+                    freqs, cmp.candidates, fair_T, reps, cmp.id, cmp.workload, &cmp);
+                if (!cat.ok()) {
+                    return cat.status();
+                }
+                doc.add_row(std::move(cat.value()));
+            }
+        }
+
+        // --- Linear custom vs S2 twin ---
+        {
+            const BenchTierSpec::Tier& tier = BenchTierSpec::dsl_smart_linear;
+            const std::size_t reps =
+                options.repeats() == 0 ? tier.repeats : options.repeats();
+            StatusOr<BenchReport::Row> custom = run_custom_linear(
+                freqs, tier.candidates, fair_T, reps, tier.id, tier.workload, &tier);
+            if (!custom.ok()) {
+                return custom.status();
+            }
+            doc.add_row(std::move(custom.value()));
+
+            if (options.compare_catalog()) {
+                const BenchTierSpec::Tier& cmp = BenchTierSpec::dsl_smart_compare_linear;
+                StatusOr<BenchReport::Row> cat = run_catalog_linear(
+                    freqs, cmp.candidates, fair_T, reps, cmp.id, cmp.workload, &cmp);
+                if (!cat.ok()) {
+                    return cat.status();
+                }
+                doc.add_row(std::move(cat.value()));
+            }
+        }
+
+        // --- Autokey custom vs S4 twin ---
+        {
+            const BenchTierSpec::Tier& tier = BenchTierSpec::dsl_smart_autokey;
+            const std::size_t reps =
+                options.repeats() == 0 ? tier.repeats : options.repeats();
+            StatusOr<BenchReport::Row> custom = run_custom_autokey(
+                freqs, tier.candidates, fair_T, reps, tier.id, tier.workload, &tier);
+            if (!custom.ok()) {
+                return custom.status();
+            }
+            doc.add_row(std::move(custom.value()));
+
+            if (options.compare_catalog()) {
+                const BenchTierSpec::Tier& cmp = BenchTierSpec::dsl_smart_compare_autokey;
+                StatusOr<BenchReport::Row> cat = run_catalog_autokey(
                     freqs, cmp.candidates, fair_T, reps, cmp.id, cmp.workload, &cmp);
                 if (!cat.ok()) {
                     return cat.status();
@@ -265,6 +309,39 @@ private:
             Z29Expr::add(Z29Expr::mul(av, x), bv),
             Z29Expr::mul(Z29Expr::inv(av), Z29Expr::sub(x, bv)),
             std::string("Hand-written Affine decrypt."));
+    }
+
+    [[nodiscard]] static StatusOr<TheoryIr> make_linear_theory() {
+        StatusOr<ParamIr> b0 = ParamIr::make("b0", 0, 28);
+        if (!b0.ok()) {
+            return b0.status();
+        }
+        StatusOr<ParamIr> b1 = ParamIr::make("b1", 0, 28);
+        if (!b1.ok()) {
+            return b1.status();
+        }
+        const Z29Expr::Ptr x = Z29Expr::var("x");
+        const Z29Expr::Ptr i = Z29Expr::var("i");
+        const Z29Expr::Ptr ks =
+            Z29Expr::add(Z29Expr::var("b0"), Z29Expr::mul(Z29Expr::var("b1"), i));
+        return TheoryIr::make("dsl_smart_linear", TheoryIr::Family::KeyedStream,
+                              TheoryIr::Tier::B, TheoryIr::InterruptMode::NoneByDesign,
+                              {b0.value(), b1.value()}, Z29Expr::add(x, ks), Z29Expr::sub(x, ks),
+                              std::string("Hand-written linear keystream."));
+    }
+
+    [[nodiscard]] static StatusOr<TheoryIr> make_autokey_theory() {
+        StatusOr<ParamIr> lag = ParamIr::make("lag", 1, 28);
+        if (!lag.ok()) {
+            return lag.status();
+        }
+        const Z29Expr::Ptr x = Z29Expr::var("x");
+        const Z29Expr::Ptr prior =
+            Z29Expr::call("z29_autokey_shift", {x, Z29Expr::var("lag")});
+        return TheoryIr::make("dsl_smart_autokey", TheoryIr::Family::KeyedStream,
+                              TheoryIr::Tier::B, TheoryIr::InterruptMode::NoneByDesign,
+                              {lag.value()}, Z29Expr::add(x, prior), Z29Expr::sub(x, prior),
+                              std::string("Hand-written autokey vigenere_lag."));
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Row>
@@ -587,6 +664,173 @@ private:
         }
         return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
                                tier, "catalog_F.affine");
+    }
+
+    static void fill_linear_grid(std::size_t C, std::vector<std::uint8_t>& b0,
+                                 std::vector<std::uint8_t>& b1) {
+        b0.assign(C, 0);
+        b1.assign(C, 0);
+        for (std::size_t c = 0; c < C; ++c) {
+            b0[c] = static_cast<std::uint8_t>(c % 29);
+            b1[c] = static_cast<std::uint8_t>((c / 29) % 29);
+        }
+    }
+
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    run_s2_linear_timed(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
+                        std::size_t reps, std::string name, std::string workload,
+                        const BenchTierSpec::Tier* tier, std::string detail, const char* nvtx) {
+        std::vector<std::uint8_t> host_b0;
+        std::vector<std::uint8_t> host_b1;
+        fill_linear_grid(C, host_b0, host_b1);
+
+        const auto host_in = random_stream(T, 0xD521u);
+        StatusOr<DeviceBuffer<std::uint8_t>> device_in =
+            DeviceBuffer<std::uint8_t>::from_host(host_in);
+        if (!device_in.ok()) {
+            return device_in.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_b0 =
+            DeviceBuffer<std::uint8_t>::from_host(host_b0);
+        if (!device_b0.ok()) {
+            return device_b0.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_b1 =
+            DeviceBuffer<std::uint8_t>::from_host(host_b1);
+        if (!device_b1.ok()) {
+            return device_b1.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
+            std::span<const double>(freqs.probabilities().data(), freqs.probabilities().size()));
+        if (!device_probs.ok()) {
+            return device_probs.status();
+        }
+        StatusOr<DeviceBuffer<std::uint32_t>> device_counts =
+            DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2Launch::alphabet_size);
+        if (!device_counts.ok()) {
+            return device_counts.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_scores = DeviceBuffer<double>::allocate(C);
+        if (!device_scores.ok()) {
+            return device_scores.status();
+        }
+
+        StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
+            NvtxRange range(nvtx);
+            return TheoryHistChi2Launch::launch_s2_linear_async(
+                device_in.value().data(), device_b0.value().data(), device_b1.value().data(),
+                device_probs.value().data(), device_counts.value().data(),
+                device_scores.value().data(), C, T, /*cipher_minus_ks=*/true);
+        });
+        if (!sample.ok()) {
+            return sample.status();
+        }
+        return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
+                               tier, std::move(detail));
+    }
+
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    run_custom_linear(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
+                      std::size_t reps, std::string name, std::string workload,
+                      const BenchTierSpec::Tier* tier) {
+        StatusOr<TheoryIr> theory = make_linear_theory();
+        if (!theory.ok()) {
+            return theory.status();
+        }
+        StatusOr<TheoryHistChi2Emit::EmitBundle> emit =
+            TheoryHistChi2Emit::emit_decrypt_hist(theory.value());
+        if (!emit.ok() || !emit.value().specialized() || !emit.value().s2_linear().has_value()) {
+            return Status::error("BenchDslSmartSuite: linear custom did not emit S2 twin");
+        }
+        return run_s2_linear_timed(freqs, C, T, reps, std::move(name), std::move(workload), tier,
+                                   "S2_linear", "dsl_smart_custom_linear");
+    }
+
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    run_catalog_linear(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
+                       std::size_t reps, std::string name, std::string workload,
+                       const BenchTierSpec::Tier* tier) {
+        return run_s2_linear_timed(freqs, C, T, reps, std::move(name), std::move(workload), tier,
+                                   "catalog_S2_linear", "dsl_smart_compare_S2");
+    }
+
+    static void fill_autokey_lags(std::size_t C, std::vector<std::uint8_t>& lags) {
+        lags.assign(C, 1);
+        for (std::size_t c = 0; c < C; ++c) {
+            lags[c] = static_cast<std::uint8_t>((c % 28) + 1);
+        }
+    }
+
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    run_s4_autokey_timed(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
+                         std::size_t reps, std::string name, std::string workload,
+                         const BenchTierSpec::Tier* tier, std::string detail, const char* nvtx) {
+        std::vector<std::uint8_t> host_lags;
+        fill_autokey_lags(C, host_lags);
+
+        const auto host_in = random_stream(T, 0xD524u);
+        StatusOr<DeviceBuffer<std::uint8_t>> device_in =
+            DeviceBuffer<std::uint8_t>::from_host(host_in);
+        if (!device_in.ok()) {
+            return device_in.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_lags =
+            DeviceBuffer<std::uint8_t>::from_host(host_lags);
+        if (!device_lags.ok()) {
+            return device_lags.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
+            std::span<const double>(freqs.probabilities().data(), freqs.probabilities().size()));
+        if (!device_probs.ok()) {
+            return device_probs.status();
+        }
+        StatusOr<DeviceBuffer<std::uint32_t>> device_counts =
+            DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2Launch::alphabet_size);
+        if (!device_counts.ok()) {
+            return device_counts.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_scores = DeviceBuffer<double>::allocate(C);
+        if (!device_scores.ok()) {
+            return device_scores.status();
+        }
+
+        StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
+            NvtxRange range(nvtx);
+            return TheoryHistChi2Launch::launch_s4_autokey_async(
+                device_in.value().data(), device_lags.value().data(),
+                device_probs.value().data(), device_counts.value().data(),
+                device_scores.value().data(), C, T, /*cipher_minus_ks=*/true);
+        });
+        if (!sample.ok()) {
+            return sample.status();
+        }
+        return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
+                               tier, std::move(detail));
+    }
+
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    run_custom_autokey(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
+                       std::size_t reps, std::string name, std::string workload,
+                       const BenchTierSpec::Tier* tier) {
+        StatusOr<TheoryIr> theory = make_autokey_theory();
+        if (!theory.ok()) {
+            return theory.status();
+        }
+        StatusOr<TheoryHistChi2Emit::EmitBundle> emit =
+            TheoryHistChi2Emit::emit_decrypt_hist(theory.value());
+        if (!emit.ok() || !emit.value().specialized() || !emit.value().s4_autokey().has_value()) {
+            return Status::error("BenchDslSmartSuite: autokey custom did not emit S4 twin");
+        }
+        return run_s4_autokey_timed(freqs, C, T, reps, std::move(name), std::move(workload),
+                                    tier, "S4_autokey", "dsl_smart_custom_autokey");
+    }
+
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    run_catalog_autokey(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
+                        std::size_t reps, std::string name, std::string workload,
+                        const BenchTierSpec::Tier* tier) {
+        return run_s4_autokey_timed(freqs, C, T, reps, std::move(name), std::move(workload),
+                                    tier, "catalog_S4_autokey", "dsl_smart_compare_S4");
     }
 #endif
 };

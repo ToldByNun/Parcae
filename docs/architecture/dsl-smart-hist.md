@@ -297,12 +297,15 @@ Declare this smartness workstream complete only when **all** apply:
 - [x] Poly / bitmask_blend-class `b0+b1·i+b2·i·i` → S5 twin (name-irrelevant)
 - [x] `prefer_branch` / divergent Select → hard S0 until measured twin; explicit tests
 - [x] Decrypt hoists → soft S0 on S1–S5; ShapeInline Affine/Atbash/Caesar keep specialized
-- [ ] Normalize + match name-irrelevant goldens green
-- [ ] Edge matrix above locked in Catch2
+- [x] Normalize + match name-irrelevant goldens green (`[dsl][normalize]`, `[dsl][shape]`)
+- [x] Edge matrix above locked in Catch2
+  (`[cuda][theory][edge]`, `[search][export][theory][shape]` — 2026-10-06 green)
 - [x] `%peak ≤ 100` after traffic-model pass; Spec not lowered to quiet max
   ([`profiles/traffic_model/SUMMARY.md`](profiles/traffic_model/SUMMARY.md))
+  — Atbash/totient OK; Affine unique-key intermittent `>100` separate
 - [ ] Style: no namespaces; no `phase*` / Commit-N labels in tree
-- [ ] Campaign wall never used as Done evidence
+- [x] Campaign wall never used as Done evidence
+  ([`profiles/dsl_smart/SUMMARY.md`](profiles/dsl_smart/SUMMARY.md) E2E plate)
 - [ ] Base contract [`theory-hist-transpile.md`](theory-hist-transpile.md) S0–S5 peak gates still hold for the **emitted** strategy
 
 ---
