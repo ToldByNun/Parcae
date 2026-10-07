@@ -155,6 +155,7 @@ add_executable(parcae_tests
   hist_fast_parity_test.cpp
   hist_tile_cap_test.cpp
   hist_occupancy_roof_test.cpp
+  cipher_hist_once_test.cpp
   theory_hist_chi2_s2_residue_test.cpp
   roof_hist_caesar_tile_test.cpp
   shared_cipher_atomic_climb_test.cpp

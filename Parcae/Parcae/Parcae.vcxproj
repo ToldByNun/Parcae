@@ -199,6 +199,7 @@
     <ClInclude Include="cuda\chi2_english_gp_score.hpp" />
     <ClInclude Include="cuda\hist_fast.hpp" />
     <ClInclude Include="cuda\hist_fast_parity.hpp" />
+    <ClInclude Include="cuda\cipher_hist_once.hpp" />
   </ItemGroup>
   <!-- CUDA twins: x64 only (Toolkit BuildCustomizations required) -->
   <ItemGroup Condition="'$(Platform)'=='x64'">
@@ -224,6 +225,7 @@
     <CudaCompile Include="cuda\self_repeat_rate_score.cu" />
     <CudaCompile Include="cuda\chi2_english_gp_score.cu" />
     <CudaCompile Include="cuda\hist_fast_parity.cu" />
+    <CudaCompile Include="cuda\cipher_hist_once.cu" />
     <CudaCompile Include="cuda\theory_hist_module.cu" />
     <CudaCompile Include="cuda\theory_hist_chi2_s4.cu" />
     <CudaCompile Include="cuda\theory_hist_chi2_s5.cu" />
