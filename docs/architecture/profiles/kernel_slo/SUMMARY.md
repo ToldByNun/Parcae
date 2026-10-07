@@ -99,7 +99,7 @@ shared-cipher class. Atbash/totient Done = ≥90% of **2.0 TB** compute roof
 | Done ≥90% — Caesar twin median (restrict/ldg, tile64) | **PARTIAL** (busy med **~786–790B**; bests / quieter plates Done) |
 | Stretch ≥80% — S1 / fair specialize | **FAIL** (median specialize **76%**; S1 noisy) |
 | Model — Atbash / totient `%peak≤100` | **PASS** — under compute roof **2.0 TB** (DRAM diary kept) |
-| Stretch / Done — Atbash-class vs compute roof | **FAIL** — ~72–80% / ~55%; absolute climb open |
+| Stretch / Done — Atbash-class vs compute roof | **PARTIAL** — climb plate Atbash prod ~76–87% of 2.0 TB (best ~1.88 TB); totient tile32 ~58–68%; Done (≥1.8 TB) not median-stable |
 | Done ≥90% unique-key while DRAM-bound | **N/A** — hist still compute-bound on unique-key |
 | Spec lowered to quiet max | **No** — compute roof from identity hist; not Atbash quiet max |
 
@@ -123,6 +123,6 @@ Atbash/totient **model gate** under compute roof. Open: S1/specialize stretch
 
 1. S1 fair median ≥**716.8B** (stretch) — residency landed (~670–733B); remaining gap is hist vs Caesar twin.
 2. S2 median ≥**716.8B** stretch (residue+tile32 at ~76%; remaining atomic/L2).
-3. Atbash/totient absolute climb toward **≥1.8 TB** (90% of 2.0 TB compute roof).
+3. Atbash/totient Done median ≥**1.8 TB** (90% of 2.0 TB) — micro-opts + totient tile32 landed; quiet median still open.
 4. Combined write-up: [`gpu_full_load/SUMMARY.md`](../gpu_full_load/SUMMARY.md)
    (metric A duty + metric B roof).

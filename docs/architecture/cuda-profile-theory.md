@@ -309,6 +309,7 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-07 | **s2_running_residue** | S2/S5 kernels + `HistTileCap` | `theory_hist_chi2_s2_linear_kernel` | 841×1M | med **~683B** (~76%; best **764B**) was **~402B** | — | running residue (no hot `%29`); S2 default tile **32** | **PARTIAL** — +~70% vs ks29; stretch 716.8B not median-stable |
 | 2026-10-07 | **s1_lut_residency** | export scratch + fair suite | `theory_hist_chi2_s1_lut_kernel` | 29×1M | quiet band **~670–733B** (med ~**705B**, ~79%) | — | bake outside fair timer; export skips rebake when program+slots match | **PARTIAL** — noise tightened vs 303–692B; stretch 716.8B not median-stable |
 | 2026-10-07 | **caesar_roof_done** | `profiles/roof_hist/` + dsl_smart | Caesar decrypt + shape twin | 29×1M | twin med-of-med **~786–790B** (~88%); bests **~836–843B**; dsl custom med **~814.5B Done** | — | `__restrict__`/`__ldg`; Caesar-first dsl_smart; tile **64** | **PARTIAL Done** — dsl custom ≥806.4B; twin median stretch on busy util |
+| 2026-10-07 | **shared_cipher_atomic_climb** | Atbash/totient + shape Atbash | `atbash_chi2_hist` / totient / shape twin | 512×1M | Atbash prod **~1.5–1.75 TB** (~76–87% of 2.0 TB); totient tile32 **~1.17–1.37 TB**; A/B 32/64/128 | — | `__restrict__`/`__ldg`; `HistTileCap::kAtbash`/`kTotient`; totient default **32** | **PARTIAL** — absolute climb vs pre-~1.1–1.6 TB; Done 1.8 TB not median-stable; Caesar tile64 untouched |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 

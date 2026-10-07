@@ -22,11 +22,13 @@ public:
     static constexpr int kS1 = 1;
     /// `TheoryHistChi2S2` linear keystream (`theory_hist_chi2_s2_linear_kernel`).
     static constexpr int kS2 = 2;
-    /// Reserved: catalog / ShapeInline Atbash.
+    /// Catalog `F.atbash` / ShapeInline Atbash / Atbash∘Caesar compose.
     static constexpr int kAtbash = 3;
     /// Reserved: catalog / ShapeInline Affine.
     static constexpr int kAffine = 4;
-    static constexpr int kSlotCount = 5;
+    /// Catalog `F.totient` stream hist.
+    static constexpr int kTotient = 5;
+    static constexpr int kSlotCount = 6;
 
     /// `cap < 0` treated as `0` (production). Unknown `slot` is a no-op.
     static void set(int slot, int cap) noexcept {
@@ -46,9 +48,10 @@ public:
 
     /// Per-slot production default when override is `0`.
     /// S2 ships **32** (residue plate 2026-10-07: cap32 > cap64/128 @ C=841 T=1M).
-    /// Other slots keep `HistFast::production_tile_cap` (64).
+    /// Totient ships **32** (`shared_cipher_atomic_climb` A/B @ C=512: 32 > 64/128).
+    /// Atbash stays **64** (32/64 trade within noise; Caesar fat-64 untouched).
     [[nodiscard]] static int slot_default(int slot) noexcept {
-        if (slot == kS2) {
+        if (slot == kS2 || slot == kTotient) {
             return 32;
         }
         return HistFast::production_tile_cap;

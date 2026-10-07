@@ -3,12 +3,14 @@
 #include "chi2_batch_score.hpp"
 #include "cuda_error.hpp"
 #include "hist_fast.hpp"
+#include "hist_tile_cap.hpp"
 #include "z29_device.hpp"
 
 #include <cuda_runtime_api.h>
 
 /// File-scope — no anonymous namespace (theory hist emit contract).
-__global__ void theory_hist_chi2_shape_atbash_kernel(const std::uint8_t* in, std::uint32_t* counts,
+__global__ void theory_hist_chi2_shape_atbash_kernel(const std::uint8_t* __restrict__ in,
+                                                     std::uint32_t* __restrict__ counts,
                                                      std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     HistFast::clear_private(priv);
@@ -18,12 +20,12 @@ __global__ void theory_hist_chi2_shape_atbash_kernel(const std::uint8_t* in, std
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     const std::size_t n4 = token_count / 4u;
-    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+    const uchar4* __restrict__ in4 = reinterpret_cast<const uchar4*>(in);
 
     for (std::size_t i =
              tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
          i < n4; i += stride) {
-        const uchar4 v = in4[i];
+        const uchar4 v = __ldg(in4 + i);
         HistFast::add_private(priv, HistFast::dec_atbash(v.x));
         HistFast::add_private(priv, HistFast::dec_atbash(v.y));
         HistFast::add_private(priv, HistFast::dec_atbash(v.z));
@@ -32,7 +34,7 @@ __global__ void theory_hist_chi2_shape_atbash_kernel(const std::uint8_t* in, std
     for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count; t += stride) {
-        HistFast::add_private(priv, HistFast::dec_atbash(in[t]));
+        HistFast::add_private(priv, HistFast::dec_atbash(__ldg(in + t)));
     }
     HistFast::flush_private(priv,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
@@ -143,7 +145,8 @@ Status TheoryHistChi2Shape::launch_atbash_async(const std::uint8_t* device_in,
     }
 
     const dim3 grid(static_cast<unsigned>(candidate_count),
-                    static_cast<unsigned>(tiles_for(token_count)));
+                    static_cast<unsigned>(
+                        HistTileCap::tiles_for(HistTileCap::kAtbash, token_count)));
     theory_hist_chi2_shape_atbash_kernel<<<grid, HistFast::threads, 0, stream>>>(
         device_in, device_counts, token_count);
     Status hist = CudaError::to_status(cudaGetLastError(), "TheoryHistChi2Shape::atbash hist");

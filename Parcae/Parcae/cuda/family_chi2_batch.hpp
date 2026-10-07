@@ -9,13 +9,18 @@
 
 /// Fused decrypt+χ² histogram for batch families (device-resident, scores only D2H).
 ///
-/// Warp-private hist + fat-tile (`HistFast::production_tile_cap`) + uchar4 where
-/// safe. Atbash / Affine / Atbash∘Caesar share the fat-tile clamp.
+/// Warp-private hist + fat-tile + uchar4 where safe.
+/// Atbash / Atbash∘Caesar → `HistTileCap::kAtbash`; totient → `kTotient`;
+/// other families use `HistFast::production_tile_cap` (Caesar clamp stays separate).
 class FamilyChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;
     static constexpr std::size_t kMaxCandidates = 16384;
     static constexpr std::size_t kMaxTokens = 1u << 22;
+
+    /// `grid.y` under Atbash / totient slot (tests + A/B sweeps).
+    [[nodiscard]] static int tiles_for_atbash(std::size_t token_count);
+    [[nodiscard]] static int tiles_for_totient(std::size_t token_count);
 
     [[nodiscard]] static Status
     launch_atbash_async(const std::uint8_t* device_in, const double* device_probabilities,
@@ -61,11 +66,10 @@ public:
 private:
     FamilyChi2Batch() = delete;
 
-    [[nodiscard]] static int tiles_for(std::size_t token_count);
-
+    /// `tile_slot < 0` → `HistFast::tiles_for` (production clamp, no slot).
     [[nodiscard]] static Status clear_and_grid(std::uint32_t* device_counts,
                                                std::size_t candidate_count, std::size_t token_count,
-                                               dim3* grid_out);
+                                               int tile_slot, dim3* grid_out);
 };
 
 #endif // FAMILY_CHI2_BATCH_HPP

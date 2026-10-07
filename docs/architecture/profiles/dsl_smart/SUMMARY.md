@@ -89,7 +89,8 @@ Sources: `dsl_smart_fair_run{1,2,3}.json` (`T=1048576`, `BenchTimer` cudaEvent).
 
 **Overall: PARTIAL PASS** — twins land for Atbash/Caesar/Affine/linear/autokey;
 Caesar stretch; Atbash under compute roof; Affine traffic model OK; linear/autokey
-stretch open; Atbash Done deferred until absolute climb toward 2.0 TB.
+stretch open; Atbash absolute climb (`shared_cipher_atomic_climb`) prod ~76–87%
+of 2.0 TB — Done median still open.
 
 ```powershell
 .\scripts\cuda\capture_dsl_smart.ps1 -BuildDir build-rel-cuda -Runs 3

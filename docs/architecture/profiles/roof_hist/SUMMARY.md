@@ -80,6 +80,20 @@ S0. Export already preferred S1/S2 the same way.
 | `T.theory.compare_caesar` | **829.4B** | **92.6%** | Done |
 | `T.theory.progressive` (S2 @841) | **396.4B** | **44.2%** | ks29; still compute-bound |
 
+## Shared-cipher atomic climb (2026-10-07)
+
+Atbash / totient / shape Atbash: Commit-7-class `__restrict__`/`__ldg` (no
+`add_private` change). `HistTileCap::kAtbash` + `kTotient` wired; Caesar slot
+untouched. A/B @ C=512 T=1M caps **32/64/128**:
+
+| Shape | Production default | Plate note |
+|-------|--------------------|------------|
+| Atbash catalog + shape twin | **64** | 32↔64 within noise; prod ~1.5–1.75 TB (~76–87% of 2.0 TB) |
+| Totient | **32** | cap32 wins vs 64/128; prod ~1.17–1.37 TB |
+
+Catch2 `[cuda][hist][atomic_climb]`. Twin scores ≡. Pass: absolute climb +
+model `%peak≤100` on production; Done 1.8 TB median open on busy desktop.
+
 ## Caesar restrict + ldg (2026-10-07)
 
 Micro-opts around hist traffic only (`add_private` untouched;

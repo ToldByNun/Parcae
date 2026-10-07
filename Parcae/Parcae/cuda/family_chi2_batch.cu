@@ -2,16 +2,21 @@
 #include "cuda_error.hpp"
 #include "family_chi2_batch.hpp"
 #include "hist_fast.hpp"
+#include "hist_tile_cap.hpp"
 #include "z29_device.hpp"
 
 #include <cuda_runtime_api.h>
 
-int FamilyChi2Batch::tiles_for(std::size_t token_count) {
-    return HistFast::tiles_for(token_count);
+int FamilyChi2Batch::tiles_for_atbash(std::size_t token_count) {
+    return HistTileCap::tiles_for(HistTileCap::kAtbash, token_count);
+}
+
+int FamilyChi2Batch::tiles_for_totient(std::size_t token_count) {
+    return HistTileCap::tiles_for(HistTileCap::kTotient, token_count);
 }
 
 Status FamilyChi2Batch::clear_and_grid(std::uint32_t* device_counts, std::size_t candidate_count,
-                                       std::size_t token_count, dim3* grid_out) {
+                                       std::size_t token_count, int tile_slot, dim3* grid_out) {
     if (candidate_count == 0 || candidate_count > kMaxCandidates) {
         return Status::error("FamilyChi2Batch: bad C");
     }
@@ -24,12 +29,14 @@ Status FamilyChi2Batch::clear_and_grid(std::uint32_t* device_counts, std::size_t
     if (!cleared.ok()) {
         return cleared;
     }
-    *grid_out =
-        dim3(static_cast<unsigned>(candidate_count), static_cast<unsigned>(tiles_for(token_count)));
+    const int grid_y = tile_slot >= 0 ? HistTileCap::tiles_for(tile_slot, token_count)
+                                      : HistFast::tiles_for(token_count);
+    *grid_out = dim3(static_cast<unsigned>(candidate_count), static_cast<unsigned>(grid_y));
     return Status::success();
 }
 
-__global__ void atbash_chi2_hist_kernel(const std::uint8_t* in, std::uint32_t* counts,
+__global__ void atbash_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
+                                        std::uint32_t* __restrict__ counts,
                                         std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     HistFast::clear_private(priv);
@@ -39,12 +46,12 @@ __global__ void atbash_chi2_hist_kernel(const std::uint8_t* in, std::uint32_t* c
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     const std::size_t n4 = token_count / 4u;
-    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+    const uchar4* __restrict__ in4 = reinterpret_cast<const uchar4*>(in);
 
     for (std::size_t i =
              tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
          i < n4; i += stride) {
-        const uchar4 v = in4[i];
+        const uchar4 v = __ldg(in4 + i);
         HistFast::add_private(priv, HistFast::dec_atbash(v.x));
         HistFast::add_private(priv, HistFast::dec_atbash(v.y));
         HistFast::add_private(priv, HistFast::dec_atbash(v.z));
@@ -53,29 +60,31 @@ __global__ void atbash_chi2_hist_kernel(const std::uint8_t* in, std::uint32_t* c
     for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count; t += stride) {
-        HistFast::add_private(priv, HistFast::dec_atbash(in[t]));
+        HistFast::add_private(priv, HistFast::dec_atbash(__ldg(in + t)));
     }
     HistFast::flush_private(priv,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
-__global__ void atbash_caesar_chi2_hist_kernel(const std::uint8_t* in, const std::uint8_t* shifts,
-                                               std::uint32_t* counts, std::size_t token_count) {
+__global__ void atbash_caesar_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
+                                               const std::uint8_t* __restrict__ shifts,
+                                               std::uint32_t* __restrict__ counts,
+                                               std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     HistFast::clear_private(priv);
 
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    const std::uint8_t shift = shifts[candidate];
+    const std::uint8_t shift = __ldg(shifts + candidate);
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     const std::size_t n4 = token_count / 4u;
-    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+    const uchar4* __restrict__ in4 = reinterpret_cast<const uchar4*>(in);
 
     for (std::size_t i =
              tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
          i < n4; i += stride) {
-        const uchar4 v = in4[i];
+        const uchar4 v = __ldg(in4 + i);
         HistFast::add_private(priv, HistFast::enc_caesar(HistFast::dec_atbash(v.x), shift));
         HistFast::add_private(priv, HistFast::enc_caesar(HistFast::dec_atbash(v.y), shift));
         HistFast::add_private(priv, HistFast::enc_caesar(HistFast::dec_atbash(v.z), shift));
@@ -84,7 +93,8 @@ __global__ void atbash_caesar_chi2_hist_kernel(const std::uint8_t* in, const std
     for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count; t += stride) {
-        HistFast::add_private(priv, HistFast::enc_caesar(HistFast::dec_atbash(in[t]), shift));
+        HistFast::add_private(
+            priv, HistFast::enc_caesar(HistFast::dec_atbash(__ldg(in + t)), shift));
     }
     HistFast::flush_private(priv,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
@@ -243,8 +253,10 @@ __global__ void beaufort_chi2_hist_kernel(const std::uint8_t* in, const std::uin
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
-__global__ void totient_chi2_hist_kernel(const std::uint8_t* in, const std::uint8_t* shifts,
-                                         const std::uint32_t* shift_begin, std::uint32_t* counts,
+__global__ void totient_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
+                                         const std::uint8_t* __restrict__ shifts,
+                                         const std::uint32_t* __restrict__ shift_begin,
+                                         std::uint32_t* __restrict__ counts,
                                          std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     HistFast::clear_private(priv);
@@ -252,17 +264,17 @@ __global__ void totient_chi2_hist_kernel(const std::uint8_t* in, const std::uint
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    const std::uint8_t* lane = shifts + shift_begin[candidate];
+    const std::uint8_t* __restrict__ lane = shifts + __ldg(shift_begin + candidate);
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     const std::size_t n4 = token_count / 4u;
-    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
-    const uchar4* sh4 = reinterpret_cast<const uchar4*>(lane);
+    const uchar4* __restrict__ in4 = reinterpret_cast<const uchar4*>(in);
+    const uchar4* __restrict__ sh4 = reinterpret_cast<const uchar4*>(lane);
 
     for (std::size_t i =
              tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
          i < n4; i += stride) {
-        const uchar4 v = in4[i];
-        const uchar4 s = sh4[i];
+        const uchar4 v = __ldg(in4 + i);
+        const uchar4 s = __ldg(sh4 + i);
         HistFast::add_private(priv, HistFast::dec_sub(v.x, s.x));
         HistFast::add_private(priv, HistFast::dec_sub(v.y, s.y));
         HistFast::add_private(priv, HistFast::dec_sub(v.z, s.z));
@@ -271,7 +283,7 @@ __global__ void totient_chi2_hist_kernel(const std::uint8_t* in, const std::uint
     for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count; t += stride) {
-        HistFast::add_private(priv, HistFast::dec_sub(in[t], lane[t]));
+        HistFast::add_private(priv, HistFast::dec_sub(__ldg(in + t), __ldg(lane + t)));
     }
     HistFast::flush_private(priv,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
@@ -286,7 +298,8 @@ Status FamilyChi2Batch::launch_atbash_async(const std::uint8_t* device_in,
         return Status::error("FamilyChi2Batch::atbash null");
     }
     dim3 grid;
-    Status prep = clear_and_grid(device_counts, candidate_count, token_count, &grid);
+    Status prep =
+        clear_and_grid(device_counts, candidate_count, token_count, HistTileCap::kAtbash, &grid);
     if (!prep.ok()) {
         return prep;
     }
@@ -308,7 +321,8 @@ Status FamilyChi2Batch::launch_atbash_caesar_async(
         return Status::error("FamilyChi2Batch::atbash_caesar null");
     }
     dim3 grid;
-    Status prep = clear_and_grid(device_counts, candidate_count, token_count, &grid);
+    Status prep =
+        clear_and_grid(device_counts, candidate_count, token_count, HistTileCap::kAtbash, &grid);
     if (!prep.ok()) {
         return prep;
     }
@@ -333,7 +347,7 @@ Status FamilyChi2Batch::launch_affine_async(const std::uint8_t* device_in,
         return Status::error("FamilyChi2Batch::affine null");
     }
     dim3 grid;
-    Status prep = clear_and_grid(device_counts, candidate_count, token_count, &grid);
+    Status prep = clear_and_grid(device_counts, candidate_count, token_count, /*tile_slot=*/-1, &grid);
     if (!prep.ok()) {
         return prep;
     }
@@ -358,7 +372,7 @@ Status FamilyChi2Batch::launch_vigenere_async(
         return Status::error("FamilyChi2Batch::vigenere null");
     }
     dim3 grid;
-    Status prep = clear_and_grid(device_counts, candidate_count, token_count, &grid);
+    Status prep = clear_and_grid(device_counts, candidate_count, token_count, /*tile_slot=*/-1, &grid);
     if (!prep.ok()) {
         return prep;
     }
@@ -383,7 +397,7 @@ Status FamilyChi2Batch::launch_beaufort_async(
         return Status::error("FamilyChi2Batch::beaufort null");
     }
     dim3 grid;
-    Status prep = clear_and_grid(device_counts, candidate_count, token_count, &grid);
+    Status prep = clear_and_grid(device_counts, candidate_count, token_count, /*tile_slot=*/-1, &grid);
     if (!prep.ok()) {
         return prep;
     }
@@ -408,7 +422,8 @@ Status FamilyChi2Batch::launch_totient_async(const std::uint8_t* device_in,
         return Status::error("FamilyChi2Batch::totient null");
     }
     dim3 grid;
-    Status prep = clear_and_grid(device_counts, candidate_count, token_count, &grid);
+    Status prep =
+        clear_and_grid(device_counts, candidate_count, token_count, HistTileCap::kTotient, &grid);
     if (!prep.ok()) {
         return prep;
     }

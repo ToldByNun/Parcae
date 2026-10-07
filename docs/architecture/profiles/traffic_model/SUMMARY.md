@@ -71,7 +71,10 @@ Spec freezes **2.0 TB** with plate-noise headroom. Applied to `F.atbash`,
 
 **DRAM-bound is not required** for Done on this traffic class — `pass_tier`
 uses the compute roof only. Quiet Atbash ~1.1–1.7 TB → **~55–85%** of 2.0 TB
-(stretch climb; absolute climb remains Commit 8).
+pre-climb. After `shared_cipher_atomic_climb` (restrict/ldg + totient tile **32**):
+Atbash prod plate **~1.5–1.75 TB** (~76–87%); totient **~1.17–1.37 TB**; Done
+≥1.8 TB not median-stable. Occasional A/B spikes ~2.2 TB stay ≤ model after
+production restore (do **not** lower Spec; raise roof only if prod %peak>100).
 
 ## Affine shared-cipher (2026-10-06)
 
