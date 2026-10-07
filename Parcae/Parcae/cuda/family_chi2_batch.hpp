@@ -9,11 +9,11 @@
 
 /// Fused decrypt+χ² histogram for batch families (device-resident, scores only D2H).
 ///
-/// **Atbash / Atbash∘Caesar / Affine production:** alphabet remap after one
-/// ciphertext hist (`AlphabetChi2Batch`). Legacy decode-hist remains via
+/// **Atbash / Atbash∘Caesar / Affine / Vigenère production:** alphabet or
+/// column remap (`AlphabetChi2Batch`). Legacy decode-hist remains via
 /// `launch_*_decode_hist_async` (Atbash tile-cap A/B on `HistTileCap::kAtbash`).
 ///
-/// Vigenère / Beaufort / Totient still use warp-private decode-hist + fat-tile.
+/// Beaufort / Totient still use warp-private decode-hist + fat-tile.
 class FamilyChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;
@@ -67,12 +67,23 @@ public:
                                     std::uint32_t* device_counts, double* device_scores,
                                     std::size_t candidate_count, std::size_t token_count);
 
+    /// Production Vigenère: ColumnHistOnce + remap (interrupt-free; mixed L OK).
     [[nodiscard]] static Status
     launch_vigenere_async(const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
                           const std::uint32_t* device_key_begin,
                           const std::uint32_t* device_key_len, const double* device_probabilities,
                           std::uint32_t* device_counts, double* device_scores,
                           std::size_t candidate_count, std::size_t token_count);
+
+    /// Legacy per-candidate Vigenère decode→hist.
+    [[nodiscard]] static Status
+    launch_vigenere_decode_hist_async(const std::uint8_t* device_in,
+                                      const std::uint8_t* device_key_bytes,
+                                      const std::uint32_t* device_key_begin,
+                                      const std::uint32_t* device_key_len,
+                                      const double* device_probabilities,
+                                      std::uint32_t* device_counts, double* device_scores,
+                                      std::size_t candidate_count, std::size_t token_count);
 
     /// Beaufort decrypt hist: `out = key[j] - in` (involution; same API as Vigenère).
     [[nodiscard]] static Status

@@ -13,6 +13,8 @@
 /// - Atbash: `P[b] = H[28 - b]` (identical for every occupancy lane)
 /// - Atbash∘Caesar-encrypt: `P[b] = H[(28 + shift - b) mod 29]`
 /// - Affine decrypt: `P[y] += H[x]` with `y = inv(a)·(x - b)`
+/// - Vigenère decrypt (interrupt-free): column hists +
+///   `P[b] = Σ_j Col[j][(b + key[j]) mod 29]` (one ColumnHistOnce per unique L)
 ///
 /// Scores use the same `Chi2BatchScore::finalize_async` path as decode-hist.
 class AlphabetChi2Batch {
@@ -20,6 +22,7 @@ public:
     static constexpr std::size_t alphabet_size = 29;
     static constexpr std::size_t kMaxCandidates = 16384;
     static constexpr std::size_t kMaxTokens = 1u << 22;
+    static constexpr std::uint32_t kMaxPeriod = 16384;
 
     /// `device_cipher_hist` — scratch `uint32[29]` for the once-count.
     /// `device_counts` — `uint32[C * 29]` remapped plaintext hists.
@@ -69,6 +72,23 @@ public:
         std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
         std::size_t token_count);
 
+    /// Interrupt-free Vigenère: unique-L ColumnHistOnce passes + remap.
+    /// `device_column_scratch` must hold at least `max(key_len) * 29` bins
+    /// (pass nullptr to use process-lifetime scratch sized to `kMaxPeriod`).
+    [[nodiscard]] static Status launch_vigenere_decrypt_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
+        const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
+        const double* device_probabilities, std::uint32_t* device_column_scratch,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count, cudaStream_t stream = nullptr);
+
+    [[nodiscard]] static Status launch_vigenere_decrypt(
+        const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
+        const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
+        const double* device_probabilities, std::uint32_t* device_column_scratch,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count);
+
 private:
     AlphabetChi2Batch() = delete;
 
@@ -84,6 +104,8 @@ private:
                                                     double* device_scores,
                                                     std::size_t candidate_count,
                                                     std::size_t token_count, cudaStream_t stream);
+
+    [[nodiscard]] static Status ensure_column_scratch(std::uint32_t** out_cols);
 };
 
 #endif // ALPHABET_CHI2_BATCH_HPP

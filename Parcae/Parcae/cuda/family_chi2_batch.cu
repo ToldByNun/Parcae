@@ -457,7 +457,7 @@ Status FamilyChi2Batch::launch_affine_async(const std::uint8_t* device_in,
         device_scores, candidate_count, token_count, nullptr);
 }
 
-Status FamilyChi2Batch::launch_vigenere_async(
+Status FamilyChi2Batch::launch_vigenere_decode_hist_async(
     const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
     const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
     const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
@@ -465,7 +465,7 @@ Status FamilyChi2Batch::launch_vigenere_async(
     if (device_in == nullptr || device_key_bytes == nullptr || device_key_begin == nullptr ||
         device_key_len == nullptr || device_probabilities == nullptr || device_counts == nullptr ||
         device_scores == nullptr) {
-        return Status::error("FamilyChi2Batch::vigenere null");
+        return Status::error("FamilyChi2Batch::vigenere decode null");
     }
     dim3 grid;
     Status prep = clear_and_grid(device_counts, candidate_count, token_count, /*tile_slot=*/-1, &grid);
@@ -480,6 +480,28 @@ Status FamilyChi2Batch::launch_vigenere_async(
     }
     return Chi2BatchScore::finalize_async(device_counts, device_probabilities, device_scores,
                                           candidate_count, token_count);
+}
+
+Status FamilyChi2Batch::launch_vigenere_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
+    const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
+    const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+    std::size_t candidate_count, std::size_t token_count) {
+    if (device_in == nullptr || device_key_bytes == nullptr || device_key_begin == nullptr ||
+        device_key_len == nullptr || device_probabilities == nullptr || device_counts == nullptr ||
+        device_scores == nullptr) {
+        return Status::error("FamilyChi2Batch::vigenere null");
+    }
+    if (candidate_count == 0 || candidate_count > kMaxCandidates) {
+        return Status::error("FamilyChi2Batch: bad C");
+    }
+    if (token_count == 0 || token_count > kMaxTokens) {
+        return Status::error("FamilyChi2Batch: bad T");
+    }
+    return AlphabetChi2Batch::launch_vigenere_decrypt_async(
+        device_in, device_key_bytes, device_key_begin, device_key_len, device_probabilities,
+        /*device_column_scratch=*/nullptr, device_counts, device_scores, candidate_count,
+        token_count, nullptr);
 }
 
 Status FamilyChi2Batch::launch_beaufort_async(

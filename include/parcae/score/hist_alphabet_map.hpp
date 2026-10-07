@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <vector>
 
 /// Host (and future device-shared) alphabet-histogram remaps for Z/29.
 ///
@@ -137,6 +138,58 @@ public:
             ++hist[cipher[i]];
         }
         return hist;
+    }
+
+    /// Column hists for period `L`: `cols[j*29 + x]` counts `cipher[t]=x` with `t % L == j`.
+    /// Layout size `L * 29`. `L == 0` is an error.
+    [[nodiscard]] static StatusOr<std::vector<std::uint32_t>>
+    count_column_hist(std::span<const std::uint8_t> cipher, std::uint32_t period) {
+        if (period == 0u) {
+            return Status::error("HistAlphabetMap::count_column_hist: period must be >= 1");
+        }
+        std::vector<std::uint32_t> cols(static_cast<std::size_t>(period) * alphabet, 0u);
+        for (std::size_t t = 0; t < cipher.size(); ++t) {
+            if (cipher[t] >= alphabet) {
+                return Status::error("HistAlphabetMap::count_column_hist: symbol out of range");
+            }
+            const std::size_t j = t % static_cast<std::size_t>(period);
+            ++cols[j * alphabet + cipher[t]];
+        }
+        return cols;
+    }
+
+    /// Vigenère decrypt hist from column counts: `P[b] = Σ_j Col[j][(b + key[j]) mod 29]`.
+    [[nodiscard]] static StatusOr<Hist>
+    vigenere_plain_hist_from_columns(std::span<const std::uint32_t> cols, std::uint32_t period,
+                                     std::span<const std::uint8_t> key) {
+        if (period == 0u) {
+            return Status::error("HistAlphabetMap::vigenere_plain_hist_from_columns: period >= 1");
+        }
+        if (key.size() != static_cast<std::size_t>(period)) {
+            return Status::error(
+                "HistAlphabetMap::vigenere_plain_hist_from_columns: key length must equal period");
+        }
+        if (cols.size() != static_cast<std::size_t>(period) * alphabet) {
+            return Status::error(
+                "HistAlphabetMap::vigenere_plain_hist_from_columns: cols size must be L*29");
+        }
+        Hist plain{};
+        for (std::uint32_t j = 0; j < period; ++j) {
+            if (key[j] >= alphabet) {
+                return Status::error(
+                    "HistAlphabetMap::vigenere_plain_hist_from_columns: key symbol out of range");
+            }
+            const unsigned kj = key[j];
+            const std::uint32_t* col = cols.data() + static_cast<std::size_t>(j) * alphabet;
+            for (std::size_t b = 0; b < alphabet; ++b) {
+                unsigned src = static_cast<unsigned>(b) + kj;
+                if (src >= 29u) {
+                    src -= 29u;
+                }
+                plain[b] += col[src];
+            }
+        }
+        return plain;
     }
 
     /// Tail lag-diff hist: `D[b] = |{t ≥ L : (in[t] - in[t-L]) ≡ b}|`.

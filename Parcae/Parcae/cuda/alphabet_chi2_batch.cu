@@ -2,11 +2,19 @@
 
 #include "chi2_batch_score.hpp"
 #include "cipher_hist_once.hpp"
+#include "column_hist_once.hpp"
 #include "cuda_error.hpp"
 #include "hist_fast.hpp"
 #include "z29_device.hpp"
 
 #include <cuda_runtime_api.h>
+
+#include <algorithm>
+#include <cstdint>
+#include <vector>
+
+static_assert(AlphabetChi2Batch::kMaxPeriod == ColumnHistOnce::kMaxPeriod,
+              "Vigenère period ceiling must match ColumnHistOnce");
 
 /// Per-candidate Caesar decrypt remap: `counts[c*29 + b] = H[(b + shift) % 29]`.
 __global__ void alphabet_chi2_caesar_decrypt_remap_kernel(
@@ -98,6 +106,46 @@ __global__ void alphabet_chi2_affine_decrypt_remap_kernel(
         const std::uint8_t y =
             Z29Device::mul(inv_a, Z29Device::sub(static_cast<std::uint8_t>(x), b));
         row[y] = __ldg(cipher_hist + x);
+    }
+}
+
+/// Interrupt-free Vigenère remap for one period filter:
+/// `P[b] = Σ_j Col[j][(b + key[j]) mod 29]` when `key_len[c] == period_filter`.
+__global__ void alphabet_chi2_vigenere_remap_kernel(
+    const std::uint32_t* __restrict__ cols, const std::uint8_t* __restrict__ key_bytes,
+    const std::uint32_t* __restrict__ key_begin, const std::uint32_t* __restrict__ key_len,
+    std::uint32_t* __restrict__ counts, std::size_t candidate_count,
+    std::uint32_t period_filter) {
+    const std::size_t c =
+        static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
+        static_cast<std::size_t>(threadIdx.x);
+    if (c >= candidate_count) {
+        return;
+    }
+    if (__ldg(key_len + c) != period_filter) {
+        return;
+    }
+
+    const std::uint32_t begin = __ldg(key_begin + c);
+    std::uint32_t* __restrict__ row =
+        counts + c * static_cast<std::size_t>(HistFast::alphabet);
+#pragma unroll
+    for (int b = 0; b < HistFast::alphabet; ++b) {
+        row[b] = 0u;
+    }
+
+    for (std::uint32_t j = 0; j < period_filter; ++j) {
+        const unsigned kj = static_cast<unsigned>(__ldg(key_bytes + begin + j)) % 29u;
+        const std::uint32_t* __restrict__ col =
+            cols + static_cast<std::size_t>(j) * static_cast<std::size_t>(HistFast::alphabet);
+#pragma unroll
+        for (int b = 0; b < HistFast::alphabet; ++b) {
+            unsigned src = static_cast<unsigned>(b) + kj;
+            if (src >= 29u) {
+                src -= 29u;
+            }
+            row[b] += __ldg(col + src);
+        }
     }
 }
 
@@ -324,4 +372,117 @@ Status AlphabetChi2Batch::launch_affine_decrypt(
         return launched;
     }
     return CudaError::to_status(cudaDeviceSynchronize(), "AlphabetChi2Batch::affine sync");
+}
+
+Status AlphabetChi2Batch::ensure_column_scratch(std::uint32_t** out_cols) {
+    // Process-lifetime scratch for max period. Not safe for overlapping concurrent
+    // Vigenère remaps on this device.
+    static std::uint32_t* device_cols = nullptr;
+    if (device_cols == nullptr) {
+        const std::size_t bytes =
+            static_cast<std::size_t>(kMaxPeriod) * alphabet_size * sizeof(std::uint32_t);
+        Status allocated =
+            CudaError::to_status(cudaMalloc(reinterpret_cast<void**>(&device_cols), bytes),
+                                 "AlphabetChi2Batch::column scratch");
+        if (!allocated.ok()) {
+            device_cols = nullptr;
+            return allocated;
+        }
+    }
+    *out_cols = device_cols;
+    return Status::success();
+}
+
+Status AlphabetChi2Batch::launch_vigenere_decrypt_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
+    const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
+    const double* device_probabilities, std::uint32_t* device_column_scratch,
+    std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+    std::size_t token_count, cudaStream_t stream) {
+    if (candidate_count == 0 || candidate_count > kMaxCandidates) {
+        return Status::error("AlphabetChi2Batch: bad C");
+    }
+    if (token_count == 0 || token_count > kMaxTokens) {
+        return Status::error("AlphabetChi2Batch: bad T");
+    }
+    if (device_in == nullptr || device_key_bytes == nullptr || device_key_begin == nullptr ||
+        device_key_len == nullptr || device_probabilities == nullptr || device_counts == nullptr ||
+        device_scores == nullptr) {
+        return Status::error("AlphabetChi2Batch: null vigenere pointer");
+    }
+
+    std::uint32_t* cols = device_column_scratch;
+    if (cols == nullptr) {
+        Status scratch = ensure_column_scratch(&cols);
+        if (!scratch.ok()) {
+            return scratch;
+        }
+    }
+
+    std::vector<std::uint32_t> host_len(candidate_count);
+    Status copied = CudaError::to_status(
+        cudaMemcpyAsync(host_len.data(), device_key_len,
+                        candidate_count * sizeof(std::uint32_t), cudaMemcpyDeviceToHost, stream),
+        "AlphabetChi2Batch::vigenere key_len D2H");
+    if (!copied.ok()) {
+        return copied;
+    }
+    Status synced = CudaError::to_status(
+        stream == nullptr ? cudaDeviceSynchronize() : cudaStreamSynchronize(stream),
+        "AlphabetChi2Batch::vigenere key_len sync");
+    if (!synced.ok()) {
+        return synced;
+    }
+
+    std::vector<std::uint32_t> unique_periods;
+    unique_periods.reserve(8);
+    for (std::size_t i = 0; i < candidate_count; ++i) {
+        const std::uint32_t L = host_len[i];
+        if (L == 0u || L > kMaxPeriod) {
+            return Status::error("AlphabetChi2Batch: key_len out of range 1..kMaxPeriod");
+        }
+        if (std::find(unique_periods.begin(), unique_periods.end(), L) == unique_periods.end()) {
+            unique_periods.push_back(L);
+        }
+    }
+
+    constexpr int threads = 128;
+    const int blocks =
+        static_cast<int>((candidate_count + static_cast<std::size_t>(threads) - 1u) /
+                         static_cast<std::size_t>(threads));
+
+    for (std::uint32_t period : unique_periods) {
+        Status cols_ok =
+            ColumnHistOnce::launch_async(device_in, cols, token_count, period, stream);
+        if (!cols_ok.ok()) {
+            return cols_ok;
+        }
+        alphabet_chi2_vigenere_remap_kernel<<<blocks, threads, 0, stream>>>(
+            cols, device_key_bytes, device_key_begin, device_key_len, device_counts,
+            candidate_count, period);
+        Status remap =
+            CudaError::to_status(cudaGetLastError(), "AlphabetChi2Batch::vigenere remap");
+        if (!remap.ok()) {
+            return remap;
+        }
+    }
+
+    return after_hist_finalize(device_probabilities, device_counts, device_scores, candidate_count,
+                               token_count, stream);
+}
+
+Status AlphabetChi2Batch::launch_vigenere_decrypt(
+    const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
+    const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
+    const double* device_probabilities, std::uint32_t* device_column_scratch,
+    std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+    std::size_t token_count) {
+    Status launched = launch_vigenere_decrypt_async(
+        device_in, device_key_bytes, device_key_begin, device_key_len, device_probabilities,
+        device_column_scratch, device_counts, device_scores, candidate_count, token_count,
+        nullptr);
+    if (!launched.ok()) {
+        return launched;
+    }
+    return CudaError::to_status(cudaDeviceSynchronize(), "AlphabetChi2Batch::vigenere sync");
 }

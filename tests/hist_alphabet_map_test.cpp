@@ -10,9 +10,11 @@
 #include "parcae/transform/atbash_transform.hpp"
 #include "parcae/transform/caesar_transform.hpp"
 #include "parcae/transform/transform_direction.hpp"
+#include "parcae/transform/vigenere_key_transform.hpp"
 
 #include <array>
 #include <cstdint>
+#include <numeric>
 #include <nlohmann/json.hpp>
 #include <span>
 #include <string>
@@ -322,9 +324,44 @@ TEST_CASE("HistAlphabetMap remapped Caesar hist chi2 matches Chi2EnglishGp",
     REQUIRE(from_map.value() == Catch::Approx(from_stream.value()).margin(1e-12));
 }
 
+TEST_CASE("HistAlphabetMap column hist + Vigenère remap matches stream decrypt",
+          "[score][hist_map][vigenere]") {
+    const std::vector<Index29> plain = HistAlphabetMapTestSupport::make_plain(180);
+    StatusOr<std::vector<Index29>> cipher = VigenereKeyTransform{}.apply(
+        plain, nlohmann::json{{"key_indices", nlohmann::json::array({4, 9, 15, 2})}},
+        TransformDirection::Encrypt);
+    REQUIRE(cipher.ok());
+
+    const auto cipher_bytes = HistAlphabetMapTestSupport::to_bytes(cipher.value());
+    constexpr std::uint32_t L = 4;
+    const std::uint8_t key_arr[] = {4, 9, 15, 2};
+    std::span<const std::uint8_t> key(key_arr, L);
+
+    StatusOr<std::vector<std::uint32_t>> cols =
+        HistAlphabetMap::count_column_hist(cipher_bytes, L);
+    REQUIRE(cols.ok());
+    REQUIRE(std::accumulate(cols.value().begin(), cols.value().end(), 0u) == cipher_bytes.size());
+
+    StatusOr<HistAlphabetMap::Hist> from_cols =
+        HistAlphabetMap::vigenere_plain_hist_from_columns(cols.value(), L, key);
+    REQUIRE(from_cols.ok());
+
+    StatusOr<std::vector<Index29>> decoded = VigenereKeyTransform{}.apply(
+        cipher.value(), nlohmann::json{{"key_indices", nlohmann::json::array({4, 9, 15, 2})}},
+        TransformDirection::Decrypt);
+    REQUIRE(decoded.ok());
+    StatusOr<HistAlphabetMap::Hist> from_stream =
+        HistAlphabetMap::count_stream_hist(HistAlphabetMapTestSupport::to_bytes(decoded.value()));
+    REQUIRE(from_stream.ok());
+    REQUIRE(from_cols.value() == from_stream.value());
+    REQUIRE(from_cols.value() == HistAlphabetMapTestSupport::hist_from_indices(plain));
+}
+
 TEST_CASE("HistAlphabetMap rejects out-of-range symbols and a=0", "[score][hist_map][edge]") {
     const std::vector<std::uint8_t> bad = {0, 29};
     REQUIRE_FALSE(HistAlphabetMap::count_stream_hist(bad).ok());
     REQUIRE_FALSE(HistAlphabetMap::rotate_decrypt(HistAlphabetMap::Hist{}, 29).ok());
     REQUIRE_FALSE(HistAlphabetMap::permute_affine_decrypt(HistAlphabetMap::Hist{}, 0, 1).ok());
+    const std::vector<std::uint8_t> ok_two = {0, 1};
+    REQUIRE_FALSE(HistAlphabetMap::count_column_hist(ok_two, 0u).ok());
 }
