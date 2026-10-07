@@ -128,6 +128,9 @@
     <ClInclude Include="cuda\cipher_hist_once.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\alphabet_chi2_batch.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cuda\parcae_cuda_stub.cu">
@@ -197,6 +200,9 @@
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\cipher_hist_once.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\alphabet_chi2_batch.cu">
       <Filter>cuda</Filter>
     </CudaCompile>
   </ItemGroup>
