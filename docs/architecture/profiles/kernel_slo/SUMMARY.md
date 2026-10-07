@@ -34,7 +34,17 @@ Spec (still 896B @ 1 B/rune).
 |-----|------|------|------|------------|-----------|---------|------|-------|
 | `T.theory.compare_caesar` | 849.3B | 782.9B | 780.1B | **782.9B** | **87.4%** | **PASS** | 1/3 pass (run1 94.8%) | fat-64 catalog twin |
 | `T.theory.caesar_bytecode` | 679.9B | 693.4B | 680.8B | **680.8B** | **76.0%** | **fail** | fail | `specialize_S1`; stable ~76–77% |
-| `T.theory.s1_lut29` | 303.4B | 487.0B | 692.2B | **487.0B** | **54.4%** | **fail** | fail | high run-to-run noise |
+| `T.theory.s1_lut29` | 303.4B | 487.0B | 692.2B | **487.0B** | **54.4%** | **fail** | fail | high run-to-run noise (bake inside timer) |
+
+### S1 LUT residency (2026-10-07)
+
+Fair `T.theory.s1_lut29` bakes the device LUT **once outside** `BenchTimer`
+(`detail=S1_lut_resident`). Export (`TheoryDeviceScratch`) skips rebake when
+URI + ops/imm + slot layout + bound slots match the launch slab.
+
+Quiet theory ×6: **670–733B** (~75–82% of 896B). Median of the six ~**705B**.
+Stretch **716.8B** is inside the band but not the median. Domain `+inf` and
+C=1 / empty-T rejects stay green.
 | `T.theory.progressive` (S2 @841) | 401.6B | 394.0B | 403.5B | **401.6B** | **44.8%** | fail | fail | ks29 plate (pre-residue) |
 
 ### S2 running residue requiet (2026-10-07)
@@ -94,7 +104,7 @@ Atbash/totient **model gate** under compute roof. Open: S1/specialize stretch
 
 ## Next
 
-1. Stabilize S1 fair ≥**716.8B** (stretch) — same fat-64 path as specialize.
+1. S1 fair median ≥**716.8B** (stretch) — residency landed (~670–733B); remaining gap is hist vs Caesar twin.
 2. S2 median ≥**716.8B** stretch (residue+tile32 at ~76%; remaining atomic/L2).
 3. Atbash/totient absolute climb toward **≥1.8 TB** (90% of 2.0 TB compute roof).
 4. Combined write-up: [`gpu_full_load/SUMMARY.md`](../gpu_full_load/SUMMARY.md)

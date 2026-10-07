@@ -334,6 +334,53 @@ TEST_CASE("GpuCandidateExport prefers S1 device-bake for residual FxOnly; χ² p
     }
 }
 
+TEST_CASE("GpuCandidateExport S1 LUT stays resident across identical params",
+          "[search][export][theory][specialized][cuda][s1][residency]") {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / "parcae_export_s1_lut_resident";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "theories", ec);
+
+    const TheoryIr theory = make_fx_square();
+    REQUIRE(install_theory(root / "theories", theory).ok());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    const std::vector<Index29> cipher = make_cipher(32);
+    std::vector<nlohmann::json> params_list(4, nlohmann::json::object());
+
+    TheoryExportCache cache;
+    TheoryDeviceScratch scratch;
+    StatusOr<std::vector<double>> first = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/export_prefer_fx_square@1",
+        params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache, &scratch);
+    REQUIRE(first.ok());
+    REQUIRE(scratch.s1_lut_bake_count() == 1u);
+    REQUIRE(scratch.s1_lut_hit_count() == 0u);
+
+    StatusOr<std::vector<double>> second = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/export_prefer_fx_square@1",
+        params_list, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache, &scratch);
+    REQUIRE(second.ok());
+    REQUIRE(second.value() == first.value());
+    REQUIRE(scratch.s1_lut_bake_count() == 1u);
+    REQUIRE(scratch.s1_lut_hit_count() == 1u);
+
+    // C=1 still bakes (different candidate count).
+    std::vector<nlohmann::json> one{nlohmann::json::object()};
+    StatusOr<std::vector<double>> c1 = GpuCandidateExport::theory_scores_only(
+        cipher, freqs.value(), root / "theories", "parcae://theories/export_prefer_fx_square@1",
+        one, TransformDirection::Decrypt, {}, InterruptPolicy::none(), &cache, &scratch);
+    REQUIRE(c1.ok());
+    REQUIRE(c1.value().size() == 1u);
+    REQUIRE(scratch.s1_lut_bake_count() == 2u);
+
+    std::filesystem::remove_all(root, ec);
+}
+
 /// Name/catalog-irrelevant vigenere_lag custom (not `autokey_lag` catalog id).
 [[nodiscard]] TheoryIr make_vigenere_lag_custom() {
     const StatusOr<ParamIr> lag = ParamIr::make("delay", 1, 28);

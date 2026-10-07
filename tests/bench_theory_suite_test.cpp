@@ -92,7 +92,7 @@ TEST_CASE("BenchTheorySuite run fair microbench on CUDA", "[bench][theory][cuda]
     // Caesar fair row prefers ShapeInline (or S1 soft) after emit classify.
     REQUIRE((doc.value().rows()[0].detail().find("specialize_ShapeInline") != std::string::npos ||
              doc.value().rows()[0].detail().find("specialize_S1") != std::string::npos));
-    REQUIRE(doc.value().rows()[2].detail().find("S1_device_bake") != std::string::npos);
+    REQUIRE(doc.value().rows()[2].detail().find("S1_lut_resident") != std::string::npos);
     REQUIRE(doc.value().rows()[0].runes_per_sec() > 0.0);
     REQUIRE(doc.value().rows()[1].runes_per_sec() > 0.0);
     REQUIRE(doc.value().rows()[2].runes_per_sec() > 0.0);

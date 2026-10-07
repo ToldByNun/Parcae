@@ -4,6 +4,7 @@
 
 #include "parcae_cuda.hpp"
 #include "theory_device_scratch.hpp"
+#include "theory_hist_chi2_s1.hpp"
 
 #include <cstdint>
 #include <cuda_runtime_api.h>
@@ -233,6 +234,56 @@ TEST_CASE("CUDA TheoryDeviceScratch param ping-pong slabs", "[cuda][scratch]") {
                 cudaMemcpy(back.data(), scratch.slots(), 4, cudaMemcpyDeviceToHost), "slots D2H")
                 .ok());
     REQUIRE(back == slots_b);
+}
+
+TEST_CASE("CUDA TheoryDeviceScratch S1 LUT residency key", "[cuda][scratch][s1]") {
+    REQUIRE(ParcaeCuda::available());
+    TheoryDeviceScratch scratch;
+    REQUIRE(scratch.ensure_capacity(4, 16).ok());
+    REQUIRE_FALSE(scratch.s1_lut_resident(1, 2, 4));
+
+    scratch.note_s1_lut_baked(11, 22, 4);
+    REQUIRE(scratch.s1_lut_resident(11, 22, 4));
+    REQUIRE(scratch.s1_lut_bake_count() == 1u);
+    REQUIRE_FALSE(scratch.s1_lut_resident(11, 99, 4));
+    REQUIRE_FALSE(scratch.s1_lut_resident(11, 22, 2));
+    REQUIRE_FALSE(scratch.s1_lut_resident(0, 22, 4));
+
+    scratch.note_s1_lut_hit();
+    REQUIRE(scratch.s1_lut_hit_count() == 1u);
+
+    // Initial commit keeps launch on slab 0 (write catches up). The next commit
+    // publishes the other slab, so the baked LUT is no longer the launch buffer.
+    scratch.commit_param_slab();
+    REQUIRE(scratch.s1_lut_resident(11, 22, 4));
+    scratch.commit_param_slab();
+    REQUIRE_FALSE(scratch.s1_lut_resident(11, 22, 4));
+
+    scratch.note_s1_lut_baked(11, 22, 4);
+    REQUIRE(scratch.s1_lut_resident(11, 22, 4));
+    REQUIRE(scratch.ensure_capacity(8, 16).ok());
+    REQUIRE_FALSE(scratch.s1_lut_resident(11, 22, 4));
+
+    scratch.note_s1_lut_baked(3, 4, 8);
+    scratch.reset();
+    REQUIRE(scratch.s1_lut_bake_count() == 0u);
+    REQUIRE_FALSE(scratch.s1_lut_resident(3, 4, 8));
+}
+
+TEST_CASE("TheoryHistChi2S1 rejects empty T and C", "[cuda][hist][s1][edge]") {
+    REQUIRE(ParcaeCuda::available());
+    TheoryDeviceScratch scratch;
+    REQUIRE(scratch.ensure_capacity(2, 8).ok());
+    REQUIRE_FALSE(TheoryHistChi2S1::launch_lut_async(scratch.cipher(), scratch.luts(), scratch.probs(),
+                                                     scratch.counts(), scratch.scores(), 1, 0)
+                      .ok());
+    REQUIRE_FALSE(TheoryHistChi2S1::launch_lut_async(scratch.cipher(), scratch.luts(), scratch.probs(),
+                                                     scratch.counts(), scratch.scores(), 0, 8)
+                      .ok());
+    REQUIRE_FALSE(TheoryHistChi2S1::launch_bake_async(scratch.cipher(), scratch.cipher(), 1,
+                                                      scratch.slots(), 1, 0, 0, 0, 8, scratch.luts(),
+                                                      scratch.lane_err(), 0)
+                      .ok());
 }
 
 #else

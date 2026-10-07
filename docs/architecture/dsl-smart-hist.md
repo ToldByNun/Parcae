@@ -88,7 +88,7 @@ Prefer order when multiple apply (first match wins after normalize):
 | 2 | `Caesar` | `x ± shift` | Shape hist / Caesar decode | **896B** |
 | 3 | `Affine` | invertible `a·x+b` | Shape hist / affine decode | Affine shared-cipher ≈**47.0 TB** |
 | 4 | `LinearKeystream` | `x ± (b0 + b1·i)` (+ widened linear) | `TheoryHistChi2S2` | **896B** (`T.theory.s2_linear`) |
-| 5 | `FxOnly` | other `f(x; params)`, no stream `i` | S1 device LUT bake → hist (no host `eval_at×29×C`) | **896B** (`T.theory.s1_lut29`) |
+| 5 | `FxOnly` | other `f(x; params)`, no stream `i` | S1 device LUT bake → hist; rebake only when program or slots change | **896B** (`T.theory.s1_lut29`) |
 | 6 | `KeyedGeneral` | uses `i`, not linear S2 | S3 expr-inline or module | **896B** (row when Spec exists) |
 | 7 | `Autokey` | contains `z29_autokey_shift` | S4 AutokeyRing+hist | **896B** (unless traffic differs) |
 | 8 | `PolyKeystream` | low-degree / bitmask-like beyond linear (`b2·i²` required; missing b0/b1 ⇒ 0) | S5 twin | **896B** |

@@ -159,6 +159,10 @@ public:
         std::uint16_t max_stack_ = 0;
         std::uint8_t binds_index_i_ = 0;
         bool cipher_minus_ks_ = true;
+        /// S1: hist-only when the launch-slab LUT already matches program+slots.
+        bool s1_lut_resident_ = false;
+        std::uint64_t s1_program_key_ = 0;
+        std::uint64_t s1_slots_key_ = 0;
     };
 #endif
 
@@ -1082,12 +1086,29 @@ public:
                 ticket.token_count_, streams.compute());
             break;
         case TheoryLaunchTicket::Kind::S1:
-            launched = TheoryHistChi2Launch::launch_s1_from_slots_async(
-                scratch.cipher(), cache.device_ops().data(), cache.device_imm().data(),
-                ticket.op_count_, scratch.slots(), ticket.slot_count_, ticket.cipher_slot_,
-                ticket.index_slot_, ticket.binds_index_i_, ticket.max_stack_, scratch.luts(),
-                scratch.probs(), scratch.counts(), scratch.scores(), scratch.lane_err(),
-                ticket.candidate_count_, ticket.token_count_, streams.compute());
+            if (ticket.s1_lut_resident_) {
+                scratch.note_s1_lut_hit();
+                launched = TheoryHistChi2Launch::launch_s1_lut_async(
+                    scratch.cipher(), scratch.luts(), scratch.probs(), scratch.counts(),
+                    scratch.scores(), ticket.candidate_count_, ticket.token_count_,
+                    streams.compute());
+                if (launched.ok()) {
+                    launched = TheoryHistChi2S1::patch_inf_async(
+                        scratch.lane_err(), scratch.scores(), ticket.candidate_count_,
+                        streams.compute());
+                }
+            } else {
+                launched = TheoryHistChi2Launch::launch_s1_from_slots_async(
+                    scratch.cipher(), cache.device_ops().data(), cache.device_imm().data(),
+                    ticket.op_count_, scratch.slots(), ticket.slot_count_, ticket.cipher_slot_,
+                    ticket.index_slot_, ticket.binds_index_i_, ticket.max_stack_, scratch.luts(),
+                    scratch.probs(), scratch.counts(), scratch.scores(), scratch.lane_err(),
+                    ticket.candidate_count_, ticket.token_count_, streams.compute());
+                if (launched.ok()) {
+                    scratch.note_s1_lut_baked(ticket.s1_program_key_, ticket.s1_slots_key_,
+                                              ticket.candidate_count_);
+                }
+            }
             break;
         case TheoryLaunchTicket::Kind::S2:
             launched = TheoryHistChi2Launch::launch_s2_linear_async(
@@ -1843,6 +1864,25 @@ private:
         return h == 0 ? 1 : h;
     }
 
+    /// S1 residency key: URI + ops/imm + slot layout. Slot *values* are separate.
+    [[nodiscard]] static std::uint64_t s1_program_key(const TheoryExportCache::Entry& entry) {
+        std::uint64_t h = fingerprint_bytes(entry.ops_u8());
+        const std::uint64_t imm_h = fingerprint_bytes(entry.imm());
+        h ^= imm_h + 0x9e3779b97f4a7c15ull;
+        h *= 1099511628211ull;
+        for (const char ch : entry.uri_str()) {
+            h ^= static_cast<std::uint64_t>(static_cast<unsigned char>(ch));
+            h *= 1099511628211ull;
+        }
+        const Z29Bytecode::Program& prog = entry.program();
+        h ^= static_cast<std::uint64_t>(prog.slot_names.size()) << 1;
+        h ^= static_cast<std::uint64_t>(prog.cipher_slot) << 17;
+        h ^= static_cast<std::uint64_t>(prog.index_slot) << 33;
+        h ^= static_cast<std::uint64_t>(prog.max_stack) << 48;
+        h *= 1099511628211ull;
+        return h == 0 ? 1 : h;
+    }
+
     /// Grow-only reserve + skippable cipher/probs H2D into persistent scratch.
     [[nodiscard]] static Status ensure_theory_resident(TheoryDeviceScratch& scratch,
                                                        std::span<const std::uint8_t> host_in,
@@ -2461,6 +2501,9 @@ private:
         }
 
         const auto host_in = to_bytes(cipher);
+        const std::uint64_t program_key = s1_program_key(entry);
+        const std::uint64_t slots_key = fingerprint_bytes(slots);
+        const bool lut_hot = scratch.s1_lut_resident(program_key, slots_key, C);
         {
             NvtxRange nvtx_h2d("h2d");
             Status resident =
@@ -2472,13 +2515,14 @@ private:
             if (!prog_up.ok()) {
                 return prog_up;
             }
-            Status slots_up =
-                scratch.upload_slots_async(slots, C, slot_count, streams.copy());
-            if (!slots_up.ok()) {
-                return slots_up;
+            if (!lut_hot) {
+                Status slots_up =
+                    scratch.upload_slots_async(slots, C, slot_count, streams.copy());
+                if (!slots_up.ok()) {
+                    return slots_up;
+                }
+                scratch.commit_param_slab();
             }
-            // LUT table filled on-device after H2D (into launch slab post-commit).
-            scratch.commit_param_slab();
         }
 
         if (mode == TheoryFuseMode::StageH2D) {
@@ -2497,16 +2541,34 @@ private:
                 ticket_out->index_slot_ = prog.index_slot;
                 ticket_out->max_stack_ = max_stack;
                 ticket_out->binds_index_i_ = 0u;
+                ticket_out->s1_lut_resident_ = lut_hot;
+                ticket_out->s1_program_key_ = program_key;
+                ticket_out->s1_slots_key_ = slots_key;
             }
             return std::vector<double>{};
         }
         auto launch = [&](cudaStream_t compute) {
-            return TheoryHistChi2Launch::launch_s1_from_slots_async(
+            if (lut_hot) {
+                scratch.note_s1_lut_hit();
+                Status hist = TheoryHistChi2Launch::launch_s1_lut_async(
+                    scratch.cipher(), scratch.luts(), scratch.probs(), scratch.counts(),
+                    scratch.scores(), C, host_in.size(), compute);
+                if (!hist.ok()) {
+                    return hist;
+                }
+                return TheoryHistChi2S1::patch_inf_async(scratch.lane_err(), scratch.scores(), C,
+                                                         compute);
+            }
+            Status baked = TheoryHistChi2Launch::launch_s1_from_slots_async(
                 scratch.cipher(), cache.device_ops().data(), cache.device_imm().data(),
                 static_cast<std::uint32_t>(ops.size()), scratch.slots(), slot_count,
                 prog.cipher_slot, prog.index_slot, /*binds_index_i=*/0u, max_stack, scratch.luts(),
                 scratch.probs(), scratch.counts(), scratch.scores(), scratch.lane_err(), C,
                 host_in.size(), compute);
+            if (baked.ok()) {
+                scratch.note_s1_lut_baked(program_key, slots_key, C);
+            }
+            return baked;
         };
         return launch_theory_stream_copy(scratch, streams, C, launch,
                                          "GpuCandidateExport::theory S1 sync", progress);

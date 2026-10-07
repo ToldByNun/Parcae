@@ -20,7 +20,12 @@
 /// S2 b0·b1) are **double-buffered** (`kParamSlabs`) so H2D for chunk N+1 can
 /// overlap hist on chunk N. Uploads write `write_slab()`; kernels read
 /// `launch_slab()` after `commit_param_slab()`. Cipher / probs stay single
-/// (read-only during hist). Move-only. No C++ namespaces.
+/// (read-only during hist).
+///
+/// S1 LUT residency: when the program key (URI + ops/imm + slot layout) and
+/// the bound-slots key match the last bake on the current launch slab, hist
+/// reuses the device LUT (no bake). A param change or program change misses
+/// and rebuilds. Move-only. No C++ namespaces.
 class TheoryDeviceScratch {
 public:
     static constexpr std::size_t alphabet_size = TheoryChi2Batch::alphabet_size;
@@ -167,6 +172,7 @@ public:
             live_slot_count_ = 0;
             write_slab_ = 0;
             launch_slab_ = 0;
+            invalidate_s1_lut();
         }
         return Status::success();
     }
@@ -366,6 +372,36 @@ public:
     [[nodiscard]] std::size_t cipher_upload_count() const noexcept { return cipher_upload_count_; }
     [[nodiscard]] std::size_t probs_upload_count() const noexcept { return probs_upload_count_; }
 
+    /// True when `device_luts` on the current launch slab already holds the bake
+    /// for this program + bound slots + `C`.
+    [[nodiscard]] bool s1_lut_resident(std::uint64_t program_key, std::uint64_t slots_key,
+                                       std::size_t candidate_count) const noexcept {
+        return s1_lut_valid_ && program_key != 0 && slots_key != 0 &&
+               s1_program_key_ == program_key && s1_slots_key_ == slots_key &&
+               s1_lut_C_ == candidate_count && s1_lut_slab_ == launch_slab_ &&
+               candidate_count > 0 && candidate_count <= capacity_C_;
+    }
+
+    /// Record a successful bake into the current launch slab.
+    void note_s1_lut_baked(std::uint64_t program_key, std::uint64_t slots_key,
+                           std::size_t candidate_count) noexcept {
+        s1_lut_valid_ = program_key != 0 && slots_key != 0 && candidate_count > 0;
+        s1_program_key_ = program_key;
+        s1_slots_key_ = slots_key;
+        s1_lut_C_ = candidate_count;
+        s1_lut_slab_ = launch_slab_;
+        if (s1_lut_valid_) {
+            ++s1_lut_bake_count_;
+        }
+    }
+
+    void note_s1_lut_hit() noexcept { ++s1_lut_hit_count_; }
+
+    void invalidate_s1_lut() noexcept { s1_lut_valid_ = false; }
+
+    [[nodiscard]] std::size_t s1_lut_bake_count() const noexcept { return s1_lut_bake_count_; }
+    [[nodiscard]] std::size_t s1_lut_hit_count() const noexcept { return s1_lut_hit_count_; }
+
     [[nodiscard]] bool empty() const noexcept { return capacity_C_ == 0 && capacity_T_ == 0; }
 
     void reset() noexcept {
@@ -392,6 +428,13 @@ public:
         probs_upload_count_ = 0;
         write_slab_ = 0;
         launch_slab_ = 0;
+        invalidate_s1_lut();
+        s1_program_key_ = 0;
+        s1_slots_key_ = 0;
+        s1_lut_C_ = 0;
+        s1_lut_slab_ = -1;
+        s1_lut_bake_count_ = 0;
+        s1_lut_hit_count_ = 0;
     }
 
 private:
@@ -433,6 +476,14 @@ private:
     std::size_t probs_upload_count_ = 0;
     int write_slab_ = 0;
     int launch_slab_ = 0;
+
+    bool s1_lut_valid_ = false;
+    std::uint64_t s1_program_key_ = 0;
+    std::uint64_t s1_slots_key_ = 0;
+    std::size_t s1_lut_C_ = 0;
+    int s1_lut_slab_ = -1;
+    std::size_t s1_lut_bake_count_ = 0;
+    std::size_t s1_lut_hit_count_ = 0;
 };
 
 #endif // THEORY_DEVICE_SCRATCH_HPP

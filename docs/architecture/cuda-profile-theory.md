@@ -307,6 +307,7 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-06 | **affine_traffic** | `profiles/traffic_model/` + Spec | `affine_chi2_hist_kernel` | C=812 T=262k | bytes/rune **0.01906** → peak **≈47.0 TB** | L2 97.6% DRAM 1.8% | Spec `kHistBytesPerRuneAffineSharedCipher` | **PASS model** — F.affine / dsl_smart Affine `%peak≤100`; not quiet-max |
 | 2026-10-06 | **compute_roof** | Spec + `HistOccupancyRoof` | identity hist vs Atbash @ C=512 T=1M | fair | identity ~1.2–2.2 TB; Spec freeze **2.0 TB** | DRAM diary 80.7 TB | `kSharedCipherComputeRoofRps` | **PASS Spec** — Atbash/totient Done = compute roof; DRAM-bound N/A |
 | 2026-10-07 | **s2_running_residue** | S2/S5 kernels + `HistTileCap` | `theory_hist_chi2_s2_linear_kernel` | 841×1M | med **~683B** (~76%; best **764B**) was **~402B** | — | running residue (no hot `%29`); S2 default tile **32** | **PARTIAL** — +~70% vs ks29; stretch 716.8B not median-stable |
+| 2026-10-07 | **s1_lut_residency** | export scratch + fair suite | `theory_hist_chi2_s1_lut_kernel` | 29×1M | quiet band **~670–733B** (med ~**705B**, ~79%) | — | bake outside fair timer; export skips rebake when program+slots match | **PARTIAL** — noise tightened vs 303–692B; stretch 716.8B not median-stable |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 
@@ -314,7 +315,7 @@ Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 |--------------|---------|------------------|----------|----------------|--------|
 | Caesar catalog twin (fat-64) | `T.theory.compare_caesar` | **896B** | **806.4B** | med **782.9B** (~87%; best **849B** Done) | **stretch** — ACCEPTANCE |
 | Caesar fair (specialize S1 when eligible) | `T.theory.caesar_bytecode` | **896B** | **806.4B** | med **680.8B** (~76%, `specialize_S1`) | **not stretch** — <80% |
-| S1 LUT-29 (fat-64) | `T.theory.s1_lut29` | **896B** | **806.4B** | med **487B** (noisy 303–692) | **not stretch** — stabilize |
+| S1 LUT-29 (fat-64, resident LUT) | `T.theory.s1_lut29` | **896B** | **806.4B** | quiet **~670–733B** (~79%; bake outside timer) | **not stretch** — noise tightened; median still under 716.8B |
 | bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **896B** | **806.4B** | med **~683B** (~76% @ C=841, residue+tile32) | **not stretch** — climb from ~45%; atomic/L2 bound remains |
 
 Kernel SLO ACCEPTANCE (metric B): [`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md).

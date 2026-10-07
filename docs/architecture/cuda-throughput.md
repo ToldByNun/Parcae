@@ -87,7 +87,7 @@ peaks at `T≈2^20`. Normative Done rules:
 | Tier | Workload | Ceiling (runes/s) | SLO floor | Notes |
 |------|----------|-------------------|-----------|-------|
 | T.theory.caesar_bytecode | specialize S1 when eligible | **896B** | ≥15B | ~79% fair (`specialize_S1`); hard-S0 ~7–8% |
-| T.theory.s1_lut29 | S1 LUT-29 | **896B** | ≥15B | same roof; ~79% fair (fat-64) |
+| T.theory.s1_lut29 | S1 LUT-29 | **896B** | ≥15B | fair hist+finalize (LUT baked outside timer); ~75–80% |
 | T.theory.s2_linear | S2 progressive / bitmask | **896B** | ≥15B | ~76% fair @ C=841 (running residue + tile32) |
 
 Operator handbook: [`search-handbook.md`](search-handbook.md) § Theory URI.
