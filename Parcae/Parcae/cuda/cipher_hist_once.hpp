@@ -10,9 +10,9 @@
 
 /// Single dense ciphertext histogram on device (Identity bins, no decrypt).
 ///
-/// Production once-count for alphabet-remap χ²: thread-local shared hist
+/// Once-count for alphabet-remap χ²: thread-local shared hist
 /// (`HistFast::add_local` / `flush_local`, 32 KiB) + fat-tile grid-stride uchar4
-/// loads. No C++ namespaces; `__global__` lives file-scope in the `.cu`.
+/// loads.
 class CipherHistOnce {
 public:
     static constexpr std::size_t alphabet = 29;

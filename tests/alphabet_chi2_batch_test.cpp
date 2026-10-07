@@ -79,7 +79,7 @@ TEST_CASE("AlphabetChi2Batch Caesar remap scores match decode-hist golden",
     StatusOr<DeviceBuffer<double>> remap_scores = DeviceBuffer<double>::allocate(C);
     REQUIRE(remap_scores.ok());
 
-    REQUIRE(CaesarChi2Batch::launch_decrypt_async(
+    REQUIRE(CaesarChi2Batch::launch_decode_hist_async(
                 device_in.value().data(), device_shifts.value().data(),
                 device_probs.value().data(), decode_counts.value().data(),
                 decode_scores.value().data(), C, T)
@@ -256,7 +256,7 @@ TEST_CASE("AlphabetChi2Batch Caesar remap fair T matches decode-hist",
     StatusOr<DeviceBuffer<double>> remap_scores = DeviceBuffer<double>::allocate(C);
     REQUIRE(remap_scores.ok());
 
-    REQUIRE(CaesarChi2Batch::launch_decrypt_async(
+    REQUIRE(CaesarChi2Batch::launch_decode_hist_async(
                 device_in.value().data(), device_shifts.value().data(),
                 device_probs.value().data(), decode_counts.value().data(),
                 decode_scores.value().data(), C, T)
@@ -278,6 +278,70 @@ TEST_CASE("AlphabetChi2Batch Caesar remap fair T matches decode-hist",
     std::vector<std::uint32_t> base(29, 0u);
     REQUIRE(remap_hist.value().copy_to_host(base).ok());
     REQUIRE(std::accumulate(base.begin(), base.end(), 0u) == T);
+}
+
+TEST_CASE("CaesarChi2Batch launch_decrypt_async production remap matches decode-hist legacy",
+          "[cuda][batch][chi2][remap][caesar][wire]") {
+    REQUIRE(ParcaeCuda::available());
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    constexpr std::size_t C = 29;
+    constexpr std::size_t T = 4096;
+    std::vector<std::uint8_t> host_in(T);
+    for (std::size_t i = 0; i < T; ++i) {
+        host_in[i] = static_cast<std::uint8_t>((i * 11u + 2u) % 29u);
+    }
+    std::vector<std::uint8_t> shifts(C);
+    for (std::size_t c = 0; c < C; ++c) {
+        shifts[c] = static_cast<std::uint8_t>(c);
+    }
+
+    StatusOr<DeviceBuffer<std::uint8_t>> device_in = DeviceBuffer<std::uint8_t>::from_host(host_in);
+    REQUIRE(device_in.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_shifts =
+        DeviceBuffer<std::uint8_t>::from_host(shifts);
+    REQUIRE(device_shifts.ok());
+    StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
+        std::span<const double>(freqs.value().probabilities().data(), 29));
+    REQUIRE(device_probs.ok());
+
+    StatusOr<DeviceBuffer<std::uint32_t>> legacy_counts =
+        DeviceBuffer<std::uint32_t>::allocate(C * 29);
+    REQUIRE(legacy_counts.ok());
+    StatusOr<DeviceBuffer<double>> legacy_scores = DeviceBuffer<double>::allocate(C);
+    REQUIRE(legacy_scores.ok());
+    StatusOr<DeviceBuffer<std::uint32_t>> prod_counts =
+        DeviceBuffer<std::uint32_t>::allocate(C * 29);
+    REQUIRE(prod_counts.ok());
+    StatusOr<DeviceBuffer<double>> prod_scores = DeviceBuffer<double>::allocate(C);
+    REQUIRE(prod_scores.ok());
+
+    REQUIRE(CaesarChi2Batch::launch_decode_hist_async(
+                device_in.value().data(), device_shifts.value().data(),
+                device_probs.value().data(), legacy_counts.value().data(),
+                legacy_scores.value().data(), C, T)
+                .ok());
+    REQUIRE(CaesarChi2Batch::launch_decrypt_async(
+                device_in.value().data(), device_shifts.value().data(),
+                device_probs.value().data(), prod_counts.value().data(),
+                prod_scores.value().data(), C, T)
+                .ok());
+    REQUIRE(CudaError::to_status(cudaDeviceSynchronize(), "wire sync").ok());
+
+    std::vector<double> legacy_host(C);
+    std::vector<double> prod_host(C);
+    REQUIRE(legacy_scores.value().copy_to_host(legacy_host).ok());
+    REQUIRE(prod_scores.value().copy_to_host(prod_host).ok());
+    REQUIRE(prod_host == legacy_host);
+
+    std::vector<std::uint32_t> legacy_hist(C * 29);
+    std::vector<std::uint32_t> prod_hist(C * 29);
+    REQUIRE(legacy_counts.value().copy_to_host(legacy_hist).ok());
+    REQUIRE(prod_counts.value().copy_to_host(prod_hist).ok());
+    REQUIRE(prod_hist == legacy_hist);
 }
 
 #endif

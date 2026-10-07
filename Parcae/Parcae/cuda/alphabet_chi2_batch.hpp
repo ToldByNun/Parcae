@@ -11,7 +11,6 @@
 ///
 /// Caesar decrypt: `P[b] = H[(b + shift) mod 29]` after `CipherHistOnce`.
 /// Scores use the same `Chi2BatchScore::finalize_async` path as decode-hist.
-/// remap `__global__` is file-scope in the `.cu`.
 class AlphabetChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;

@@ -1,16 +1,12 @@
 #include "caesar_chi2_batch.hpp"
+
+#include "alphabet_chi2_batch.hpp"
 #include "chi2_batch_score.hpp"
 #include "cuda_error.hpp"
 #include "hist_fast.hpp"
 #include "hist_tile_cap.hpp"
 
 #include <cuda_runtime_api.h>
-
-// Production path: warp-private hist (`add_private`) + fat-tile clamp
-// (`kProductionTileCap=64`; see profiles/roof_hist/). Register-local /
-// 32 KiB shared-local under profiles/hist_local_caesar/ regressed fair T1 —
-// keep HistFast local APIs for research only.
-// Tile-cap override: HistTileCap::kCaesar (no anonymous namespace).
 
 void CaesarChi2Batch::set_hist_tile_cap(int cap) noexcept {
     HistTileCap::set(HistTileCap::kCaesar, cap);
@@ -109,13 +105,13 @@ Status CaesarChi2Batch::validate(std::size_t candidate_count, std::size_t token_
     return Status::success();
 }
 
-Status CaesarChi2Batch::launch_impl(const std::uint8_t* device_in,
-                                    const std::uint8_t* device_shifts,
-                                    const std::uint8_t* device_directions,
-                                    const double* device_probabilities,
-                                    std::uint32_t* device_counts, double* device_scores,
-                                    std::size_t candidate_count, std::size_t token_count,
-                                    bool synchronize, bool decrypt_only) {
+Status CaesarChi2Batch::launch_decode_impl(const std::uint8_t* device_in,
+                                           const std::uint8_t* device_shifts,
+                                           const std::uint8_t* device_directions,
+                                           const double* device_probabilities,
+                                           std::uint32_t* device_counts, double* device_scores,
+                                           std::size_t candidate_count, std::size_t token_count,
+                                           bool synchronize, bool decrypt_only) {
     Status valid =
         validate(candidate_count, token_count, device_in, device_shifts, device_directions,
                  device_probabilities, device_counts, device_scores, decrypt_only);
@@ -162,8 +158,9 @@ Status CaesarChi2Batch::launch(const std::uint8_t* device_in, const std::uint8_t
                                const double* device_probabilities, std::uint32_t* device_counts,
                                double* device_scores, std::size_t candidate_count,
                                std::size_t token_count) {
-    return launch_impl(device_in, device_shifts, device_directions, device_probabilities,
-                       device_counts, device_scores, candidate_count, token_count, true, false);
+    return launch_decode_impl(device_in, device_shifts, device_directions, device_probabilities,
+                              device_counts, device_scores, candidate_count, token_count, true,
+                              false);
 }
 
 Status CaesarChi2Batch::launch_async(const std::uint8_t* device_in,
@@ -172,8 +169,21 @@ Status CaesarChi2Batch::launch_async(const std::uint8_t* device_in,
                                      const double* device_probabilities,
                                      std::uint32_t* device_counts, double* device_scores,
                                      std::size_t candidate_count, std::size_t token_count) {
-    return launch_impl(device_in, device_shifts, device_directions, device_probabilities,
-                       device_counts, device_scores, candidate_count, token_count, false, false);
+    return launch_decode_impl(device_in, device_shifts, device_directions, device_probabilities,
+                              device_counts, device_scores, candidate_count, token_count, false,
+                              false);
+}
+
+Status CaesarChi2Batch::launch_decode_hist_async(const std::uint8_t* device_in,
+                                                 const std::uint8_t* device_shifts,
+                                                 const double* device_probabilities,
+                                                 std::uint32_t* device_counts,
+                                                 double* device_scores,
+                                                 std::size_t candidate_count,
+                                                 std::size_t token_count) {
+    return launch_decode_impl(device_in, device_shifts, nullptr, device_probabilities,
+                              device_counts, device_scores, candidate_count, token_count, false,
+                              true);
 }
 
 Status CaesarChi2Batch::launch_decrypt_async(const std::uint8_t* device_in,
@@ -181,6 +191,28 @@ Status CaesarChi2Batch::launch_decrypt_async(const std::uint8_t* device_in,
                                              const double* device_probabilities,
                                              std::uint32_t* device_counts, double* device_scores,
                                              std::size_t candidate_count, std::size_t token_count) {
-    return launch_impl(device_in, device_shifts, nullptr, device_probabilities, device_counts,
-                       device_scores, candidate_count, token_count, false, true);
+    Status valid =
+        validate(candidate_count, token_count, device_in, device_shifts, nullptr,
+                 device_probabilities, device_counts, device_scores, true);
+    if (!valid.ok()) {
+        return valid;
+    }
+
+    // Process-lifetime scratch (29 bins). Avoids per-launch malloc in the hot path.
+    // Not safe for overlapping concurrent Caesar decrypt remaps on this device.
+    static std::uint32_t* device_cipher_hist = nullptr;
+    if (device_cipher_hist == nullptr) {
+        Status allocated = CudaError::to_status(
+            cudaMalloc(reinterpret_cast<void**>(&device_cipher_hist),
+                       alphabet_size * sizeof(std::uint32_t)),
+            "CaesarChi2Batch::cipher hist scratch");
+        if (!allocated.ok()) {
+            device_cipher_hist = nullptr;
+            return allocated;
+        }
+    }
+
+    return AlphabetChi2Batch::launch_caesar_decrypt_async(
+        device_in, device_shifts, device_probabilities, device_cipher_hist, device_counts,
+        device_scores, candidate_count, token_count, nullptr);
 }
