@@ -76,6 +76,7 @@ add_executable(parcae_tests
   validation_test.cpp
   hash_test.cpp
   score_test.cpp
+  hist_alphabet_map_test.cpp
   generate_test.cpp
   batch_test.cpp
   tool_api_test.cpp
