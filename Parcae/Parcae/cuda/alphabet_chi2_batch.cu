@@ -4,6 +4,7 @@
 #include "cipher_hist_once.hpp"
 #include "cuda_error.hpp"
 #include "hist_fast.hpp"
+#include "z29_device.hpp"
 
 #include <cuda_runtime_api.h>
 
@@ -68,6 +69,35 @@ __global__ void alphabet_chi2_atbash_caesar_remap_kernel(
     for (int b = 0; b < HistFast::alphabet; ++b) {
         const unsigned src = (28u + shift + 29u - static_cast<unsigned>(b)) % 29u;
         row[b] = __ldg(cipher_hist + src);
+    }
+}
+
+/// Affine decrypt permute: `P[inv(a)·(x-b)] = H[x]` (bijection over 0..28).
+__global__ void alphabet_chi2_affine_decrypt_remap_kernel(
+    const std::uint32_t* __restrict__ cipher_hist, const std::uint8_t* __restrict__ affine_a,
+    const std::uint8_t* __restrict__ affine_b, std::uint32_t* __restrict__ counts,
+    std::size_t candidate_count) {
+    const std::size_t c =
+        static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
+        static_cast<std::size_t>(threadIdx.x);
+    if (c >= candidate_count) {
+        return;
+    }
+
+    const std::uint8_t a = __ldg(affine_a + c);
+    const std::uint8_t b = __ldg(affine_b + c);
+    const std::uint8_t inv_a = Z29Device::inv(a);
+    std::uint32_t* __restrict__ row =
+        counts + c * static_cast<std::size_t>(HistFast::alphabet);
+#pragma unroll
+    for (int i = 0; i < HistFast::alphabet; ++i) {
+        row[i] = 0u;
+    }
+#pragma unroll
+    for (int x = 0; x < HistFast::alphabet; ++x) {
+        const std::uint8_t y =
+            Z29Device::mul(inv_a, Z29Device::sub(static_cast<std::uint8_t>(x), b));
+        row[y] = __ldg(cipher_hist + x);
     }
 }
 
@@ -244,4 +274,54 @@ Status AlphabetChi2Batch::launch_atbash_caesar(
         return launched;
     }
     return CudaError::to_status(cudaDeviceSynchronize(), "AlphabetChi2Batch::atbash_caesar sync");
+}
+
+Status AlphabetChi2Batch::launch_affine_decrypt_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_a, const std::uint8_t* device_b,
+    const double* device_probabilities, std::uint32_t* device_cipher_hist,
+    std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+    std::size_t token_count, cudaStream_t stream) {
+    Status valid = validate_common(candidate_count, token_count, device_in, device_probabilities,
+                                   device_cipher_hist, device_counts, device_scores);
+    if (!valid.ok()) {
+        return valid;
+    }
+    if (device_a == nullptr || device_b == nullptr) {
+        return Status::error("AlphabetChi2Batch: null affine params");
+    }
+
+    Status hist =
+        CipherHistOnce::launch_async(device_in, device_cipher_hist, token_count, stream);
+    if (!hist.ok()) {
+        return hist;
+    }
+
+    constexpr int threads = 128;
+    const int blocks =
+        static_cast<int>((candidate_count + static_cast<std::size_t>(threads) - 1u) /
+                         static_cast<std::size_t>(threads));
+    alphabet_chi2_affine_decrypt_remap_kernel<<<blocks, threads, 0, stream>>>(
+        device_cipher_hist, device_a, device_b, device_counts, candidate_count);
+    Status remap =
+        CudaError::to_status(cudaGetLastError(), "AlphabetChi2Batch::affine remap");
+    if (!remap.ok()) {
+        return remap;
+    }
+
+    return after_hist_finalize(device_probabilities, device_counts, device_scores, candidate_count,
+                               token_count, stream);
+}
+
+Status AlphabetChi2Batch::launch_affine_decrypt(
+    const std::uint8_t* device_in, const std::uint8_t* device_a, const std::uint8_t* device_b,
+    const double* device_probabilities, std::uint32_t* device_cipher_hist,
+    std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+    std::size_t token_count) {
+    Status launched = launch_affine_decrypt_async(
+        device_in, device_a, device_b, device_probabilities, device_cipher_hist, device_counts,
+        device_scores, candidate_count, token_count, nullptr);
+    if (!launched.ok()) {
+        return launched;
+    }
+    return CudaError::to_status(cudaDeviceSynchronize(), "AlphabetChi2Batch::affine sync");
 }

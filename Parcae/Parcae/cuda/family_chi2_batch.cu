@@ -101,8 +101,10 @@ __global__ void atbash_caesar_chi2_hist_kernel(const std::uint8_t* __restrict__ 
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
-__global__ void affine_chi2_hist_kernel(const std::uint8_t* in, const std::uint8_t* affine_a,
-                                        const std::uint8_t* affine_b, std::uint32_t* counts,
+__global__ void affine_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
+                                        const std::uint8_t* __restrict__ affine_a,
+                                        const std::uint8_t* __restrict__ affine_b,
+                                        std::uint32_t* __restrict__ counts,
                                         std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     __shared__ std::uint8_t lut[HistFast::alphabet];
@@ -111,8 +113,8 @@ __global__ void affine_chi2_hist_kernel(const std::uint8_t* in, const std::uint8
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    const std::uint8_t inv_a = Z29Device::inv(affine_a[candidate]);
-    const std::uint8_t b = affine_b[candidate];
+    const std::uint8_t inv_a = Z29Device::inv(__ldg(affine_a + candidate));
+    const std::uint8_t b = __ldg(affine_b + candidate);
     if (threadIdx.x < HistFast::alphabet) {
         lut[threadIdx.x] =
             Z29Device::mul(inv_a, Z29Device::sub(static_cast<std::uint8_t>(threadIdx.x), b));
@@ -121,12 +123,12 @@ __global__ void affine_chi2_hist_kernel(const std::uint8_t* in, const std::uint8
 
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     const std::size_t n4 = token_count / 4u;
-    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+    const uchar4* __restrict__ in4 = reinterpret_cast<const uchar4*>(in);
 
     for (std::size_t i =
              tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
          i < n4; i += stride) {
-        const uchar4 v = in4[i];
+        const uchar4 v = __ldg(in4 + i);
         HistFast::add_private(priv, lut[v.x]);
         HistFast::add_private(priv, lut[v.y]);
         HistFast::add_private(priv, lut[v.z]);
@@ -135,7 +137,7 @@ __global__ void affine_chi2_hist_kernel(const std::uint8_t* in, const std::uint8
     for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count; t += stride) {
-        HistFast::add_private(priv, lut[in[t]]);
+        HistFast::add_private(priv, lut[__ldg(in + t)]);
     }
     HistFast::flush_private(priv,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
@@ -405,15 +407,13 @@ Status FamilyChi2Batch::launch_atbash_caesar_async(
         device_scores, candidate_count, token_count, nullptr);
 }
 
-Status FamilyChi2Batch::launch_affine_async(const std::uint8_t* device_in,
-                                            const std::uint8_t* device_a,
-                                            const std::uint8_t* device_b,
-                                            const double* device_probabilities,
-                                            std::uint32_t* device_counts, double* device_scores,
-                                            std::size_t candidate_count, std::size_t token_count) {
+Status FamilyChi2Batch::launch_affine_decode_hist_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_a, const std::uint8_t* device_b,
+    const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+    std::size_t candidate_count, std::size_t token_count) {
     if (device_in == nullptr || device_a == nullptr || device_b == nullptr ||
         device_probabilities == nullptr || device_counts == nullptr || device_scores == nullptr) {
-        return Status::error("FamilyChi2Batch::affine null");
+        return Status::error("FamilyChi2Batch::affine decode null");
     }
     dim3 grid;
     Status prep = clear_and_grid(device_counts, candidate_count, token_count, /*tile_slot=*/-1, &grid);
@@ -428,6 +428,33 @@ Status FamilyChi2Batch::launch_affine_async(const std::uint8_t* device_in,
     }
     return Chi2BatchScore::finalize_async(device_counts, device_probabilities, device_scores,
                                           candidate_count, token_count);
+}
+
+Status FamilyChi2Batch::launch_affine_async(const std::uint8_t* device_in,
+                                            const std::uint8_t* device_a,
+                                            const std::uint8_t* device_b,
+                                            const double* device_probabilities,
+                                            std::uint32_t* device_counts, double* device_scores,
+                                            std::size_t candidate_count, std::size_t token_count) {
+    if (device_in == nullptr || device_a == nullptr || device_b == nullptr ||
+        device_probabilities == nullptr || device_counts == nullptr || device_scores == nullptr) {
+        return Status::error("FamilyChi2Batch::affine null");
+    }
+    if (candidate_count == 0 || candidate_count > kMaxCandidates) {
+        return Status::error("FamilyChi2Batch: bad C");
+    }
+    if (token_count == 0 || token_count > kMaxTokens) {
+        return Status::error("FamilyChi2Batch: bad T");
+    }
+
+    std::uint32_t* device_cipher_hist = nullptr;
+    Status scratch = ensure_cipher_hist_scratch(&device_cipher_hist);
+    if (!scratch.ok()) {
+        return scratch;
+    }
+    return AlphabetChi2Batch::launch_affine_decrypt_async(
+        device_in, device_a, device_b, device_probabilities, device_cipher_hist, device_counts,
+        device_scores, candidate_count, token_count, nullptr);
 }
 
 Status FamilyChi2Batch::launch_vigenere_async(

@@ -12,6 +12,7 @@
 /// - Caesar decrypt: `P[b] = H[(b + shift) mod 29]`
 /// - Atbash: `P[b] = H[28 - b]` (identical for every occupancy lane)
 /// - Atbash∘Caesar-encrypt: `P[b] = H[(28 + shift - b) mod 29]`
+/// - Affine decrypt: `P[y] += H[x]` with `y = inv(a)·(x - b)`
 ///
 /// Scores use the same `Chi2BatchScore::finalize_async` path as decode-hist.
 class AlphabetChi2Batch {
@@ -52,6 +53,18 @@ public:
 
     [[nodiscard]] static Status launch_atbash_caesar(
         const std::uint8_t* device_in, const std::uint8_t* device_shifts,
+        const double* device_probabilities, std::uint32_t* device_cipher_hist,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count);
+
+    [[nodiscard]] static Status launch_affine_decrypt_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_a, const std::uint8_t* device_b,
+        const double* device_probabilities, std::uint32_t* device_cipher_hist,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count, cudaStream_t stream = nullptr);
+
+    [[nodiscard]] static Status launch_affine_decrypt(
+        const std::uint8_t* device_in, const std::uint8_t* device_a, const std::uint8_t* device_b,
         const double* device_probabilities, std::uint32_t* device_cipher_hist,
         std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
         std::size_t token_count);

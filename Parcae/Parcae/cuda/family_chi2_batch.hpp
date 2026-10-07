@@ -9,11 +9,11 @@
 
 /// Fused decrypt+χ² histogram for batch families (device-resident, scores only D2H).
 ///
-/// **Atbash / Atbash∘Caesar production:** alphabet remap after one ciphertext
-/// hist (`AlphabetChi2Batch`). Legacy decode-hist remains via
-/// `launch_*_decode_hist_async` (tile-cap A/B on `HistTileCap::kAtbash`).
+/// **Atbash / Atbash∘Caesar / Affine production:** alphabet remap after one
+/// ciphertext hist (`AlphabetChi2Batch`). Legacy decode-hist remains via
+/// `launch_*_decode_hist_async` (Atbash tile-cap A/B on `HistTileCap::kAtbash`).
 ///
-/// Other families still use warp-private decode-hist + fat-tile + uchar4.
+/// Vigenère / Beaufort / Totient still use warp-private decode-hist + fat-tile.
 class FamilyChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;
@@ -52,11 +52,20 @@ public:
                                            std::uint32_t* device_counts, double* device_scores,
                                            std::size_t candidate_count, std::size_t token_count);
 
+    /// Production Affine decrypt: alphabet permute remap (typically C=812).
     [[nodiscard]] static Status
     launch_affine_async(const std::uint8_t* device_in, const std::uint8_t* device_a,
                         const std::uint8_t* device_b, const double* device_probabilities,
                         std::uint32_t* device_counts, double* device_scores,
                         std::size_t candidate_count, std::size_t token_count);
+
+    /// Legacy per-candidate Affine decode→hist.
+    [[nodiscard]] static Status
+    launch_affine_decode_hist_async(const std::uint8_t* device_in, const std::uint8_t* device_a,
+                                    const std::uint8_t* device_b,
+                                    const double* device_probabilities,
+                                    std::uint32_t* device_counts, double* device_scores,
+                                    std::size_t candidate_count, std::size_t token_count);
 
     [[nodiscard]] static Status
     launch_vigenere_async(const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
