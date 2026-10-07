@@ -75,11 +75,13 @@ TEST_CASE("BenchTheorySuite run fair microbench on CUDA", "[bench][theory][cuda]
     StatusOr<BenchReport::Document> doc = BenchTheorySuite::run(freqs.value(), opts);
     REQUIRE(doc.ok());
     REQUIRE(doc.value().suite() == BenchReport::Suite::Theory);
-    REQUIRE(doc.value().rows().size() == 4u);
+    REQUIRE(doc.value().rows().size() == 6u);
     REQUIRE(doc.value().rows()[0].name() == "T.theory.caesar_bytecode");
     REQUIRE(doc.value().rows()[1].name() == "T.theory.compare_caesar");
     REQUIRE(doc.value().rows()[2].name() == "T.theory.s1_lut29");
     REQUIRE(doc.value().rows()[3].name() == "T.theory.progressive");
+    REQUIRE(doc.value().rows()[4].name() == "T.theory.s4_autokey");
+    REQUIRE(doc.value().rows()[5].name() == "T.theory.s5_poly");
     REQUIRE(doc.value().rows()[0].tokens() == 4096u);
     REQUIRE(doc.value().rows()[0].candidates() == BenchTierSpec::t1.candidates);
     REQUIRE(doc.value().rows()[0].estimated_peak() ==
@@ -88,6 +90,12 @@ TEST_CASE("BenchTheorySuite run fair microbench on CUDA", "[bench][theory][cuda]
             BenchTierSpec::theory_s1_lut29.estimated_peak);
     REQUIRE(doc.value().rows()[3].estimated_peak() ==
             BenchTierSpec::theory_s2_linear.estimated_peak);
+    REQUIRE(doc.value().rows()[4].estimated_peak() ==
+            BenchTierSpec::theory_s4_autokey.estimated_peak);
+    REQUIRE(doc.value().rows()[5].estimated_peak() ==
+            BenchTierSpec::theory_s5_poly.estimated_peak);
+    REQUIRE(doc.value().rows()[4].candidates() == BenchTierSpec::theory_s4_autokey.candidates);
+    REQUIRE(doc.value().rows()[5].candidates() == BenchTierSpec::theory_s5_poly.candidates);
     REQUIRE(doc.value().rows()[0].detail().find("underfill_not_slo_gate") != std::string::npos);
     // Caesar fair row prefers ShapeInline (or S1 soft) after emit classify.
     REQUIRE((doc.value().rows()[0].detail().find("specialize_ShapeInline") != std::string::npos ||
@@ -96,6 +104,8 @@ TEST_CASE("BenchTheorySuite run fair microbench on CUDA", "[bench][theory][cuda]
     REQUIRE(doc.value().rows()[0].runes_per_sec() > 0.0);
     REQUIRE(doc.value().rows()[1].runes_per_sec() > 0.0);
     REQUIRE(doc.value().rows()[2].runes_per_sec() > 0.0);
+    REQUIRE(doc.value().rows()[4].runes_per_sec() > 0.0);
+    REQUIRE(doc.value().rows()[5].runes_per_sec() > 0.0);
     REQUIRE(doc.value().all_pass());
 }
 
@@ -111,13 +121,15 @@ TEST_CASE("BenchTheorySuite campaign grid adds underfill row", "[bench][theory][
     opts.set_compare_catalog(false);
     StatusOr<BenchReport::Document> doc = BenchTheorySuite::run(freqs.value(), opts);
     REQUIRE(doc.ok());
-    REQUIRE(doc.value().rows().size() == 4u);
+    REQUIRE(doc.value().rows().size() == 6u);
     REQUIRE(doc.value().rows()[0].name() == "T.theory.caesar_bytecode");
     REQUIRE(doc.value().rows()[1].name() == "T.theory.s1_lut29");
     REQUIRE(doc.value().rows()[2].name() == "T.theory.progressive");
-    REQUIRE(doc.value().rows()[3].name() == "T.theory.caesar_campaign");
-    REQUIRE(doc.value().rows()[3].candidates() == 16384u);
-    REQUIRE(doc.value().rows()[3].tokens() == 262u);
-    REQUIRE(doc.value().rows()[3].detail().find("underfill_not_slo_gate") != std::string::npos);
+    REQUIRE(doc.value().rows()[3].name() == "T.theory.s4_autokey");
+    REQUIRE(doc.value().rows()[4].name() == "T.theory.s5_poly");
+    REQUIRE(doc.value().rows()[5].name() == "T.theory.caesar_campaign");
+    REQUIRE(doc.value().rows()[5].candidates() == 16384u);
+    REQUIRE(doc.value().rows()[5].tokens() == 262u);
+    REQUIRE(doc.value().rows()[5].detail().find("underfill_not_slo_gate") != std::string::npos);
 }
 #endif

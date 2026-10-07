@@ -310,6 +310,7 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-07 | **s1_lut_residency** | export scratch + fair suite | `theory_hist_chi2_s1_lut_kernel` | 29×1M | quiet band **~670–733B** (med ~**705B**, ~79%) | — | bake outside fair timer; export skips rebake when program+slots match | **PARTIAL** — noise tightened vs 303–692B; stretch 716.8B not median-stable |
 | 2026-10-07 | **caesar_roof_done** | `profiles/roof_hist/` + dsl_smart | Caesar decrypt + shape twin | 29×1M | twin med-of-med **~786–790B** (~88%); bests **~836–843B**; dsl custom med **~814.5B Done** | — | `__restrict__`/`__ldg`; Caesar-first dsl_smart; tile **64** | **PARTIAL Done** — dsl custom ≥806.4B; twin median stretch on busy util |
 | 2026-10-07 | **shared_cipher_atomic_climb** | Atbash/totient + shape Atbash | `atbash_chi2_hist` / totient / shape twin | 512×1M | Atbash prod **~1.5–1.75 TB** (~76–87% of 2.0 TB); totient tile32 **~1.17–1.37 TB**; A/B 32/64/128 | — | `__restrict__`/`__ldg`; `HistTileCap::kAtbash`/`kTotient`; totient default **32** | **PARTIAL** — absolute climb vs pre-~1.1–1.6 TB; Done 1.8 TB not median-stable; Caesar tile64 untouched |
+| 2026-10-07 | **autokey_poly_uchar4** | S4/S5 + fair Spec | `theory_hist_chi2_s4_autokey` / `s5_poly` | S4 C=28; S5 C=841 @ T=1M | S4 ~**540B** (~60%); S5 ~**620B** (~70%) | — | packed prior-key `__ldg`; `HistTileCap` S4/S5 def **32**; fair Spec rows | **PARTIAL** — climb vs dsl ~53%; stretch 716.8B open; soft S0 bind fail unchanged |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 

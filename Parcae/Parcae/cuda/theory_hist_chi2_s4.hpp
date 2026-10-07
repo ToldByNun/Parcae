@@ -11,7 +11,9 @@
 /// `out = x - AutokeyRing::shift(x, t, lag)` or `out = x + …` (mod 29).
 ///
 /// No interpreter; per-candidate lag rows. Ring reads the cipher stream on
-/// device (`AutokeyRingDevice`). Finalize via `Chi2BatchScore`.
+/// device (`AutokeyRingDevice`). `grid.y` via `HistTileCap::kS4`. Soft S0 on
+/// lag bind fail stays in emit — this façade never invents keys. Finalize via
+/// `Chi2BatchScore`.
 class TheoryHistChi2S4 {
 public:
     static constexpr std::size_t alphabet_size = 29;
@@ -25,6 +27,8 @@ public:
         const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
         std::size_t candidate_count, std::size_t token_count, bool cipher_minus_ks,
         cudaStream_t stream = nullptr);
+
+    [[nodiscard]] static int tiles_for_public(std::size_t token_count);
 
 private:
     TheoryHistChi2S4() = delete;

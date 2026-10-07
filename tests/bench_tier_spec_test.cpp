@@ -160,6 +160,9 @@ TEST_CASE("BenchTierSpec theory rows use DRAM roofline peak", "[bench][spec]") {
             BenchTierSpec::dram_roofline_hist_peak());
     REQUIRE(BenchTierSpec::theory_s1_lut29.estimated_peak == BenchTierSpec::dram_roofline_hist_peak());
     REQUIRE(BenchTierSpec::theory_s2_linear.estimated_peak == BenchTierSpec::dram_roofline_hist_peak());
+    REQUIRE(BenchTierSpec::theory_s4_autokey.estimated_peak ==
+            BenchTierSpec::dram_roofline_hist_peak());
+    REQUIRE(BenchTierSpec::theory_s5_poly.estimated_peak == BenchTierSpec::dram_roofline_hist_peak());
     REQUIRE(BenchTierSpec::theory_s0_caesar.tokens == BenchTierSpec::fair_gate_tokens());
     REQUIRE(BenchTierSpec::is_fair_gate_tokens(1048576u));
     REQUIRE_FALSE(BenchTierSpec::is_fair_gate_tokens(4096u));
@@ -167,10 +170,14 @@ TEST_CASE("BenchTierSpec theory rows use DRAM roofline peak", "[bench][spec]") {
     REQUIRE(BenchTierSpec::find_theory("T.theory.s0") == &BenchTierSpec::theory_s0_caesar);
     REQUIRE(BenchTierSpec::find_theory("T.theory.s1") == &BenchTierSpec::theory_s1_lut29);
     REQUIRE(BenchTierSpec::find_theory("T.theory.progressive") == &BenchTierSpec::theory_s2_linear);
+    REQUIRE(BenchTierSpec::find_theory("T.theory.s4_autokey") == &BenchTierSpec::theory_s4_autokey);
+    REQUIRE(BenchTierSpec::find_theory("T.theory.s5") == &BenchTierSpec::theory_s5_poly);
     REQUIRE(BenchTierSpec::find_theory("nope") == nullptr);
 
     REQUIRE(BenchTierSpec::estimated_peak("T.theory.caesar_bytecode") == 896.0e9);
     REQUIRE(BenchTierSpec::estimated_peak("T.theory.s1_lut29") == 896.0e9);
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s4_autokey") == 896.0e9);
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s5_poly") == 896.0e9);
     REQUIRE(BenchTierSpec::estimated_peak("F.atbash") ==
             BenchTierSpec::shared_cipher_compute_roof_rps());
     REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_atbash") ==

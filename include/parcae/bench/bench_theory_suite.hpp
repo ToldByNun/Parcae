@@ -159,6 +159,34 @@ public:
         }
         doc.add_row(std::move(progressive.value()));
 
+        const std::size_t s4_C = options.candidates() == 0
+                                     ? BenchTierSpec::theory_s4_autokey.candidates
+                                     : options.candidates();
+        const std::size_t s4_reps = options.repeats() == 0
+                                        ? BenchTierSpec::theory_s4_autokey.repeats
+                                        : options.repeats();
+        StatusOr<BenchReport::Row> s4 = run_s4_autokey(
+            freqs, s4_C, fair_T, s4_reps, BenchTierSpec::theory_s4_autokey.id,
+            BenchTierSpec::theory_s4_autokey.workload, &BenchTierSpec::theory_s4_autokey);
+        if (!s4.ok()) {
+            return s4.status();
+        }
+        doc.add_row(std::move(s4.value()));
+
+        const std::size_t s5_C = options.candidates() == 0
+                                     ? BenchTierSpec::theory_s5_poly.candidates
+                                     : options.candidates();
+        const std::size_t s5_reps = options.repeats() == 0
+                                        ? BenchTierSpec::theory_s5_poly.repeats
+                                        : options.repeats();
+        StatusOr<BenchReport::Row> s5 = run_s5_poly(
+            freqs, s5_C, fair_T, s5_reps, BenchTierSpec::theory_s5_poly.id,
+            BenchTierSpec::theory_s5_poly.workload, &BenchTierSpec::theory_s5_poly);
+        if (!s5.ok()) {
+            return s5.status();
+        }
+        doc.add_row(std::move(s5.value()));
+
         if (options.campaign_grid()) {
             constexpr std::size_t camp_C = 16384;
             constexpr std::size_t camp_T = 262;
@@ -716,6 +744,123 @@ private:
         }
         return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
                                tier, std::move(detail_prefix));
+    }
+
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    run_s4_autokey(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
+                   std::size_t reps, std::string name, std::string workload,
+                   const BenchTierSpec::Tier* tier) {
+        std::vector<std::uint8_t> host_lags(C);
+        for (std::size_t c = 0; c < C; ++c) {
+            host_lags[c] = static_cast<std::uint8_t>((c % 28) + 1);
+        }
+
+        const auto host_in = random_stream(T, 0xA414u);
+        StatusOr<DeviceBuffer<std::uint8_t>> device_in =
+            DeviceBuffer<std::uint8_t>::from_host(host_in);
+        if (!device_in.ok()) {
+            return device_in.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_lags =
+            DeviceBuffer<std::uint8_t>::from_host(host_lags);
+        if (!device_lags.ok()) {
+            return device_lags.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
+            std::span<const double>(freqs.probabilities().data(), freqs.probabilities().size()));
+        if (!device_probs.ok()) {
+            return device_probs.status();
+        }
+        StatusOr<DeviceBuffer<std::uint32_t>> device_counts =
+            DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2Launch::alphabet_size);
+        if (!device_counts.ok()) {
+            return device_counts.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_scores = DeviceBuffer<double>::allocate(C);
+        if (!device_scores.ok()) {
+            return device_scores.status();
+        }
+
+        StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
+            NvtxRange nvtx_s4("hist_s4_autokey");
+            return TheoryHistChi2Launch::launch_s4_autokey_async(
+                device_in.value().data(), device_lags.value().data(),
+                device_probs.value().data(), device_counts.value().data(),
+                device_scores.value().data(), C, T, /*cipher_minus_ks=*/true);
+        });
+        if (!sample.ok()) {
+            return sample.status();
+        }
+        return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
+                               tier, "S4_autokey");
+    }
+
+    [[nodiscard]] static StatusOr<BenchReport::Row>
+    run_s5_poly(const ExpectedFrequencyTable& freqs, std::size_t C, std::size_t T,
+                std::size_t reps, std::string name, std::string workload,
+                const BenchTierSpec::Tier* tier) {
+        std::vector<std::uint8_t> host_b0(C);
+        std::vector<std::uint8_t> host_b1(C);
+        std::vector<std::uint8_t> host_b2(C);
+        for (std::size_t c = 0; c < C; ++c) {
+            host_b0[c] = static_cast<std::uint8_t>(c % 29);
+            host_b1[c] = static_cast<std::uint8_t>((c / 29) % 29);
+            host_b2[c] = static_cast<std::uint8_t>((c / 29u / 29u) % 29u);
+            if (host_b2[c] == 0 && C > 29) {
+                // Prefer non-degenerate poly on the fair 841 grid (b2 cycles 1..).
+                host_b2[c] = static_cast<std::uint8_t>((c % 28) + 1);
+            }
+        }
+
+        const auto host_in = random_stream(T, 0xA515u);
+        StatusOr<DeviceBuffer<std::uint8_t>> device_in =
+            DeviceBuffer<std::uint8_t>::from_host(host_in);
+        if (!device_in.ok()) {
+            return device_in.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_b0 =
+            DeviceBuffer<std::uint8_t>::from_host(host_b0);
+        if (!device_b0.ok()) {
+            return device_b0.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_b1 =
+            DeviceBuffer<std::uint8_t>::from_host(host_b1);
+        if (!device_b1.ok()) {
+            return device_b1.status();
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_b2 =
+            DeviceBuffer<std::uint8_t>::from_host(host_b2);
+        if (!device_b2.ok()) {
+            return device_b2.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
+            std::span<const double>(freqs.probabilities().data(), freqs.probabilities().size()));
+        if (!device_probs.ok()) {
+            return device_probs.status();
+        }
+        StatusOr<DeviceBuffer<std::uint32_t>> device_counts =
+            DeviceBuffer<std::uint32_t>::allocate(C * TheoryHistChi2Launch::alphabet_size);
+        if (!device_counts.ok()) {
+            return device_counts.status();
+        }
+        StatusOr<DeviceBuffer<double>> device_scores = DeviceBuffer<double>::allocate(C);
+        if (!device_scores.ok()) {
+            return device_scores.status();
+        }
+
+        StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
+            NvtxRange nvtx_s5("hist_s5_poly");
+            return TheoryHistChi2Launch::launch_s5_poly_async(
+                device_in.value().data(), device_b0.value().data(), device_b1.value().data(),
+                device_b2.value().data(), device_probs.value().data(),
+                device_counts.value().data(), device_scores.value().data(), C, T,
+                /*cipher_minus_ks=*/true);
+        });
+        if (!sample.ok()) {
+            return sample.status();
+        }
+        return row_from_sample(std::move(name), std::move(workload), sample.value(), C, T, reps,
+                               tier, "S5_poly");
     }
 
     [[nodiscard]] static StatusOr<BenchReport::Row>

@@ -80,6 +80,18 @@ S0. Export already preferred S1/S2 the same way.
 | `T.theory.compare_caesar` | **829.4B** | **92.6%** | Done |
 | `T.theory.progressive` (S2 @841) | **396.4B** | **44.2%** | ks29; still compute-bound |
 
+## Autokey / poly uchar4 (2026-10-07)
+
+S4 AutokeyRing: cipher `uchar4` + consecutive prior-stream `__ldg` when the
+four-pack is fully past the primer (`t0 ≥ lag`); primer/mixed packs keep
+`AutokeyRingDevice::shift` (lag dependence intact). Soft S0 on lag bind fail
+unchanged. S5 poly: `__restrict__`/`__ldg` on top of running-residue uchar4.
+
+Fair Spec: `T.theory.s4_autokey` (C=28) + `T.theory.s5_poly` (C=841) @ 896B.
+`HistTileCap::kS4` / `kS5` default **32**. Quiet plate: S4 prod ~**530–540B**
+(~59–60% of 896B; was dsl_smart ~475B / 53%); S5 ~**550–620B** (~61–70%).
+Stretch 716.8B open. Catch2 `[cuda][hist][s4][s5][autokey][uchar4]`.
+
 ## Shared-cipher atomic climb (2026-10-07)
 
 Atbash / totient / shape Atbash: Commit-7-class `__restrict__`/`__ldg` (no

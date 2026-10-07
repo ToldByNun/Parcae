@@ -3,16 +3,20 @@
 #include "chi2_batch_score.hpp"
 #include "cuda_error.hpp"
 #include "hist_fast.hpp"
+#include "hist_tile_cap.hpp"
 #include "z29_device.hpp"
 
 #include <cuda_runtime_api.h>
 
 /// File-scope — no anonymous namespace.
 /// Period-29 poly keystream in shared memory; hot loop uses running residue
-/// (same pattern as S2 — no `% 29` per rune).
-__global__ void theory_hist_chi2_s5_poly_kernel(const std::uint8_t* in, const std::uint8_t* b0,
-                                                const std::uint8_t* b1, const std::uint8_t* b2,
-                                                std::uint32_t* counts, std::size_t token_count,
+/// (same pattern as S2 — no `% 29` per rune). Cipher via `__ldg` uchar4.
+__global__ void theory_hist_chi2_s5_poly_kernel(const std::uint8_t* __restrict__ in,
+                                                const std::uint8_t* __restrict__ b0,
+                                                const std::uint8_t* __restrict__ b1,
+                                                const std::uint8_t* __restrict__ b2,
+                                                std::uint32_t* __restrict__ counts,
+                                                std::size_t token_count,
                                                 std::uint8_t cipher_minus_ks) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     __shared__ std::uint8_t ks[HistFast::alphabet];
@@ -21,9 +25,9 @@ __global__ void theory_hist_chi2_s5_poly_kernel(const std::uint8_t* in, const st
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    const std::uint8_t pb0 = b0[candidate];
-    const std::uint8_t pb1 = b1[candidate];
-    const std::uint8_t pb2 = b2[candidate];
+    const std::uint8_t pb0 = __ldg(b0 + candidate);
+    const std::uint8_t pb1 = __ldg(b1 + candidate);
+    const std::uint8_t pb2 = __ldg(b2 + candidate);
 
     if (threadIdx.x < HistFast::alphabet) {
         const std::uint8_t i = static_cast<std::uint8_t>(threadIdx.x);
@@ -35,7 +39,7 @@ __global__ void theory_hist_chi2_s5_poly_kernel(const std::uint8_t* in, const st
 
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     const std::size_t n4 = token_count / 4u;
-    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+    const uchar4* __restrict__ in4 = reinterpret_cast<const uchar4*>(in);
     constexpr unsigned mod = static_cast<unsigned>(Z29Device::modulus);
 
     auto out_byte = [&](std::uint8_t x, std::uint8_t key) -> std::uint8_t {
@@ -59,7 +63,7 @@ __global__ void theory_hist_chi2_s5_poly_kernel(const std::uint8_t* in, const st
 
     unsigned r = static_cast<unsigned>((i0 * 4u) % static_cast<std::size_t>(mod));
     for (std::size_t i = i0; i < n4; i += stride) {
-        const uchar4 v = in4[i];
+        const uchar4 v = __ldg(in4 + i);
         unsigned r1 = r;
         bump(r1, 1u);
         unsigned r2 = r1;
@@ -77,7 +81,7 @@ __global__ void theory_hist_chi2_s5_poly_kernel(const std::uint8_t* in, const st
         n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
     unsigned re = static_cast<unsigned>(t0 % static_cast<std::size_t>(mod));
     for (std::size_t t = t0; t < token_count; t += stride) {
-        HistFast::add_private(priv, out_byte(in[t], ks[re]));
+        HistFast::add_private(priv, out_byte(__ldg(in + t), ks[re]));
         bump(re, stride_mod);
     }
     HistFast::flush_private(priv,
@@ -85,7 +89,11 @@ __global__ void theory_hist_chi2_s5_poly_kernel(const std::uint8_t* in, const st
 }
 
 int TheoryHistChi2S5::tiles_for(std::size_t token_count) {
-    return HistFast::tiles_for(token_count);
+    return HistTileCap::tiles_for(HistTileCap::kS5, token_count);
+}
+
+int TheoryHistChi2S5::tiles_for_public(std::size_t token_count) {
+    return tiles_for(token_count);
 }
 
 Status TheoryHistChi2S5::launch_poly_async(

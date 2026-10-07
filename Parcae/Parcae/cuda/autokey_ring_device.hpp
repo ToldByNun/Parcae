@@ -15,6 +15,9 @@
 /// Primer-less v0: when `i < lag` returns 0; otherwise `stream[i - lag]`.
 /// Matches CTAK/PTAK prior-stream keying once the primer window has passed
 /// (primer symbols themselves are supplied separately by the theory).
+///
+/// Lag dependence is sequential — callers must not invent keys from later
+/// outputs. Device path uses `__ldg` for L1/tex cache hint on the prior stream.
 class AutokeyRingDevice {
 public:
     [[nodiscard]] PARCAE_RING_HD static std::uint8_t
@@ -25,7 +28,11 @@ public:
         if (i < static_cast<std::size_t>(lag)) {
             return 0u;
         }
+#if defined(__CUDA_ARCH__)
+        return __ldg(stream + (i - static_cast<std::size_t>(lag)));
+#else
         return stream[i - static_cast<std::size_t>(lag)];
+#endif
     }
 
 private:

@@ -28,7 +28,11 @@ public:
     static constexpr int kAffine = 4;
     /// Catalog `F.totient` stream hist.
     static constexpr int kTotient = 5;
-    static constexpr int kSlotCount = 6;
+    /// `TheoryHistChi2S4` AutokeyRing.
+    static constexpr int kS4 = 6;
+    /// `TheoryHistChi2S5` poly keystream (same traffic class as S2).
+    static constexpr int kS5 = 7;
+    static constexpr int kSlotCount = 8;
 
     /// `cap < 0` treated as `0` (production). Unknown `slot` is a no-op.
     static void set(int slot, int cap) noexcept {
@@ -47,11 +51,10 @@ public:
     }
 
     /// Per-slot production default when override is `0`.
-    /// S2 ships **32** (residue plate 2026-10-07: cap32 > cap64/128 @ C=841 T=1M).
-    /// Totient ships **32** (`shared_cipher_atomic_climb` A/B @ C=512: 32 > 64/128).
-    /// Atbash stays **64** (32/64 trade within noise; Caesar fat-64 untouched).
+    /// S2 / S4 / S5 / totient ship **32** (residue / autokey / poly / shared-cipher
+    /// A/B plates). Atbash stays **64**; Caesar fat-64 untouched.
     [[nodiscard]] static int slot_default(int slot) noexcept {
-        if (slot == kS2 || slot == kTotient) {
+        if (slot == kS2 || slot == kS4 || slot == kS5 || slot == kTotient) {
             return 32;
         }
         return HistFast::production_tile_cap;

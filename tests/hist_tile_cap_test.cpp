@@ -8,10 +8,12 @@
 #endif
 
 TEST_CASE("HistTileCap slot defaults and clamps", "[cuda][hist][tile_cap]") {
-    REQUIRE(HistTileCap::kSlotCount == 6);
+    REQUIRE(HistTileCap::kSlotCount == 8);
     REQUIRE(HistTileCap::kCaesar == 0);
     REQUIRE(HistTileCap::kAtbash == 3);
     REQUIRE(HistTileCap::kTotient == 5);
+    REQUIRE(HistTileCap::kS4 == 6);
+    REQUIRE(HistTileCap::kS5 == 7);
 
     HistTileCap::set(HistTileCap::kCaesar, 0);
     REQUIRE(HistTileCap::get(HistTileCap::kCaesar) == 0);
@@ -65,6 +67,14 @@ TEST_CASE("HistTileCap slot defaults and clamps", "[cuda][hist][tile_cap]") {
     REQUIRE(HistTileCap::effective(HistTileCap::kTotient) == 128);
     REQUIRE(HistTileCap::effective(HistTileCap::kAtbash) == 64);
     HistTileCap::set(HistTileCap::kTotient, 0);
+
+    REQUIRE(HistTileCap::slot_default(HistTileCap::kS4) == 32);
+    REQUIRE(HistTileCap::slot_default(HistTileCap::kS5) == 32);
+    REQUIRE(HistTileCap::effective(HistTileCap::kS5) == 32);
+    HistTileCap::set(HistTileCap::kS4, 32);
+    REQUIRE(HistTileCap::effective(HistTileCap::kS4) == 32);
+    REQUIRE(HistTileCap::effective(HistTileCap::kCaesar) == 64);
+    HistTileCap::set(HistTileCap::kS4, 0);
 
     HistTileCap::set(HistTileCap::kCaesar, 0);
 }

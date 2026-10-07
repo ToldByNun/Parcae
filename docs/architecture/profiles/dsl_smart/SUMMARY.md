@@ -82,7 +82,7 @@ Sources: `dsl_smart_fair_run{1,2,3}.json` (`T=1048576`, `BenchTimer` cudaEvent).
 | Custom Caesar in CaesarChi2 twin class | **PASS (stretch)** — both ~87% of 896B |
 | Custom Affine in F.affine twin class | **PASS (model + twin)** — both ~2% of 47.0 TB; stretch/Done open |
 | Custom linear in S2 twin class | **PASS (twin)** — ~43% vs ~41%; stretch fail (compute-bound) |
-| Custom autokey in S4 twin class | **PASS (twin)** — ~53% vs ~55%; stretch fail |
+| Custom autokey in S4 twin class | **PASS (twin)** — ~53% vs ~55%; post-`autokey_poly_uchar4` fair S4 ~60% |
 | Campaign wall used as Done evidence | **No** |
 | Spec lowered to quiet max | **No** |
 | Edge tags green | **PASS** — `[dsl][normalize]`, `[dsl][shape]`, `[cuda][theory][edge]`, `[search][export][theory][shape]` |

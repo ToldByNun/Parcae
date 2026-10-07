@@ -180,6 +180,27 @@ public:
     /// Alias name used by microbench progressive row (same peak as S2 linear).
     static constexpr const char* theory_progressive_id = "T.theory.progressive";
 
+    /// S4 AutokeyRing fair Spec. C=28 (lag 1..28). Peak = DRAM roofline (896B).
+    static constexpr Tier theory_s4_autokey{"T.theory.s4_autokey",
+                                           "TheoryHistChi2S4 AutokeyRing (vigenere_lag)",
+                                           28u,
+                                           1048576u,
+                                           8u,
+                                           15.0e9,
+                                           0.0,
+                                           kDramRooflineHistPeak};
+
+    /// S5 poly keystream fair Spec. C=841 (b0,b1 grid; b2 cycles). Same 1 B/rune
+    /// DRAM roof as S2 (period-29 shared ks).
+    static constexpr Tier theory_s5_poly{"T.theory.s5_poly",
+                                        "TheoryHistChi2S5 poly2 (b0+b1·i+b2·i·i)",
+                                        841u,
+                                        1048576u,
+                                        4u,
+                                        15.0e9,
+                                        0.0,
+                                        kDramRooflineHistPeak};
+
     // --- DSL smart customs (hand-written HotLoop → ShapeInline twin) ----------
     // Fair Kernel SLO only (T≥2^20). Campaign wall is never PRIMARY.
 
@@ -373,6 +394,12 @@ public:
             tier == "T.theory.s2") {
             return theory_s2_linear.estimated_peak;
         }
+        if (tier == "T.theory.s4_autokey" || tier == "T.theory.s4") {
+            return theory_s4_autokey.estimated_peak;
+        }
+        if (tier == "T.theory.s5_poly" || tier == "T.theory.s5") {
+            return theory_s5_poly.estimated_peak;
+        }
         if (tier == "T.dsl_smart.custom_caesar" || tier == "T.dsl_smart.compare_caesar" ||
             tier == "T.dsl_smart.custom_linear" || tier == "T.dsl_smart.compare_S2" ||
             tier == "T.dsl_smart.custom_autokey" || tier == "T.dsl_smart.compare_S4") {
@@ -396,12 +423,13 @@ public:
             tier == "C.koan1_stages" || tier == "T.theory.caesar_bytecode" ||
             tier == "T.theory.s0" || tier == "T.theory.s1_lut29" || tier == "T.theory.s1" ||
             tier == "T.theory.s2_linear" || tier == "T.theory.progressive" ||
-            tier == "T.theory.s2" || tier == "T.dsl_smart.custom_atbash" ||
-            tier == "T.dsl_smart.compare_Fatbash" || tier == "T.dsl_smart.custom_caesar" ||
-            tier == "T.dsl_smart.compare_caesar" || tier == "T.dsl_smart.custom_affine" ||
-            tier == "T.dsl_smart.compare_Faffine" || tier == "T.dsl_smart.custom_linear" ||
-            tier == "T.dsl_smart.compare_S2" || tier == "T.dsl_smart.custom_autokey" ||
-            tier == "T.dsl_smart.compare_S4") {
+            tier == "T.theory.s2" || tier == "T.theory.s4_autokey" || tier == "T.theory.s4" ||
+            tier == "T.theory.s5_poly" || tier == "T.theory.s5" ||
+            tier == "T.dsl_smart.custom_atbash" || tier == "T.dsl_smart.compare_Fatbash" ||
+            tier == "T.dsl_smart.custom_caesar" || tier == "T.dsl_smart.compare_caesar" ||
+            tier == "T.dsl_smart.custom_affine" || tier == "T.dsl_smart.compare_Faffine" ||
+            tier == "T.dsl_smart.custom_linear" || tier == "T.dsl_smart.compare_S2" ||
+            tier == "T.dsl_smart.custom_autokey" || tier == "T.dsl_smart.compare_S4") {
             return 15.0e9;
         }
         if (tier == "F.vigenere" || tier == "F.beaufort" || tier == "F.totient") {
@@ -421,6 +449,12 @@ public:
         if (id == std::string_view{theory_s2_linear.id} || id == "T.theory.s2" ||
             id == std::string_view{theory_progressive_id}) {
             return &theory_s2_linear;
+        }
+        if (id == std::string_view{theory_s4_autokey.id} || id == "T.theory.s4") {
+            return &theory_s4_autokey;
+        }
+        if (id == std::string_view{theory_s5_poly.id} || id == "T.theory.s5") {
+            return &theory_s5_poly;
         }
         return nullptr;
     }
