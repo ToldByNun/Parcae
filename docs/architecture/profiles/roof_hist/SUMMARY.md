@@ -54,6 +54,16 @@ indexes `ks[t % 29]` instead of mul/add per rune.
 | `T.theory.s1_lut29` | 689.2B | 76.9% | unchanged |
 | `T.theory.caesar_bytecode` (S0) | 68.3B | 7.6% | unchanged |
 
+## S2 running residue (2026-10-07)
+
+Hot loop no longer does `ks[t % 29]` per rune: each thread keeps a running
+residue `r = (i·4) mod 29`, advances by `(4·stride) mod 29` with
+add+conditional-subtract. Same pattern mirrored in S5. `HistTileCap` S2
+production default **32** (sweep beat 64/128; Caesar fat-64 untouched).
+
+Quiet theory ×3: S2 median **~683B** (~**76%** of 896B; best **764B**). Stretch
+716.8B not median-stable — remaining bound is hist atomics / L2, not `%29`.
+
 ## Specialize dispatch (fair Caesar bytecode → S1)
 
 `BenchTheorySuite::run_caesar_bytecode` calls `TheoryHistChi2Emit::emit_decrypt_hist`

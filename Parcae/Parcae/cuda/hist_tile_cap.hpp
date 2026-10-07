@@ -20,7 +20,7 @@ public:
     static constexpr int kCaesar = 0;
     /// Reserved: `TheoryHistChi2S1` / fair specialize.
     static constexpr int kS1 = 1;
-    /// Reserved: `TheoryHistChi2S2` linear keystream.
+    /// `TheoryHistChi2S2` linear keystream (`theory_hist_chi2_s2_linear_kernel`).
     static constexpr int kS2 = 2;
     /// Reserved: catalog / ShapeInline Atbash.
     static constexpr int kAtbash = 3;
@@ -44,10 +44,20 @@ public:
         return caps_[slot];
     }
 
+    /// Per-slot production default when override is `0`.
+    /// S2 ships **32** (residue plate 2026-10-07: cap32 > cap64/128 @ C=841 T=1M).
+    /// Other slots keep `HistFast::production_tile_cap` (64).
+    [[nodiscard]] static int slot_default(int slot) noexcept {
+        if (slot == kS2) {
+            return 32;
+        }
+        return HistFast::production_tile_cap;
+    }
+
     /// Effective clamp passed to `HistFast::tiles_for_capped`.
     [[nodiscard]] static int effective(int slot) noexcept {
         const int override_cap = get(slot);
-        return override_cap > 0 ? override_cap : HistFast::production_tile_cap;
+        return override_cap > 0 ? override_cap : slot_default(slot);
     }
 
     /// `grid.y` for `token_count` under this slot's effective clamp.

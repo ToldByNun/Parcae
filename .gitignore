@@ -178,3 +178,4 @@ docs/architecture/profiles/cache_bound/*.sqlite
 docs/architecture/profiles/cache_bound/capture_log.txt
 docs/architecture/profiles/traffic_model/*.sqlite
 docs/architecture/profiles/traffic_model/capture_log.txt
+_c5_plan.txt

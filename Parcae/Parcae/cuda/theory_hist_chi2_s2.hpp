@@ -11,8 +11,9 @@
 /// `out = x - (b0 + b1·(t mod 29))` or `out = x + (b0 + b1·(t mod 29))` (mod 29).
 ///
 /// No interpreter; params are per-candidate `b0`/`b1` rows. Per-block shared
-/// period-29 keystream (`ks[i]=b0+b1·i`) then fat-tile hist. Finalize via
-/// `Chi2BatchScore`.
+/// period-29 keystream (`ks[i]=b0+b1·i`) then fat-tile hist with a running
+/// residue index (no hot-loop `% 29`). `grid.y` via `HistTileCap::kS2`.
+/// Finalize via `Chi2BatchScore`.
 class TheoryHistChi2S2 {
 public:
     static constexpr std::size_t alphabet_size = 29;

@@ -35,7 +35,16 @@ Spec (still 896B @ 1 B/rune).
 | `T.theory.compare_caesar` | 849.3B | 782.9B | 780.1B | **782.9B** | **87.4%** | **PASS** | 1/3 pass (run1 94.8%) | fat-64 catalog twin |
 | `T.theory.caesar_bytecode` | 679.9B | 693.4B | 680.8B | **680.8B** | **76.0%** | **fail** | fail | `specialize_S1`; stable ~76–77% |
 | `T.theory.s1_lut29` | 303.4B | 487.0B | 692.2B | **487.0B** | **54.4%** | **fail** | fail | high run-to-run noise |
-| `T.theory.progressive` (S2 @841) | 401.6B | 394.0B | 403.5B | **401.6B** | **44.8%** | fail | fail | ks29; still compute-bound |
+| `T.theory.progressive` (S2 @841) | 401.6B | 394.0B | 403.5B | **401.6B** | **44.8%** | fail | fail | ks29 plate (pre-residue) |
+
+### S2 running residue requiet (2026-10-07)
+
+Hot-loop `% 29` → running residue; `HistTileCap` S2 default tile **32**
+(sweep: 32 > 64/128). Catch2 `[cuda][hist][s2][residue]` + `parcae-bench --suite theory`.
+
+| Row | run1 | run2 | run3 | **median** | % of 896B | Stretch | Done | Notes |
+|-----|------|------|------|------------|-----------|---------|------|-------|
+| `T.theory.progressive` (S2 @841) | 763.6B | 683.4B | 657.2B | **683.4B** | **76.3%** | fail (1/3 pass) | fail | +~70% vs ks29; stretch 716.8B not median-stable |
 
 ## Catalog SLO extended (requiet 2026-10-06, 2 quiet runs)
 
@@ -86,6 +95,7 @@ Atbash/totient **model gate** under compute roof. Open: S1/specialize stretch
 ## Next
 
 1. Stabilize S1 fair ≥**716.8B** (stretch) — same fat-64 path as specialize.
-2. Atbash/totient absolute climb toward **≥1.8 TB** (90% of 2.0 TB compute roof).
-3. Combined write-up: [`gpu_full_load/SUMMARY.md`](../gpu_full_load/SUMMARY.md)
+2. S2 median ≥**716.8B** stretch (residue+tile32 at ~76%; remaining atomic/L2).
+3. Atbash/totient absolute climb toward **≥1.8 TB** (90% of 2.0 TB compute roof).
+4. Combined write-up: [`gpu_full_load/SUMMARY.md`](../gpu_full_load/SUMMARY.md)
    (metric A duty + metric B roof).

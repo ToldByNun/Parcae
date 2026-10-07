@@ -306,6 +306,7 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-06 | **cache_bound** | `profiles/cache_bound/` | Caesar / Atbash / S1 / S2 / Affine | ncu T=262k + fair JSON | Affine **17.08 GB/s** DRAM (≈16.9); Caesar 28.6; Atbash 4.8; S1 27.4; S2 7.7 | L2 hit Atbash **98.5%** / Affine **97.6%**; DRAM SoL 0.5–3.1% | `-MetricsPreset cache_bound` + CSV | **PASS harness** — all ≪896 GB/s; bytes/rune ≪1 (shared cipher L2) |
 | 2026-10-06 | **affine_traffic** | `profiles/traffic_model/` + Spec | `affine_chi2_hist_kernel` | C=812 T=262k | bytes/rune **0.01906** → peak **≈47.0 TB** | L2 97.6% DRAM 1.8% | Spec `kHistBytesPerRuneAffineSharedCipher` | **PASS model** — F.affine / dsl_smart Affine `%peak≤100`; not quiet-max |
 | 2026-10-06 | **compute_roof** | Spec + `HistOccupancyRoof` | identity hist vs Atbash @ C=512 T=1M | fair | identity ~1.2–2.2 TB; Spec freeze **2.0 TB** | DRAM diary 80.7 TB | `kSharedCipherComputeRoofRps` | **PASS Spec** — Atbash/totient Done = compute roof; DRAM-bound N/A |
+| 2026-10-07 | **s2_running_residue** | S2/S5 kernels + `HistTileCap` | `theory_hist_chi2_s2_linear_kernel` | 841×1M | med **~683B** (~76%; best **764B**) was **~402B** | — | running residue (no hot `%29`); S2 default tile **32** | **PARTIAL** — +~70% vs ks29; stretch 716.8B not median-stable |
 
 Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 
@@ -314,7 +315,7 @@ Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
 | Caesar catalog twin (fat-64) | `T.theory.compare_caesar` | **896B** | **806.4B** | med **782.9B** (~87%; best **849B** Done) | **stretch** — ACCEPTANCE |
 | Caesar fair (specialize S1 when eligible) | `T.theory.caesar_bytecode` | **896B** | **806.4B** | med **680.8B** (~76%, `specialize_S1`) | **not stretch** — <80% |
 | S1 LUT-29 (fat-64) | `T.theory.s1_lut29` | **896B** | **806.4B** | med **487B** (noisy 303–692) | **not stretch** — stabilize |
-| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **896B** | **806.4B** | med **401.6B** (~45% @ C=841, ks29) | **not Done** — still compute-bound |
+| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **896B** | **806.4B** | med **~683B** (~76% @ C=841, residue+tile32) | **not stretch** — climb from ~45%; atomic/L2 bound remains |
 
 Kernel SLO ACCEPTANCE (metric B): [`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md).
 

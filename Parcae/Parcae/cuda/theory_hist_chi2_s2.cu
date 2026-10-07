@@ -3,13 +3,15 @@
 #include "chi2_batch_score.hpp"
 #include "cuda_error.hpp"
 #include "hist_fast.hpp"
+#include "hist_tile_cap.hpp"
 #include "z29_device.hpp"
 
 #include <cuda_runtime_api.h>
 
 /// File-scope — no anonymous namespace (theory hist emit contract).
-/// Period-29 keystream in shared memory: `ks[i] = b0 + b1·i (mod 29)`, then
-/// hist indexes `ks[t % 29]` (cuts per-rune mul/add in the hot loop).
+/// Period-29 keystream in shared memory: `ks[i] = b0 + b1·i (mod 29)`.
+/// Hot loop indexes via a running residue (`(i·4) mod 29`) advanced by
+/// `(4·stride) mod 29` with add+conditional-subtract — no `% 29` per rune.
 __global__ void theory_hist_chi2_s2_linear_kernel(const std::uint8_t* in, const std::uint8_t* b0,
                                                   const std::uint8_t* b1, std::uint32_t* counts,
                                                   std::size_t token_count,
@@ -33,33 +35,58 @@ __global__ void theory_hist_chi2_s2_linear_kernel(const std::uint8_t* in, const 
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     const std::size_t n4 = token_count / 4u;
     const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
-    constexpr std::size_t mod = static_cast<std::size_t>(Z29Device::modulus);
+    constexpr unsigned mod = static_cast<unsigned>(Z29Device::modulus);
 
     auto out_byte = [&](std::uint8_t x, std::uint8_t key) -> std::uint8_t {
         return cipher_minus_ks != 0u ? HistFast::dec_sub(x, key) : HistFast::enc_caesar(x, key);
     };
 
-    for (std::size_t i =
-             tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
-         i < n4; i += stride) {
+    auto bump = [](unsigned& r, unsigned step) {
+        r += step;
+        if (r >= mod) {
+            r -= mod;
+        }
+    };
+
+    const std::size_t i0 =
+        tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
+    const unsigned stride_mod = static_cast<unsigned>(stride % static_cast<std::size_t>(mod));
+    // (4 * stride) mod 29 — four adds of stride_mod (hot-loop step, no %).
+    unsigned step4 = stride_mod;
+    bump(step4, stride_mod);
+    bump(step4, stride_mod);
+    bump(step4, stride_mod);
+
+    unsigned r = static_cast<unsigned>((i0 * 4u) % static_cast<std::size_t>(mod));
+    for (std::size_t i = i0; i < n4; i += stride) {
         const uchar4 v = in4[i];
-        const std::size_t t0 = i * 4u;
-        HistFast::add_private(priv, out_byte(v.x, ks[t0 % mod]));
-        HistFast::add_private(priv, out_byte(v.y, ks[(t0 + 1u) % mod]));
-        HistFast::add_private(priv, out_byte(v.z, ks[(t0 + 2u) % mod]));
-        HistFast::add_private(priv, out_byte(v.w, ks[(t0 + 3u) % mod]));
+        unsigned r1 = r;
+        bump(r1, 1u);
+        unsigned r2 = r1;
+        bump(r2, 1u);
+        unsigned r3 = r2;
+        bump(r3, 1u);
+        HistFast::add_private(priv, out_byte(v.x, ks[r]));
+        HistFast::add_private(priv, out_byte(v.y, ks[r1]));
+        HistFast::add_private(priv, out_byte(v.z, ks[r2]));
+        HistFast::add_private(priv, out_byte(v.w, ks[r3]));
+        bump(r, step4);
     }
-    for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
-                         static_cast<std::size_t>(threadIdx.x);
-         t < token_count; t += stride) {
-        HistFast::add_private(priv, out_byte(in[t], ks[t % mod]));
+
+    // Epilogue for T % 4 != 0 (and any leftover lanes).
+    const std::size_t t0 =
+        n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
+    unsigned re = static_cast<unsigned>(t0 % static_cast<std::size_t>(mod));
+    for (std::size_t t = t0; t < token_count; t += stride) {
+        HistFast::add_private(priv, out_byte(in[t], ks[re]));
+        bump(re, stride_mod);
     }
     HistFast::flush_private(priv,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
 int TheoryHistChi2S2::tiles_for(std::size_t token_count) {
-    return HistFast::tiles_for(token_count);
+    return HistTileCap::tiles_for(HistTileCap::kS2, token_count);
 }
 
 Status TheoryHistChi2S2::launch_linear_async(

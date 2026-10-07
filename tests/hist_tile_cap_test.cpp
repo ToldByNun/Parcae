@@ -37,9 +37,14 @@ TEST_CASE("HistTileCap slot defaults and clamps", "[cuda][hist][tile_cap]") {
     REQUIRE(HistTileCap::effective(-1) == HistFast::production_tile_cap);
     REQUIRE(HistTileCap::tiles_for(99, 1048576) == HistFast::production_tile_cap);
 
-    // Reserved slots stay independent of Caesar.
+    // S2 slot: independent of Caesar; production default is 32 (not fat-64).
+    HistTileCap::set(HistTileCap::kS2, 0);
+    REQUIRE(HistTileCap::slot_default(HistTileCap::kS2) == 32);
+    REQUIRE(HistTileCap::effective(HistTileCap::kS2) == 32);
+    REQUIRE(HistTileCap::tiles_for(HistTileCap::kS2, 1048576) == 32);
     HistTileCap::set(HistTileCap::kS2, 128);
     REQUIRE(HistTileCap::get(HistTileCap::kS2) == 128);
+    REQUIRE(HistTileCap::effective(HistTileCap::kS2) == 128);
     REQUIRE(HistTileCap::get(HistTileCap::kCaesar) == 0);
     HistTileCap::set(HistTileCap::kS2, 0);
 
