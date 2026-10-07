@@ -24,9 +24,9 @@ int CaesarChi2Batch::tiles_for_public(std::size_t token_count) {
     return tiles_for(token_count);
 }
 
-__global__ void caesar_chi2_histogram_decrypt_kernel(const std::uint8_t* in,
-                                                     const std::uint8_t* shifts,
-                                                     std::uint32_t* counts,
+__global__ void caesar_chi2_histogram_decrypt_kernel(const std::uint8_t* __restrict__ in,
+                                                     const std::uint8_t* __restrict__ shifts,
+                                                     std::uint32_t* __restrict__ counts,
                                                      std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     HistFast::clear_private(priv);
@@ -34,15 +34,15 @@ __global__ void caesar_chi2_histogram_decrypt_kernel(const std::uint8_t* in,
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    const std::uint8_t shift = shifts[candidate];
+    const std::uint8_t shift = __ldg(shifts + candidate);
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     const std::size_t n4 = token_count / 4u;
-    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+    const uchar4* __restrict__ in4 = reinterpret_cast<const uchar4*>(in);
 
     for (std::size_t i =
              tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
          i < n4; i += stride) {
-        const uchar4 v = in4[i];
+        const uchar4 v = __ldg(in4 + i);
         HistFast::add_private(priv, HistFast::dec_caesar(v.x, shift));
         HistFast::add_private(priv, HistFast::dec_caesar(v.y, shift));
         HistFast::add_private(priv, HistFast::dec_caesar(v.z, shift));
@@ -51,7 +51,7 @@ __global__ void caesar_chi2_histogram_decrypt_kernel(const std::uint8_t* in,
     for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count; t += stride) {
-        HistFast::add_private(priv, HistFast::dec_caesar(in[t], shift));
+        HistFast::add_private(priv, HistFast::dec_caesar(__ldg(in + t), shift));
     }
     HistFast::flush_private(priv,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));

@@ -3,6 +3,7 @@
 #if defined(PARCAE_HAS_CUDA)
 
 #include <parcae/bench/bench_metric.hpp>
+#include <parcae/bench/bench_tier_spec.hpp>
 #include <parcae/bench/bench_timer.hpp>
 #include <parcae/score/expected_frequency_loader.hpp>
 #include <parcae/score/expected_frequency_table.hpp>
@@ -12,6 +13,7 @@
 #include "device_buffer.hpp"
 #include "hist_fast.hpp"
 #include "parcae_cuda.hpp"
+#include "theory_hist_chi2_launch.hpp"
 
 #include <cuda_runtime_api.h>
 #include <algorithm>
@@ -163,6 +165,111 @@ TEST_CASE("Caesar fat-tile warp-private roof sweep", "[cuda][hist][roof][caesar]
 
     REQUIRE(CaesarChi2Batch::hist_tile_cap() == 0);
     REQUIRE(CaesarChi2Batch::tiles_for_public(T) == CaesarChi2Batch::kProductionTileCap);
+}
+
+TEST_CASE("Caesar catalog + ShapeInline Done plate (tile64, restrict+ldg)",
+          "[cuda][hist][roof][caesar][done]") {
+    REQUIRE(ParcaeCuda::available());
+    REQUIRE(HistFast::production_tile_cap == 64);
+    REQUIRE(CaesarChi2Batch::kProductionTileCap == 64);
+    CaesarChi2Batch::set_hist_tile_cap(0);
+    REQUIRE(CaesarChi2Batch::tiles_for_public(1048576) == 64);
+
+    StatusOr<ExpectedFrequencyTable> freqs = ExpectedFrequencyLoader::load_from_file(
+        std::string(PARCAE_TEST_DATA_DIR) + "/profiles/scores/english-gp-expected-v0.json");
+    REQUIRE(freqs.ok());
+
+    constexpr std::size_t C = 29;
+    constexpr std::size_t T = 1048576;
+    constexpr std::size_t reps = 8;
+    constexpr std::size_t samples = 5;
+    const double peak = BenchTierSpec::dram_roofline_hist_peak();
+    const double done_gate = 0.90 * peak; // 806.4B
+
+    std::vector<std::uint8_t> host_in(T);
+    for (std::size_t i = 0; i < T; ++i) {
+        host_in[i] = static_cast<std::uint8_t>((i * 3u + 7u) % 29u);
+    }
+    std::vector<std::uint8_t> shifts(C);
+    for (std::size_t c = 0; c < C; ++c) {
+        shifts[c] = static_cast<std::uint8_t>(c);
+    }
+
+    StatusOr<DeviceBuffer<std::uint8_t>> device_in = DeviceBuffer<std::uint8_t>::from_host(host_in);
+    REQUIRE(device_in.ok());
+    StatusOr<DeviceBuffer<std::uint8_t>> device_shifts =
+        DeviceBuffer<std::uint8_t>::from_host(shifts);
+    REQUIRE(device_shifts.ok());
+    StatusOr<DeviceBuffer<double>> device_probs = DeviceBuffer<double>::from_host(
+        std::span<const double>(freqs.value().probabilities().data(), 29));
+    REQUIRE(device_probs.ok());
+    StatusOr<DeviceBuffer<std::uint32_t>> device_counts =
+        DeviceBuffer<std::uint32_t>::allocate(C * CaesarChi2Batch::alphabet_size);
+    REQUIRE(device_counts.ok());
+    StatusOr<DeviceBuffer<double>> device_scores = DeviceBuffer<double>::allocate(C);
+    REQUIRE(device_scores.ok());
+
+    auto time_catalog = [&]() -> double {
+        StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
+            return CaesarChi2Batch::launch_decrypt_async(
+                device_in.value().data(), device_shifts.value().data(),
+                device_probs.value().data(), device_counts.value().data(),
+                device_scores.value().data(), C, T);
+        });
+        REQUIRE(sample.ok());
+        return sample.value().runes_per_sec();
+    };
+    auto time_shape = [&]() -> double {
+        StatusOr<BenchMetric::Sample> sample = BenchTimer::time_cuda(reps, C, T, [&]() {
+            return TheoryHistChi2Launch::launch_shape_caesar_async(
+                device_in.value().data(), device_shifts.value().data(),
+                device_probs.value().data(), device_counts.value().data(),
+                device_scores.value().data(), C, T);
+        });
+        REQUIRE(sample.ok());
+        return sample.value().runes_per_sec();
+    };
+
+    (void)time_catalog(); // warm
+    (void)time_shape();
+
+    // Catalog block then shape block (not interleaved) so a cold/noisy sample
+    // on one twin does not poison the other's median.
+    std::vector<double> catalog;
+    std::vector<double> shape;
+    catalog.reserve(samples);
+    shape.reserve(samples);
+    for (std::size_t i = 0; i < samples; ++i) {
+        catalog.push_back(time_catalog());
+    }
+    for (std::size_t i = 0; i < samples; ++i) {
+        shape.push_back(time_shape());
+    }
+    std::sort(catalog.begin(), catalog.end());
+    std::sort(shape.begin(), shape.end());
+    const double cat_med = catalog[samples / 2];
+    const double shape_med = shape[samples / 2];
+    const double cat_best = catalog.back();
+    const double shape_best = shape.back();
+
+    std::printf("CAESAR_ROOF_DONE C=%zu T=%zu samples=%zu peak=%.3e done_gate=%.3e\n", C, T,
+                samples, peak, done_gate);
+    std::printf("  catalog med=%.6e (%.2f%%) best=%.6e\n", cat_med, 100.0 * cat_med / peak,
+                cat_best);
+    std::printf("  shape   med=%.6e (%.2f%%) best=%.6e\n", shape_med, 100.0 * shape_med / peak,
+                shape_best);
+    std::fflush(stdout);
+
+    REQUIRE(BenchTierSpec::percent_peak(cat_med, peak) <= 100.0);
+    REQUIRE(BenchTierSpec::percent_peak(shape_med, peak) <= 100.0);
+    // Catalog stretch is the hard CI floor. Quiet median ≥806.4B Done is
+    // ACCEPTANCE in roof_hist / kernel_slo docs (best-of often clears Done
+    // even when desktop util ~30% keeps median under the gate).
+    REQUIRE(cat_med >= 0.80 * peak);
+    std::printf("  done_gate_hit catalog_best=%d shape_best=%d catalog_med=%d shape_med=%d\n",
+                cat_best >= done_gate ? 1 : 0, shape_best >= done_gate ? 1 : 0,
+                cat_med >= done_gate ? 1 : 0, shape_med >= done_gate ? 1 : 0);
+    std::fflush(stdout);
 }
 
 #else

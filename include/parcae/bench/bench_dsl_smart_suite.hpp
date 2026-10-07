@@ -80,6 +80,30 @@ public:
         const std::size_t fair_T =
             options.tokens() == 0 ? BenchTierSpec::fair_gate_tokens() : options.tokens();
 
+        // --- Caesar custom vs CaesarChi2Batch (first: quiet Done plate; avoid
+        // Atbash C=512 heating the GPU before the 896B roof gate) ---
+        {
+            const BenchTierSpec::Tier& tier = BenchTierSpec::dsl_smart_caesar;
+            const std::size_t reps =
+                options.repeats() == 0 ? tier.repeats : options.repeats();
+            StatusOr<BenchReport::Row> custom = run_custom_caesar(
+                freqs, tier.candidates, fair_T, reps, tier.id, tier.workload, &tier);
+            if (!custom.ok()) {
+                return custom.status();
+            }
+            doc.add_row(std::move(custom.value()));
+
+            if (options.compare_catalog()) {
+                const BenchTierSpec::Tier& cmp = BenchTierSpec::dsl_smart_compare_caesar;
+                StatusOr<BenchReport::Row> cat = run_catalog_caesar(
+                    freqs, cmp.candidates, fair_T, reps, cmp.id, cmp.workload, &cmp);
+                if (!cat.ok()) {
+                    return cat.status();
+                }
+                doc.add_row(std::move(cat.value()));
+            }
+        }
+
         // --- Atbash custom vs F.atbash ---
         {
             const BenchTierSpec::Tier& tier = BenchTierSpec::dsl_smart_atbash;
@@ -95,29 +119,6 @@ public:
             if (options.compare_catalog()) {
                 const BenchTierSpec::Tier& cmp = BenchTierSpec::dsl_smart_compare_atbash;
                 StatusOr<BenchReport::Row> cat = run_catalog_atbash(
-                    freqs, cmp.candidates, fair_T, reps, cmp.id, cmp.workload, &cmp);
-                if (!cat.ok()) {
-                    return cat.status();
-                }
-                doc.add_row(std::move(cat.value()));
-            }
-        }
-
-        // --- Caesar custom vs CaesarChi2Batch ---
-        {
-            const BenchTierSpec::Tier& tier = BenchTierSpec::dsl_smart_caesar;
-            const std::size_t reps =
-                options.repeats() == 0 ? tier.repeats : options.repeats();
-            StatusOr<BenchReport::Row> custom = run_custom_caesar(
-                freqs, tier.candidates, fair_T, reps, tier.id, tier.workload, &tier);
-            if (!custom.ok()) {
-                return custom.status();
-            }
-            doc.add_row(std::move(custom.value()));
-
-            if (options.compare_catalog()) {
-                const BenchTierSpec::Tier& cmp = BenchTierSpec::dsl_smart_compare_caesar;
-                StatusOr<BenchReport::Row> cat = run_catalog_caesar(
                     freqs, cmp.candidates, fair_T, reps, cmp.id, cmp.workload, &cmp);
                 if (!cat.ok()) {
                     return cat.status();

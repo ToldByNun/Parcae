@@ -99,10 +99,11 @@ TEST_CASE("BenchDslSmartSuite short-T customs vs catalog twins", "[bench][dsl_sm
     REQUIRE(doc.value().suite() == BenchReport::Suite::DslSmart);
     REQUIRE(doc.value().rows().size() == 10u);
 
-    REQUIRE(doc.value().rows()[0].name() == "T.dsl_smart.custom_atbash");
-    REQUIRE(doc.value().rows()[1].name() == "T.dsl_smart.compare_Fatbash");
-    REQUIRE(doc.value().rows()[2].name() == "T.dsl_smart.custom_caesar");
-    REQUIRE(doc.value().rows()[3].name() == "T.dsl_smart.compare_caesar");
+    // Caesar first (quiet Done plate), then Atbash, Affine, linear, autokey.
+    REQUIRE(doc.value().rows()[0].name() == "T.dsl_smart.custom_caesar");
+    REQUIRE(doc.value().rows()[1].name() == "T.dsl_smart.compare_caesar");
+    REQUIRE(doc.value().rows()[2].name() == "T.dsl_smart.custom_atbash");
+    REQUIRE(doc.value().rows()[3].name() == "T.dsl_smart.compare_Fatbash");
     REQUIRE(doc.value().rows()[4].name() == "T.dsl_smart.custom_affine");
     REQUIRE(doc.value().rows()[5].name() == "T.dsl_smart.compare_Faffine");
     REQUIRE(doc.value().rows()[6].name() == "T.dsl_smart.custom_linear");
@@ -110,10 +111,10 @@ TEST_CASE("BenchDslSmartSuite short-T customs vs catalog twins", "[bench][dsl_sm
     REQUIRE(doc.value().rows()[8].name() == "T.dsl_smart.custom_autokey");
     REQUIRE(doc.value().rows()[9].name() == "T.dsl_smart.compare_S4");
 
-    REQUIRE(doc.value().rows()[0].candidates() == 512u);
-    REQUIRE(doc.value().rows()[1].candidates() == 512u);
-    REQUIRE(doc.value().rows()[2].candidates() == 29u);
-    REQUIRE(doc.value().rows()[3].candidates() == 29u);
+    REQUIRE(doc.value().rows()[0].candidates() == 29u);
+    REQUIRE(doc.value().rows()[1].candidates() == 29u);
+    REQUIRE(doc.value().rows()[2].candidates() == 512u);
+    REQUIRE(doc.value().rows()[3].candidates() == 512u);
     REQUIRE(doc.value().rows()[4].candidates() == 812u);
     REQUIRE(doc.value().rows()[5].candidates() == 812u);
     REQUIRE(doc.value().rows()[6].candidates() == 841u);
@@ -128,16 +129,16 @@ TEST_CASE("BenchDslSmartSuite short-T customs vs catalog twins", "[bench][dsl_sm
         REQUIRE(row.runes_per_sec() > 0.0);
     }
 
-    REQUIRE(doc.value().rows()[0].estimated_peak() ==
+    REQUIRE(doc.value().rows()[0].estimated_peak() == BenchTierSpec::kDramRooflineHistPeak);
+    REQUIRE(doc.value().rows()[2].estimated_peak() ==
             BenchTierSpec::kSharedCipherComputeRoofRps);
-    REQUIRE(doc.value().rows()[2].estimated_peak() == BenchTierSpec::kDramRooflineHistPeak);
     REQUIRE(doc.value().rows()[6].estimated_peak() == BenchTierSpec::kDramRooflineHistPeak);
     REQUIRE(doc.value().rows()[8].estimated_peak() == BenchTierSpec::kDramRooflineHistPeak);
 
-    REQUIRE(doc.value().rows()[0].detail().find("ShapeInline_atbash") != std::string::npos);
-    REQUIRE(doc.value().rows()[1].detail().find("catalog_F.atbash") != std::string::npos);
-    REQUIRE(doc.value().rows()[2].detail().find("ShapeInline_caesar") != std::string::npos);
-    REQUIRE(doc.value().rows()[3].detail().find("catalog_CaesarChi2") != std::string::npos);
+    REQUIRE(doc.value().rows()[0].detail().find("ShapeInline_caesar") != std::string::npos);
+    REQUIRE(doc.value().rows()[1].detail().find("catalog_CaesarChi2") != std::string::npos);
+    REQUIRE(doc.value().rows()[2].detail().find("ShapeInline_atbash") != std::string::npos);
+    REQUIRE(doc.value().rows()[3].detail().find("catalog_F.atbash") != std::string::npos);
     REQUIRE(doc.value().rows()[4].detail().find("ShapeInline_affine") != std::string::npos);
     REQUIRE(doc.value().rows()[5].detail().find("catalog_F.affine") != std::string::npos);
     REQUIRE(doc.value().rows()[6].detail().find("S2_linear") != std::string::npos);
@@ -159,8 +160,8 @@ TEST_CASE("BenchDslSmartSuite can skip catalog twins", "[bench][dsl_smart][cuda]
     StatusOr<BenchReport::Document> doc = BenchDslSmartSuite::run(freqs.value(), opts);
     REQUIRE(doc.ok());
     REQUIRE(doc.value().rows().size() == 5u);
-    REQUIRE(doc.value().rows()[0].name() == "T.dsl_smart.custom_atbash");
-    REQUIRE(doc.value().rows()[1].name() == "T.dsl_smart.custom_caesar");
+    REQUIRE(doc.value().rows()[0].name() == "T.dsl_smart.custom_caesar");
+    REQUIRE(doc.value().rows()[1].name() == "T.dsl_smart.custom_atbash");
     REQUIRE(doc.value().rows()[2].name() == "T.dsl_smart.custom_affine");
     REQUIRE(doc.value().rows()[3].name() == "T.dsl_smart.custom_linear");
     REQUIRE(doc.value().rows()[4].name() == "T.dsl_smart.custom_autokey");

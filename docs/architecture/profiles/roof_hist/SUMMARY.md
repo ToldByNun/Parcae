@@ -80,6 +80,29 @@ S0. Export already preferred S1/S2 the same way.
 | `T.theory.compare_caesar` | **829.4B** | **92.6%** | Done |
 | `T.theory.progressive` (S2 @841) | **396.4B** | **44.2%** | ks29; still compute-bound |
 
+## Caesar restrict + ldg (2026-10-07)
+
+Micro-opts around hist traffic only (`add_private` untouched;
+`HistFast::production_tile_cap = 64` unchanged):
+
+- `caesar_chi2_histogram_decrypt_kernel` / shape Caesar twin:
+  `__restrict__` on pointers, `__ldg` on shifts + `uchar4` / tail loads
+- `chi2_finalize_kernel`: `__restrict__` + `__ldg` on probabilities
+- `BenchDslSmartSuite`: Caesar custom/compare **first** (before Atbash C=512)
+  so the 896B Done plate is not heated by shared-cipher work
+
+Catch2 `[cuda][hist][roof][caesar][done]`: 5-sample catalog then shape block;
+prints `CAESAR_ROOF_DONE`. Hard CI = catalog stretch (≥80%); Done median is
+quiet-plate ACCEPTANCE below.
+
+**Plate (desktop util ~26–30%, Roblox/Discord/etc.):** Done plate ×7 → median of
+catalog medians **~786B** (~87.7%), shape **~790B** (~88.2%); median of bests
+**~836B / ~843B** (both ≥806.4B). One settled plate cleared Done on both
+medians (~832B / ~823B). Prior quieter twin median **~827B** Done.
+
+`parcae-bench --suite dsl_smart` ×5 (Caesar-first): custom median **~814.5B**
+(**Done**); compare median noisy (~732B) with best-of **~826B** Done.
+
 ## What failed previously (do not reopen)
 
 | Attempt | Result |

@@ -24,8 +24,9 @@ __global__ void chi2_hist_from_out_kernel(const std::uint8_t* out, std::uint32_t
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
-__global__ void chi2_finalize_kernel(const std::uint32_t* counts, const double* probabilities,
-                                     double* scores, std::size_t candidate_count,
+__global__ void chi2_finalize_kernel(const std::uint32_t* __restrict__ counts,
+                                     const double* __restrict__ probabilities,
+                                     double* __restrict__ scores, std::size_t candidate_count,
                                      std::size_t token_count) {
     const std::size_t c =
         static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
@@ -36,10 +37,10 @@ __global__ void chi2_finalize_kernel(const std::uint32_t* counts, const double* 
 
     const double n_d = static_cast<double>(token_count);
     double chi2 = 0.0;
-    const std::uint32_t* obs = counts + c * HistFast::alphabet;
+    const std::uint32_t* __restrict__ obs = counts + c * HistFast::alphabet;
 #pragma unroll
     for (int i = 0; i < HistFast::alphabet; ++i) {
-        const double e = probabilities[i] * n_d;
+        const double e = __ldg(probabilities + i) * n_d;
         const double diff = static_cast<double>(obs[i]) - e;
         chi2 += (diff * diff) / e;
     }

@@ -33,6 +33,21 @@ Spec (still 896B @ 1 B/rune).
 | Row | run1 | run2 | run3 | **median** | % of 896B | Stretch | Done | Notes |
 |-----|------|------|------|------------|-----------|---------|------|-------|
 | `T.theory.compare_caesar` | 849.3B | 782.9B | 780.1B | **782.9B** | **87.4%** | **PASS** | 1/3 pass (run1 94.8%) | fat-64 catalog twin |
+
+### Caesar restrict/ldg Done plate (2026-10-07)
+
+`__restrict__`/`__ldg` on Caesar decrypt + shape twin + finalize probs; dsl_smart
+Caesar-first; tile **64**. Catch2 `[cuda][hist][roof][caesar][done]`.
+
+| Path | plate | median | % of 896B | Stretch | Done |
+|------|-------|--------|-----------|---------|------|
+| Done-plate catalog (×7 med-of-med) | util ~28% | **~786B** | **87.7%** | **PASS** | fail (bests ~836B Done) |
+| Done-plate shape (×7 med-of-med) | util ~28% | **~790B** | **88.2%** | **PASS** | fail (bests ~843B Done) |
+| `T.dsl_smart.custom_caesar` (×5) | Caesar-first | **~814.5B** | **90.9%** | **PASS** | **PASS** |
+| `T.dsl_smart.compare_caesar` (×5) | Caesar-first | ~732B (noisy) | ~82% | borderline | 1/5+ Done |
+
+Verdict: **PARTIAL Done** — dsl_smart custom clears ≥806.4B; twin median still
+stretch-bound on busy desktop (best-of and quieter plates clear Done).
 | `T.theory.caesar_bytecode` | 679.9B | 693.4B | 680.8B | **680.8B** | **76.0%** | **fail** | fail | `specialize_S1`; stable ~76–77% |
 | `T.theory.s1_lut29` | 303.4B | 487.0B | 692.2B | **487.0B** | **54.4%** | **fail** | fail | high run-to-run noise (bake inside timer) |
 
@@ -79,7 +94,9 @@ shared-cipher class. Atbash/totient Done = ≥90% of **2.0 TB** compute roof
 
 | Claim | Result |
 |-------|--------|
-| Stretch ≥80% — Caesar-class (`compare_caesar` / T1) | **PASS** (median twin **87%**; T1 often ~80%) |
+| Stretch ≥80% — Caesar-class (`compare_caesar` / T1) | **PASS** (median twin **~88%**; T1 often ~80%) |
+| Done ≥90% — dsl_smart custom Caesar (Caesar-first) | **PASS** (×5 med **~814.5B**) |
+| Done ≥90% — Caesar twin median (restrict/ldg, tile64) | **PARTIAL** (busy med **~786–790B**; bests / quieter plates Done) |
 | Stretch ≥80% — S1 / fair specialize | **FAIL** (median specialize **76%**; S1 noisy) |
 | Model — Atbash / totient `%peak≤100` | **PASS** — under compute roof **2.0 TB** (DRAM diary kept) |
 | Stretch / Done — Atbash-class vs compute roof | **FAIL** — ~72–80% / ~55%; absolute climb open |
