@@ -1,3 +1,4 @@
+#include "alphabet_chi2_batch.hpp"
 #include "chi2_batch_score.hpp"
 #include "cuda_error.hpp"
 #include "family_chi2_batch.hpp"
@@ -289,13 +290,31 @@ __global__ void totient_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
-Status FamilyChi2Batch::launch_atbash_async(const std::uint8_t* device_in,
-                                            const double* device_probabilities,
-                                            std::uint32_t* device_counts, double* device_scores,
-                                            std::size_t candidate_count, std::size_t token_count) {
+Status FamilyChi2Batch::ensure_cipher_hist_scratch(std::uint32_t** out_hist) {
+    // Process-lifetime scratch (29 bins). Not safe for overlapping concurrent
+    // Atbash / Atbash∘Caesar remaps on this device.
+    static std::uint32_t* device_cipher_hist = nullptr;
+    if (device_cipher_hist == nullptr) {
+        Status allocated = CudaError::to_status(
+            cudaMalloc(reinterpret_cast<void**>(&device_cipher_hist),
+                       alphabet_size * sizeof(std::uint32_t)),
+            "FamilyChi2Batch::cipher hist scratch");
+        if (!allocated.ok()) {
+            device_cipher_hist = nullptr;
+            return allocated;
+        }
+    }
+    *out_hist = device_cipher_hist;
+    return Status::success();
+}
+
+Status FamilyChi2Batch::launch_atbash_decode_hist_async(
+    const std::uint8_t* device_in, const double* device_probabilities,
+    std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+    std::size_t token_count) {
     if (device_in == nullptr || device_probabilities == nullptr || device_counts == nullptr ||
         device_scores == nullptr) {
-        return Status::error("FamilyChi2Batch::atbash null");
+        return Status::error("FamilyChi2Batch::atbash decode null");
     }
     dim3 grid;
     Status prep =
@@ -312,13 +331,38 @@ Status FamilyChi2Batch::launch_atbash_async(const std::uint8_t* device_in,
                                           candidate_count, token_count);
 }
 
-Status FamilyChi2Batch::launch_atbash_caesar_async(
+Status FamilyChi2Batch::launch_atbash_async(const std::uint8_t* device_in,
+                                            const double* device_probabilities,
+                                            std::uint32_t* device_counts, double* device_scores,
+                                            std::size_t candidate_count, std::size_t token_count) {
+    if (device_in == nullptr || device_probabilities == nullptr || device_counts == nullptr ||
+        device_scores == nullptr) {
+        return Status::error("FamilyChi2Batch::atbash null");
+    }
+    if (candidate_count == 0 || candidate_count > kMaxCandidates) {
+        return Status::error("FamilyChi2Batch: bad C");
+    }
+    if (token_count == 0 || token_count > kMaxTokens) {
+        return Status::error("FamilyChi2Batch: bad T");
+    }
+
+    std::uint32_t* device_cipher_hist = nullptr;
+    Status scratch = ensure_cipher_hist_scratch(&device_cipher_hist);
+    if (!scratch.ok()) {
+        return scratch;
+    }
+    return AlphabetChi2Batch::launch_atbash_async(device_in, device_probabilities,
+                                                  device_cipher_hist, device_counts, device_scores,
+                                                  candidate_count, token_count, nullptr);
+}
+
+Status FamilyChi2Batch::launch_atbash_caesar_decode_hist_async(
     const std::uint8_t* device_in, const std::uint8_t* device_shifts,
     const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
     std::size_t candidate_count, std::size_t token_count) {
     if (device_in == nullptr || device_shifts == nullptr || device_probabilities == nullptr ||
         device_counts == nullptr || device_scores == nullptr) {
-        return Status::error("FamilyChi2Batch::atbash_caesar null");
+        return Status::error("FamilyChi2Batch::atbash_caesar decode null");
     }
     dim3 grid;
     Status prep =
@@ -334,6 +378,31 @@ Status FamilyChi2Batch::launch_atbash_caesar_async(
     }
     return Chi2BatchScore::finalize_async(device_counts, device_probabilities, device_scores,
                                           candidate_count, token_count);
+}
+
+Status FamilyChi2Batch::launch_atbash_caesar_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_shifts,
+    const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+    std::size_t candidate_count, std::size_t token_count) {
+    if (device_in == nullptr || device_shifts == nullptr || device_probabilities == nullptr ||
+        device_counts == nullptr || device_scores == nullptr) {
+        return Status::error("FamilyChi2Batch::atbash_caesar null");
+    }
+    if (candidate_count == 0 || candidate_count > kMaxCandidates) {
+        return Status::error("FamilyChi2Batch: bad C");
+    }
+    if (token_count == 0 || token_count > kMaxTokens) {
+        return Status::error("FamilyChi2Batch: bad T");
+    }
+
+    std::uint32_t* device_cipher_hist = nullptr;
+    Status scratch = ensure_cipher_hist_scratch(&device_cipher_hist);
+    if (!scratch.ok()) {
+        return scratch;
+    }
+    return AlphabetChi2Batch::launch_atbash_caesar_async(
+        device_in, device_shifts, device_probabilities, device_cipher_hist, device_counts,
+        device_scores, candidate_count, token_count, nullptr);
 }
 
 Status FamilyChi2Batch::launch_affine_async(const std::uint8_t* device_in,

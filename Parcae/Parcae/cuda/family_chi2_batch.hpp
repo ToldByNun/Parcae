@@ -9,29 +9,48 @@
 
 /// Fused decrypt+χ² histogram for batch families (device-resident, scores only D2H).
 ///
-/// Warp-private hist + fat-tile + uchar4 where safe.
-/// Atbash / Atbash∘Caesar → `HistTileCap::kAtbash`; totient → `kTotient`;
-/// other families use `HistFast::production_tile_cap` (Caesar clamp stays separate).
+/// **Atbash / Atbash∘Caesar production:** alphabet remap after one ciphertext
+/// hist (`AlphabetChi2Batch`). Legacy decode-hist remains via
+/// `launch_*_decode_hist_async` (tile-cap A/B on `HistTileCap::kAtbash`).
+///
+/// Other families still use warp-private decode-hist + fat-tile + uchar4.
 class FamilyChi2Batch {
 public:
     static constexpr std::size_t alphabet_size = 29;
     static constexpr std::size_t kMaxCandidates = 16384;
     static constexpr std::size_t kMaxTokens = 1u << 22;
 
-    /// `grid.y` under Atbash / totient slot (tests + A/B sweeps).
+    /// `grid.y` under Atbash / totient slot (decode-hist A/B sweeps).
     [[nodiscard]] static int tiles_for_atbash(std::size_t token_count);
     [[nodiscard]] static int tiles_for_totient(std::size_t token_count);
 
+    /// Production Atbash: alphabet mirror remap.
     [[nodiscard]] static Status
     launch_atbash_async(const std::uint8_t* device_in, const double* device_probabilities,
                         std::uint32_t* device_counts, double* device_scores,
                         std::size_t candidate_count, std::size_t token_count);
 
+    /// Legacy per-candidate Atbash decode→hist (Golden / tile-cap A/B).
+    [[nodiscard]] static Status
+    launch_atbash_decode_hist_async(const std::uint8_t* device_in,
+                                    const double* device_probabilities,
+                                    std::uint32_t* device_counts, double* device_scores,
+                                    std::size_t candidate_count, std::size_t token_count);
+
+    /// Production Atbash∘Caesar-encrypt compose remap.
     [[nodiscard]] static Status
     launch_atbash_caesar_async(const std::uint8_t* device_in, const std::uint8_t* device_shifts,
                                const double* device_probabilities, std::uint32_t* device_counts,
                                double* device_scores, std::size_t candidate_count,
                                std::size_t token_count);
+
+    /// Legacy Atbash∘Caesar decode→hist.
+    [[nodiscard]] static Status
+    launch_atbash_caesar_decode_hist_async(const std::uint8_t* device_in,
+                                           const std::uint8_t* device_shifts,
+                                           const double* device_probabilities,
+                                           std::uint32_t* device_counts, double* device_scores,
+                                           std::size_t candidate_count, std::size_t token_count);
 
     [[nodiscard]] static Status
     launch_affine_async(const std::uint8_t* device_in, const std::uint8_t* device_a,
@@ -70,6 +89,8 @@ private:
     [[nodiscard]] static Status clear_and_grid(std::uint32_t* device_counts,
                                                std::size_t candidate_count, std::size_t token_count,
                                                int tile_slot, dim3* grid_out);
+
+    [[nodiscard]] static Status ensure_cipher_hist_scratch(std::uint32_t** out_hist);
 };
 
 #endif // FAMILY_CHI2_BATCH_HPP
