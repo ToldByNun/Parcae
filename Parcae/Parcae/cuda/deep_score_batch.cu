@@ -3,9 +3,14 @@
 #include "cuda_error.hpp"
 #include "deep_score_batch.hpp"
 #include "hist_fast.hpp"
+#include "lag_diff_hist_once.hpp"
 #include "z29_device.hpp"
 
 #include <cuda_runtime_api.h>
+
+#include <algorithm>
+#include <cstdint>
+#include <vector>
 
 int DeepScoreBatch::tiles_for(std::size_t token_count) {
     return HistFast::tiles_for(token_count);
@@ -220,7 +225,60 @@ __global__ void caesar_ngram_dict_kernel(const std::uint8_t* in, const std::uint
     }
 }
 
-Status DeepScoreBatch::launch_autokey_chi2_async(
+/// CTAK remap for one primer-length filter: `P = D_L + prefix` with
+/// `prefix[t] = in[t] - primer[t]` for `t < min(L, T)`.
+__global__ void autokey_chi2_ctak_remap_kernel(
+    const std::uint32_t* __restrict__ lag_diff, const std::uint8_t* __restrict__ in,
+    const std::uint8_t* __restrict__ key_bytes, const std::uint32_t* __restrict__ key_begin,
+    const std::uint32_t* __restrict__ key_len, std::uint32_t* __restrict__ counts,
+    std::size_t candidate_count, std::size_t token_count, std::uint32_t period_filter) {
+    const std::size_t c =
+        static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
+        static_cast<std::size_t>(threadIdx.x);
+    if (c >= candidate_count) {
+        return;
+    }
+    if (__ldg(key_len + c) != period_filter) {
+        return;
+    }
+
+    std::uint32_t* __restrict__ row =
+        counts + c * static_cast<std::size_t>(HistFast::alphabet);
+#pragma unroll
+    for (int b = 0; b < HistFast::alphabet; ++b) {
+        row[b] = __ldg(lag_diff + b);
+    }
+
+    const std::uint32_t begin = __ldg(key_begin + c);
+    const std::size_t n_prefix = static_cast<std::size_t>(period_filter) < token_count
+                                     ? static_cast<std::size_t>(period_filter)
+                                     : token_count;
+    for (std::size_t t = 0; t < n_prefix; ++t) {
+        const std::uint8_t y =
+            HistFast::dec_sub(__ldg(in + t), __ldg(key_bytes + begin + t));
+        ++row[y];
+    }
+}
+
+Status DeepScoreBatch::ensure_lag_diff_scratch(std::uint32_t** out_hist) {
+    // Process-lifetime scratch (29 bins). Not safe for overlapping concurrent
+    // CTAK remaps on this device.
+    static std::uint32_t* device_lag = nullptr;
+    if (device_lag == nullptr) {
+        Status allocated = CudaError::to_status(
+            cudaMalloc(reinterpret_cast<void**>(&device_lag),
+                       alphabet_size * sizeof(std::uint32_t)),
+            "DeepScoreBatch::lag_diff scratch");
+        if (!allocated.ok()) {
+            device_lag = nullptr;
+            return allocated;
+        }
+    }
+    *out_hist = device_lag;
+    return Status::success();
+}
+
+Status DeepScoreBatch::launch_autokey_chi2_decode_hist_async(
     const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
     const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
     const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
@@ -229,7 +287,7 @@ Status DeepScoreBatch::launch_autokey_chi2_async(
         token_count > kMaxTokens || device_in == nullptr || device_key_bytes == nullptr ||
         device_key_begin == nullptr || device_key_len == nullptr ||
         device_probabilities == nullptr || device_counts == nullptr || device_scores == nullptr) {
-        return Status::error("DeepScoreBatch::autokey bad args");
+        return Status::error("DeepScoreBatch::autokey decode bad args");
     }
     Status cleared = clear_hist(device_counts, candidate_count);
     if (!cleared.ok()) {
@@ -245,6 +303,86 @@ Status DeepScoreBatch::launch_autokey_chi2_async(
     }
     return Chi2BatchScore::finalize_async(device_counts, device_probabilities, device_scores,
                                           candidate_count, token_count);
+}
+
+Status DeepScoreBatch::launch_autokey_chi2_remap_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
+    const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
+    const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+    std::size_t candidate_count, std::size_t token_count, cudaStream_t stream) {
+    if (candidate_count == 0 || candidate_count > kMaxCandidates || token_count == 0 ||
+        token_count > kMaxTokens || device_in == nullptr || device_key_bytes == nullptr ||
+        device_key_begin == nullptr || device_key_len == nullptr ||
+        device_probabilities == nullptr || device_counts == nullptr || device_scores == nullptr) {
+        return Status::error("DeepScoreBatch::autokey remap bad args");
+    }
+
+    std::uint32_t* lag_diff = nullptr;
+    Status scratch = ensure_lag_diff_scratch(&lag_diff);
+    if (!scratch.ok()) {
+        return scratch;
+    }
+
+    std::vector<std::uint32_t> host_len(candidate_count);
+    Status copied = CudaError::to_status(
+        cudaMemcpyAsync(host_len.data(), device_key_len,
+                        candidate_count * sizeof(std::uint32_t), cudaMemcpyDeviceToHost, stream),
+        "DeepScoreBatch::autokey key_len D2H");
+    if (!copied.ok()) {
+        return copied;
+    }
+    Status synced = CudaError::to_status(
+        stream == nullptr ? cudaDeviceSynchronize() : cudaStreamSynchronize(stream),
+        "DeepScoreBatch::autokey key_len sync");
+    if (!synced.ok()) {
+        return synced;
+    }
+
+    std::vector<std::uint32_t> unique_lags;
+    unique_lags.reserve(8);
+    for (std::size_t i = 0; i < candidate_count; ++i) {
+        const std::uint32_t L = host_len[i];
+        if (L == 0u) {
+            return Status::error("DeepScoreBatch::autokey key_len must be >= 1");
+        }
+        if (std::find(unique_lags.begin(), unique_lags.end(), L) == unique_lags.end()) {
+            unique_lags.push_back(L);
+        }
+    }
+
+    constexpr int threads = 128;
+    const int blocks =
+        static_cast<int>((candidate_count + static_cast<std::size_t>(threads) - 1u) /
+                         static_cast<std::size_t>(threads));
+
+    for (std::uint32_t lag : unique_lags) {
+        Status lag_ok =
+            LagDiffHistOnce::launch_async(device_in, lag_diff, token_count, lag, stream);
+        if (!lag_ok.ok()) {
+            return lag_ok;
+        }
+        autokey_chi2_ctak_remap_kernel<<<blocks, threads, 0, stream>>>(
+            lag_diff, device_in, device_key_bytes, device_key_begin, device_key_len, device_counts,
+            candidate_count, token_count, lag);
+        Status remap =
+            CudaError::to_status(cudaGetLastError(), "DeepScoreBatch::autokey remap");
+        if (!remap.ok()) {
+            return remap;
+        }
+    }
+
+    return Chi2BatchScore::finalize_async(device_counts, device_probabilities, device_scores,
+                                          candidate_count, token_count, stream);
+}
+
+Status DeepScoreBatch::launch_autokey_chi2_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
+    const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
+    const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+    std::size_t candidate_count, std::size_t token_count) {
+    return launch_autokey_chi2_remap_async(
+        device_in, device_key_bytes, device_key_begin, device_key_len, device_probabilities,
+        device_counts, device_scores, candidate_count, token_count, nullptr);
 }
 
 Status DeepScoreBatch::launch_dynamic_shift_chi2_async(

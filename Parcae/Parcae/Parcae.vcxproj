@@ -201,6 +201,7 @@
     <ClInclude Include="cuda\hist_fast_parity.hpp" />
     <ClInclude Include="cuda\cipher_hist_once.hpp" />
     <ClInclude Include="cuda\column_hist_once.hpp" />
+    <ClInclude Include="cuda\lag_diff_hist_once.hpp" />
     <ClInclude Include="cuda\alphabet_chi2_batch.hpp" />
   </ItemGroup>
   <!-- CUDA twins: x64 only (Toolkit BuildCustomizations required) -->
@@ -229,6 +230,7 @@
     <CudaCompile Include="cuda\hist_fast_parity.cu" />
     <CudaCompile Include="cuda\cipher_hist_once.cu" />
     <CudaCompile Include="cuda\column_hist_once.cu" />
+    <CudaCompile Include="cuda\lag_diff_hist_once.cu" />
     <CudaCompile Include="cuda\alphabet_chi2_batch.cu" />
     <CudaCompile Include="cuda\theory_hist_module.cu" />
     <CudaCompile Include="cuda\theory_hist_chi2_s4.cu" />

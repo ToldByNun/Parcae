@@ -262,6 +262,18 @@ TEST_CASE("HistAlphabetMap lag edge cases L>=T and L==0", "[score][hist_map][aut
         HistAlphabetMap::ctak_plain_hist_from_once(cipher, primer);
     REQUIRE(only_prefix.ok());
     REQUIRE(HistAlphabetMap::hist_total(only_prefix.value()) == cipher.size());
+
+    // CTAK with L > T: prefix over whole stream (first T primer symbols).
+    const std::vector<std::uint8_t> primer_gt = {4, 5, 6, 7, 8};
+    StatusOr<HistAlphabetMap::Hist> prefix_gt =
+        HistAlphabetMap::ctak_plain_hist_from_once(cipher, primer_gt);
+    REQUIRE(prefix_gt.ok());
+    REQUIRE(HistAlphabetMap::hist_total(prefix_gt.value()) == cipher.size());
+    HistAlphabetMap::Hist brute{};
+    for (std::size_t t = 0; t < cipher.size(); ++t) {
+        ++brute[Z29::sub(Index29{cipher[t]}, Index29{primer_gt[t]}).value()];
+    }
+    REQUIRE(prefix_gt.value() == brute);
 }
 
 TEST_CASE("HistAlphabetMap bigram rotate-dot matches brute force",

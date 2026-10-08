@@ -157,11 +157,13 @@ add_executable(parcae_tests
   hist_occupancy_roof_test.cpp
   cipher_hist_once_test.cpp
   column_hist_once_test.cpp
+  lag_diff_hist_once_test.cpp
   alphabet_chi2_batch_test.cpp
   family_atbash_remap_test.cpp
   family_affine_remap_test.cpp
   family_vigenere_remap_test.cpp
   family_beaufort_remap_test.cpp
+  deep_score_ctak_remap_test.cpp
   theory_hist_chi2_s2_residue_test.cpp
   roof_hist_caesar_tile_test.cpp
   shared_cipher_atomic_climb_test.cpp

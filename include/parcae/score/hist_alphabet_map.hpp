@@ -248,19 +248,17 @@ public:
         return hist;
     }
 
-    /// CTAK primer prefix: `t < L`, `out = in[t] - primer[t]`.
+    /// CTAK primer prefix: `t < min(L, T)`, `out = in[t] - primer[t]`.
+    /// When `L > T`, the whole stream is prefix-only (matches dense CTAK decrypt).
     [[nodiscard]] static StatusOr<Hist>
     count_ctak_prefix_hist(std::span<const std::uint8_t> cipher,
                            std::span<const std::uint8_t> primer) {
         if (primer.empty()) {
             return Status::error("HistAlphabetMap::count_ctak_prefix_hist: empty primer");
         }
-        if (primer.size() > cipher.size()) {
-            return Status::error(
-                "HistAlphabetMap::count_ctak_prefix_hist: primer longer than cipher");
-        }
         Hist hist{};
-        for (std::size_t t = 0; t < primer.size(); ++t) {
+        const std::size_t n = cipher.size() < primer.size() ? cipher.size() : primer.size();
+        for (std::size_t t = 0; t < n; ++t) {
             if (cipher[t] >= alphabet || primer[t] >= alphabet) {
                 return Status::error(
                     "HistAlphabetMap::count_ctak_prefix_hist: symbol out of range");
