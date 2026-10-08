@@ -248,6 +248,26 @@ public:
         return hist;
     }
 
+    /// Tail lag-sum hist: `S[b] = |{t ≥ L : (in[t] + in[t-L]) ≡ b}|` (AutokeyRing add form).
+    [[nodiscard]] static StatusOr<Hist> count_lag_sum_hist(std::span<const std::uint8_t> cipher,
+                                                           std::uint32_t lag) {
+        if (lag == 0u) {
+            return Status::error("HistAlphabetMap::count_lag_sum_hist: lag must be >= 1");
+        }
+        Hist hist{};
+        if (static_cast<std::size_t>(lag) >= cipher.size()) {
+            return hist;
+        }
+        for (std::size_t t = static_cast<std::size_t>(lag); t < cipher.size(); ++t) {
+            if (cipher[t] >= alphabet || cipher[t - lag] >= alphabet) {
+                return Status::error("HistAlphabetMap::count_lag_sum_hist: symbol out of range");
+            }
+            const std::uint8_t sum = add_mod(cipher[t], cipher[t - static_cast<std::size_t>(lag)]);
+            ++hist[sum];
+        }
+        return hist;
+    }
+
     /// CTAK primer prefix: `t < min(L, T)`, `out = in[t] - primer[t]`.
     /// When `L > T`, the whole stream is prefix-only (matches dense CTAK decrypt).
     [[nodiscard]] static StatusOr<Hist>
@@ -303,10 +323,17 @@ public:
         return merge_lag_diff_and_prefix(lag.value(), prefix.value());
     }
 
-    /// Full AutokeyRing plaintext hist via lag-diff + key-0 prefix merge.
+    /// Full AutokeyRing hist: lag-diff/sum + key-0 prefix (`lag == 0` → stream hist).
+    /// `cipher_minus_ks == true` → `out = in - key`; else `out = in + key`.
     [[nodiscard]] static StatusOr<Hist>
-    ring_plain_hist_from_once(std::span<const std::uint8_t> cipher, std::uint32_t lag) {
-        StatusOr<Hist> lag_hist = count_lag_diff_hist(cipher, lag);
+    ring_plain_hist_from_once(std::span<const std::uint8_t> cipher, std::uint32_t lag,
+                              bool cipher_minus_ks = true) {
+        if (lag == 0u) {
+            // AutokeyRingDevice::shift(..., 0) is always 0 → identity bins.
+            return count_stream_hist(cipher);
+        }
+        StatusOr<Hist> lag_hist = cipher_minus_ks ? count_lag_diff_hist(cipher, lag)
+                                                  : count_lag_sum_hist(cipher, lag);
         if (!lag_hist.ok()) {
             return lag_hist.status();
         }
@@ -439,6 +466,11 @@ private:
 
     [[nodiscard]] static std::uint8_t sub_mod(std::uint8_t x, std::uint8_t y) noexcept {
         const unsigned s = static_cast<unsigned>(x) + 29u - static_cast<unsigned>(y);
+        return static_cast<std::uint8_t>(s >= 29u ? s - 29u : s);
+    }
+
+    [[nodiscard]] static std::uint8_t add_mod(std::uint8_t x, std::uint8_t y) noexcept {
+        const unsigned s = static_cast<unsigned>(x) + static_cast<unsigned>(y);
         return static_cast<std::uint8_t>(s >= 29u ? s - 29u : s);
     }
 };

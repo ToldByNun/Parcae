@@ -232,15 +232,29 @@ TEST_CASE("HistAlphabetMap ring lag-prefix merge matches AutokeyRing brute hist"
         HistAlphabetMapTestSupport::to_bytes(HistAlphabetMapTestSupport::make_plain(64, 6));
     constexpr std::uint32_t lag = 5;
 
-    HistAlphabetMap::Hist brute{};
+    HistAlphabetMap::Hist brute_minus{};
+    HistAlphabetMap::Hist brute_add{};
     for (std::size_t t = 0; t < cipher.size(); ++t) {
         const std::uint8_t key = t < lag ? 0u : cipher[t - lag];
-        ++brute[Z29::sub(Index29{cipher[t]}, Index29{key}).value()];
+        ++brute_minus[Z29::sub(Index29{cipher[t]}, Index29{key}).value()];
+        ++brute_add[Z29::add(Index29{cipher[t]}, Index29{key}).value()];
     }
 
-    StatusOr<HistAlphabetMap::Hist> once = HistAlphabetMap::ring_plain_hist_from_once(cipher, lag);
-    REQUIRE(once.ok());
-    REQUIRE(once.value() == brute);
+    StatusOr<HistAlphabetMap::Hist> once_minus =
+        HistAlphabetMap::ring_plain_hist_from_once(cipher, lag, /*cipher_minus_ks=*/true);
+    REQUIRE(once_minus.ok());
+    REQUIRE(once_minus.value() == brute_minus);
+
+    StatusOr<HistAlphabetMap::Hist> once_add =
+        HistAlphabetMap::ring_plain_hist_from_once(cipher, lag, /*cipher_minus_ks=*/false);
+    REQUIRE(once_add.ok());
+    REQUIRE(once_add.value() == brute_add);
+
+    // lag == 0 → identity (key always 0).
+    StatusOr<HistAlphabetMap::Hist> once_zero =
+        HistAlphabetMap::ring_plain_hist_from_once(cipher, 0u, true);
+    REQUIRE(once_zero.ok());
+    REQUIRE(once_zero.value() == HistAlphabetMap::count_stream_hist(cipher).value());
 }
 
 TEST_CASE("HistAlphabetMap lag edge cases L>=T and L==0", "[score][hist_map][autokey][edge]") {

@@ -180,13 +180,24 @@ public:
             candidate_count, token_count, max_stack, stream);
     }
 
-    /// S4 AutokeyRing twin (`device_lags` length C).
+    /// S4 AutokeyRing twin (`device_lags` length C) — production remap.
     [[nodiscard]] static Status launch_s4_autokey_async(
         const std::uint8_t* device_in, const std::uint8_t* device_lags,
         const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
         std::size_t candidate_count, std::size_t token_count, bool cipher_minus_ks,
         cudaStream_t stream = nullptr) {
         return TheoryHistChi2S4::launch_autokey_async(
+            device_in, device_lags, device_probabilities, device_counts, device_scores,
+            candidate_count, token_count, cipher_minus_ks, stream);
+    }
+
+    /// S4 AutokeyRing legacy decode→hist.
+    [[nodiscard]] static Status launch_s4_autokey_decode_hist_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_lags,
+        const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+        std::size_t candidate_count, std::size_t token_count, bool cipher_minus_ks,
+        cudaStream_t stream = nullptr) {
+        return TheoryHistChi2S4::launch_autokey_decode_hist_async(
             device_in, device_lags, device_probabilities, device_counts, device_scores,
             candidate_count, token_count, cipher_minus_ks, stream);
     }

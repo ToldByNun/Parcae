@@ -71,6 +71,24 @@ TEST_CASE("LagDiffHistOnce rejects lag 0", "[cuda][hist][lag][edge]") {
     const std::vector<std::uint8_t> cipher = {0, 1, 2};
     std::vector<std::uint32_t> counts(29, 0u);
     REQUIRE_FALSE(LagDiffHistOnce::count_host(cipher, 0u, counts).ok());
+    REQUIRE_FALSE(LagDiffHistOnce::count_sum_host(cipher, 0u, counts).ok());
+}
+
+TEST_CASE("LagDiffHistOnce sum matches HistAlphabetMap count_lag_sum_hist",
+          "[cuda][hist][lag][sum]") {
+    REQUIRE(ParcaeCuda::available());
+
+    const std::vector<std::uint8_t> cipher = {0, 1, 2, 3, 4, 5, 28, 7, 11, 13};
+    constexpr std::uint32_t L = 4;
+    std::vector<std::uint32_t> gpu(LagDiffHistOnce::alphabet, 0u);
+    REQUIRE(LagDiffHistOnce::count_sum_host(cipher, L, gpu).ok());
+    REQUIRE(std::accumulate(gpu.begin(), gpu.end(), 0u) == cipher.size() - L);
+
+    StatusOr<HistAlphabetMap::Hist> cpu = HistAlphabetMap::count_lag_sum_hist(cipher, L);
+    REQUIRE(cpu.ok());
+    for (std::size_t b = 0; b < LagDiffHistOnce::alphabet; ++b) {
+        REQUIRE(gpu[b] == cpu.value()[b]);
+    }
 }
 
 TEST_CASE("LagDiffHistOnce launch_async device path", "[cuda][hist][lag]") {
