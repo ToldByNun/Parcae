@@ -192,6 +192,41 @@ public:
         return plain;
     }
 
+    /// Beaufort hist from column counts: `P[b] = Σ_j Col[j][(key[j] - b) mod 29]`
+    /// (`plain = key - cipher`).
+    [[nodiscard]] static StatusOr<Hist>
+    beaufort_plain_hist_from_columns(std::span<const std::uint32_t> cols, std::uint32_t period,
+                                     std::span<const std::uint8_t> key) {
+        if (period == 0u) {
+            return Status::error("HistAlphabetMap::beaufort_plain_hist_from_columns: period >= 1");
+        }
+        if (key.size() != static_cast<std::size_t>(period)) {
+            return Status::error(
+                "HistAlphabetMap::beaufort_plain_hist_from_columns: key length must equal period");
+        }
+        if (cols.size() != static_cast<std::size_t>(period) * alphabet) {
+            return Status::error(
+                "HistAlphabetMap::beaufort_plain_hist_from_columns: cols size must be L*29");
+        }
+        Hist plain{};
+        for (std::uint32_t j = 0; j < period; ++j) {
+            if (key[j] >= alphabet) {
+                return Status::error(
+                    "HistAlphabetMap::beaufort_plain_hist_from_columns: key symbol out of range");
+            }
+            const unsigned kj = key[j];
+            const std::uint32_t* col = cols.data() + static_cast<std::size_t>(j) * alphabet;
+            for (std::size_t b = 0; b < alphabet; ++b) {
+                unsigned src = kj + 29u - static_cast<unsigned>(b);
+                if (src >= 29u) {
+                    src -= 29u;
+                }
+                plain[b] += col[src];
+            }
+        }
+        return plain;
+    }
+
     /// Tail lag-diff hist: `D[b] = |{t ≥ L : (in[t] - in[t-L]) ≡ b}|`.
     /// `L == 0` is an error. If `L >= T`, returns an all-zero hist.
     [[nodiscard]] static StatusOr<Hist> count_lag_diff_hist(std::span<const std::uint8_t> cipher,

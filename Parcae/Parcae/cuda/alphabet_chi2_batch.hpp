@@ -15,6 +15,8 @@
 /// - Affine decrypt: `P[y] += H[x]` with `y = inv(a)·(x - b)`
 /// - Vigenère decrypt (interrupt-free): column hists +
 ///   `P[b] = Σ_j Col[j][(b + key[j]) mod 29]` (one ColumnHistOnce per unique L)
+/// - Beaufort (interrupt-free): same columns +
+///   `P[b] = Σ_j Col[j][(key[j] - b) mod 29]`
 ///
 /// Scores use the same `Chi2BatchScore::finalize_async` path as decode-hist.
 class AlphabetChi2Batch {
@@ -89,8 +91,25 @@ public:
         std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
         std::size_t token_count);
 
+    /// Interrupt-free Beaufort: unique-L ColumnHistOnce + `key - cipher` remap.
+    [[nodiscard]] static Status launch_beaufort_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
+        const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
+        const double* device_probabilities, std::uint32_t* device_column_scratch,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count, cudaStream_t stream = nullptr);
+
+    [[nodiscard]] static Status launch_beaufort(
+        const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
+        const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
+        const double* device_probabilities, std::uint32_t* device_column_scratch,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count);
+
 private:
     AlphabetChi2Batch() = delete;
+
+    enum class PeriodicColumnKind : std::uint8_t { Vigenere, Beaufort };
 
     [[nodiscard]] static Status validate_common(std::size_t candidate_count, std::size_t token_count,
                                                 const std::uint8_t* device_in,
@@ -106,6 +125,13 @@ private:
                                                     std::size_t token_count, cudaStream_t stream);
 
     [[nodiscard]] static Status ensure_column_scratch(std::uint32_t** out_cols);
+
+    [[nodiscard]] static Status launch_periodic_column_remap_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
+        const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
+        const double* device_probabilities, std::uint32_t* device_column_scratch,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count, PeriodicColumnKind kind, cudaStream_t stream);
 };
 
 #endif // ALPHABET_CHI2_BATCH_HPP
