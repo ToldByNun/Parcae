@@ -362,7 +362,10 @@ public:
         return hist;
     }
 
-    /// `score = -Σ B[x0][x1] · ll[(x0-s)%29][(x1-s)%29]` with fixed `x0,x1` order 0..28.
+    /// Canonical Caesar bigram-LL score from once-counts (remap contract):
+    /// `score = -Σ_{x0=0..28} Σ_{x1=0..28} B[x0,x1] · ll[(x0−s) mod 29][(x1−s) mod 29]`.
+    /// Fixed double-loop order is the production score order (not stream/tile order).
+    /// `T < 2` / empty `B` → `0`. Shift must be in `0..28`.
     [[nodiscard]] static StatusOr<double>
     bigram_ll_dot_rotated(const BigramHist& cipher_bigrams, std::span<const float> log_bigram_ll,
                           std::uint8_t shift) {

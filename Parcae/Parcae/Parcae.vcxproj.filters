@@ -134,6 +134,9 @@
     <ClInclude Include="cuda\lag_diff_hist_once.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\bigram_count_once.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
     <ClInclude Include="cuda\alphabet_chi2_batch.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
@@ -212,6 +215,9 @@
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\lag_diff_hist_once.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\bigram_count_once.cu">
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\alphabet_chi2_batch.cu">

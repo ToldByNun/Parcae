@@ -1,4 +1,5 @@
 #include "autokey_ctak_device.hpp"
+#include "bigram_count_once.hpp"
 #include "chi2_batch_score.hpp"
 #include "cuda_error.hpp"
 #include "deep_score_batch.hpp"
@@ -11,6 +12,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <vector>
+
+static_assert(DeepScoreBatch::kBigramBins == BigramCountOnce::bins,
+              "DeepScoreBatch bigram bins must match BigramCountOnce");
 
 int DeepScoreBatch::tiles_for(std::size_t token_count) {
     return HistFast::tiles_for(token_count);
@@ -411,13 +415,70 @@ Status DeepScoreBatch::launch_dynamic_shift_chi2_async(
                                           candidate_count, token_count);
 }
 
-Status DeepScoreBatch::launch_caesar_bigram_ll_async(
+/// Canonical remap: `score = -Σ_{x0,x1} B[x0,x1] · ll[(x0−s)%29][(x1−s)%29]`.
+__global__ void caesar_bigram_ll_remap_kernel(const std::uint32_t* __restrict__ bigrams,
+                                              const std::uint8_t* __restrict__ shifts,
+                                              const float* __restrict__ bigram_ll,
+                                              double* __restrict__ scores,
+                                              std::size_t candidate_count) {
+    const std::size_t c =
+        static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
+        static_cast<std::size_t>(threadIdx.x);
+    if (c >= candidate_count) {
+        return;
+    }
+
+    const unsigned shift = static_cast<unsigned>(__ldg(shifts + c)) % 29u;
+    double acc = 0.0;
+    for (int x0 = 0; x0 < HistFast::alphabet; ++x0) {
+        for (int x1 = 0; x1 < HistFast::alphabet; ++x1) {
+            const std::uint32_t n =
+                __ldg(bigrams + static_cast<std::size_t>(x0) * HistFast::alphabet +
+                                static_cast<std::size_t>(x1));
+            if (n == 0u) {
+                continue;
+            }
+            unsigned y0 = static_cast<unsigned>(x0) + 29u - shift;
+            if (y0 >= 29u) {
+                y0 -= 29u;
+            }
+            unsigned y1 = static_cast<unsigned>(x1) + 29u - shift;
+            if (y1 >= 29u) {
+                y1 -= 29u;
+            }
+            acc += static_cast<double>(n) *
+                   static_cast<double>(__ldg(bigram_ll + y0 * static_cast<unsigned>(HistFast::alphabet) +
+                                             y1));
+        }
+    }
+    scores[c] = -acc;
+}
+
+Status DeepScoreBatch::ensure_bigram_scratch(std::uint32_t** out_bigrams) {
+    // Process-lifetime scratch (841 bins). Not safe for overlapping concurrent
+    // bigram-LL remaps on this device.
+    static std::uint32_t* device_bigrams = nullptr;
+    if (device_bigrams == nullptr) {
+        Status allocated = CudaError::to_status(
+            cudaMalloc(reinterpret_cast<void**>(&device_bigrams),
+                       kBigramBins * sizeof(std::uint32_t)),
+            "DeepScoreBatch::bigram scratch");
+        if (!allocated.ok()) {
+            device_bigrams = nullptr;
+            return allocated;
+        }
+    }
+    *out_bigrams = device_bigrams;
+    return Status::success();
+}
+
+Status DeepScoreBatch::launch_caesar_bigram_ll_decode_async(
     const std::uint8_t* device_in, const std::uint8_t* device_shifts, const float* device_bigram_ll,
     double* device_scores, std::size_t candidate_count, std::size_t token_count) {
     if (candidate_count == 0 || candidate_count > kMaxCandidates || token_count == 0 ||
         token_count > kMaxTokens || device_in == nullptr || device_shifts == nullptr ||
         device_bigram_ll == nullptr || device_scores == nullptr) {
-        return Status::error("DeepScoreBatch::bigram_ll bad args");
+        return Status::error("DeepScoreBatch::bigram_ll decode bad args");
     }
     Status zeroed = zero_scores(device_scores, candidate_count);
     if (!zeroed.ok()) {
@@ -427,7 +488,46 @@ Status DeepScoreBatch::launch_caesar_bigram_ll_async(
                     static_cast<unsigned>(tiles_for(token_count)));
     caesar_bigram_ll_kernel<<<grid, HistFast::threads>>>(device_in, device_shifts, device_bigram_ll,
                                                          device_scores, token_count);
-    return CudaError::to_status(cudaGetLastError(), "DeepScoreBatch::bigram_ll");
+    return CudaError::to_status(cudaGetLastError(), "DeepScoreBatch::bigram_ll decode");
+}
+
+Status DeepScoreBatch::launch_caesar_bigram_ll_remap_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_shifts, const float* device_bigram_ll,
+    double* device_scores, std::size_t candidate_count, std::size_t token_count,
+    cudaStream_t stream) {
+    if (candidate_count == 0 || candidate_count > kMaxCandidates || token_count == 0 ||
+        token_count > kMaxTokens || device_in == nullptr || device_shifts == nullptr ||
+        device_bigram_ll == nullptr || device_scores == nullptr) {
+        return Status::error("DeepScoreBatch::bigram_ll remap bad args");
+    }
+
+    std::uint32_t* bigrams = nullptr;
+    Status scratch = ensure_bigram_scratch(&bigrams);
+    if (!scratch.ok()) {
+        return scratch;
+    }
+
+    Status counted =
+        BigramCountOnce::launch_async(device_in, bigrams, token_count, stream);
+    if (!counted.ok()) {
+        return counted;
+    }
+
+    constexpr int threads = 128;
+    const int blocks =
+        static_cast<int>((candidate_count + static_cast<std::size_t>(threads) - 1u) /
+                         static_cast<std::size_t>(threads));
+    caesar_bigram_ll_remap_kernel<<<blocks, threads, 0, stream>>>(
+        bigrams, device_shifts, device_bigram_ll, device_scores, candidate_count);
+    return CudaError::to_status(cudaGetLastError(), "DeepScoreBatch::bigram_ll remap");
+}
+
+Status DeepScoreBatch::launch_caesar_bigram_ll_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_shifts, const float* device_bigram_ll,
+    double* device_scores, std::size_t candidate_count, std::size_t token_count) {
+    return launch_caesar_bigram_ll_remap_async(device_in, device_shifts, device_bigram_ll,
+                                               device_scores, candidate_count, token_count,
+                                               nullptr);
 }
 
 Status DeepScoreBatch::launch_caesar_ngram_dict_async(

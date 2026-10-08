@@ -164,6 +164,8 @@ add_executable(parcae_tests
   family_vigenere_remap_test.cpp
   family_beaufort_remap_test.cpp
   deep_score_ctak_remap_test.cpp
+  bigram_count_once_test.cpp
+  deep_score_bigram_ll_remap_test.cpp
   theory_hist_chi2_s4_remap_test.cpp
   theory_hist_chi2_s2_residue_test.cpp
   roof_hist_caesar_tile_test.cpp
