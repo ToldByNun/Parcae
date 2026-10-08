@@ -1,5 +1,6 @@
 #include "theory_hist_chi2_shape.hpp"
 
+#include "alphabet_chi2_batch.hpp"
 #include "chi2_batch_score.hpp"
 #include "cuda_error.hpp"
 #include "hist_fast.hpp"
@@ -119,15 +120,31 @@ int TheoryHistChi2Shape::tiles_for(std::size_t token_count) {
     return HistFast::tiles_for(token_count);
 }
 
-Status TheoryHistChi2Shape::launch_atbash_async(const std::uint8_t* device_in,
-                                                const double* device_probabilities,
-                                                std::uint32_t* device_counts,
-                                                double* device_scores,
-                                                std::size_t candidate_count,
-                                                std::size_t token_count, cudaStream_t stream) {
+Status TheoryHistChi2Shape::ensure_cipher_hist_scratch(std::uint32_t** out_hist) {
+    // Process-lifetime scratch (29 bins). Not safe for overlapping concurrent
+    // ShapeInline remaps on this device.
+    static std::uint32_t* device_cipher_hist = nullptr;
+    if (device_cipher_hist == nullptr) {
+        Status allocated = CudaError::to_status(
+            cudaMalloc(reinterpret_cast<void**>(&device_cipher_hist),
+                       alphabet_size * sizeof(std::uint32_t)),
+            "TheoryHistChi2Shape::cipher hist scratch");
+        if (!allocated.ok()) {
+            device_cipher_hist = nullptr;
+            return allocated;
+        }
+    }
+    *out_hist = device_cipher_hist;
+    return Status::success();
+}
+
+Status TheoryHistChi2Shape::launch_atbash_decode_hist_async(
+    const std::uint8_t* device_in, const double* device_probabilities,
+    std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+    std::size_t token_count, cudaStream_t stream) {
     if (device_in == nullptr || device_probabilities == nullptr || device_counts == nullptr ||
         device_scores == nullptr) {
-        return Status::error("TheoryHistChi2Shape::launch_atbash_async null");
+        return Status::error("TheoryHistChi2Shape::launch_atbash_decode_hist_async null");
     }
     if (candidate_count == 0 || candidate_count > kMaxCandidates) {
         return Status::error("TheoryHistChi2Shape: bad C");
@@ -157,16 +174,40 @@ Status TheoryHistChi2Shape::launch_atbash_async(const std::uint8_t* device_in,
                                           candidate_count, token_count, stream);
 }
 
-Status TheoryHistChi2Shape::launch_caesar_async(const std::uint8_t* device_in,
-                                                const std::uint8_t* device_shifts,
+Status TheoryHistChi2Shape::launch_atbash_async(const std::uint8_t* device_in,
                                                 const double* device_probabilities,
                                                 std::uint32_t* device_counts,
                                                 double* device_scores,
                                                 std::size_t candidate_count,
                                                 std::size_t token_count, cudaStream_t stream) {
+    if (device_in == nullptr || device_probabilities == nullptr || device_counts == nullptr ||
+        device_scores == nullptr) {
+        return Status::error("TheoryHistChi2Shape::launch_atbash_async null");
+    }
+    if (candidate_count == 0 || candidate_count > kMaxCandidates) {
+        return Status::error("TheoryHistChi2Shape: bad C");
+    }
+    if (token_count == 0 || token_count > kMaxTokens) {
+        return Status::error("TheoryHistChi2Shape: bad T");
+    }
+
+    std::uint32_t* device_cipher_hist = nullptr;
+    Status scratch = ensure_cipher_hist_scratch(&device_cipher_hist);
+    if (!scratch.ok()) {
+        return scratch;
+    }
+    return AlphabetChi2Batch::launch_atbash_async(device_in, device_probabilities,
+                                                  device_cipher_hist, device_counts, device_scores,
+                                                  candidate_count, token_count, stream);
+}
+
+Status TheoryHistChi2Shape::launch_caesar_decode_hist_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_shifts,
+    const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+    std::size_t candidate_count, std::size_t token_count, cudaStream_t stream) {
     if (device_in == nullptr || device_shifts == nullptr || device_probabilities == nullptr ||
         device_counts == nullptr || device_scores == nullptr) {
-        return Status::error("TheoryHistChi2Shape::launch_caesar_async null");
+        return Status::error("TheoryHistChi2Shape::launch_caesar_decode_hist_async null");
     }
     if (candidate_count == 0 || candidate_count > kMaxCandidates) {
         return Status::error("TheoryHistChi2Shape: bad C");
@@ -195,17 +236,41 @@ Status TheoryHistChi2Shape::launch_caesar_async(const std::uint8_t* device_in,
                                           candidate_count, token_count, stream);
 }
 
-Status TheoryHistChi2Shape::launch_affine_async(const std::uint8_t* device_in,
-                                                const std::uint8_t* device_a,
-                                                const std::uint8_t* device_b,
+Status TheoryHistChi2Shape::launch_caesar_async(const std::uint8_t* device_in,
+                                                const std::uint8_t* device_shifts,
                                                 const double* device_probabilities,
                                                 std::uint32_t* device_counts,
                                                 double* device_scores,
                                                 std::size_t candidate_count,
                                                 std::size_t token_count, cudaStream_t stream) {
+    if (device_in == nullptr || device_shifts == nullptr || device_probabilities == nullptr ||
+        device_counts == nullptr || device_scores == nullptr) {
+        return Status::error("TheoryHistChi2Shape::launch_caesar_async null");
+    }
+    if (candidate_count == 0 || candidate_count > kMaxCandidates) {
+        return Status::error("TheoryHistChi2Shape: bad C");
+    }
+    if (token_count == 0 || token_count > kMaxTokens) {
+        return Status::error("TheoryHistChi2Shape: bad T");
+    }
+
+    std::uint32_t* device_cipher_hist = nullptr;
+    Status scratch = ensure_cipher_hist_scratch(&device_cipher_hist);
+    if (!scratch.ok()) {
+        return scratch;
+    }
+    return AlphabetChi2Batch::launch_caesar_decrypt_async(
+        device_in, device_shifts, device_probabilities, device_cipher_hist, device_counts,
+        device_scores, candidate_count, token_count, stream);
+}
+
+Status TheoryHistChi2Shape::launch_affine_decode_hist_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_a, const std::uint8_t* device_b,
+    const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+    std::size_t candidate_count, std::size_t token_count, cudaStream_t stream) {
     if (device_in == nullptr || device_a == nullptr || device_b == nullptr ||
         device_probabilities == nullptr || device_counts == nullptr || device_scores == nullptr) {
-        return Status::error("TheoryHistChi2Shape::launch_affine_async null");
+        return Status::error("TheoryHistChi2Shape::launch_affine_decode_hist_async null");
     }
     if (candidate_count == 0 || candidate_count > kMaxCandidates) {
         return Status::error("TheoryHistChi2Shape: bad C");
@@ -232,4 +297,33 @@ Status TheoryHistChi2Shape::launch_affine_async(const std::uint8_t* device_in,
     }
     return Chi2BatchScore::finalize_async(device_counts, device_probabilities, device_scores,
                                           candidate_count, token_count, stream);
+}
+
+Status TheoryHistChi2Shape::launch_affine_async(const std::uint8_t* device_in,
+                                                const std::uint8_t* device_a,
+                                                const std::uint8_t* device_b,
+                                                const double* device_probabilities,
+                                                std::uint32_t* device_counts,
+                                                double* device_scores,
+                                                std::size_t candidate_count,
+                                                std::size_t token_count, cudaStream_t stream) {
+    if (device_in == nullptr || device_a == nullptr || device_b == nullptr ||
+        device_probabilities == nullptr || device_counts == nullptr || device_scores == nullptr) {
+        return Status::error("TheoryHistChi2Shape::launch_affine_async null");
+    }
+    if (candidate_count == 0 || candidate_count > kMaxCandidates) {
+        return Status::error("TheoryHistChi2Shape: bad C");
+    }
+    if (token_count == 0 || token_count > kMaxTokens) {
+        return Status::error("TheoryHistChi2Shape: bad T");
+    }
+
+    std::uint32_t* device_cipher_hist = nullptr;
+    Status scratch = ensure_cipher_hist_scratch(&device_cipher_hist);
+    if (!scratch.ok()) {
+        return scratch;
+    }
+    return AlphabetChi2Batch::launch_affine_decrypt_async(
+        device_in, device_a, device_b, device_probabilities, device_cipher_hist, device_counts,
+        device_scores, candidate_count, token_count, stream);
 }

@@ -1,5 +1,6 @@
 #include "theory_hist_chi2_s1.hpp"
 
+#include "alphabet_chi2_batch.hpp"
 #include "chi2_batch_score.hpp"
 #include "cuda_error.hpp"
 #include "hist_fast.hpp"
@@ -113,6 +114,24 @@ int TheoryHistChi2S1::tiles_for(std::size_t token_count) {
     return HistFast::tiles_for(token_count);
 }
 
+Status TheoryHistChi2S1::ensure_cipher_hist_scratch(std::uint32_t** out_hist) {
+    // Process-lifetime scratch (29 bins). Not safe for overlapping concurrent
+    // S1 remaps on this device.
+    static std::uint32_t* device_cipher_hist = nullptr;
+    if (device_cipher_hist == nullptr) {
+        Status allocated = CudaError::to_status(
+            cudaMalloc(reinterpret_cast<void**>(&device_cipher_hist),
+                       alphabet_size * sizeof(std::uint32_t)),
+            "TheoryHistChi2S1::cipher hist scratch");
+        if (!allocated.ok()) {
+            device_cipher_hist = nullptr;
+            return allocated;
+        }
+    }
+    *out_hist = device_cipher_hist;
+    return Status::success();
+}
+
 Status TheoryHistChi2S1::launch_bake_async(const std::uint8_t* device_ops,
                                            const std::uint8_t* device_imm, std::uint32_t op_count,
                                            const std::uint8_t* device_slots,
@@ -152,6 +171,41 @@ Status TheoryHistChi2S1::launch_bake_async(const std::uint8_t* device_ops,
     return CudaError::to_status(cudaGetLastError(), "TheoryHistChi2S1::bake");
 }
 
+Status TheoryHistChi2S1::launch_lut_decode_hist_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_luts,
+    const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+    std::size_t candidate_count, std::size_t token_count, cudaStream_t stream) {
+    if (device_in == nullptr || device_luts == nullptr || device_probabilities == nullptr ||
+        device_counts == nullptr || device_scores == nullptr) {
+        return Status::error("TheoryHistChi2S1::launch_lut_decode_hist_async null");
+    }
+    if (candidate_count == 0 || candidate_count > kMaxCandidates) {
+        return Status::error("TheoryHistChi2S1: bad C");
+    }
+    if (token_count == 0 || token_count > kMaxTokens) {
+        return Status::error("TheoryHistChi2S1: bad T");
+    }
+
+    const std::size_t hist_bytes = candidate_count * alphabet_size * sizeof(std::uint32_t);
+    Status cleared =
+        CudaError::to_status(cudaMemsetAsync(device_counts, 0, hist_bytes, stream),
+                             "TheoryHistChi2S1::decode clear counts");
+    if (!cleared.ok()) {
+        return cleared;
+    }
+
+    const dim3 grid(static_cast<unsigned>(candidate_count),
+                    static_cast<unsigned>(tiles_for(token_count)));
+    theory_hist_chi2_s1_lut_kernel<<<grid, HistFast::threads, 0, stream>>>(
+        device_in, device_luts, device_counts, token_count);
+    Status hist = CudaError::to_status(cudaGetLastError(), "TheoryHistChi2S1::decode hist");
+    if (!hist.ok()) {
+        return hist;
+    }
+    return Chi2BatchScore::finalize_async(device_counts, device_probabilities, device_scores,
+                                          candidate_count, token_count, stream);
+}
+
 Status TheoryHistChi2S1::launch_lut_async(const std::uint8_t* device_in,
                                           const std::uint8_t* device_luts,
                                           const double* device_probabilities,
@@ -169,24 +223,14 @@ Status TheoryHistChi2S1::launch_lut_async(const std::uint8_t* device_in,
         return Status::error("TheoryHistChi2S1: bad T");
     }
 
-    const std::size_t hist_bytes = candidate_count * alphabet_size * sizeof(std::uint32_t);
-    Status cleared =
-        CudaError::to_status(cudaMemsetAsync(device_counts, 0, hist_bytes, stream),
-                             "TheoryHistChi2S1::clear counts");
-    if (!cleared.ok()) {
-        return cleared;
+    std::uint32_t* device_cipher_hist = nullptr;
+    Status scratch = ensure_cipher_hist_scratch(&device_cipher_hist);
+    if (!scratch.ok()) {
+        return scratch;
     }
-
-    const dim3 grid(static_cast<unsigned>(candidate_count),
-                    static_cast<unsigned>(tiles_for(token_count)));
-    theory_hist_chi2_s1_lut_kernel<<<grid, HistFast::threads, 0, stream>>>(
-        device_in, device_luts, device_counts, token_count);
-    Status hist = CudaError::to_status(cudaGetLastError(), "TheoryHistChi2S1::hist");
-    if (!hist.ok()) {
-        return hist;
-    }
-    return Chi2BatchScore::finalize_async(device_counts, device_probabilities, device_scores,
-                                          candidate_count, token_count, stream);
+    return AlphabetChi2Batch::launch_lut_decrypt_async(
+        device_in, device_luts, device_probabilities, device_cipher_hist, device_counts,
+        device_scores, candidate_count, token_count, stream);
 }
 
 Status TheoryHistChi2S1::patch_inf_async(const std::uint8_t* device_lane_err,

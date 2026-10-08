@@ -17,6 +17,7 @@
 ///   `P[b] = Σ_j Col[j][(b + key[j]) mod 29]` (one ColumnHistOnce per unique L)
 /// - Beaufort (interrupt-free): same columns +
 ///   `P[b] = Σ_j Col[j][(key[j] - b) mod 29]`
+/// - LUT-29 decrypt: `P[lut[x]] += H[x]` (row-major `C × 29`)
 ///
 /// Scores use the same `Chi2BatchScore::finalize_async` path as decode-hist.
 class AlphabetChi2Batch {
@@ -103,6 +104,20 @@ public:
         const std::uint8_t* device_in, const std::uint8_t* device_key_bytes,
         const std::uint32_t* device_key_begin, const std::uint32_t* device_key_len,
         const double* device_probabilities, std::uint32_t* device_column_scratch,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count);
+
+    /// Per-candidate LUT-29 decrypt remap: `device_luts` row-major `C × 29`,
+    /// `lut[c*29 + x] = decrypt(x)`. Uses `P[lut[x]] += H[x]`.
+    [[nodiscard]] static Status launch_lut_decrypt_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_luts,
+        const double* device_probabilities, std::uint32_t* device_cipher_hist,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count, cudaStream_t stream = nullptr);
+
+    [[nodiscard]] static Status launch_lut_decrypt(
+        const std::uint8_t* device_in, const std::uint8_t* device_luts,
+        const double* device_probabilities, std::uint32_t* device_cipher_hist,
         std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
         std::size_t token_count);
 

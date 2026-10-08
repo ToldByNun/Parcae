@@ -7,36 +7,53 @@
 #include <cstdint>
 #include <cuda_runtime_api.h>
 
-/// ShapeInline fused χ² hist twins for algebraic ShapeIds
-/// (`docs/architecture/dsl-smart-hist.md`).
+/// ShapeInline fused χ² for algebraic ShapeIds (`docs/architecture/dsl-smart-hist.md`).
 ///
-/// - Atbash: `HistFast::dec_atbash` (param-free)
-/// - Caesar: `HistFast::dec_caesar` with per-candidate shifts
-/// - Affine decrypt: `inv(a)·(x−b)` via `Z29Device` (host must reject `a==0`)
+/// **Production:** alphabet remap after one ciphertext hist (`AlphabetChi2Batch`):
+/// - Atbash: `P[b] = H[28 - b]`
+/// - Caesar: `P[b] = H[(b + shift) mod 29]`
+/// - Affine decrypt: `P[inv(a)·(x−b)] = H[x]` (host must reject `a==0`)
 ///
-/// Finalize via `Chi2BatchScore`. No C++ namespaces.
+/// Legacy decode→hist remains via `launch_*_decode_hist_async`. Finalize via
+/// `Chi2BatchScore`. No C++ namespaces.
 class TheoryHistChi2Shape {
 public:
     static constexpr std::size_t alphabet_size = 29;
     static constexpr std::size_t kMaxCandidates = 16384;
     static constexpr std::size_t kMaxTokens = 1u << 22;
 
-    /// Atbash shape twin: `out = 28 - x` per token (uchar4 + fat-tile).
+    /// Production Atbash: alphabet mirror remap.
     [[nodiscard]] static Status
     launch_atbash_async(const std::uint8_t* device_in, const double* device_probabilities,
                         std::uint32_t* device_counts, double* device_scores,
                         std::size_t candidate_count, std::size_t token_count,
                         cudaStream_t stream = nullptr);
 
-    /// Caesar shape twin. `device_shifts` length `candidate_count`.
+    /// Legacy Atbash decode→hist (`HistTileCap::kAtbash`).
+    [[nodiscard]] static Status
+    launch_atbash_decode_hist_async(const std::uint8_t* device_in,
+                                    const double* device_probabilities,
+                                    std::uint32_t* device_counts, double* device_scores,
+                                    std::size_t candidate_count, std::size_t token_count,
+                                    cudaStream_t stream = nullptr);
+
+    /// Production Caesar: alphabet rotate remap. `device_shifts` length C.
     [[nodiscard]] static Status
     launch_caesar_async(const std::uint8_t* device_in, const std::uint8_t* device_shifts,
                         const double* device_probabilities, std::uint32_t* device_counts,
                         double* device_scores, std::size_t candidate_count,
                         std::size_t token_count, cudaStream_t stream = nullptr);
 
-    /// Affine decrypt twin: LUT `inv(a)·(x−b)`. Caller must ensure every `a` is
-    /// invertible (≠0 in ℤ₂₉); otherwise soft-fallback to S0 before launch.
+    /// Legacy Caesar decode→hist.
+    [[nodiscard]] static Status
+    launch_caesar_decode_hist_async(const std::uint8_t* device_in,
+                                    const std::uint8_t* device_shifts,
+                                    const double* device_probabilities,
+                                    std::uint32_t* device_counts, double* device_scores,
+                                    std::size_t candidate_count, std::size_t token_count,
+                                    cudaStream_t stream = nullptr);
+
+    /// Production Affine decrypt remap. Caller must ensure every `a` is invertible.
     [[nodiscard]] static Status
     launch_affine_async(const std::uint8_t* device_in, const std::uint8_t* device_a,
                         const std::uint8_t* device_b, const double* device_probabilities,
@@ -44,10 +61,21 @@ public:
                         std::size_t candidate_count, std::size_t token_count,
                         cudaStream_t stream = nullptr);
 
+    /// Legacy Affine decrypt decode→hist.
+    [[nodiscard]] static Status
+    launch_affine_decode_hist_async(const std::uint8_t* device_in, const std::uint8_t* device_a,
+                                    const std::uint8_t* device_b,
+                                    const double* device_probabilities,
+                                    std::uint32_t* device_counts, double* device_scores,
+                                    std::size_t candidate_count, std::size_t token_count,
+                                    cudaStream_t stream = nullptr);
+
 private:
     TheoryHistChi2Shape() = delete;
 
     [[nodiscard]] static int tiles_for(std::size_t token_count);
+
+    [[nodiscard]] static Status ensure_cipher_hist_scratch(std::uint32_t** out_hist);
 };
 
 #endif // THEORY_HIST_CHI2_SHAPE_HPP

@@ -94,7 +94,7 @@ public:
                             token_count, stream);
     }
 
-    /// ShapeInline Atbash twin (`HistFast::dec_atbash`). Param-free rows.
+    /// ShapeInline Atbash — production alphabet mirror remap.
     [[nodiscard]] static Status
     launch_shape_atbash_async(const std::uint8_t* device_in, const double* device_probabilities,
                               std::uint32_t* device_counts, double* device_scores,
@@ -105,7 +105,17 @@ public:
                                                         candidate_count, token_count, stream);
     }
 
-    /// ShapeInline Caesar twin (`HistFast::dec_caesar`). `device_shifts` length C.
+    /// ShapeInline Atbash legacy decode→hist.
+    [[nodiscard]] static Status launch_shape_atbash_decode_hist_async(
+        const std::uint8_t* device_in, const double* device_probabilities,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count, cudaStream_t stream = nullptr) {
+        return TheoryHistChi2Shape::launch_atbash_decode_hist_async(
+            device_in, device_probabilities, device_counts, device_scores, candidate_count,
+            token_count, stream);
+    }
+
+    /// ShapeInline Caesar — production alphabet rotate remap. `device_shifts` length C.
     [[nodiscard]] static Status
     launch_shape_caesar_async(const std::uint8_t* device_in, const std::uint8_t* device_shifts,
                               const double* device_probabilities, std::uint32_t* device_counts,
@@ -116,7 +126,17 @@ public:
             candidate_count, token_count, stream);
     }
 
-    /// ShapeInline Affine decrypt twin (`inv(a)·(x−b)`). Host must reject a==0.
+    /// ShapeInline Caesar legacy decode→hist.
+    [[nodiscard]] static Status launch_shape_caesar_decode_hist_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_shifts,
+        const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+        std::size_t candidate_count, std::size_t token_count, cudaStream_t stream = nullptr) {
+        return TheoryHistChi2Shape::launch_caesar_decode_hist_async(
+            device_in, device_shifts, device_probabilities, device_counts, device_scores,
+            candidate_count, token_count, stream);
+    }
+
+    /// ShapeInline Affine decrypt — production remap. Host must reject a==0.
     [[nodiscard]] static Status
     launch_shape_affine_async(const std::uint8_t* device_in, const std::uint8_t* device_a,
                               const std::uint8_t* device_b, const double* device_probabilities,
@@ -128,7 +148,17 @@ public:
             candidate_count, token_count, stream);
     }
 
-    /// S1 LUT-29 twin. `device_luts` is row-major `C × 29` (pre-baked).
+    /// ShapeInline Affine decrypt legacy decode→hist.
+    [[nodiscard]] static Status launch_shape_affine_decode_hist_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_a, const std::uint8_t* device_b,
+        const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+        std::size_t candidate_count, std::size_t token_count, cudaStream_t stream = nullptr) {
+        return TheoryHistChi2Shape::launch_affine_decode_hist_async(
+            device_in, device_a, device_b, device_probabilities, device_counts, device_scores,
+            candidate_count, token_count, stream);
+    }
+
+    /// S1 LUT-29 twin — production remap. `device_luts` row-major `C × 29`.
     [[nodiscard]] static Status
     launch_s1_lut_async(const std::uint8_t* device_in, const std::uint8_t* device_luts,
                         const double* device_probabilities, std::uint32_t* device_counts,
@@ -137,6 +167,16 @@ public:
         return TheoryHistChi2S1::launch_lut_async(device_in, device_luts, device_probabilities,
                                                   device_counts, device_scores, candidate_count,
                                                   token_count, stream);
+    }
+
+    /// S1 LUT-29 legacy decode→hist.
+    [[nodiscard]] static Status launch_s1_lut_decode_hist_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_luts,
+        const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+        std::size_t candidate_count, std::size_t token_count, cudaStream_t stream = nullptr) {
+        return TheoryHistChi2S1::launch_lut_decode_hist_async(
+            device_in, device_luts, device_probabilities, device_counts, device_scores,
+            candidate_count, token_count, stream);
     }
 
     /// Residual FxOnly: device-bake LUTs from slots into `device_luts`, then hist.

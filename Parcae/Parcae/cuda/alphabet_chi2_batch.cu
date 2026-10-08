@@ -109,6 +109,34 @@ __global__ void alphabet_chi2_affine_decrypt_remap_kernel(
     }
 }
 
+/// Per-candidate LUT-29 decrypt: `P[lut[x]] += H[x]` (non-bijective safe).
+__global__ void alphabet_chi2_lut_decrypt_remap_kernel(
+    const std::uint32_t* __restrict__ cipher_hist, const std::uint8_t* __restrict__ luts,
+    std::uint32_t* __restrict__ counts, std::size_t candidate_count) {
+    const std::size_t c =
+        static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
+        static_cast<std::size_t>(threadIdx.x);
+    if (c >= candidate_count) {
+        return;
+    }
+
+    const std::uint8_t* __restrict__ row_lut =
+        luts + c * static_cast<std::size_t>(HistFast::alphabet);
+    std::uint32_t* __restrict__ row =
+        counts + c * static_cast<std::size_t>(HistFast::alphabet);
+#pragma unroll
+    for (int i = 0; i < HistFast::alphabet; ++i) {
+        row[i] = 0u;
+    }
+#pragma unroll
+    for (int x = 0; x < HistFast::alphabet; ++x) {
+        const std::uint8_t y = __ldg(row_lut + x);
+        if (y < HistFast::alphabet) {
+            row[y] += __ldg(cipher_hist + x);
+        }
+    }
+}
+
 /// Interrupt-free Vigenère remap for one period filter:
 /// `P[b] = Σ_j Col[j][(b + key[j]) mod 29]` when `key_len[c] == period_filter`.
 __global__ void alphabet_chi2_vigenere_remap_kernel(
@@ -575,4 +603,53 @@ Status AlphabetChi2Batch::launch_beaufort(
         return launched;
     }
     return CudaError::to_status(cudaDeviceSynchronize(), "AlphabetChi2Batch::beaufort sync");
+}
+
+Status AlphabetChi2Batch::launch_lut_decrypt_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_luts,
+    const double* device_probabilities, std::uint32_t* device_cipher_hist,
+    std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+    std::size_t token_count, cudaStream_t stream) {
+    Status valid = validate_common(candidate_count, token_count, device_in, device_probabilities,
+                                   device_cipher_hist, device_counts, device_scores);
+    if (!valid.ok()) {
+        return valid;
+    }
+    if (device_luts == nullptr) {
+        return Status::error("AlphabetChi2Batch: null luts");
+    }
+
+    Status hist =
+        CipherHistOnce::launch_async(device_in, device_cipher_hist, token_count, stream);
+    if (!hist.ok()) {
+        return hist;
+    }
+
+    constexpr int threads = 128;
+    const int blocks =
+        static_cast<int>((candidate_count + static_cast<std::size_t>(threads) - 1u) /
+                         static_cast<std::size_t>(threads));
+    alphabet_chi2_lut_decrypt_remap_kernel<<<blocks, threads, 0, stream>>>(
+        device_cipher_hist, device_luts, device_counts, candidate_count);
+    Status remap = CudaError::to_status(cudaGetLastError(), "AlphabetChi2Batch::lut remap");
+    if (!remap.ok()) {
+        return remap;
+    }
+
+    return after_hist_finalize(device_probabilities, device_counts, device_scores, candidate_count,
+                               token_count, stream);
+}
+
+Status AlphabetChi2Batch::launch_lut_decrypt(
+    const std::uint8_t* device_in, const std::uint8_t* device_luts,
+    const double* device_probabilities, std::uint32_t* device_cipher_hist,
+    std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+    std::size_t token_count) {
+    Status launched = launch_lut_decrypt_async(
+        device_in, device_luts, device_probabilities, device_cipher_hist, device_counts,
+        device_scores, candidate_count, token_count, nullptr);
+    if (!launched.ok()) {
+        return launched;
+    }
+    return CudaError::to_status(cudaDeviceSynchronize(), "AlphabetChi2Batch::lut sync");
 }

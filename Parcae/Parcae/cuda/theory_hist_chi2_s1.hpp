@@ -10,15 +10,18 @@
 /// S1 LUT-29 fused χ² hist for residual FxOnly decrypt (`f(x; params)`).
 ///
 /// Hot export path: device-bake LUTs from bytecode + bound slots into scratch
-/// (`launch_bake_async`), then hist (`launch_lut_async`). When the program and
-/// bound slots are unchanged, export skips the bake and reuses the resident
-/// LUT (`TheoryDeviceScratch::s1_lut_resident`). Fair `T.theory.s1_lut29`
-/// bakes once outside `BenchTimer` so the gate is hist+finalize, same as Caesar.
+/// (`launch_bake_async`), then hist. When the program and bound slots are
+/// unchanged, export skips the bake and reuses the resident LUT
+/// (`TheoryDeviceScratch::s1_lut_resident`). Fair `T.theory.s1_lut29` bakes
+/// once outside `BenchTimer` so the gate is hist+finalize, same as Caesar.
 /// Domain errors set `device_lane_err[c]=1`; `patch_inf_async` after finalize
 /// patches those scores to +inf. No per-chunk host `eval_at × 29 × C`.
 ///
+/// **Production hist:** alphabet remap `P[lut[x]] += H[x]` after one
+/// ciphertext hist (`AlphabetChi2Batch::launch_lut_decrypt_async`).
+/// Legacy decode→hist remains via `launch_lut_decode_hist_async`.
+///
 /// `device_luts` is row-major `C × 29`: `lut[c*29 + x] = decrypt(x; params_c)`.
-/// Hist is uchar4 via shared LUT + fat-tile (`HistFast::production_tile_cap`).
 /// Finalize via `Chi2BatchScore`. No C++ namespaces.
 class TheoryHistChi2S1 {
 public:
@@ -41,11 +44,19 @@ public:
                       std::uint8_t* device_lane_err, std::size_t candidate_count,
                       cudaStream_t stream = nullptr);
 
+    /// Production: CipherHistOnce + LUT bin remap.
     [[nodiscard]] static Status
     launch_lut_async(const std::uint8_t* device_in, const std::uint8_t* device_luts,
                      const double* device_probabilities, std::uint32_t* device_counts,
                      double* device_scores, std::size_t candidate_count, std::size_t token_count,
                      cudaStream_t stream = nullptr);
+
+    /// Legacy LUT decode→hist (shared LUT + fat-tile).
+    [[nodiscard]] static Status
+    launch_lut_decode_hist_async(const std::uint8_t* device_in, const std::uint8_t* device_luts,
+                                 const double* device_probabilities, std::uint32_t* device_counts,
+                                 double* device_scores, std::size_t candidate_count,
+                                 std::size_t token_count, cudaStream_t stream = nullptr);
 
     /// Patch `device_scores[c] = +inf` where `device_lane_err[c] != 0`.
     [[nodiscard]] static Status patch_inf_async(const std::uint8_t* device_lane_err,
@@ -66,6 +77,8 @@ private:
     TheoryHistChi2S1() = delete;
 
     [[nodiscard]] static int tiles_for(std::size_t token_count);
+
+    [[nodiscard]] static Status ensure_cipher_hist_scratch(std::uint32_t** out_hist);
 };
 
 #endif // THEORY_HIST_CHI2_S1_HPP
