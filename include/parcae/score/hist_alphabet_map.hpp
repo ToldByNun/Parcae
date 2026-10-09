@@ -192,6 +192,121 @@ public:
         return plain;
     }
 
+    /// Period-29 additive keystream hist (S2/S5 class):
+    /// - `cipher_minus_ks` → `P[b] = Σ_j Col[j][(b + key[j]) mod 29]` (`out = in − ks`)
+    /// - else → `P[b] = Σ_j Col[j][(b − key[j]) mod 29]` (`out = in + ks`)
+    /// `cols` must be `period * 29` with `period == key.size()`.
+    [[nodiscard]] static StatusOr<Hist>
+    keystream_plain_hist_from_columns(std::span<const std::uint32_t> cols, std::uint32_t period,
+                                      std::span<const std::uint8_t> key, bool cipher_minus_ks) {
+        if (cipher_minus_ks) {
+            return vigenere_plain_hist_from_columns(cols, period, key);
+        }
+        if (period == 0u) {
+            return Status::error("HistAlphabetMap::keystream_plain_hist_from_columns: period >= 1");
+        }
+        if (key.size() != static_cast<std::size_t>(period)) {
+            return Status::error(
+                "HistAlphabetMap::keystream_plain_hist_from_columns: key length must equal period");
+        }
+        if (cols.size() != static_cast<std::size_t>(period) * alphabet) {
+            return Status::error(
+                "HistAlphabetMap::keystream_plain_hist_from_columns: cols size must be L*29");
+        }
+        Hist plain{};
+        for (std::uint32_t j = 0; j < period; ++j) {
+            if (key[j] >= alphabet) {
+                return Status::error(
+                    "HistAlphabetMap::keystream_plain_hist_from_columns: key symbol out of range");
+            }
+            const unsigned kj = key[j];
+            const std::uint32_t* col = cols.data() + static_cast<std::size_t>(j) * alphabet;
+            for (std::size_t b = 0; b < alphabet; ++b) {
+                unsigned src = static_cast<unsigned>(b) + 29u - kj;
+                if (src >= 29u) {
+                    src -= 29u;
+                }
+                plain[b] += col[src];
+            }
+        }
+        return plain;
+    }
+
+    /// Fill `ks[j] = (b0 + b1·j) mod 29` for `j = 0..28` (S2). `out.size() == 29`.
+    [[nodiscard]] static Status fill_linear_period29_ks(std::uint8_t b0, std::uint8_t b1,
+                                                        std::span<std::uint8_t> out) {
+        if (out.size() != alphabet) {
+            return Status::error("HistAlphabetMap::fill_linear_period29_ks: out size must be 29");
+        }
+        if (b0 >= alphabet || b1 >= alphabet) {
+            return Status::error("HistAlphabetMap::fill_linear_period29_ks: coeff out of range");
+        }
+        for (std::size_t j = 0; j < alphabet; ++j) {
+            out[j] = static_cast<std::uint8_t>(
+                (static_cast<unsigned>(b0) +
+                 static_cast<unsigned>(b1) * static_cast<unsigned>(j)) %
+                alphabet);
+        }
+        return Status::success();
+    }
+
+    /// Fill `ks[j] = (b0 + b1·j + b2·j²) mod 29` for `j = 0..28` (S5).
+    [[nodiscard]] static Status fill_poly_period29_ks(std::uint8_t b0, std::uint8_t b1,
+                                                      std::uint8_t b2, std::span<std::uint8_t> out) {
+        if (out.size() != alphabet) {
+            return Status::error("HistAlphabetMap::fill_poly_period29_ks: out size must be 29");
+        }
+        if (b0 >= alphabet || b1 >= alphabet || b2 >= alphabet) {
+            return Status::error("HistAlphabetMap::fill_poly_period29_ks: coeff out of range");
+        }
+        for (std::size_t j = 0; j < alphabet; ++j) {
+            const unsigned j2 =
+                (static_cast<unsigned>(j) * static_cast<unsigned>(j)) % alphabet;
+            out[j] = static_cast<std::uint8_t>(
+                (static_cast<unsigned>(b0) + static_cast<unsigned>(b1) * static_cast<unsigned>(j) +
+                 static_cast<unsigned>(b2) * j2) %
+                alphabet);
+        }
+        return Status::success();
+    }
+
+    /// S2: column hist at L=29 + linear keystream remap.
+    [[nodiscard]] static StatusOr<Hist>
+    linear_period29_plain_hist_from_once(std::span<const std::uint8_t> cipher, std::uint8_t b0,
+                                         std::uint8_t b1, bool cipher_minus_ks = true) {
+        StatusOr<std::vector<std::uint32_t>> cols =
+            count_column_hist(cipher, static_cast<std::uint32_t>(alphabet));
+        if (!cols.ok()) {
+            return cols.status();
+        }
+        std::array<std::uint8_t, alphabet> ks{};
+        Status filled = fill_linear_period29_ks(b0, b1, ks);
+        if (!filled.ok()) {
+            return filled;
+        }
+        return keystream_plain_hist_from_columns(cols.value(), static_cast<std::uint32_t>(alphabet),
+                                                 ks, cipher_minus_ks);
+    }
+
+    /// S5: column hist at L=29 + quadratic keystream remap.
+    [[nodiscard]] static StatusOr<Hist>
+    poly_period29_plain_hist_from_once(std::span<const std::uint8_t> cipher, std::uint8_t b0,
+                                       std::uint8_t b1, std::uint8_t b2,
+                                       bool cipher_minus_ks = true) {
+        StatusOr<std::vector<std::uint32_t>> cols =
+            count_column_hist(cipher, static_cast<std::uint32_t>(alphabet));
+        if (!cols.ok()) {
+            return cols.status();
+        }
+        std::array<std::uint8_t, alphabet> ks{};
+        Status filled = fill_poly_period29_ks(b0, b1, b2, ks);
+        if (!filled.ok()) {
+            return filled;
+        }
+        return keystream_plain_hist_from_columns(cols.value(), static_cast<std::uint32_t>(alphabet),
+                                                 ks, cipher_minus_ks);
+    }
+
     /// Beaufort hist from column counts: `P[b] = Σ_j Col[j][(key[j] - b) mod 29]`
     /// (`plain = key - cipher`).
     [[nodiscard]] static StatusOr<Hist>

@@ -196,13 +196,24 @@ public:
             device_scores, device_lane_err, candidate_count, token_count, stream);
     }
 
-    /// S2 linear uchar4 twin (`b0 + b1·(t mod 29)`). Same χ² finalize ABI as FamilyChi2.
+    /// S2 linear — production ColumnHistOnce(L=29) + keystream remap.
     [[nodiscard]] static Status launch_s2_linear_async(
         const std::uint8_t* device_in, const std::uint8_t* device_b0,
         const std::uint8_t* device_b1, const double* device_probabilities,
         std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
         std::size_t token_count, bool cipher_minus_ks, cudaStream_t stream = nullptr) {
         return TheoryHistChi2S2::launch_linear_async(
+            device_in, device_b0, device_b1, device_probabilities, device_counts, device_scores,
+            candidate_count, token_count, cipher_minus_ks, stream);
+    }
+
+    /// S2 linear legacy decode→hist.
+    [[nodiscard]] static Status launch_s2_linear_decode_hist_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_b0,
+        const std::uint8_t* device_b1, const double* device_probabilities,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count, bool cipher_minus_ks, cudaStream_t stream = nullptr) {
+        return TheoryHistChi2S2::launch_linear_decode_hist_async(
             device_in, device_b0, device_b1, device_probabilities, device_counts, device_scores,
             candidate_count, token_count, cipher_minus_ks, stream);
     }
@@ -243,7 +254,7 @@ public:
             candidate_count, token_count, cipher_minus_ks, stream);
     }
 
-    /// S5 quadratic poly twin (`device_b0/b1/b2` length C).
+    /// S5 poly — production ColumnHistOnce(L=29) + keystream remap.
     [[nodiscard]] static Status launch_s5_poly_async(
         const std::uint8_t* device_in, const std::uint8_t* device_b0,
         const std::uint8_t* device_b1, const std::uint8_t* device_b2,
@@ -251,6 +262,18 @@ public:
         std::size_t candidate_count, std::size_t token_count, bool cipher_minus_ks,
         cudaStream_t stream = nullptr) {
         return TheoryHistChi2S5::launch_poly_async(
+            device_in, device_b0, device_b1, device_b2, device_probabilities, device_counts,
+            device_scores, candidate_count, token_count, cipher_minus_ks, stream);
+    }
+
+    /// S5 poly legacy decode→hist.
+    [[nodiscard]] static Status launch_s5_poly_decode_hist_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_b0,
+        const std::uint8_t* device_b1, const std::uint8_t* device_b2,
+        const double* device_probabilities, std::uint32_t* device_counts, double* device_scores,
+        std::size_t candidate_count, std::size_t token_count, bool cipher_minus_ks,
+        cudaStream_t stream = nullptr) {
+        return TheoryHistChi2S5::launch_poly_decode_hist_async(
             device_in, device_b0, device_b1, device_b2, device_probabilities, device_counts,
             device_scores, candidate_count, token_count, cipher_minus_ks, stream);
     }

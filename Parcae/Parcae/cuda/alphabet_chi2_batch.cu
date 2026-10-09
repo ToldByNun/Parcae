@@ -653,3 +653,213 @@ Status AlphabetChi2Batch::launch_lut_decrypt(
     }
     return CudaError::to_status(cudaDeviceSynchronize(), "AlphabetChi2Batch::lut sync");
 }
+
+/// S2 period-29 linear: `ks[j]=b0+b1·j`; remap like Vigenère ∓.
+__global__ void alphabet_chi2_linear_period29_remap_kernel(
+    const std::uint32_t* __restrict__ cols, const std::uint8_t* __restrict__ b0,
+    const std::uint8_t* __restrict__ b1, std::uint32_t* __restrict__ counts,
+    std::size_t candidate_count, std::uint8_t cipher_minus_ks) {
+    const std::size_t c =
+        static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
+        static_cast<std::size_t>(threadIdx.x);
+    if (c >= candidate_count) {
+        return;
+    }
+
+    const std::uint8_t pb0 = __ldg(b0 + c);
+    const std::uint8_t pb1 = __ldg(b1 + c);
+    std::uint8_t ks[HistFast::alphabet];
+#pragma unroll
+    for (int j = 0; j < HistFast::alphabet; ++j) {
+        ks[j] = Z29Device::add(pb0, Z29Device::mul(pb1, static_cast<std::uint8_t>(j)));
+    }
+
+    std::uint32_t* __restrict__ row =
+        counts + c * static_cast<std::size_t>(HistFast::alphabet);
+#pragma unroll
+    for (int b = 0; b < HistFast::alphabet; ++b) {
+        std::uint32_t sum = 0u;
+#pragma unroll
+        for (int j = 0; j < HistFast::alphabet; ++j) {
+            unsigned src = static_cast<unsigned>(b);
+            if (cipher_minus_ks != 0u) {
+                src += static_cast<unsigned>(ks[j]);
+            } else {
+                src += 29u - static_cast<unsigned>(ks[j]);
+            }
+            if (src >= 29u) {
+                src -= 29u;
+            }
+            sum += __ldg(cols + static_cast<std::size_t>(j) * HistFast::alphabet + src);
+        }
+        row[b] = sum;
+    }
+}
+
+/// S5 period-29 poly: `ks[j]=b0+b1·j+b2·j²`.
+__global__ void alphabet_chi2_poly_period29_remap_kernel(
+    const std::uint32_t* __restrict__ cols, const std::uint8_t* __restrict__ b0,
+    const std::uint8_t* __restrict__ b1, const std::uint8_t* __restrict__ b2,
+    std::uint32_t* __restrict__ counts, std::size_t candidate_count,
+    std::uint8_t cipher_minus_ks) {
+    const std::size_t c =
+        static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
+        static_cast<std::size_t>(threadIdx.x);
+    if (c >= candidate_count) {
+        return;
+    }
+
+    const std::uint8_t pb0 = __ldg(b0 + c);
+    const std::uint8_t pb1 = __ldg(b1 + c);
+    const std::uint8_t pb2 = __ldg(b2 + c);
+    std::uint8_t ks[HistFast::alphabet];
+#pragma unroll
+    for (int j = 0; j < HistFast::alphabet; ++j) {
+        const std::uint8_t jj = static_cast<std::uint8_t>(j);
+        const std::uint8_t j2 = Z29Device::mul(jj, jj);
+        ks[j] = Z29Device::add(pb0, Z29Device::add(Z29Device::mul(pb1, jj), Z29Device::mul(pb2, j2)));
+    }
+
+    std::uint32_t* __restrict__ row =
+        counts + c * static_cast<std::size_t>(HistFast::alphabet);
+#pragma unroll
+    for (int b = 0; b < HistFast::alphabet; ++b) {
+        std::uint32_t sum = 0u;
+#pragma unroll
+        for (int j = 0; j < HistFast::alphabet; ++j) {
+            unsigned src = static_cast<unsigned>(b);
+            if (cipher_minus_ks != 0u) {
+                src += static_cast<unsigned>(ks[j]);
+            } else {
+                src += 29u - static_cast<unsigned>(ks[j]);
+            }
+            if (src >= 29u) {
+                src -= 29u;
+            }
+            sum += __ldg(cols + static_cast<std::size_t>(j) * HistFast::alphabet + src);
+        }
+        row[b] = sum;
+    }
+}
+
+Status AlphabetChi2Batch::launch_linear_period29_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_b0, const std::uint8_t* device_b1,
+    const double* device_probabilities, std::uint32_t* device_column_scratch,
+    std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+    std::size_t token_count, bool cipher_minus_ks, cudaStream_t stream) {
+    if (candidate_count == 0 || candidate_count > kMaxCandidates) {
+        return Status::error("AlphabetChi2Batch: bad C");
+    }
+    if (token_count == 0 || token_count > kMaxTokens) {
+        return Status::error("AlphabetChi2Batch: bad T");
+    }
+    if (device_in == nullptr || device_b0 == nullptr || device_b1 == nullptr ||
+        device_probabilities == nullptr || device_counts == nullptr || device_scores == nullptr) {
+        return Status::error("AlphabetChi2Batch: null linear-period29 pointer");
+    }
+
+    std::uint32_t* cols = device_column_scratch;
+    if (cols == nullptr) {
+        Status scratch = ensure_column_scratch(&cols);
+        if (!scratch.ok()) {
+            return scratch;
+        }
+    }
+
+    Status cols_ok =
+        ColumnHistOnce::launch_async(device_in, cols, token_count, kPeriod29, stream);
+    if (!cols_ok.ok()) {
+        return cols_ok;
+    }
+
+    constexpr int threads = 128;
+    const int blocks =
+        static_cast<int>((candidate_count + static_cast<std::size_t>(threads) - 1u) /
+                         static_cast<std::size_t>(threads));
+    alphabet_chi2_linear_period29_remap_kernel<<<blocks, threads, 0, stream>>>(
+        cols, device_b0, device_b1, device_counts, candidate_count,
+        cipher_minus_ks ? 1u : 0u);
+    Status remap =
+        CudaError::to_status(cudaGetLastError(), "AlphabetChi2Batch::linear period29 remap");
+    if (!remap.ok()) {
+        return remap;
+    }
+    return after_hist_finalize(device_probabilities, device_counts, device_scores, candidate_count,
+                               token_count, stream);
+}
+
+Status AlphabetChi2Batch::launch_linear_period29(
+    const std::uint8_t* device_in, const std::uint8_t* device_b0, const std::uint8_t* device_b1,
+    const double* device_probabilities, std::uint32_t* device_column_scratch,
+    std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+    std::size_t token_count, bool cipher_minus_ks) {
+    Status launched = launch_linear_period29_async(
+        device_in, device_b0, device_b1, device_probabilities, device_column_scratch, device_counts,
+        device_scores, candidate_count, token_count, cipher_minus_ks, nullptr);
+    if (!launched.ok()) {
+        return launched;
+    }
+    return CudaError::to_status(cudaDeviceSynchronize(), "AlphabetChi2Batch::linear period29 sync");
+}
+
+Status AlphabetChi2Batch::launch_poly_period29_async(
+    const std::uint8_t* device_in, const std::uint8_t* device_b0, const std::uint8_t* device_b1,
+    const std::uint8_t* device_b2, const double* device_probabilities,
+    std::uint32_t* device_column_scratch, std::uint32_t* device_counts, double* device_scores,
+    std::size_t candidate_count, std::size_t token_count, bool cipher_minus_ks,
+    cudaStream_t stream) {
+    if (candidate_count == 0 || candidate_count > kMaxCandidates) {
+        return Status::error("AlphabetChi2Batch: bad C");
+    }
+    if (token_count == 0 || token_count > kMaxTokens) {
+        return Status::error("AlphabetChi2Batch: bad T");
+    }
+    if (device_in == nullptr || device_b0 == nullptr || device_b1 == nullptr ||
+        device_b2 == nullptr || device_probabilities == nullptr || device_counts == nullptr ||
+        device_scores == nullptr) {
+        return Status::error("AlphabetChi2Batch: null poly-period29 pointer");
+    }
+
+    std::uint32_t* cols = device_column_scratch;
+    if (cols == nullptr) {
+        Status scratch = ensure_column_scratch(&cols);
+        if (!scratch.ok()) {
+            return scratch;
+        }
+    }
+
+    Status cols_ok =
+        ColumnHistOnce::launch_async(device_in, cols, token_count, kPeriod29, stream);
+    if (!cols_ok.ok()) {
+        return cols_ok;
+    }
+
+    constexpr int threads = 128;
+    const int blocks =
+        static_cast<int>((candidate_count + static_cast<std::size_t>(threads) - 1u) /
+                         static_cast<std::size_t>(threads));
+    alphabet_chi2_poly_period29_remap_kernel<<<blocks, threads, 0, stream>>>(
+        cols, device_b0, device_b1, device_b2, device_counts, candidate_count,
+        cipher_minus_ks ? 1u : 0u);
+    Status remap =
+        CudaError::to_status(cudaGetLastError(), "AlphabetChi2Batch::poly period29 remap");
+    if (!remap.ok()) {
+        return remap;
+    }
+    return after_hist_finalize(device_probabilities, device_counts, device_scores, candidate_count,
+                               token_count, stream);
+}
+
+Status AlphabetChi2Batch::launch_poly_period29(
+    const std::uint8_t* device_in, const std::uint8_t* device_b0, const std::uint8_t* device_b1,
+    const std::uint8_t* device_b2, const double* device_probabilities,
+    std::uint32_t* device_column_scratch, std::uint32_t* device_counts, double* device_scores,
+    std::size_t candidate_count, std::size_t token_count, bool cipher_minus_ks) {
+    Status launched = launch_poly_period29_async(
+        device_in, device_b0, device_b1, device_b2, device_probabilities, device_column_scratch,
+        device_counts, device_scores, candidate_count, token_count, cipher_minus_ks, nullptr);
+    if (!launched.ok()) {
+        return launched;
+    }
+    return CudaError::to_status(cudaDeviceSynchronize(), "AlphabetChi2Batch::poly period29 sync");
+}

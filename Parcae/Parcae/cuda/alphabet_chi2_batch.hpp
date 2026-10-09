@@ -18,6 +18,9 @@
 /// - Beaufort (interrupt-free): same columns +
 ///   `P[b] = Σ_j Col[j][(key[j] - b) mod 29]`
 /// - Mono-LUT-29 decrypt (S1): `P[lut[x]] += H[x]` (row-major `C × 29`)
+/// - Period-29 linear keystream (S2): `ColumnHistOnce(L=29)` +
+///   `ks[j]=b0+b1·j`, then `out = in ∓ ks`
+/// - Period-29 poly keystream (S5): same columns + `ks[j]=b0+b1·j+b2·j²`
 ///
 /// Scores use the same `Chi2BatchScore::finalize_async` path as decode-hist.
 class AlphabetChi2Batch {
@@ -26,6 +29,7 @@ public:
     static constexpr std::size_t kMaxCandidates = 16384;
     static constexpr std::size_t kMaxTokens = 1u << 22;
     static constexpr std::uint32_t kMaxPeriod = 16384;
+    static constexpr std::uint32_t kPeriod29 = 29;
 
     /// `device_cipher_hist` — scratch `uint32[29]` for the once-count.
     /// `device_counts` — `uint32[C * 29]` remapped plaintext hists.
@@ -120,6 +124,37 @@ public:
         const double* device_probabilities, std::uint32_t* device_cipher_hist,
         std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
         std::size_t token_count);
+
+    /// S2: one `ColumnHistOnce(L=29)` + linear keystream remap.
+    /// `device_column_scratch` ≥ `29*29` bins (nullptr → process-lifetime scratch).
+    /// `cipher_minus_ks == true` → `out = in − ks`; else `out = in + ks`.
+    [[nodiscard]] static Status launch_linear_period29_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_b0,
+        const std::uint8_t* device_b1, const double* device_probabilities,
+        std::uint32_t* device_column_scratch, std::uint32_t* device_counts, double* device_scores,
+        std::size_t candidate_count, std::size_t token_count, bool cipher_minus_ks,
+        cudaStream_t stream = nullptr);
+
+    [[nodiscard]] static Status launch_linear_period29(
+        const std::uint8_t* device_in, const std::uint8_t* device_b0,
+        const std::uint8_t* device_b1, const double* device_probabilities,
+        std::uint32_t* device_column_scratch, std::uint32_t* device_counts, double* device_scores,
+        std::size_t candidate_count, std::size_t token_count, bool cipher_minus_ks);
+
+    /// S5: one `ColumnHistOnce(L=29)` + quadratic keystream remap.
+    [[nodiscard]] static Status launch_poly_period29_async(
+        const std::uint8_t* device_in, const std::uint8_t* device_b0,
+        const std::uint8_t* device_b1, const std::uint8_t* device_b2,
+        const double* device_probabilities, std::uint32_t* device_column_scratch,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count, bool cipher_minus_ks, cudaStream_t stream = nullptr);
+
+    [[nodiscard]] static Status launch_poly_period29(
+        const std::uint8_t* device_in, const std::uint8_t* device_b0,
+        const std::uint8_t* device_b1, const std::uint8_t* device_b2,
+        const double* device_probabilities, std::uint32_t* device_column_scratch,
+        std::uint32_t* device_counts, double* device_scores, std::size_t candidate_count,
+        std::size_t token_count, bool cipher_minus_ks);
 
 private:
     AlphabetChi2Batch() = delete;

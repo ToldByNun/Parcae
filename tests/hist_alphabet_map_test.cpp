@@ -181,6 +181,44 @@ TEST_CASE("HistAlphabetMap compose atbash caesar encrypt matches stream hist",
     REQUIRE(remapped.value() == HistAlphabetMapTestSupport::hist_from_indices(composed));
 }
 
+TEST_CASE("HistAlphabetMap period-29 linear/poly keystream matches stream hist",
+          "[score][hist_map][s2][s5]") {
+    const std::vector<std::uint8_t> cipher =
+        HistAlphabetMapTestSupport::to_bytes(HistAlphabetMapTestSupport::make_plain(87, 9));
+    constexpr std::uint8_t b0 = 5;
+    constexpr std::uint8_t b1 = 3;
+    constexpr std::uint8_t b2 = 2;
+
+    for (bool minus : {true, false}) {
+        HistAlphabetMap::Hist brute_lin{};
+        HistAlphabetMap::Hist brute_poly{};
+        for (std::size_t t = 0; t < cipher.size(); ++t) {
+            const unsigned r = static_cast<unsigned>(t % 29u);
+            const unsigned ks_lin = (static_cast<unsigned>(b0) + static_cast<unsigned>(b1) * r) % 29u;
+            const unsigned ks_poly =
+                (static_cast<unsigned>(b0) + static_cast<unsigned>(b1) * r +
+                 static_cast<unsigned>(b2) * ((r * r) % 29u)) %
+                29u;
+            if (minus) {
+                ++brute_lin[(static_cast<unsigned>(cipher[t]) + 29u - ks_lin) % 29u];
+                ++brute_poly[(static_cast<unsigned>(cipher[t]) + 29u - ks_poly) % 29u];
+            } else {
+                ++brute_lin[(static_cast<unsigned>(cipher[t]) + ks_lin) % 29u];
+                ++brute_poly[(static_cast<unsigned>(cipher[t]) + ks_poly) % 29u];
+            }
+        }
+        StatusOr<HistAlphabetMap::Hist> once_lin =
+            HistAlphabetMap::linear_period29_plain_hist_from_once(cipher, b0, b1, minus);
+        REQUIRE(once_lin.ok());
+        REQUIRE(once_lin.value() == brute_lin);
+
+        StatusOr<HistAlphabetMap::Hist> once_poly =
+            HistAlphabetMap::poly_period29_plain_hist_from_once(cipher, b0, b1, b2, minus);
+        REQUIRE(once_poly.ok());
+        REQUIRE(once_poly.value() == brute_poly);
+    }
+}
+
 TEST_CASE("HistAlphabetMap apply_bin_map rejects bad maps", "[score][hist_map][edge]") {
     HistAlphabetMap::Hist H{};
     H[0] = 1;

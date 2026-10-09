@@ -66,7 +66,7 @@ Side-by-side catalog kernels at the **same** `(C,T)`:
 |-----------------------------------------------|------|
 | `theory_chi2_hist_kernel` | Theory S0 bytecode hist ([`theory_chi2_batch.cu`](../../Parcae/Parcae/cuda/theory_chi2_batch.cu)) |
 | `theory_hist_chi2_s1_lut_kernel` | Theory S1 LUT-29 **legacy** decode→hist ([`theory_hist_chi2_s1.cu`](../../Parcae/Parcae/cuda/theory_hist_chi2_s1.cu)); production = `CipherHistOnce` + `alphabet_chi2_lut_decrypt_remap_kernel` |
-| `theory_hist_chi2_s2_linear_kernel` | Theory S2 linear ([`theory_hist_chi2_s2.cu`](../../Parcae/Parcae/cuda/theory_hist_chi2_s2.cu)) |
+| `theory_hist_chi2_s2_linear_kernel` | Theory S2 linear **legacy** decode→hist; production = `ColumnHistOnce(L=29)` + `alphabet_chi2_linear_period29_remap_kernel` |
 | `theory_hist_chi2_shape_atbash_kernel` | Theory ShapeInline Atbash ([`theory_hist_chi2_shape.cu`](../../Parcae/Parcae/cuda/theory_hist_chi2_shape.cu)) |
 | `theory_hist_chi2_shape_caesar_kernel` | Theory ShapeInline Caesar (`HistFast::dec_caesar`) |
 | `theory_hist_chi2_shape_affine_kernel` | Theory ShapeInline Affine decrypt (`inv(a)·(x−b)`) |
