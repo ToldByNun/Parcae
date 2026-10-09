@@ -17,9 +17,9 @@
 /// Domain errors set `device_lane_err[c]=1`; `patch_inf_async` after finalize
 /// patches those scores to +inf. No per-chunk host `eval_at × 29 × C`.
 ///
-/// **Production hist:** alphabet remap `P[lut[x]] += H[x]` after one
-/// ciphertext hist (`AlphabetChi2Batch::launch_lut_decrypt_async`).
-/// Legacy decode→hist remains via `launch_lut_decode_hist_async`.
+/// **Production hist (mono-LUT remap):** one `CipherHistOnce`, then
+/// `P[lut[x]] += H[x]` per candidate (`AlphabetChi2Batch::launch_lut_decrypt_async`).
+/// Legacy stream decode→hist remains via `launch_lut_decode_hist_async`.
 ///
 /// `device_luts` is row-major `C × 29`: `lut[c*29 + x] = decrypt(x; params_c)`.
 /// Finalize via `Chi2BatchScore`. No C++ namespaces.

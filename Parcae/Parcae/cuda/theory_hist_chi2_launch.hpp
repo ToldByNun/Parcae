@@ -158,7 +158,8 @@ public:
             candidate_count, token_count, stream);
     }
 
-    /// S1 LUT-29 twin — production remap. `device_luts` row-major `C × 29`.
+    /// S1 mono-LUT-29 twin — production CipherHistOnce + bin remap.
+    /// `device_luts` row-major `C × 29`.
     [[nodiscard]] static Status
     launch_s1_lut_async(const std::uint8_t* device_in, const std::uint8_t* device_luts,
                         const double* device_probabilities, std::uint32_t* device_counts,

@@ -17,7 +17,7 @@
 ///   `P[b] = Σ_j Col[j][(b + key[j]) mod 29]` (one ColumnHistOnce per unique L)
 /// - Beaufort (interrupt-free): same columns +
 ///   `P[b] = Σ_j Col[j][(key[j] - b) mod 29]`
-/// - LUT-29 decrypt: `P[lut[x]] += H[x]` (row-major `C × 29`)
+/// - Mono-LUT-29 decrypt (S1): `P[lut[x]] += H[x]` (row-major `C × 29`)
 ///
 /// Scores use the same `Chi2BatchScore::finalize_async` path as decode-hist.
 class AlphabetChi2Batch {
