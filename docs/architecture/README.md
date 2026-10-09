@@ -12,6 +12,7 @@ theory DSL compiles into that stack.
 | [cuda-build.md](cuda-build.md) | Local CUDA Toolkit / CMake notes; CI stays CPU-default |
 | [cuda-throughput.md](cuda-throughput.md) | Fused χ² ceilings (`BenchTierSpec`); Remap roofs + dual rates; Kernel SLO vs campaign wall |
 | [hist-alphabet-remap.md](hist-alphabet-remap.md) | **Normative** once-count remap math (Mono/Spalten/Lag/Bigram); 93.5%/896B reinterpretation |
+| [cuda-micro-opts.md](cuda-micro-opts.md) | LaunchGeom default 256; shuffle/`cp.async` A/B policy (Doc-Skip unless ≥ baseline) |
 | [cuda-profile-theory.md](cuda-profile-theory.md) | Theory / search-export nsys+ncu playbook; wall vs cudaEvent; 90% peak gate |
 | [theory-hist-transpile.md](theory-hist-transpile.md) | **Normative** theory fused-χ² strategies S0–S5; ≥90% shape peak (Remap or 896B diary); wall ≠ Done |
 | [dsl-smart-hist.md](dsl-smart-hist.md) | **Normative** smart hist: normalize → ShapeId match; customs without presets at catalog speed |

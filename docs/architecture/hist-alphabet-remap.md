@@ -188,6 +188,7 @@ untouched.
 - Ceilings / pass rule: [`cuda-throughput.md`](cuda-throughput.md)
 - Theory S0–S5 contract: [`theory-hist-transpile.md`](theory-hist-transpile.md)
 - Smart ShapeId: [`dsl-smart-hist.md`](dsl-smart-hist.md)
+- Micro-opts (LaunchGeom / shuffle / cp.async): [`cuda-micro-opts.md`](cuda-micro-opts.md)
 - ncu traffic evidence: [`profiles/cache_bound/SUMMARY.md`](profiles/cache_bound/SUMMARY.md)
 - Historical fat-tile / 93.5% diary: [`profiles/roof_hist/SUMMARY.md`](profiles/roof_hist/SUMMARY.md)
 - Profiling playbook: [`cuda-profile-theory.md`](cuda-profile-theory.md)

@@ -52,6 +52,7 @@ Files:
 | `chi2_english_gp_score.hpp` / `.cu` | `Chi2EnglishGpScore` — hist + fixed-order χ² finalize |
 | `chi2_batch_score.hpp` / `.cu` | `Chi2BatchScore` — multi-block hist from `out[C·T]` + finalize |
 | `hist_fast.hpp` | `HistFast` — Z/29 helpers + warp-private / fat-tile helpers / **thread-local** (research) |
+| `launch_geom.hpp` | `LaunchGeom` — default 256 threads + A/B enums; stream `blocks_for` |
 | `hist_fast_parity.hpp` / `.cu` | `HistFastParity` — warp vs local hist golden compare (Catch2) |
 | `caesar_chi2_batch.hpp` / `.cu` | `CaesarChi2Batch` — fused Caesar decrypt→χ² (no out materialize) |
 | `family_chi2_batch.hpp` / `.cu` | `FamilyChi2Batch` — fused atbash / atbash∘caesar / affine / vigenère χ² |

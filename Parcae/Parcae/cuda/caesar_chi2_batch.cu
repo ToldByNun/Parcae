@@ -53,8 +53,10 @@ __global__ void caesar_chi2_histogram_decrypt_kernel(const std::uint8_t* __restr
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
-__global__ void caesar_chi2_histogram_kernel(const std::uint8_t* in, const std::uint8_t* shifts,
-                                             const std::uint8_t* directions, std::uint32_t* counts,
+__global__ void caesar_chi2_histogram_kernel(const std::uint8_t* __restrict__ in,
+                                             const std::uint8_t* __restrict__ shifts,
+                                             const std::uint8_t* __restrict__ directions,
+                                             std::uint32_t* __restrict__ counts,
                                              std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     HistFast::clear_private(priv);
@@ -62,14 +64,14 @@ __global__ void caesar_chi2_histogram_kernel(const std::uint8_t* in, const std::
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    const std::uint8_t shift = shifts[candidate];
-    const std::uint8_t encrypt = directions[candidate];
+    const std::uint8_t shift = __ldg(shifts + candidate);
+    const std::uint8_t encrypt = __ldg(directions + candidate);
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
 
     for (std::size_t t =
              tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
          t < token_count; t += stride) {
-        const std::uint8_t x = in[t];
+        const std::uint8_t x = __ldg(in + t);
         const std::uint8_t y =
             encrypt != 0u ? HistFast::enc_caesar(x, shift) : HistFast::dec_caesar(x, shift);
         HistFast::add_private(priv, y);

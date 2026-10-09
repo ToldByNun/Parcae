@@ -3,6 +3,7 @@
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
 #include "hist_fast.hpp"
+#include "launch_geom.hpp"
 
 #include <cuda_runtime_api.h>
 
@@ -60,13 +61,12 @@ Status AtbashKernel::launch_device_async(const std::uint8_t* device_in, std::uin
                          (reinterpret_cast<std::uintptr_t>(device_out) % alignof(uchar4)) == 0u;
     const std::size_t work = aligned ? (count + 3u) / 4u : count;
     const int blocks =
-        static_cast<int>((work + static_cast<std::size_t>(HistFast::threads) - 1u) /
-                         static_cast<std::size_t>(HistFast::threads));
+        LaunchGeom::blocks_for(work);
 
     if (aligned) {
-        atbash_uchar4_kernel<<<blocks, HistFast::threads>>>(device_in, device_out, count);
+        atbash_uchar4_kernel<<<blocks, LaunchGeom::threads()>>>(device_in, device_out, count);
     } else {
-        atbash_scalar_kernel<<<blocks, HistFast::threads>>>(device_in, device_out, count);
+        atbash_scalar_kernel<<<blocks, LaunchGeom::threads()>>>(device_in, device_out, count);
     }
     return CudaError::to_status(cudaGetLastError(), "AtbashKernel::launch_device_async");
 }

@@ -34,9 +34,11 @@ Status DeepScoreBatch::zero_scores(double* device_scores, std::size_t candidate_
 
 /// Dense CTAK decrypt→hist. Key formula = `AutokeyCtakDevice` /
 /// CPU `CiphertextAutokeyTransform` (empty skips).
-__global__ void autokey_chi2_hist_kernel(const std::uint8_t* in, const std::uint8_t* key_bytes,
-                                         const std::uint32_t* key_begin,
-                                         const std::uint32_t* key_len, std::uint32_t* counts,
+__global__ void autokey_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
+                                         const std::uint8_t* __restrict__ key_bytes,
+                                         const std::uint32_t* __restrict__ key_begin,
+                                         const std::uint32_t* __restrict__ key_len,
+                                         std::uint32_t* __restrict__ counts,
                                          std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     __shared__ std::uint8_t key_cache[64];
@@ -45,12 +47,12 @@ __global__ void autokey_chi2_hist_kernel(const std::uint8_t* in, const std::uint
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    const std::uint32_t begin = key_begin[candidate];
-    const std::uint32_t len = key_len[candidate];
+    const std::uint32_t begin = __ldg(key_begin + candidate);
+    const std::uint32_t len = __ldg(key_len + candidate);
     const std::uint32_t cached = len < 64u ? len : 64u;
     for (std::uint32_t i = static_cast<std::uint32_t>(threadIdx.x); i < cached;
          i += static_cast<std::uint32_t>(blockDim.x)) {
-        key_cache[i] = key_bytes[begin + i];
+        key_cache[i] = __ldg(key_bytes + begin + i);
     }
     __syncthreads();
 
@@ -65,14 +67,17 @@ __global__ void autokey_chi2_hist_kernel(const std::uint8_t* in, const std::uint
             (static_cast<std::uint32_t>(t) < cached) ? key_cache : primer;
         const std::uint8_t key_symbol =
             AutokeyCtakDevice::decrypt_key(in, primer_view, len, t);
-        HistFast::add_private(priv, AutokeyCtakDevice::decrypt_symbol(in[t], key_symbol));
+        HistFast::add_private(priv,
+                              AutokeyCtakDevice::decrypt_symbol(__ldg(in + t), key_symbol));
     }
     HistFast::flush_private(priv,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
-__global__ void dynamic_shift_chi2_hist_kernel(const std::uint8_t* in, const std::uint8_t* bases,
-                                               const std::uint8_t* steps, std::uint32_t* counts,
+__global__ void dynamic_shift_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
+                                               const std::uint8_t* __restrict__ bases,
+                                               const std::uint8_t* __restrict__ steps,
+                                               std::uint32_t* __restrict__ counts,
                                                std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     HistFast::clear_private(priv);
@@ -80,8 +85,8 @@ __global__ void dynamic_shift_chi2_hist_kernel(const std::uint8_t* in, const std
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    const std::uint8_t base = bases[candidate];
-    const std::uint8_t step = steps[candidate];
+    const std::uint8_t base = __ldg(bases + candidate);
+    const std::uint8_t step = __ldg(steps + candidate);
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     const std::size_t t0 =
         tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
@@ -92,7 +97,8 @@ __global__ void dynamic_shift_chi2_hist_kernel(const std::uint8_t* in, const std
         (static_cast<unsigned>(base) + step_u * static_cast<unsigned>(t0)) % 29u);
 
     for (std::size_t t = t0; t < token_count; t += stride) {
-        HistFast::add_private(priv, HistFast::dec_sub(in[t], static_cast<std::uint8_t>(shift)));
+        HistFast::add_private(
+            priv, HistFast::dec_sub(__ldg(in + t), static_cast<std::uint8_t>(shift)));
         shift += stride_mod;
         if (shift >= 29u) {
             shift -= 29u;
@@ -102,28 +108,29 @@ __global__ void dynamic_shift_chi2_hist_kernel(const std::uint8_t* in, const std
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
-__global__ void caesar_bigram_ll_kernel(const std::uint8_t* in, const std::uint8_t* shifts,
-                                        const float* bigram_ll, double* scores,
-                                        std::size_t token_count) {
+__global__ void caesar_bigram_ll_kernel(const std::uint8_t* __restrict__ in,
+                                        const std::uint8_t* __restrict__ shifts,
+                                        const float* __restrict__ bigram_ll,
+                                        double* __restrict__ scores, std::size_t token_count) {
     __shared__ double partial[HistFast::threads];
     __shared__ float bigram_s[HistFast::alphabet * HistFast::alphabet];
     for (int i = threadIdx.x; i < HistFast::alphabet * HistFast::alphabet; i += blockDim.x) {
-        bigram_s[i] = bigram_ll[i];
+        bigram_s[i] = __ldg(bigram_ll + i);
     }
     __syncthreads();
 
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    const std::uint8_t shift = shifts[candidate];
+    const std::uint8_t shift = __ldg(shifts + candidate);
     double local = 0.0;
     const std::size_t pairs = token_count > 0 ? token_count - 1 : 0;
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     for (std::size_t t =
              tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
          t < pairs; t += stride) {
-        const std::uint8_t y0 = HistFast::dec_caesar(in[t], shift);
-        const std::uint8_t y1 = HistFast::dec_caesar(in[t + 1], shift);
+        const std::uint8_t y0 = HistFast::dec_caesar(__ldg(in + t), shift);
+        const std::uint8_t y1 = HistFast::dec_caesar(__ldg(in + t + 1), shift);
         local += static_cast<double>(bigram_s[static_cast<int>(y0) * HistFast::alphabet + y1]);
     }
     partial[threadIdx.x] = local;

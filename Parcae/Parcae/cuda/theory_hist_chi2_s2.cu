@@ -12,8 +12,10 @@
 /// File-scope — no anonymous namespace (theory hist emit contract).
 /// Legacy decode→hist: period-29 keystream in shared memory;
 /// `ks[i] = b0 + b1·i (mod 29)`. Hot loop uses running residue.
-__global__ void theory_hist_chi2_s2_linear_kernel(const std::uint8_t* in, const std::uint8_t* b0,
-                                                  const std::uint8_t* b1, std::uint32_t* counts,
+__global__ void theory_hist_chi2_s2_linear_kernel(const std::uint8_t* __restrict__ in,
+                                                  const std::uint8_t* __restrict__ b0,
+                                                  const std::uint8_t* __restrict__ b1,
+                                                  std::uint32_t* __restrict__ counts,
                                                   std::size_t token_count,
                                                   std::uint8_t cipher_minus_ks) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
@@ -23,8 +25,8 @@ __global__ void theory_hist_chi2_s2_linear_kernel(const std::uint8_t* in, const 
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    const std::uint8_t pb0 = b0[candidate];
-    const std::uint8_t pb1 = b1[candidate];
+    const std::uint8_t pb0 = __ldg(b0 + candidate);
+    const std::uint8_t pb1 = __ldg(b1 + candidate);
 
     if (threadIdx.x < HistFast::alphabet) {
         const std::uint8_t i = static_cast<std::uint8_t>(threadIdx.x);
@@ -34,7 +36,7 @@ __global__ void theory_hist_chi2_s2_linear_kernel(const std::uint8_t* in, const 
 
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     const std::size_t n4 = token_count / 4u;
-    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+    const uchar4* __restrict__ in4 = reinterpret_cast<const uchar4*>(in);
     constexpr unsigned mod = static_cast<unsigned>(Z29Device::modulus);
 
     auto out_byte = [&](std::uint8_t x, std::uint8_t key) -> std::uint8_t {
@@ -58,7 +60,7 @@ __global__ void theory_hist_chi2_s2_linear_kernel(const std::uint8_t* in, const 
 
     unsigned r = static_cast<unsigned>((i0 * 4u) % static_cast<std::size_t>(mod));
     for (std::size_t i = i0; i < n4; i += stride) {
-        const uchar4 v = in4[i];
+        const uchar4 v = __ldg(in4 + i);
         unsigned r1 = r;
         bump(r1, 1u);
         unsigned r2 = r1;
@@ -76,7 +78,7 @@ __global__ void theory_hist_chi2_s2_linear_kernel(const std::uint8_t* in, const 
         n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
     unsigned re = static_cast<unsigned>(t0 % static_cast<std::size_t>(mod));
     for (std::size_t t = t0; t < token_count; t += stride) {
-        HistFast::add_private(priv, out_byte(in[t], ks[re]));
+        HistFast::add_private(priv, out_byte(__ldg(in + t), ks[re]));
         bump(re, stride_mod);
     }
     HistFast::flush_private(priv,

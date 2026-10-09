@@ -192,6 +192,7 @@ while ncu DRAM SoL was ~1–3%.
 - Build notes: [cuda-build.md](cuda-build.md)
 - Theory profiling (nsys/ncu): [cuda-profile-theory.md](cuda-profile-theory.md)
 - Hist alphabet remap (Mono/Spalten/Lag/Bigram; 93.5%/896B correction): [hist-alphabet-remap.md](hist-alphabet-remap.md)
+- Micro-opts (LaunchGeom / shuffle / cp.async policy): [cuda-micro-opts.md](cuda-micro-opts.md)
 - Theory hist transpile contract (S0–S5 ≥90% shape peak): [theory-hist-transpile.md](theory-hist-transpile.md)
 - DSL smart hist (customs without presets): [dsl-smart-hist.md](dsl-smart-hist.md)
 - Operator handbook (theory URI + dispatch): [search-handbook.md](search-handbook.md)

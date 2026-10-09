@@ -3,6 +3,7 @@
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
 #include "hist_fast.hpp"
+#include "launch_geom.hpp"
 #include "interrupt_device_ops.hpp"
 #include "z29_device.hpp"
 
@@ -119,13 +120,12 @@ Status BeaufortKeyKernel::launch_device_async(const std::uint8_t* device_in,
             (reinterpret_cast<std::uintptr_t>(device_out) % alignof(uchar4)) == 0u;
         const std::size_t work = aligned ? (count + 3u) / 4u : count;
         const int blocks =
-            static_cast<int>((work + static_cast<std::size_t>(HistFast::threads) - 1u) /
-                             static_cast<std::size_t>(HistFast::threads));
+            LaunchGeom::blocks_for(work);
         if (aligned) {
-            beaufort_dense_uchar4_kernel<<<blocks, HistFast::threads>>>(device_in, device_out,
+            beaufort_dense_uchar4_kernel<<<blocks, LaunchGeom::threads()>>>(device_in, device_out,
                                                                         count, device_key, key_len);
         } else {
-            beaufort_dense_scalar_kernel<<<blocks, HistFast::threads>>>(device_in, device_out,
+            beaufort_dense_scalar_kernel<<<blocks, LaunchGeom::threads()>>>(device_in, device_out,
                                                                         count, device_key, key_len);
         }
         return CudaError::to_status(cudaGetLastError(), "BeaufortKeyKernel::launch_device_async");
@@ -136,9 +136,8 @@ Status BeaufortKeyKernel::launch_device_async(const std::uint8_t* device_in,
     const std::uint32_t skip_count =
         use_bitmask_encoding ? 0u : static_cast<std::uint32_t>(interrupts.sorted_skips().size());
     const int blocks =
-        static_cast<int>((count + static_cast<std::size_t>(HistFast::threads) - 1u) /
-                         static_cast<std::size_t>(HistFast::threads));
-    beaufort_skip_kernel<<<blocks, HistFast::threads>>>(device_in, device_out, count, device_key,
+        LaunchGeom::blocks_for(count);
+    beaufort_skip_kernel<<<blocks, LaunchGeom::threads()>>>(device_in, device_out, count, device_key,
                                                         key_len, device_bitmask_or_skips, skip_count,
                                                         use_bitmask);
     return CudaError::to_status(cudaGetLastError(), "BeaufortKeyKernel::launch_device_async");

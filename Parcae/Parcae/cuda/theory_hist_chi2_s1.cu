@@ -60,8 +60,10 @@ __global__ void theory_hist_chi2_s1_bake_kernel(const std::uint8_t* __restrict__
     luts[lut_i] = out_byte;
 }
 
-__global__ void theory_hist_chi2_s1_lut_kernel(const std::uint8_t* in, const std::uint8_t* luts,
-                                               std::uint32_t* counts, std::size_t token_count) {
+__global__ void theory_hist_chi2_s1_lut_kernel(const std::uint8_t* __restrict__ in,
+                                               const std::uint8_t* __restrict__ luts,
+                                               std::uint32_t* __restrict__ counts,
+                                               std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     __shared__ std::uint8_t lut[HistFast::alphabet];
     HistFast::clear_private(priv);
@@ -69,20 +71,21 @@ __global__ void theory_hist_chi2_s1_lut_kernel(const std::uint8_t* in, const std
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    const std::uint8_t* row = luts + candidate * static_cast<std::size_t>(HistFast::alphabet);
+    const std::uint8_t* __restrict__ row =
+        luts + candidate * static_cast<std::size_t>(HistFast::alphabet);
     if (threadIdx.x < HistFast::alphabet) {
-        lut[threadIdx.x] = row[threadIdx.x];
+        lut[threadIdx.x] = __ldg(row + threadIdx.x);
     }
     __syncthreads();
 
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     const std::size_t n4 = token_count / 4u;
-    const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+    const uchar4* __restrict__ in4 = reinterpret_cast<const uchar4*>(in);
 
     for (std::size_t i =
              tile * static_cast<std::size_t>(blockDim.x) + static_cast<std::size_t>(threadIdx.x);
          i < n4; i += stride) {
-        const uchar4 v = in4[i];
+        const uchar4 v = __ldg(in4 + i);
         HistFast::add_private(priv, lut[v.x]);
         HistFast::add_private(priv, lut[v.y]);
         HistFast::add_private(priv, lut[v.z]);
@@ -91,13 +94,14 @@ __global__ void theory_hist_chi2_s1_lut_kernel(const std::uint8_t* in, const std
     for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
                          static_cast<std::size_t>(threadIdx.x);
          t < token_count; t += stride) {
-        HistFast::add_private(priv, lut[in[t]]);
+        HistFast::add_private(priv, lut[__ldg(in + t)]);
     }
     HistFast::flush_private(priv,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
-__global__ void theory_hist_chi2_s1_patch_inf_kernel(const std::uint8_t* lane_err, double* scores,
+__global__ void theory_hist_chi2_s1_patch_inf_kernel(const std::uint8_t* __restrict__ lane_err,
+                                                     double* __restrict__ scores,
                                                      std::size_t candidate_count) {
     const std::size_t c =
         static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
@@ -105,7 +109,7 @@ __global__ void theory_hist_chi2_s1_patch_inf_kernel(const std::uint8_t* lane_er
     if (c >= candidate_count) {
         return;
     }
-    if (lane_err[c] != 0u) {
+    if (__ldg(lane_err + c) != 0u) {
         scores[c] = INFINITY;
     }
 }

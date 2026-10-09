@@ -108,6 +108,9 @@ public:
         }
     }
 
+    /// Production flush: sum warp-private rows for each bin, one `atomicAdd`.
+    /// Warp-shuffle / `__match_any_sync` A/B (`add_private_match`, early
+    /// shuffle plates) lost vs this path on 5070 Ti — keep production here.
     PARCAE_D static void flush_private(std::uint32_t* priv, std::uint32_t* global_row) {
         __syncthreads();
         if (threadIdx.x < alphabet) {

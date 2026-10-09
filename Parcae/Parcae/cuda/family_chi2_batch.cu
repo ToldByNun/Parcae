@@ -143,9 +143,11 @@ __global__ void affine_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
-__global__ void vigenere_chi2_hist_kernel(const std::uint8_t* in, const std::uint8_t* key_bytes,
-                                          const std::uint32_t* key_begin,
-                                          const std::uint32_t* key_len, std::uint32_t* counts,
+__global__ void vigenere_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
+                                          const std::uint8_t* __restrict__ key_bytes,
+                                          const std::uint32_t* __restrict__ key_begin,
+                                          const std::uint32_t* __restrict__ key_len,
+                                          std::uint32_t* __restrict__ counts,
                                           std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     __shared__ std::uint8_t key_cache[64];
@@ -154,25 +156,25 @@ __global__ void vigenere_chi2_hist_kernel(const std::uint8_t* in, const std::uin
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    const std::uint32_t begin = key_begin[candidate];
-    const std::uint32_t len = key_len[candidate];
+    const std::uint32_t begin = __ldg(key_begin + candidate);
+    const std::uint32_t len = __ldg(key_len + candidate);
     const std::uint32_t cached = len < 64u ? len : 64u;
     const bool pow2 = (len != 0u) && ((len & (len - 1u)) == 0u);
     const std::uint32_t mask = len - 1u;
     for (std::uint32_t i = static_cast<std::uint32_t>(threadIdx.x); i < cached;
          i += static_cast<std::uint32_t>(blockDim.x)) {
-        key_cache[i] = key_bytes[begin + i];
+        key_cache[i] = __ldg(key_bytes + begin + i);
     }
     __syncthreads();
 
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     if (pow2 && cached == len) {
         const std::size_t n4 = token_count / 4u;
-        const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+        const uchar4* __restrict__ in4 = reinterpret_cast<const uchar4*>(in);
         for (std::size_t i = tile * static_cast<std::size_t>(blockDim.x) +
                              static_cast<std::size_t>(threadIdx.x);
              i < n4; i += stride) {
-            const uchar4 v = in4[i];
+            const uchar4 v = __ldg(in4 + i);
             const std::uint32_t t32 = static_cast<std::uint32_t>(i * 4u);
             HistFast::add_private(priv, HistFast::dec_sub(v.x, key_cache[t32 & mask]));
             HistFast::add_private(priv, HistFast::dec_sub(v.y, key_cache[(t32 + 1u) & mask]));
@@ -182,8 +184,9 @@ __global__ void vigenere_chi2_hist_kernel(const std::uint8_t* in, const std::uin
         for (std::size_t t = n4 * 4u + tile * static_cast<std::size_t>(blockDim.x) +
                              static_cast<std::size_t>(threadIdx.x);
              t < token_count; t += stride) {
-            HistFast::add_private(
-                priv, HistFast::dec_sub(in[t], key_cache[static_cast<std::uint32_t>(t) & mask]));
+            HistFast::add_private(priv, HistFast::dec_sub(__ldg(in + t),
+                                                          key_cache[static_cast<std::uint32_t>(t) &
+                                                                    mask]));
         }
     } else {
         for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
@@ -191,17 +194,20 @@ __global__ void vigenere_chi2_hist_kernel(const std::uint8_t* in, const std::uin
              t < token_count; t += stride) {
             const std::uint32_t ki = pow2 ? (static_cast<std::uint32_t>(t) & mask)
                                           : (static_cast<std::uint32_t>(t) % len);
-            const std::uint8_t key_symbol = ki < cached ? key_cache[ki] : key_bytes[begin + ki];
-            HistFast::add_private(priv, HistFast::dec_sub(in[t], key_symbol));
+            const std::uint8_t key_symbol =
+                ki < cached ? key_cache[ki] : __ldg(key_bytes + begin + ki);
+            HistFast::add_private(priv, HistFast::dec_sub(__ldg(in + t), key_symbol));
         }
     }
     HistFast::flush_private(priv,
                             counts + candidate * static_cast<std::size_t>(HistFast::alphabet));
 }
 
-__global__ void beaufort_chi2_hist_kernel(const std::uint8_t* in, const std::uint8_t* key_bytes,
-                                          const std::uint32_t* key_begin,
-                                          const std::uint32_t* key_len, std::uint32_t* counts,
+__global__ void beaufort_chi2_hist_kernel(const std::uint8_t* __restrict__ in,
+                                          const std::uint8_t* __restrict__ key_bytes,
+                                          const std::uint32_t* __restrict__ key_begin,
+                                          const std::uint32_t* __restrict__ key_len,
+                                          std::uint32_t* __restrict__ counts,
                                           std::size_t token_count) {
     __shared__ std::uint32_t priv[HistFast::warps * HistFast::priv_stride];
     __shared__ std::uint8_t key_cache[64];
@@ -210,25 +216,25 @@ __global__ void beaufort_chi2_hist_kernel(const std::uint8_t* in, const std::uin
     const std::size_t candidate = static_cast<std::size_t>(blockIdx.x);
     const std::size_t tile = static_cast<std::size_t>(blockIdx.y);
     const std::size_t tiles = static_cast<std::size_t>(gridDim.y);
-    const std::uint32_t begin = key_begin[candidate];
-    const std::uint32_t len = key_len[candidate];
+    const std::uint32_t begin = __ldg(key_begin + candidate);
+    const std::uint32_t len = __ldg(key_len + candidate);
     const std::uint32_t cached = len < 64u ? len : 64u;
     const bool pow2 = (len != 0u) && ((len & (len - 1u)) == 0u);
     const std::uint32_t mask = len - 1u;
     for (std::uint32_t i = static_cast<std::uint32_t>(threadIdx.x); i < cached;
          i += static_cast<std::uint32_t>(blockDim.x)) {
-        key_cache[i] = key_bytes[begin + i];
+        key_cache[i] = __ldg(key_bytes + begin + i);
     }
     __syncthreads();
 
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * tiles;
     if (pow2 && cached == len) {
         const std::size_t n4 = token_count / 4u;
-        const uchar4* in4 = reinterpret_cast<const uchar4*>(in);
+        const uchar4* __restrict__ in4 = reinterpret_cast<const uchar4*>(in);
         for (std::size_t i = tile * static_cast<std::size_t>(blockDim.x) +
                              static_cast<std::size_t>(threadIdx.x);
              i < n4; i += stride) {
-            const uchar4 v = in4[i];
+            const uchar4 v = __ldg(in4 + i);
             const std::uint32_t t32 = static_cast<std::uint32_t>(i * 4u);
             // Beaufort: key - cipher.
             HistFast::add_private(priv, HistFast::dec_sub(key_cache[t32 & mask], v.x));
@@ -240,7 +246,8 @@ __global__ void beaufort_chi2_hist_kernel(const std::uint8_t* in, const std::uin
                              static_cast<std::size_t>(threadIdx.x);
              t < token_count; t += stride) {
             HistFast::add_private(
-                priv, HistFast::dec_sub(key_cache[static_cast<std::uint32_t>(t) & mask], in[t]));
+                priv, HistFast::dec_sub(key_cache[static_cast<std::uint32_t>(t) & mask],
+                                        __ldg(in + t)));
         }
     } else {
         for (std::size_t t = tile * static_cast<std::size_t>(blockDim.x) +
@@ -248,8 +255,9 @@ __global__ void beaufort_chi2_hist_kernel(const std::uint8_t* in, const std::uin
              t < token_count; t += stride) {
             const std::uint32_t ki = pow2 ? (static_cast<std::uint32_t>(t) & mask)
                                           : (static_cast<std::uint32_t>(t) % len);
-            const std::uint8_t key_symbol = ki < cached ? key_cache[ki] : key_bytes[begin + ki];
-            HistFast::add_private(priv, HistFast::dec_sub(key_symbol, in[t]));
+            const std::uint8_t key_symbol =
+                ki < cached ? key_cache[ki] : __ldg(key_bytes + begin + ki);
+            HistFast::add_private(priv, HistFast::dec_sub(key_symbol, __ldg(in + t)));
         }
     }
     HistFast::flush_private(priv,
