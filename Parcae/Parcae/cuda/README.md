@@ -23,26 +23,27 @@ Files:
 | `params.hpp` | POD classes: Caesar/Affine/Key/Totient/ComposeStage + CudaDir/CudaFamilyId |
 | `params_json.hpp` | `CudaParamsJson` host JSON ↔ POD converters |
 | `interrupt_device_view.hpp` | `InterruptDeviceView` — bitmask (`T≤4096`) or sorted `uint32_t` skips |
+| `interrupt_device_ops.hpp` | `InterruptDeviceOps` — device bitmask / sorted-skip helpers for single-stream kernels |
 | `candidate_batch_buffers.hpp` | `CandidateBatchBuffers` — host SoA ABI v0 (`kMaxC`/`kMaxT`, shared or per-candidate tokens) |
 | `backend.hpp` | `CudaBackend` — full catalog `apply_into` / `apply_and_capture` |
 | `cuda_score.hpp` | `CudaScore` — `ScoreRegistry` twin (string-id score dispatch) |
 | `cuda_batch_score.hpp` | `CudaBatchScore` — lane scores via `CudaScore` + host `BatchOrdering` top-k |
 | `identity_copy.hpp` / `identity_copy.cu` | `IdentityCopy` — uchar4/`__ldg` identity + `launch_device_async` (host sync wrapper) |
-| `atbash_kernel.hpp` / `atbash_kernel.cu` | `AtbashKernel` — `out[i] = 28 - in[i]` twin |
+| `atbash_kernel.hpp` / `atbash_kernel.cu` | `AtbashKernel` — `HistFast::dec_atbash` + uchar4/`launch_device_async` |
 | `atbash_batch_kernel.hpp` / `.cu` | `AtbashBatchKernel` — shared tokens → atbash lanes (SoA) |
 | `atbash_caesar_batch_kernel.hpp` / `.cu` | `AtbashCaesarBatchKernel` — Koan-1 atbash∘caesar 29 shifts |
 | `caesar_kernel.hpp` / `caesar_kernel.cu` | `CaesarKernel` — `HistFast` enc/dec + uchar4/`launch_device_async` |
 | `caesar_batch_kernel.hpp` / `.cu` | `CaesarBatchKernel` — shared tokens + 29 shift lanes (SoA ABI v0) |
 | `z29_device.hpp` | `Z29Device` — host/device \\(\\mathbb{Z}_{29}\\) add/mul/inv |
-| `affine_kernel.hpp` / `affine_kernel.cu` | `AffineKernel` — `a·x+b` / `inv(a)·(x-b)` twin |
+| `affine_kernel.hpp` / `affine_kernel.cu` | `AffineKernel` — `a·x+b` / `inv(a)·(x-b)` + uchar4/`launch_device_async` |
 | `affine_batch_kernel.hpp` / `.cu` | `AffineBatchKernel` — shared tokens + 812 `(a,b)` lanes |
-| `vigenere_key_kernel.hpp` / `.cu` | `VigenereKeyKernel` — key ring + interrupt skips twin |
+| `vigenere_key_kernel.hpp` / `.cu` | `VigenereKeyKernel` — dense uchar4 / skip path + `launch_device_async` |
 | `autokey_ctak_device.hpp` | `AutokeyCtakDevice` — dense CTAK decrypt key/symbol (shared) |
-| `ciphertext_autokey_kernel.hpp` / `.cu` | `CiphertextAutokeyKernel` — CTAK twin; dense decrypt parallel |
+| `ciphertext_autokey_kernel.hpp` / `.cu` | `CiphertextAutokeyKernel` — CTAK materialize; dense decrypt uchar4 + serial encrypt/skips |
 | `deep_score_batch.hpp` / `.cu` | `DeepScoreBatch` — fused multi-key / CTAK autokey / n-gram χ² |
 | `vigenere_batch_kernel.hpp` / `.cu` | `VigenereBatchKernel` — explicit key-list SoA batch |
-| `beaufort_key_kernel.hpp` / `.cu` | `BeaufortKeyKernel` — `key-in` involution + skips twin |
-| `totient_prime_stream_kernel.hpp` / `.cu` | `TotientPrimeStreamKernel` — host shifts + skips twin |
+| `beaufort_key_kernel.hpp` / `.cu` | `BeaufortKeyKernel` — dense uchar4 / skip path + `launch_device_async` |
+| `totient_prime_stream_kernel.hpp` / `.cu` | `TotientPrimeStreamKernel` — host shifts; dense uchar4 / skip + async |
 | `compose_driver.hpp` / `compose_driver.cu` | `ComposeDriver` — host-orchestrated stages + ping-pong |
 | `exact_match_score.hpp` / `.cu` | `ExactMatchScore` — integer mismatch reduce → `0.0`/`1.0` |
 | `hamming_agreement_score.hpp` / `.cu` | `HammingAgreementScore` — integer matches → one FP divide |

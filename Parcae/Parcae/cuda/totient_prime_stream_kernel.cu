@@ -1,107 +1,142 @@
+#include "totient_prime_stream_kernel.hpp"
+
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
-#include "totient_prime_stream_kernel.hpp"
+#include "hist_fast.hpp"
+#include "interrupt_device_ops.hpp"
 #include "z29_device.hpp"
 
 #include <cuda_runtime_api.h>
 
-namespace {
+#include <cstdint>
 
-constexpr int kThreadsPerBlock = 256;
-
-[[nodiscard]] __device__ bool bitmask_should_skip(const std::uint32_t* words, std::size_t index) {
-    return (words[index >> 5] & (1u << (index & 31u))) != 0u;
-}
-
-[[nodiscard]] __device__ std::uint32_t bitmask_consumed_before(const std::uint32_t* words,
-                                                               std::size_t index) {
-    std::uint32_t consumed = 0;
-    const std::size_t full_words = index >> 5;
-    for (std::size_t w = 0; w < full_words; ++w) {
-        consumed += 32u - static_cast<std::uint32_t>(__popc(words[w]));
-    }
-    const std::uint32_t rem = static_cast<std::uint32_t>(index & 31u);
-    if (rem != 0u) {
-        const std::uint32_t mask = (1u << rem) - 1u;
-        consumed += rem - static_cast<std::uint32_t>(__popc(words[full_words] & mask));
-    }
-    return consumed;
-}
-
-[[nodiscard]] __device__ std::uint32_t
-sorted_skips_before(const std::uint32_t* skips, std::uint32_t skip_count, std::uint32_t index) {
-    std::uint32_t lo = 0;
-    std::uint32_t hi = skip_count;
-    while (lo < hi) {
-        const std::uint32_t mid = lo + (hi - lo) / 2u;
-        if (skips[mid] < index) {
-            lo = mid + 1u;
-        } else {
-            hi = mid;
-        }
-    }
-    return lo;
-}
-
-[[nodiscard]] __device__ bool sorted_should_skip(const std::uint32_t* skips,
-                                                 std::uint32_t skip_count, std::uint32_t index) {
-    std::uint32_t lo = 0;
-    std::uint32_t hi = skip_count;
-    while (lo < hi) {
-        const std::uint32_t mid = lo + (hi - lo) / 2u;
-        if (skips[mid] < index) {
-            lo = mid + 1u;
-        } else {
-            hi = mid;
-        }
-    }
-    return lo < skip_count && skips[lo] == index;
-}
-
-__global__ void totient_prime_stream_kernel(const std::uint8_t* in, std::uint8_t* out,
-                                            std::size_t count, const std::uint8_t* shifts,
-                                            std::uint32_t shift_len,
-                                            const std::uint32_t* interrupt_data,
-                                            std::uint32_t skip_count, std::uint8_t use_bitmask,
-                                            std::uint8_t encrypt) {
-    const std::size_t i =
+__global__ void totient_dense_uchar4_kernel(const std::uint8_t* __restrict__ in, std::uint8_t* out,
+                                            std::size_t count,
+                                            const std::uint8_t* __restrict__ shifts,
+                                            std::uint32_t shift_len, std::uint8_t encrypt) {
+    const std::size_t n4 = count / 4u;
+    const std::size_t tid =
         static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
         static_cast<std::size_t>(threadIdx.x);
-    if (i >= count) {
-        return;
-    }
+    const std::size_t stride =
+        static_cast<std::size_t>(blockDim.x) * static_cast<std::size_t>(gridDim.x);
 
-    bool skip = false;
-    std::uint32_t stream_cursor = 0;
-    if (use_bitmask != 0u) {
-        skip = bitmask_should_skip(interrupt_data, i);
-        stream_cursor = bitmask_consumed_before(interrupt_data, i);
-    } else {
-        const std::uint32_t index = static_cast<std::uint32_t>(i);
-        skip = sorted_should_skip(interrupt_data, skip_count, index);
-        stream_cursor = index - sorted_skips_before(interrupt_data, skip_count, index);
-    }
+    const uchar4* __restrict__ in4 = reinterpret_cast<const uchar4*>(in);
+    uchar4* out4 = reinterpret_cast<uchar4*>(out);
 
-    if (skip) {
-        out[i] = in[i];
-        return;
+    for (std::size_t i = tid; i < n4; i += stride) {
+        const std::size_t t0 = i * 4u;
+        const uchar4 v = __ldg(in4 + i);
+        uchar4 w;
+        // Dense host path requires shift_len == count; defensive copy if short.
+        if (t0 + 3u >= shift_len) {
+            w.x = v.x;
+            w.y = v.y;
+            w.z = v.z;
+            w.w = v.w;
+            if (t0 < shift_len) {
+                const std::uint8_t s0 = __ldg(shifts + t0);
+                w.x = encrypt != 0u ? Z29Device::add(v.x, s0) : Z29Device::sub(v.x, s0);
+            }
+            if (t0 + 1u < shift_len) {
+                const std::uint8_t s1 = __ldg(shifts + (t0 + 1u));
+                w.y = encrypt != 0u ? Z29Device::add(v.y, s1) : Z29Device::sub(v.y, s1);
+            }
+            if (t0 + 2u < shift_len) {
+                const std::uint8_t s2 = __ldg(shifts + (t0 + 2u));
+                w.z = encrypt != 0u ? Z29Device::add(v.z, s2) : Z29Device::sub(v.z, s2);
+            }
+            out4[i] = w;
+            continue;
+        }
+        const std::uint8_t s0 = __ldg(shifts + t0);
+        const std::uint8_t s1 = __ldg(shifts + (t0 + 1u));
+        const std::uint8_t s2 = __ldg(shifts + (t0 + 2u));
+        const std::uint8_t s3 = __ldg(shifts + (t0 + 3u));
+        if (encrypt != 0u) {
+            w.x = Z29Device::add(v.x, s0);
+            w.y = Z29Device::add(v.y, s1);
+            w.z = Z29Device::add(v.z, s2);
+            w.w = Z29Device::add(v.w, s3);
+        } else {
+            w.x = Z29Device::sub(v.x, s0);
+            w.y = Z29Device::sub(v.y, s1);
+            w.z = Z29Device::sub(v.z, s2);
+            w.w = Z29Device::sub(v.w, s3);
+        }
+        out4[i] = w;
     }
-
-    if (stream_cursor >= shift_len) {
-        // Host validates length; defensive no-op write of input if mismatched.
-        out[i] = in[i];
-        return;
-    }
-
-    const std::uint8_t shift = shifts[stream_cursor];
-    if (encrypt != 0u) {
-        out[i] = Z29Device::add(in[i], shift);
-    } else {
-        out[i] = Z29Device::sub(in[i], shift);
+    for (std::size_t t = n4 * 4u + tid; t < count; t += stride) {
+        const std::uint8_t x = __ldg(in + t);
+        if (t >= shift_len) {
+            out[t] = x;
+            continue;
+        }
+        const std::uint8_t s = __ldg(shifts + t);
+        out[t] = encrypt != 0u ? Z29Device::add(x, s) : Z29Device::sub(x, s);
     }
 }
 
-[[nodiscard]] std::size_t consumable_count(const InterruptDeviceView& interrupts) {
+__global__ void totient_dense_scalar_kernel(const std::uint8_t* __restrict__ in, std::uint8_t* out,
+                                            std::size_t count,
+                                            const std::uint8_t* __restrict__ shifts,
+                                            std::uint32_t shift_len, std::uint8_t encrypt) {
+    const std::size_t tid =
+        static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
+        static_cast<std::size_t>(threadIdx.x);
+    const std::size_t stride =
+        static_cast<std::size_t>(blockDim.x) * static_cast<std::size_t>(gridDim.x);
+
+    for (std::size_t t = tid; t < count; t += stride) {
+        const std::uint8_t x = __ldg(in + t);
+        if (t >= shift_len) {
+            out[t] = x;
+            continue;
+        }
+        const std::uint8_t s = __ldg(shifts + t);
+        out[t] = encrypt != 0u ? Z29Device::add(x, s) : Z29Device::sub(x, s);
+    }
+}
+
+__global__ void totient_skip_kernel(const std::uint8_t* __restrict__ in, std::uint8_t* out,
+                                    std::size_t count, const std::uint8_t* __restrict__ shifts,
+                                    std::uint32_t shift_len, const std::uint32_t* interrupt_data,
+                                    std::uint32_t skip_count, std::uint8_t use_bitmask,
+                                    std::uint8_t encrypt) {
+    const std::size_t tid =
+        static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
+        static_cast<std::size_t>(threadIdx.x);
+    const std::size_t stride =
+        static_cast<std::size_t>(blockDim.x) * static_cast<std::size_t>(gridDim.x);
+
+    for (std::size_t i = tid; i < count; i += stride) {
+        bool skip = false;
+        std::uint32_t stream_cursor = 0;
+        if (use_bitmask != 0u) {
+            skip = InterruptDeviceOps::bitmask_should_skip(interrupt_data, i);
+            stream_cursor = InterruptDeviceOps::bitmask_consumed_before(interrupt_data, i);
+        } else {
+            const std::uint32_t index = static_cast<std::uint32_t>(i);
+            skip = InterruptDeviceOps::sorted_should_skip(interrupt_data, skip_count, index);
+            stream_cursor =
+                index - InterruptDeviceOps::sorted_skips_before(interrupt_data, skip_count, index);
+        }
+
+        const std::uint8_t x = __ldg(in + i);
+        if (skip) {
+            out[i] = x;
+            continue;
+        }
+        if (stream_cursor >= shift_len) {
+            out[i] = x;
+            continue;
+        }
+        const std::uint8_t shift = __ldg(shifts + stream_cursor);
+        out[i] = encrypt != 0u ? Z29Device::add(x, shift) : Z29Device::sub(x, shift);
+    }
+}
+
+std::size_t TotientPrimeStreamKernel::consumable_count(const InterruptDeviceView& interrupts) {
     std::size_t n = 0;
     for (std::size_t i = 0; i < interrupts.consumable_length(); ++i) {
         if (!interrupts.should_skip(i)) {
@@ -111,15 +146,11 @@ __global__ void totient_prime_stream_kernel(const std::uint8_t* in, std::uint8_t
     return n;
 }
 
-} // namespace
-
-Status TotientPrimeStreamKernel::launch_device(const std::uint8_t* device_in,
-                                               std::uint8_t* device_out, std::size_t count,
-                                               const std::uint8_t* device_shifts,
-                                               std::uint32_t shift_len,
-                                               const InterruptDeviceView& interrupts,
-                                               const std::uint32_t* device_bitmask_or_skips,
-                                               CudaDir direction) {
+Status TotientPrimeStreamKernel::launch_device_async(
+    const std::uint8_t* device_in, std::uint8_t* device_out, std::size_t count,
+    const std::uint8_t* device_shifts, std::uint32_t shift_len,
+    const InterruptDeviceView& interrupts, const std::uint32_t* device_bitmask_or_skips,
+    CudaDir direction) {
     if (interrupts.consumable_length() != count) {
         return Status::error("TotientPrimeStreamKernel: interrupt view length mismatch");
     }
@@ -130,7 +161,7 @@ Status TotientPrimeStreamKernel::launch_device(const std::uint8_t* device_in,
         return Status::success();
     }
     if (device_in == nullptr || device_out == nullptr) {
-        return Status::error("TotientPrimeStreamKernel::launch_device null device pointer");
+        return Status::error("TotientPrimeStreamKernel::launch_device_async null device pointer");
     }
     if (shift_len > 0 && device_shifts == nullptr) {
         return Status::error("TotientPrimeStreamKernel: null shifts pointer");
@@ -147,23 +178,54 @@ Status TotientPrimeStreamKernel::launch_device(const std::uint8_t* device_in,
         return Status::error("TotientPrimeStreamKernel: sorted skips require device buffer");
     }
 
+    const std::uint8_t encrypt =
+        direction == CudaDir::Encrypt ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
+    const bool dense_no_skips = interrupts.sorted_skips().empty();
+
+    if (dense_no_skips) {
+        const bool aligned =
+            (reinterpret_cast<std::uintptr_t>(device_in) % alignof(uchar4)) == 0u &&
+            (reinterpret_cast<std::uintptr_t>(device_out) % alignof(uchar4)) == 0u;
+        const std::size_t work = aligned ? (count + 3u) / 4u : count;
+        const int blocks =
+            static_cast<int>((work + static_cast<std::size_t>(HistFast::threads) - 1u) /
+                             static_cast<std::size_t>(HistFast::threads));
+        if (aligned) {
+            totient_dense_uchar4_kernel<<<blocks, HistFast::threads>>>(
+                device_in, device_out, count, device_shifts, shift_len, encrypt);
+        } else {
+            totient_dense_scalar_kernel<<<blocks, HistFast::threads>>>(
+                device_in, device_out, count, device_shifts, shift_len, encrypt);
+        }
+        return CudaError::to_status(cudaGetLastError(),
+                                    "TotientPrimeStreamKernel::launch_device_async");
+    }
+
     const std::uint8_t use_bitmask =
         use_bitmask_encoding ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
     const std::uint32_t skip_count =
         use_bitmask_encoding ? 0u : static_cast<std::uint32_t>(interrupts.sorted_skips().size());
-    const std::uint8_t encrypt =
-        direction == CudaDir::Encrypt ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
-
-    const int blocks = static_cast<int>((count + static_cast<std::size_t>(kThreadsPerBlock) - 1u) /
-                                        static_cast<std::size_t>(kThreadsPerBlock));
-    totient_prime_stream_kernel<<<blocks, kThreadsPerBlock>>>(
+    const int blocks =
+        static_cast<int>((count + static_cast<std::size_t>(HistFast::threads) - 1u) /
+                         static_cast<std::size_t>(HistFast::threads));
+    totient_skip_kernel<<<blocks, HistFast::threads>>>(
         device_in, device_out, count, device_shifts, shift_len, device_bitmask_or_skips, skip_count,
         use_bitmask, encrypt);
+    return CudaError::to_status(cudaGetLastError(), "TotientPrimeStreamKernel::launch_device_async");
+}
 
-    Status launch =
-        CudaError::to_status(cudaGetLastError(), "TotientPrimeStreamKernel::launch_device");
-    if (!launch.ok()) {
-        return launch;
+Status TotientPrimeStreamKernel::launch_device(const std::uint8_t* device_in,
+                                               std::uint8_t* device_out, std::size_t count,
+                                               const std::uint8_t* device_shifts,
+                                               std::uint32_t shift_len,
+                                               const InterruptDeviceView& interrupts,
+                                               const std::uint32_t* device_bitmask_or_skips,
+                                               CudaDir direction) {
+    Status launched =
+        launch_device_async(device_in, device_out, count, device_shifts, shift_len, interrupts,
+                            device_bitmask_or_skips, direction);
+    if (!launched.ok()) {
+        return launched;
     }
     return CudaError::to_status(cudaDeviceSynchronize(),
                                 "TotientPrimeStreamKernel::launch_device sync");

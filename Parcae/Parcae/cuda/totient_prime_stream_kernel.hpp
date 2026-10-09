@@ -15,6 +15,10 @@
 /// Shifts are **host-materialized** (`TotientKeystream::shifts_into`); device only
 /// reads `shifts[j]` for non-skip positions (`j` = consumable cursor). Encrypt adds,
 /// decrypt subtracts. Skip: pass-through. In-place OK.
+///
+/// Dense (no skips): uchar4 packs when stream pointers are aligned.
+/// `launch_device_async` does not synchronize; `launch_device` / `apply_host` sync
+/// (host / compose API, not SLO).
 class TotientPrimeStreamKernel {
 public:
     [[nodiscard]] static Status
@@ -23,6 +27,14 @@ public:
                   const InterruptDeviceView& interrupts,
                   const std::uint32_t* device_bitmask_or_skips, CudaDir direction);
 
+    /// Same as `launch_device` but does not `cudaDeviceSynchronize`.
+    [[nodiscard]] static Status
+    launch_device_async(const std::uint8_t* device_in, std::uint8_t* device_out, std::size_t count,
+                        const std::uint8_t* device_shifts, std::uint32_t shift_len,
+                        const InterruptDeviceView& interrupts,
+                        const std::uint32_t* device_bitmask_or_skips, CudaDir direction);
+
+    /// Host convenience only — not a Kernel SLO path.
     [[nodiscard]] static Status apply_host(std::span<const std::uint8_t> host_in,
                                            std::span<std::uint8_t> host_out,
                                            std::span<const std::uint8_t> host_shifts,
@@ -31,6 +43,8 @@ public:
 
 private:
     TotientPrimeStreamKernel() = delete;
+
+    [[nodiscard]] static std::size_t consumable_count(const InterruptDeviceView& interrupts);
 };
 
 #endif // TOTIENT_PRIME_STREAM_KERNEL_HPP

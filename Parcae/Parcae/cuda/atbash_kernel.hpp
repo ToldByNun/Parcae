@@ -9,16 +9,21 @@
 
 /// CUDA twin of `AtbashTransform::kernel`: `out[i] = 28 - in[i]` (Index29 as `uint8_t`).
 /// Direction and interrupts unused (same as CPU). In-place OK (`device_in == device_out`).
+///
+/// Device path: uchar4 + `HistFast::dec_atbash` when pointers are aligned; scalar
+/// `__ldg` otherwise. `launch_device_async` does not synchronize; `launch_device` /
+/// `apply_host` sync (host / compose API, not SLO).
 class AtbashKernel {
 public:
     [[nodiscard]] static Status launch_device(const std::uint8_t* device_in,
                                               std::uint8_t* device_out, std::size_t count);
 
-    /// Same as `launch_device` but does not `cudaDeviceSynchronize` (for fused timing).
+    /// Same as `launch_device` but does not `cudaDeviceSynchronize`.
     [[nodiscard]] static Status launch_device_async(const std::uint8_t* device_in,
                                                     std::uint8_t* device_out, std::size_t count);
 
     /// H2D → kernel → D2H. If `host_in.data() == host_out.data()`, runs in-place on device.
+    /// Host convenience only — not a Kernel SLO path.
     [[nodiscard]] static Status apply_host(std::span<const std::uint8_t> host_in,
                                            std::span<std::uint8_t> host_out);
 
