@@ -47,27 +47,61 @@ TEST_CASE("BenchTierSpec shared-cipher compute roof gates Atbash/totient Done",
     REQUIRE(BenchTierSpec::percent_peak(1678.0e9, roof) < 100.0);
     REQUIRE(BenchTierSpec::percent_peak(1600.0e9, roof) < 100.0);
     REQUIRE(BenchTierSpec::percent_peak(1109.0e9, roof) < 100.0);
-    // Unique-key families stay on 1 B/rune DRAM roof.
-    REQUIRE(BenchTierSpec::estimated_peak("F.vigenere") == 896.0e9);
+    // Column remap families use column Remap roof (not 896B DRAM).
+    REQUIRE(BenchTierSpec::estimated_peak("F.vigenere") ==
+            BenchTierSpec::column_remap_hist_roof_rps());
 }
 
-TEST_CASE("BenchTierSpec Affine shared-cipher peak is ncu bytes/rune class",
+TEST_CASE("BenchTierSpec Remap roofs gate production hist Done", "[bench][spec][remap]") {
+    REQUIRE(BenchTierSpec::kAlphabetRemapHistRoofRps == 2.0e12);
+    REQUIRE(BenchTierSpec::kColumnRemapHistRoofRps == 2.0e12);
+    REQUIRE(BenchTierSpec::kLagRemapHistRoofRps == 2.0e12);
+    REQUIRE(BenchTierSpec::kBigramRemapHistRoofRps == 1.0e12);
+    REQUIRE(BenchTierSpec::alphabet_remap_hist_roof_rps() ==
+            BenchTierSpec::kAlphabetRemapHistRoofRps);
+    REQUIRE(BenchTierSpec::column_remap_hist_roof_rps() == BenchTierSpec::kColumnRemapHistRoofRps);
+    REQUIRE(BenchTierSpec::lag_remap_hist_roof_rps() == BenchTierSpec::kLagRemapHistRoofRps);
+    REQUIRE(BenchTierSpec::bigram_remap_hist_roof_rps() == BenchTierSpec::kBigramRemapHistRoofRps);
+
+    // Above unique-key 896B DRAM diary; Remap Done is not 1 B/rune.
+    REQUIRE(BenchTierSpec::alphabet_remap_hist_roof_rps() >
+            BenchTierSpec::dram_roofline_hist_peak());
+    REQUIRE(BenchTierSpec::estimated_peak("T1") == BenchTierSpec::alphabet_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::estimated_peak("T2") == BenchTierSpec::lag_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::estimated_peak("T3") == BenchTierSpec::bigram_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s1_lut29") ==
+            BenchTierSpec::alphabet_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s2_linear") ==
+            BenchTierSpec::column_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s4_autokey") ==
+            BenchTierSpec::lag_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s5_poly") ==
+            BenchTierSpec::column_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::estimated_peak("F.beaufort") ==
+            BenchTierSpec::column_remap_hist_roof_rps());
+    // Legacy decode stages stay on 896B.
+    REQUIRE(BenchTierSpec::estimated_peak("C.koan1_fused") == 896.0e9);
+}
+
+TEST_CASE("BenchTierSpec Affine diary DRAM peak is not production Done",
           "[bench][spec][traffic][affine]") {
     // affine ncu cache_bound 2026-10-06: ~4.0566e6 / (812*262144) ≈ 0.01906 B/rune
     REQUIRE(BenchTierSpec::kHistBytesPerRuneAffineSharedCipher == 0.01906);
-    const double peak = BenchTierSpec::dram_roofline_affine_shared_cipher_peak();
-    REQUIRE(peak ==
+    const double diary = BenchTierSpec::dram_roofline_affine_shared_cipher_peak();
+    REQUIRE(diary ==
             Approx(BenchTierSpec::kDramBandwidthBytesPerSec /
                    BenchTierSpec::kHistBytesPerRuneAffineSharedCipher)
                 .epsilon(1e-12));
-    REQUIRE(peak > BenchTierSpec::dram_roofline_hist_peak());
-    REQUIRE(peak < BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak());
+    REQUIRE(diary > BenchTierSpec::dram_roofline_hist_peak());
+    REQUIRE(diary < BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak());
+    // Production Affine remap Done = alphabet Remap roof, not diary DRAM.
+    const double peak = BenchTierSpec::alphabet_remap_hist_roof_rps();
     REQUIRE(BenchTierSpec::estimated_peak("F.affine") == peak);
     REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_affine") == peak);
     REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.compare_Faffine") == peak);
     REQUIRE(BenchTierSpec::dsl_smart_affine.estimated_peak == peak);
     REQUIRE(BenchTierSpec::dsl_smart_compare_affine.estimated_peak == peak);
-    // Quiet-class RPS that printed >100% under 896B stays ≤100 under Affine roof.
+    REQUIRE(BenchTierSpec::estimated_peak("F.affine") != diary);
     REQUIRE(BenchTierSpec::percent_peak(1142.0e9, peak) < 100.0);
     REQUIRE(BenchTierSpec::percent_peak(885.0e9, peak) < 100.0);
 }
@@ -80,7 +114,7 @@ TEST_CASE("BenchTierSpec T1 config matches canonical SLO table", "[bench][spec]"
     REQUIRE(BenchTierSpec::t1.repeats == 64u);
     REQUIRE(BenchTierSpec::t1.slo_min == 15.0e9);
     REQUIRE(BenchTierSpec::t1.slo_max == 35.0e9);
-    REQUIRE(BenchTierSpec::t1.estimated_peak == BenchTierSpec::dram_roofline_hist_peak());
+    REQUIRE(BenchTierSpec::t1.estimated_peak == BenchTierSpec::alphabet_remap_hist_roof_rps());
 }
 
 TEST_CASE("BenchTierSpec T2 config matches canonical SLO table", "[bench][spec]") {
@@ -90,7 +124,7 @@ TEST_CASE("BenchTierSpec T2 config matches canonical SLO table", "[bench][spec]"
     REQUIRE(BenchTierSpec::t2.repeats == 8u);
     REQUIRE(BenchTierSpec::t2.slo_min == 3.0e9);
     REQUIRE(BenchTierSpec::t2.slo_max == 10.0e9);
-    REQUIRE(BenchTierSpec::t2.estimated_peak == BenchTierSpec::dram_roofline_hist_peak());
+    REQUIRE(BenchTierSpec::t2.estimated_peak == BenchTierSpec::lag_remap_hist_roof_rps());
 }
 
 TEST_CASE("BenchTierSpec T3 config matches canonical SLO table", "[bench][spec]") {
@@ -100,8 +134,7 @@ TEST_CASE("BenchTierSpec T3 config matches canonical SLO table", "[bench][spec]"
     REQUIRE(BenchTierSpec::t3.repeats == 8u);
     REQUIRE(BenchTierSpec::t3.slo_min == 1.0e9);
     REQUIRE(BenchTierSpec::t3.slo_max == 0.0);
-    // Bigram ≥2 B/rune → half of 1 B/rune DRAM roof.
-    REQUIRE(BenchTierSpec::t3.estimated_peak == 448.0e9);
+    REQUIRE(BenchTierSpec::t3.estimated_peak == BenchTierSpec::bigram_remap_hist_roof_rps());
 }
 
 TEST_CASE("BenchTierSpec primary iteration order is T1 T2 T3", "[bench][spec]") {
@@ -154,15 +187,18 @@ TEST_CASE("BenchTierSpec primary reps match wired ThroughputTiers contract", "[b
     REQUIRE(BenchTierSpec::t3.candidates == 512u);
 }
 
-TEST_CASE("BenchTierSpec theory rows use DRAM roofline peak", "[bench][spec]") {
+TEST_CASE("BenchTierSpec theory rows use Remap roofs", "[bench][spec][remap]") {
     REQUIRE(std::string_view(BenchTierSpec::theory_s0_caesar.id) == "T.theory.caesar_bytecode");
     REQUIRE(BenchTierSpec::theory_s0_caesar.estimated_peak ==
-            BenchTierSpec::dram_roofline_hist_peak());
-    REQUIRE(BenchTierSpec::theory_s1_lut29.estimated_peak == BenchTierSpec::dram_roofline_hist_peak());
-    REQUIRE(BenchTierSpec::theory_s2_linear.estimated_peak == BenchTierSpec::dram_roofline_hist_peak());
+            BenchTierSpec::alphabet_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::theory_s1_lut29.estimated_peak ==
+            BenchTierSpec::alphabet_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::theory_s2_linear.estimated_peak ==
+            BenchTierSpec::column_remap_hist_roof_rps());
     REQUIRE(BenchTierSpec::theory_s4_autokey.estimated_peak ==
-            BenchTierSpec::dram_roofline_hist_peak());
-    REQUIRE(BenchTierSpec::theory_s5_poly.estimated_peak == BenchTierSpec::dram_roofline_hist_peak());
+            BenchTierSpec::lag_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::theory_s5_poly.estimated_peak ==
+            BenchTierSpec::column_remap_hist_roof_rps());
     REQUIRE(BenchTierSpec::theory_s0_caesar.tokens == BenchTierSpec::fair_gate_tokens());
     REQUIRE(BenchTierSpec::is_fair_gate_tokens(1048576u));
     REQUIRE_FALSE(BenchTierSpec::is_fair_gate_tokens(4096u));
@@ -174,15 +210,20 @@ TEST_CASE("BenchTierSpec theory rows use DRAM roofline peak", "[bench][spec]") {
     REQUIRE(BenchTierSpec::find_theory("T.theory.s5") == &BenchTierSpec::theory_s5_poly);
     REQUIRE(BenchTierSpec::find_theory("nope") == nullptr);
 
-    REQUIRE(BenchTierSpec::estimated_peak("T.theory.caesar_bytecode") == 896.0e9);
-    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s1_lut29") == 896.0e9);
-    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s4_autokey") == 896.0e9);
-    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s5_poly") == 896.0e9);
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.caesar_bytecode") ==
+            BenchTierSpec::alphabet_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s1_lut29") ==
+            BenchTierSpec::alphabet_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s4_autokey") ==
+            BenchTierSpec::lag_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.s5_poly") ==
+            BenchTierSpec::column_remap_hist_roof_rps());
     REQUIRE(BenchTierSpec::estimated_peak("F.atbash") ==
             BenchTierSpec::shared_cipher_compute_roof_rps());
     REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_atbash") ==
             BenchTierSpec::shared_cipher_compute_roof_rps());
-    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.compare_caesar") == 896.0e9);
+    REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.compare_caesar") ==
+            BenchTierSpec::alphabet_remap_hist_roof_rps());
     REQUIRE(BenchTierSpec::slo_floor("T.theory.s1_lut29") == 15.0e9);
     REQUIRE(BenchTierSpec::slo_floor("T.dsl_smart.custom_affine") == 15.0e9);
     REQUIRE(BenchTierSpec::find_dsl_smart("T.dsl_smart.custom_caesar") ==
@@ -190,6 +231,8 @@ TEST_CASE("BenchTierSpec theory rows use DRAM roofline peak", "[bench][spec]") {
     REQUIRE(BenchTierSpec::find_dsl_smart("nope") == nullptr);
 
     REQUIRE(BenchTierSpec::checkpoint_50B_applicable(896.0e9));
+    REQUIRE(BenchTierSpec::checkpoint_50B_applicable(
+        BenchTierSpec::alphabet_remap_hist_roof_rps()));
     REQUIRE(BenchTierSpec::checkpoint_50B_hit(55.0e9, 896.0e9));
     REQUIRE_FALSE(BenchTierSpec::checkpoint_50B_hit(40.0e9, 896.0e9));
 

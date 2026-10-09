@@ -5,39 +5,42 @@
 **Canonical tool:** `parcae-bench --suite slo [--extended] --allow-cuda`  
 **Compat tool:** `parcae-throughput-tiers` (thin wrapper → same `BenchSloSuite` with extended on)  
 **Hardware:** NVIDIA GeForce RTX 5070 Ti — **896 GB/s** GDDR7 (published)  
-**Metric:** `repeats × C × T / median-of-3 cudaEvent` (setup excluded)
+**Metric (dual):**
+- **logical** `runes/s` = `repeats × C × T / median-of-3 cudaEvent` (setup excluded) —
+  historical rate; **inflated** under remap (cipher streamed ~once).
+- **physical** `cipher_B/s` = `repeats × T × bytes_per_token / elapsed`
+  (`BenchMetric::cipher_bytes_per_sec`) — compare to GDDR7 **896 GB/s**.
 
-## What `estimated_peak` means (physical, not measured)
+## What `estimated_peak` means (Done gate, not always DRAM)
 
-`BenchTierSpec::estimated_peak` is the shape ceiling used by Done/Stretch:
+`BenchTierSpec::estimated_peak` is the shape ceiling used by Done/Stretch on
+**logical** runes/s:
 
 ```text
-# Unique-key fused hist (Caesar / S1 / S2 / Vigenère / …)
-peak_runes/s = DRAM_BW / bytes_cipher_per_rune
-             = 896e9 B/s / 1 B/rune
-             = 896B runes/s
+# Alphabet / column / lag / bigram remap (production once-count + bin remap)
+peak_runes/s = kAlphabetRemapHistRoofRps | kColumnRemapHistRoofRps |
+               kLagRemapHistRoofRps | kBigramRemapHistRoofRps
+             ≈ 2.0e12 (alphabet/column/lag interim) / 1.0e12 (bigram)
+# Not 896B — cipher traffic is O(T), not O(C·T).
 
 # Shared-cipher occupancy (F.atbash / F.totient / dsl_smart Atbash)
 peak_runes/s = kSharedCipherComputeRoofRps   # SM/atomic capacity
              = 2.0e12                         # frozen 2026-10-06 identity hist
-# DRAM occupancy diary (ncu 0.01111 B/rune → ≈80.7 TB) is NOT the Done gate.
+
+# Legacy unique-key decode→hist (hard-S0 / koan stages)
+peak_runes/s = DRAM_BW / 1 B/rune = 896B
 ```
 
-Unique-key peaks are what the GPU **could** sustain if memory-bound at the
-traffic model. Shared-cipher Atbash/totient peaks are the **compute roof**
-(identity occupancy hist calibration) — cipher is L2-resident and hist is
-atomic-bound, so 90% of the DRAM diary (~80.7 TB) is not a reachable Done.
-`%peak = measured / peak` is therefore ≤ **100%** by construction. If a quiet
-run ever prints &gt;100%, the roof model is wrong — fix the model, do not
-celebrate “super-linear” silicon.
+Remap roofs are interim freezes from the identity-hist / CipherHistOnce plate
+class — re-calibrate on a quiet remap plate when available. DRAM occupancy
+diaries (Atbash ~80.7 TB, Affine decode ~47 TB) are **not** production Done.
+`%peak = measured / peak` is ≤ **100%** by construction. If a quiet run ever
+prints &gt;100%, the roof model is wrong — fix the model.
 
 Quiet ACCEPTANCE ([`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md)):
-Caesar twin stretch (~**87%** median); fair specialize ~**76%**; S1 noisy;
-F.vigenere/beaufort ≥90% under 1 B/rune. Atbash/totient Done uses the
-**compute roof** (**2.0 TB**); DRAM occupancy (~**80.7 TB**, ncu 0.01111 B/rune)
-is diary only ([`profiles/traffic_model/SUMMARY.md`](profiles/traffic_model/SUMMARY.md)).
-Affine uses the **Affine shared-cipher** DRAM class (~**0.01906 B/rune** →
-≈**47.0 TB**). Hard-S0 interpreter remains ~**7–8%**.
+historical 896B %-of-peak numbers for Caesar/S1/S2 are **superseded** by Remap
+roofs after production once-count+remap. Atbash/totient Done stays the
+**compute roof** (**2.0 TB**). Hard-S0 interpreter remains ~**7–8%** of 896B.
 
 `ThroughputTiers` / `DslPeakSanity` delegate to `BenchTierSpec`
 (Catch2 `[bench][spec]` / `[dsl][peak]`).
@@ -58,22 +61,22 @@ TheoryIr decrypt HotLoop
 
 Smart customs (self-written math without catalog API): [`dsl-smart-hist.md`](dsl-smart-hist.md).
 
-| Strategy | Spec id | Kernel | Physical peak (DRAM roof) |
-|----------|---------|--------|---------------------------|
-| Fair Caesar (specialize S1 when eligible; else S0) | `T.theory.caesar_bytecode` | S1 lut / `theory_chi2_hist_kernel` | **896B** |
-| S1 LUT-29 (`f(x)`-only) | `T.theory.s1_lut29` | `theory_hist_chi2_s1_lut_kernel` | **896B** |
-| S2 linear uchar4 | `T.theory.s2_linear` / `T.theory.progressive` | `theory_hist_chi2_s2_linear_kernel` | **896B** |
+| Strategy | Spec id | Kernel | Done peak (logical) |
+|----------|---------|--------|---------------------|
+| Fair Caesar (specialize S1 when eligible; else S0) | `T.theory.caesar_bytecode` | S1 mono-LUT remap | **alphabet Remap 2.0 TB** |
+| S1 LUT-29 (`f(x)`-only) | `T.theory.s1_lut29` | CipherHistOnce + LUT remap | **alphabet Remap 2.0 TB** |
+| S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | ColumnHistOnce(L=29) + remap | **column Remap 2.0 TB** |
 
 Fair gate: `parcae-bench --suite theory --allow-cuda` → `BenchTierSpec::pass_tier`
-(≥90% of **896B** + `slo_min` at `T≥2^20`). Soft-fallback / hard-S0 interpreter
-still fails that gate (~7–8%); eligible Caesar fair row is stretch (~79%) via
-specialize dispatch. Short T is measurement-only (`underfill_not_slo_gate`).
+(≥90% of Remap roof + `slo_min` at `T≥2^20`). Soft-fallback / hard-S0 interpreter
+still fails that gate (~7–8% of **896B** diary); eligible Caesar/S1/S2 fair rows
+use Remap roofs. Short T is measurement-only (`underfill_not_slo_gate`).
 
 ### Kernel SLO vs campaign wall
 
 | Metric | Tool / log | Includes | Gate? |
 |--------|------------|----------|-------|
-| **Kernel SLO** | `parcae-bench --suite theory` (cudaEvent) | Device hist/finalize only | **Yes** — ≥90% DRAM roof |
+| **Kernel SLO** | `parcae-bench --suite theory` (cudaEvent) | Device hist/finalize only | **Yes** — ≥90% Remap / DRAM roof |
 | **Campaign wall** | `parcae-search-cycle` → `research/run.log` | Host prepare/bind, H2D, kernel, D2H, materialize, ingest | **No** — ops / ETA only |
 
 Do **not** compare campaign wall at short page `T` to catalog or theory cudaEvent

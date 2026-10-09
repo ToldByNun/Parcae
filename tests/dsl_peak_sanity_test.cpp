@@ -10,14 +10,16 @@
 #include <parcae/run/throughput_tiers.hpp>
 #endif
 
-TEST_CASE("DslPeakSanity peaks match DRAM-roofline plateaus", "[dsl][peak]") {
-    REQUIRE(DslPeakSanity::estimated_peak("T1") == 896.0e9);
-    REQUIRE(DslPeakSanity::estimated_peak("T2") == 896.0e9);
-    REQUIRE(DslPeakSanity::estimated_peak("T3") == 448.0e9);
+TEST_CASE("DslPeakSanity peaks match Remap / diary roofs", "[dsl][peak][remap]") {
+    REQUIRE(DslPeakSanity::estimated_peak("T1") == BenchTierSpec::alphabet_remap_hist_roof_rps());
+    REQUIRE(DslPeakSanity::estimated_peak("T2") == BenchTierSpec::lag_remap_hist_roof_rps());
+    REQUIRE(DslPeakSanity::estimated_peak("T3") == BenchTierSpec::bigram_remap_hist_roof_rps());
     REQUIRE(DslPeakSanity::estimated_peak("F.atbash") ==
             BenchTierSpec::shared_cipher_compute_roof_rps());
     REQUIRE(DslPeakSanity::estimated_peak("F.affine") ==
-            BenchTierSpec::dram_roofline_affine_shared_cipher_peak());
+            BenchTierSpec::alphabet_remap_hist_roof_rps());
+    REQUIRE(DslPeakSanity::estimated_peak("F.vigenere") ==
+            BenchTierSpec::column_remap_hist_roof_rps());
     REQUIRE(DslPeakSanity::estimated_peak("C.koan1_fused") == 896.0e9);
     REQUIRE(DslPeakSanity::estimated_peak("C.koan1_stages") == 896.0e9);
     REQUIRE(DslPeakSanity::estimated_peak("nope") == 0.0);

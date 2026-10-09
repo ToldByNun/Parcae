@@ -6,9 +6,20 @@
 TEST_CASE("BenchMetric runes_per_sec and keys_per_sec formulas", "[bench][metric]") {
     // 2 reps × 10 C × 100 T / 0.5 s = 4000 runes/s; keys/s = 2×10/0.5 = 40
     REQUIRE(BenchMetric::runes_per_sec(2, 10, 100, 0.5) == 4000.0);
+    REQUIRE(BenchMetric::logical_runes_per_sec(2, 10, 100, 0.5) == 4000.0);
     REQUIRE(BenchMetric::keys_per_sec(2, 10, 0.5) == 40.0);
     REQUIRE(BenchMetric::runes_per_sec(1, 1, 1, 0.0) == 0.0);
     REQUIRE(BenchMetric::keys_per_sec(1, 1, -1.0) == 0.0);
+}
+
+TEST_CASE("BenchMetric dual cipher_bytes_per_sec vs logical_runes_per_sec",
+          "[bench][metric][remap]") {
+    // Remap mono: cipher once → 2·100·1 / 0.5 = 400 B/s; logical C·T = 4000.
+    REQUIRE(BenchMetric::cipher_bytes_per_sec(2, 100, 0.5) == 400.0);
+    REQUIRE(BenchMetric::cipher_bytes_per_sec(2, 100, 0.5, 2.0) == 800.0); // bigram once
+    REQUIRE(BenchMetric::cipher_bytes_per_sec(1, 1, 0.0) == 0.0);
+    REQUIRE(BenchMetric::logical_runes_per_sec(2, 10, 100, 0.5) >
+            BenchMetric::cipher_bytes_per_sec(2, 100, 0.5));
 }
 
 TEST_CASE("BenchMetric Sample::from_elapsed", "[bench][metric]") {
@@ -16,8 +27,11 @@ TEST_CASE("BenchMetric Sample::from_elapsed", "[bench][metric]") {
     REQUIRE(s.wall_seconds() == 2.0);
     const double expected_rps = BenchMetric::runes_per_sec(64, 29, 1048576, 2.0);
     const double expected_kps = BenchMetric::keys_per_sec(64, 29, 2.0);
+    const double expected_cbs = BenchMetric::cipher_bytes_per_sec(64, 1048576, 2.0);
     REQUIRE(s.runes_per_sec() == expected_rps);
+    REQUIRE(s.logical_runes_per_sec() == expected_rps);
     REQUIRE(s.keys_per_sec() == expected_kps);
+    REQUIRE(s.cipher_bytes_per_sec() == expected_cbs);
     REQUIRE(std::isfinite(s.runes_per_sec()));
 }
 
@@ -42,4 +56,6 @@ TEST_CASE("BenchMetric median3_sample picks middle runes_per_sec triple", "[benc
 TEST_CASE("BenchMetric kind_str", "[bench][metric]") {
     REQUIRE(std::string(BenchMetric::kind_str(BenchMetric::Kind::RunesPerSec)) == "runes/s");
     REQUIRE(std::string(BenchMetric::kind_str(BenchMetric::Kind::KeysPerSec)) == "keys/s");
+    REQUIRE(std::string(BenchMetric::kind_str(BenchMetric::Kind::CipherBytesPerSec)) ==
+            "cipher_B/s");
 }

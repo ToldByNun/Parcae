@@ -16,14 +16,17 @@
 ///
 /// **`estimated_peak`** for fused decrypt+χ² hist on the calibration GPU
 /// (RTX 5070 Ti):
-///   - **Unique-key** shapes (Caesar / S1 / S2 / Vigenère / …): physical **DRAM
-///     roofline** = GDDR7 BW / cipher bytes per rune (what silicon *could* do
-///     if memory-bound).
+///   - **Alphabet / column / lag / bigram remap** (production CipherHistOnce /
+///     ColumnHistOnce / LagDiffHistOnce / BigramCountOnce + bin remap):
+///     **Remap roofs** (`kAlphabetRemapHistRoofRps`, …) — Done gates on
+///     **logical** `C·T` runes/s, not 1 B/rune DRAM. Cipher traffic is ~O(T).
+///   - **Legacy unique-key decode→hist** (hard-S0 bytecode, koan stages):
+///     physical **DRAM roofline** = GDDR7 BW / 1 B cipher/rune (**896B**).
 ///   - **Shared-cipher occupancy** (F.atbash / F.totient / dsl_smart Atbash):
-///     **SM/atomic compute roof** (`kSharedCipherComputeRoofRps`), calibrated
-///     from identity occupancy hist. DRAM occupancy peak stays diary-only —
-///     Done does **not** require DRAM-bound for this traffic class.
+///     **SM/atomic compute roof** (`kSharedCipherComputeRoofRps`), same numeric
+///     freeze as alphabet remap until a dedicated CipherHistOnce plate lands.
 /// `%peak` cannot exceed 100 by construction; if it does, the roof model is wrong.
+/// Dual rates: `BenchMetric::logical_runes_per_sec` vs `cipher_bytes_per_sec`.
 /// See `docs/architecture/cuda-throughput.md`.
 ///
 /// Pass rule (same as historical `ThroughputTiers::pass_tier`):
@@ -66,14 +69,29 @@ public:
     /// Done on this traffic class (cipher is L2-resident; hist is atomic-bound).
     static constexpr double kSharedCipherComputeRoofRps = 2.0e12;
 
-    /// Affine fused hist (F.affine / dsl_smart Affine) — shared cipher across C=812
-    /// unique (a,b) lanes. ncu 2026-10-06 RTX 5070 Ti (`profiles/cache_bound/` +
-    /// `profiles/traffic_model/`):
-    ///   `affine_chi2_hist_kernel` @ C=812 T=262144 grid.y=64:
-    ///     `dram__bytes.sum` ≈ 4.0566 MB → bytes/rune ≈ **0.01906**
-    ///   DRAM SoL ~1.8%, L2 hit ~97.6% (compute/L2-bound; absolute ~17 GB/s).
-    /// Peak = BW/bytes ≈ **47.0 TB** runes/s. Fixes intermittent `%peak>100` under
-    /// the unique-key 1 B/rune Spec. Not quiet max.
+    /// Alphabet mono remap Done roof (logical runes/s): CipherHistOnce + C×29
+    /// bin remap + finalize (Caesar / S1 / ShapeInline mono / Affine remap).
+    /// Interim freeze = identity-hist plate class (**2.0e12**); re-calibrate on
+    /// a quiet CipherHistOnce+finalize plate when available. Not 896B DRAM.
+    static constexpr double kAlphabetRemapHistRoofRps = kSharedCipherComputeRoofRps;
+
+    /// Column period remap Done roof (logical runes/s): ColumnHistOnce(L) +
+    /// keystream/key remap (S2 / S5 / Vigenère / Beaufort). Same interim freeze.
+    static constexpr double kColumnRemapHistRoofRps = kSharedCipherComputeRoofRps;
+
+    /// Lag-diff / AutokeyRing remap Done roof (logical runes/s): LagDiffHistOnce
+    /// + prefix merge (S4 / CTAK). Same interim freeze.
+    static constexpr double kLagRemapHistRoofRps = kSharedCipherComputeRoofRps;
+
+    /// Bigram-LL remap Done roof (logical runes/s): BigramCountOnce + C×841 Dot
+    /// (T3 / DeepScore bigram-LL). Slightly lower interim freeze (more once work).
+    static constexpr double kBigramRemapHistRoofRps = 1.0e12;
+
+    /// Affine fused hist — **diary** ncu bytes/rune for legacy decode→hist
+    /// (F.affine / dsl_smart Affine before remap). ncu 2026-10-06 RTX 5070 Ti:
+    ///   `affine_chi2_hist_kernel` @ C=812 T=262144: ≈ **0.01906** B/rune →
+    ///   Peak ≈ **47.0 TB**. Production Affine remap Done uses
+    ///   `kAlphabetRemapHistRoofRps` instead.
     static constexpr double kHistBytesPerRuneAffineSharedCipher = 0.01906;
     static constexpr double kDramRooflineAffineSharedCipherPeak =
         kDramBandwidthBytesPerSec / kHistBytesPerRuneAffineSharedCipher;
@@ -92,6 +110,23 @@ public:
         return kSharedCipherComputeRoofRps;
     }
 
+    [[nodiscard]] static constexpr double alphabet_remap_hist_roof_rps() noexcept {
+        return kAlphabetRemapHistRoofRps;
+    }
+
+    [[nodiscard]] static constexpr double column_remap_hist_roof_rps() noexcept {
+        return kColumnRemapHistRoofRps;
+    }
+
+    [[nodiscard]] static constexpr double lag_remap_hist_roof_rps() noexcept {
+        return kLagRemapHistRoofRps;
+    }
+
+    [[nodiscard]] static constexpr double bigram_remap_hist_roof_rps() noexcept {
+        return kBigramRemapHistRoofRps;
+    }
+
+    /// Diary only — legacy Affine decode→hist DRAM class (not production Done).
     [[nodiscard]] static constexpr double dram_roofline_affine_shared_cipher_peak() noexcept {
         return kDramRooflineAffineSharedCipherPeak;
     }
@@ -118,7 +153,7 @@ public:
     // --- Primary SLO tiers (canonical config) --------------------------------
 
     /// Caesar fused χ² (simple substitution). C=29, T=2^20, reps=64.
-    /// Peak = DRAM roofline (896B), not measured max.
+    /// Peak = alphabet remap roof (CipherHistOnce + rotate), not 896B DRAM.
     static constexpr Tier t1{"T1",
                              "Caesar fused chi2 (simple sub)",
                              static_cast<std::size_t>(Index29::modulus),
@@ -126,27 +161,27 @@ public:
                              64u,
                              15.0e9,
                              35.0e9,
-                             kDramRooflineHistPeak};
+                             kAlphabetRemapHistRoofRps};
 
     /// Filtered multi-key / autokey / dynamic-shift (worst of three).
-    /// C=4096, T=2^18, reps=8.
+    /// C=4096, T=2^18, reps=8. Peak = lag remap roof (CTAK production).
     static constexpr Tier t2{"T2",    "Filtered multi-key/autokey/dyn (worst)",
                              4096u,
                              262144u, // 1 << 18
                              8u,      3.0e9,
-                             10.0e9,  kDramRooflineHistPeak};
+                             10.0e9,  kLagRemapHistRoofRps};
 
     /// Caesar bigram + synthetic dictionary validation.
     /// C=512, T=2^18, reps=8. slo_max=0 → display ">=".
-    /// Bigram touches ≥2 input bytes/rune → half the 1 B/rune roof (448B).
+    /// Peak = bigram remap roof (Once-B + C×841 Dot); Dict path separate.
     static constexpr Tier t3{"T3",  "Caesar bigram+dict validation", 512u, 262144u, 8u, 1.0e9, 0.0,
-                             kDramRooflineHistPeak / 2.0};
+                             kBigramRemapHistRoofRps};
 
-    // --- Theory fused-χ² shapes (same physical DRAM roof as catalog hist) -----
+    // --- Theory fused-χ² shapes (remap roofs; hard-S0 stays on 896B diary) -----
 
-    /// Fair Caesar-as-bytecode Spec row. Peak = DRAM roofline (896B).
+    /// Fair Caesar-as-bytecode Spec row. Peak = alphabet remap (specialize → S1).
     /// Suite prefers S1 when emit classifies f(x)-only (`specialize_S1`); hard-S0
-    /// (autokey / prefer_branch / caps) stays on the interpreter.
+    /// (autokey / prefer_branch / caps) stays on the interpreter (fails Remap gate).
     static constexpr Tier theory_s0_caesar{"T.theory.caesar_bytecode",
                                           "Theory Caesar fair (specialize S1 when eligible)",
                                           static_cast<std::size_t>(Index29::modulus),
@@ -154,9 +189,9 @@ public:
                                           8u,
                                           15.0e9,
                                           0.0,
-                                          kDramRooflineHistPeak};
+                                          kAlphabetRemapHistRoofRps};
 
-    /// S1 LUT-29. Peak = DRAM roofline (896B).
+    /// S1 mono-LUT. Peak = alphabet remap roof.
     static constexpr Tier theory_s1_lut29{"T.theory.s1_lut29",
                                          "TheoryHistChi2S1 LUT-29 (f(x)-only)",
                                          static_cast<std::size_t>(Index29::modulus),
@@ -164,9 +199,9 @@ public:
                                          8u,
                                          15.0e9,
                                          0.0,
-                                         kDramRooflineHistPeak};
+                                         kAlphabetRemapHistRoofRps};
 
-    /// S2 linear uchar4. Peak = DRAM roofline (896B).
+    /// S2 linear. Peak = column period-29 remap roof.
     /// Default C=841 (=29²) matches full (b0,b1) grid; suite may use smaller C for Catch2.
     static constexpr Tier theory_s2_linear{"T.theory.s2_linear",
                                           "TheoryHistChi2S2 progressive/bitmask linear",
@@ -175,12 +210,12 @@ public:
                                           8u,
                                           15.0e9,
                                           0.0,
-                                          kDramRooflineHistPeak};
+                                          kColumnRemapHistRoofRps};
 
     /// Alias name used by microbench progressive row (same peak as S2 linear).
     static constexpr const char* theory_progressive_id = "T.theory.progressive";
 
-    /// S4 AutokeyRing fair Spec. C=28 (lag 1..28). Peak = DRAM roofline (896B).
+    /// S4 AutokeyRing fair Spec. C=28 (lag 1..28). Peak = lag remap roof.
     static constexpr Tier theory_s4_autokey{"T.theory.s4_autokey",
                                            "TheoryHistChi2S4 AutokeyRing (vigenere_lag)",
                                            28u,
@@ -188,10 +223,9 @@ public:
                                            8u,
                                            15.0e9,
                                            0.0,
-                                           kDramRooflineHistPeak};
+                                           kLagRemapHistRoofRps};
 
-    /// S5 poly keystream fair Spec. C=841 (b0,b1 grid; b2 cycles). Same 1 B/rune
-    /// DRAM roof as S2 (period-29 shared ks).
+    /// S5 poly keystream fair Spec. C=841 (b0,b1 grid; b2 cycles). Column remap.
     static constexpr Tier theory_s5_poly{"T.theory.s5_poly",
                                         "TheoryHistChi2S5 poly2 (b0+b1·i+b2·i·i)",
                                         841u,
@@ -199,7 +233,7 @@ public:
                                         4u,
                                         15.0e9,
                                         0.0,
-                                        kDramRooflineHistPeak};
+                                        kColumnRemapHistRoofRps};
 
     // --- DSL smart customs (hand-written HotLoop → ShapeInline twin) ----------
     // Fair Kernel SLO only (T≥2^20). Campaign wall is never PRIMARY.
@@ -225,7 +259,7 @@ public:
                                                   0.0,
                                                   kSharedCipherComputeRoofRps};
 
-    /// Custom Caesar → ShapeInline (`HistFast::dec_caesar`).
+    /// Custom Caesar → ShapeInline remap.
     static constexpr Tier dsl_smart_caesar{"T.dsl_smart.custom_caesar",
                                           "Self-written Caesar → ShapeInline twin",
                                           static_cast<std::size_t>(Index29::modulus),
@@ -233,7 +267,7 @@ public:
                                           8u,
                                           15.0e9,
                                           0.0,
-                                          kDramRooflineHistPeak};
+                                          kAlphabetRemapHistRoofRps};
 
     /// Catalog CaesarChi2Batch twin (same C/T as custom_caesar).
     static constexpr Tier dsl_smart_compare_caesar{"T.dsl_smart.compare_caesar",
@@ -243,10 +277,10 @@ public:
                                                   8u,
                                                   15.0e9,
                                                   0.0,
-                                                  kDramRooflineHistPeak};
+                                                  kAlphabetRemapHistRoofRps};
 
-    /// Custom Affine decrypt → ShapeInline; fair C=812 (a=1..28 × b=0..28).
-    /// Peak = Affine shared-cipher DRAM roof (ncu 0.01906 B/rune), not 1 B/rune.
+    /// Custom Affine decrypt → ShapeInline remap; fair C=812 (a=1..28 × b=0..28).
+    /// Peak = alphabet remap roof (CipherHistOnce); Affine DRAM class is diary.
     static constexpr Tier dsl_smart_affine{"T.dsl_smart.custom_affine",
                                           "Self-written Affine decrypt → ShapeInline twin",
                                           812u,
@@ -254,7 +288,7 @@ public:
                                           4u,
                                           15.0e9,
                                           0.0,
-                                          kDramRooflineAffineSharedCipherPeak};
+                                          kAlphabetRemapHistRoofRps};
 
     /// Catalog `FamilyChi2Batch` affine twin (same C/T as custom_affine).
     static constexpr Tier dsl_smart_compare_affine{"T.dsl_smart.compare_Faffine",
@@ -264,9 +298,9 @@ public:
                                                   4u,
                                                   15.0e9,
                                                   0.0,
-                                                  kDramRooflineAffineSharedCipherPeak};
+                                                  kAlphabetRemapHistRoofRps};
 
-    /// Custom linear `x±(b0+b1·i)` → S2 uchar4; fair C=841 (=29²).
+    /// Custom linear `x±(b0+b1·i)` → S2 column remap; fair C=841 (=29²).
     static constexpr Tier dsl_smart_linear{"T.dsl_smart.custom_linear",
                                           "Self-written linear → S2 twin",
                                           841u,
@@ -274,7 +308,7 @@ public:
                                           4u,
                                           15.0e9,
                                           0.0,
-                                          kDramRooflineHistPeak};
+                                          kColumnRemapHistRoofRps};
 
     /// TheoryHistChi2S2 twin (same C/T as custom_linear).
     static constexpr Tier dsl_smart_compare_linear{"T.dsl_smart.compare_S2",
@@ -284,9 +318,9 @@ public:
                                                   4u,
                                                   15.0e9,
                                                   0.0,
-                                                  kDramRooflineHistPeak};
+                                                  kColumnRemapHistRoofRps};
 
-    /// Custom autokey vigenere_lag → S4 AutokeyRing; fair C=28 (lag 1..28).
+    /// Custom autokey vigenere_lag → S4 lag remap; fair C=28 (lag 1..28).
     static constexpr Tier dsl_smart_autokey{"T.dsl_smart.custom_autokey",
                                            "Self-written autokey → S4 AutokeyRing twin",
                                            28u,
@@ -294,7 +328,7 @@ public:
                                            8u,
                                            15.0e9,
                                            0.0,
-                                           kDramRooflineHistPeak};
+                                           kLagRemapHistRoofRps};
 
     /// S4 AutokeyRing twin (same C/T as custom_autokey).
     static constexpr Tier dsl_smart_compare_autokey{"T.dsl_smart.compare_S4",
@@ -304,7 +338,7 @@ public:
                                                    8u,
                                                    15.0e9,
                                                    0.0,
-                                                   kDramRooflineHistPeak};
+                                                   kLagRemapHistRoofRps};
 
     static constexpr std::size_t primary_tier_count = 3;
 
@@ -357,9 +391,8 @@ public:
 
     // --- Peak / SLO tables (incl. F.* / C.* extended rows) --------------------
 
-    /// Shape ceilings (runes/s). Default fused hist @ 1 B cipher/rune → 896B DRAM.
-    /// Atbash/totient / dsl_smart Atbash → shared-cipher **compute** roof (2.0 TB).
-    /// Affine shared-cipher (C=812) → ncu bytes/rune DRAM class (~47.0 TB).
+    /// Shape ceilings (logical runes/s). Remap shapes → Remap roofs; hard-S0 /
+    /// koan stages → 896B DRAM diary; Atbash/totient → shared-cipher compute roof.
     [[nodiscard]] static constexpr double estimated_peak(std::string_view tier) noexcept {
         if (tier == "T1") {
             return t1.estimated_peak;
@@ -375,13 +408,17 @@ public:
             tier == "T.dsl_smart.compare_Fatbash") {
             return shared_cipher_compute_roof_rps();
         }
-        // Affine shared cipher across unique (a,b) lanes (C=812).
+        // Affine production remap (CipherHistOnce + permute).
         if (tier == "F.affine" || tier == "T.dsl_smart.custom_affine" ||
             tier == "T.dsl_smart.compare_Faffine") {
-            return dram_roofline_affine_shared_cipher_peak();
+            return alphabet_remap_hist_roof_rps();
         }
-        if (tier == "F.vigenere" || tier == "F.beaufort" || tier == "C.koan1_fused" ||
-            tier == "C.koan1_stages") {
+        // Column remap (Vigenère / Beaufort interrupt-free).
+        if (tier == "F.vigenere" || tier == "F.beaufort") {
+            return column_remap_hist_roof_rps();
+        }
+        // Legacy decode→hist / multi-stage — physical 1 B/rune DRAM diary.
+        if (tier == "C.koan1_fused" || tier == "C.koan1_stages") {
             return dram_roofline_hist_peak();
         }
         if (tier == "T.theory.caesar_bytecode" || tier == "T.theory.s0") {
@@ -400,10 +437,14 @@ public:
         if (tier == "T.theory.s5_poly" || tier == "T.theory.s5") {
             return theory_s5_poly.estimated_peak;
         }
-        if (tier == "T.dsl_smart.custom_caesar" || tier == "T.dsl_smart.compare_caesar" ||
-            tier == "T.dsl_smart.custom_linear" || tier == "T.dsl_smart.compare_S2" ||
-            tier == "T.dsl_smart.custom_autokey" || tier == "T.dsl_smart.compare_S4") {
-            return dram_roofline_hist_peak();
+        if (tier == "T.dsl_smart.custom_caesar" || tier == "T.dsl_smart.compare_caesar") {
+            return alphabet_remap_hist_roof_rps();
+        }
+        if (tier == "T.dsl_smart.custom_linear" || tier == "T.dsl_smart.compare_S2") {
+            return column_remap_hist_roof_rps();
+        }
+        if (tier == "T.dsl_smart.custom_autokey" || tier == "T.dsl_smart.compare_S4") {
+            return lag_remap_hist_roof_rps();
         }
         return 0.0;
     }
