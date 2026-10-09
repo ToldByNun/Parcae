@@ -84,15 +84,15 @@ Prefer order when multiple apply (first match wins after normalize):
 
 | Prefer | ShapeId | Math (after normalize) | Runtime twin (target) | Spec peak class |
 |--------|---------|------------------------|-----------------------|-----------------|
-| 1 | `Atbash` | `atbash(x)` equivalent (incl. pure arith) | Shape hist on `HistFast::dec_atbash` | compute roof **2.0 TB** (DRAM diary ≈80.7 TB) |
-| 2 | `Caesar` | `x ± shift` | Shape hist / Caesar decode | **896B** |
-| 3 | `Affine` | invertible `a·x+b` | Shape hist / affine decode | Affine shared-cipher ≈**47.0 TB** |
-| 4 | `LinearKeystream` | `x ± (b0 + b1·i)` (+ widened linear) | `TheoryHistChi2S2` | **896B** (`T.theory.s2_linear`) |
-| 5 | `FxOnly` | other `f(x; params)`, no stream `i` | S1 device LUT bake → hist; rebake only when program or slots change | **896B** (`T.theory.s1_lut29`) |
-| 6 | `KeyedGeneral` | uses `i`, not linear S2 | S3 expr-inline or module | **896B** (row when Spec exists) |
-| 7 | `Autokey` | contains `z29_autokey_shift` | S4 AutokeyRing+hist | **896B** (unless traffic differs) |
-| 8 | `PolyKeystream` | low-degree / bitmask-like beyond linear (`b2·i²` required; missing b0/b1 ⇒ 0) | S5 twin | **896B** |
-| 9 | `Unknown` | caps / unsupported / prefer_branch (until twin) | S0 bytecode | **896B** (soft-fallback gate) |
+| 1 | `Atbash` | `atbash(x)` equivalent (incl. pure arith) | Shape / Family remap | compute roof **2.0 TB** (DRAM diary ≈80.7 TB) |
+| 2 | `Caesar` | `x ± shift` | Shape / Caesar CipherHistOnce remap | alphabet Remap **2.0 TB** |
+| 3 | `Affine` | invertible `a·x+b` | Shape / Family CipherHistOnce remap | alphabet Remap **2.0 TB** (Affine DRAM ~47 TB = diary) |
+| 4 | `LinearKeystream` | `x ± (b0 + b1·i)` (+ widened linear) | `TheoryHistChi2S2` column remap | column Remap **2.0 TB** |
+| 5 | `FxOnly` | other `f(x; params)`, no stream `i` | S1 bake → mono-LUT remap | alphabet Remap **2.0 TB** |
+| 6 | `KeyedGeneral` | uses `i`, not linear S2 | S3 expr-inline or module | **896B** diary (row when Spec exists) |
+| 7 | `Autokey` | contains `z29_autokey_shift` | S4 AutokeyRing lag remap | lag Remap **2.0 TB** |
+| 8 | `PolyKeystream` | low-degree / bitmask-like beyond linear (`b2·i²` required; missing b0/b1 ⇒ 0) | S5 column remap | column Remap **2.0 TB** |
+| 9 | `Unknown` | caps / unsupported / prefer_branch (until twin) | S0 bytecode | **896B** (soft-fallback diary gate) |
 
 Export prefer order (document; implement as each lands):
 
@@ -138,15 +138,20 @@ Catch2 tags: `[prefer_branch]`, `[hoist]` under emit / plan / export / edge.
 
 ## 4. Done and stretch vs shape `estimated_peak`
 
-Canonical peaks on the reference plate:
+Canonical peaks on the reference plate (see
+[`hist-alphabet-remap.md`](hist-alphabet-remap.md)):
 
 ```text
-# Unique-key (Caesar / S1 / S2 / …)
-estimated_peak = 896e9 / 1 B_cipher_per_rune = 896B runes/s
+# Remap mono / column / lag (Caesar / S1 / S2 / S4 / S5 / Affine / …)
+estimated_peak = kAlphabetRemapHistRoofRps | kColumnRemapHistRoofRps | kLagRemapHistRoofRps
+               ≈ 2.0e12 logical runes/s   # NOT 896B
 
 # Shared-cipher Atbash / totient / dsl_smart Atbash
 estimated_peak = kSharedCipherComputeRoofRps = 2.0e12
 # DRAM occupancy diary (~80.7 TB) is NOT the Done gate for this class.
+
+# Hard-S0 / unknown bytecode diary
+estimated_peak = 896e9 / 1 B_cipher_per_rune = 896B
 ```
 
 | Gate | Rule | Notes |
@@ -156,7 +161,7 @@ estimated_peak = kSharedCipherComputeRoofRps = 2.0e12
 | **checkpoint_50B** | Annotation only when peak ≫ 50B | Never replaces Done |
 | **Model** | Printed `%peak` must stay ≤ **100** | If `>100`, fix roof model, **do not** lower Spec to quiet max |
 | **Campaign wall** | Never PRIMARY | Short page `T` / scheduler wall = ops only |
-| **Shared-cipher Done** | Compute roof only | **DRAM-bound is not required** (cipher L2-resident; hist atomic-bound) |
+| **Shared-cipher / Remap Done** | Remap or compute roof | **DRAM-bound is not required**; %-of-896B “93.5% Done” is superseded |
 
 ```text
 done(emitted)  ⇔  KernelSLO ≥ 0.90 × peak(emitted)  ∧  ≥ slo_floor(emitted)
@@ -164,9 +169,8 @@ stretch(emitted) ⇔  KernelSLO ≥ 0.80 × peak(emitted)
 ```
 
 Soft-fallback to S0: scores ≡ bytecode oracle; PRIMARY for that launch is the
-**S0 / hard-fallback** shape peak (still 896B under the 1 B/rune model until a
-distinct traffic row exists). Specialize-away raises absolute RPS; it does not
-delete the soft-fallback correctness duty.
+**S0 / hard-fallback** diary peak (**896B**). Specialize-away raises absolute
+RPS onto Remap roofs; it does not delete the soft-fallback correctness duty.
 
 Self-written shape twins share the **same** peak class as their catalog
 counterparts (e.g. Atbash shape twin ↔ `F.atbash` compute roof **2.0 TB**;

@@ -1,9 +1,10 @@
 # Kernel SLO ACCEPTANCE — metric B (requiet 2026-10-06)
 
-Quiet fair Kernel SLO vs shape `estimated_peak`. Default fused hist @ **1 B/rune →
-896B**; Atbash/totient Done uses shared-cipher **compute roof → 2.0 TB**
-(`kSharedCipherComputeRoofRps`). DRAM occupancy diary ≈**80.7 TB** (ncu 0.01111
-B/rune) — [`../traffic_model/SUMMARY.md`](../traffic_model/SUMMARY.md).
+Quiet fair Kernel SLO vs shape `estimated_peak`. Remap production (Caesar/S1/S2/…)
+uses **Remap roofs ~2.0 TB**; hard-S0 keeps **896B** diary. Atbash/totient Done
+uses shared-cipher **compute roof → 2.0 TB**. %-of-896B columns in this digest
+are **diary** unless noted — [`../../hist-alphabet-remap.md`](../../hist-alphabet-remap.md),
+[`../traffic_model/SUMMARY.md`](../traffic_model/SUMMARY.md).
 
 **Hardware:** NVIDIA GeForce RTX 5070 Ti (sm_120)  
 **Tool:** `parcae-bench --suite theory --allow-cuda --json` and
@@ -21,33 +22,33 @@ B/rune) — [`../traffic_model/SUMMARY.md`](../traffic_model/SUMMARY.md).
 | **Done** | ≥**90%** of shape `estimated_peak` | Unique-key: prefer DRAM-bound; **shared-cipher Atbash/totient: compute roof only (DRAM-bound N/A)** |
 | **Model** | `%peak` must stay ≤100 | Always — if >, fix roof model, do **not** lower Spec |
 
-Prior ncu on hist kernels: DRAM SoL ~**1–5%** (Atbash/totient ~0.4–1%). Unique-key
-Done still wants DRAM-bound aspiration. Shared-cipher Atbash/totient gate on the
-**2.0 TB** compute roof (quiet plate ~55–80% — stretch climb open).
+Prior ncu on hist kernels: DRAM SoL ~**1–5%** (Atbash/totient ~0.4–1%). Remap /
+shared-cipher: DRAM-bound **not** required for Done. Shared-cipher Atbash/totient
+gate on the **2.0 TB** compute roof (quiet plate ~55–80% — stretch climb open).
 
 ## Theory fair (3 quiet runs → median) — plate 2026-10-03
 
-Sources: `theory_fair_run{1,2,3}.json` (`T=1048576`). Unchanged by traffic-model
-Spec (still 896B @ 1 B/rune).
+Sources: `theory_fair_run{1,2,3}.json` (`T=1048576`). %-of-896B = then-Spec
+diary; current Caesar Done = alphabet Remap **2.0 TB**.
 
-| Row | run1 | run2 | run3 | **median** | % of 896B | Stretch | Done | Notes |
-|-----|------|------|------|------------|-----------|---------|------|-------|
-| `T.theory.compare_caesar` | 849.3B | 782.9B | 780.1B | **782.9B** | **87.4%** | **PASS** | 1/3 pass (run1 94.8%) | fat-64 catalog twin |
+| Row | run1 | run2 | run3 | **median** | % of 896B (diary) | Then stretch | Notes |
+|-----|------|------|------|------------|-------------------|--------------|-------|
+| `T.theory.compare_caesar` | 849.3B | 782.9B | 780.1B | **782.9B** | **87.4%** (~39% Remap) | then PASS | fat-64 catalog twin |
 
-### Caesar restrict/ldg Done plate (2026-10-07)
+### Caesar restrict/ldg plate (2026-10-07) — diary vs Remap
 
 `__restrict__`/`__ldg` on Caesar decrypt + shape twin + finalize probs; dsl_smart
 Caesar-first; tile **64**. Catch2 `[cuda][hist][roof][caesar][done]`.
 
-| Path | plate | median | % of 896B | Stretch | Done |
-|------|-------|--------|-----------|---------|------|
-| Done-plate catalog (×7 med-of-med) | util ~28% | **~786B** | **87.7%** | **PASS** | fail (bests ~836B Done) |
-| Done-plate shape (×7 med-of-med) | util ~28% | **~790B** | **88.2%** | **PASS** | fail (bests ~843B Done) |
-| `T.dsl_smart.custom_caesar` (×5) | Caesar-first | **~814.5B** | **90.9%** | **PASS** | **PASS** |
-| `T.dsl_smart.compare_caesar` (×5) | Caesar-first | ~732B (noisy) | ~82% | borderline | 1/5+ Done |
+| Path | plate | median | % of 896B (diary) | Then stretch/Done | Remap status |
+|------|-------|--------|-------------------|-------------------|--------------|
+| Done-plate catalog (×7 med-of-med) | util ~28% | **~786B** | **87.7%** | then stretch | ~39% of 2.0 TB — climb |
+| Done-plate shape (×7 med-of-med) | util ~28% | **~790B** | **88.2%** | then stretch | climb |
+| `T.dsl_smart.custom_caesar` (×5) | Caesar-first | **~814.5B** | **90.9%** | then Done vs 896B | climb vs Remap |
+| `T.dsl_smart.compare_caesar` (×5) | Caesar-first | ~732B (noisy) | ~82% | then borderline | climb |
 
-Verdict: **PARTIAL Done** — dsl_smart custom clears ≥806.4B; twin median still
-stretch-bound on busy desktop (best-of and quieter plates clear Done).
+Verdict: then-era **PARTIAL Done vs 896B** is **superseded** — Remap roofs are
+current Done; re-gate quiet plates vs **2.0 TB**.
 | `T.theory.caesar_bytecode` | 679.9B | 693.4B | 680.8B | **680.8B** | **76.0%** | **fail** | fail | `specialize_S1`; stable ~76–77% |
 | `T.theory.s1_lut29` | 303.4B | 487.0B | 692.2B | **487.0B** | **54.4%** | **fail** | fail | high run-to-run noise (bake inside timer) |
 
@@ -105,9 +106,11 @@ shared-cipher class. Atbash/totient Done = ≥90% of **2.0 TB** compute roof
 
 **Overall: PARTIAL PASS**
 
-Landed: Caesar catalog twin stretch; F.vigenere/beaufort ≥90% under 1 B/rune;
-Atbash/totient **model gate** under compute roof. Open: S1/specialize stretch
-(≥80%), S2 roof climb, Atbash/totient absolute climb toward 2.0 TB Done.
+Landed: Caesar catalog twin stretch under **then-Spec 896B** (diary — Remap
+roofs superseded; see [`../../hist-alphabet-remap.md`](../../hist-alphabet-remap.md));
+F.vigenere/beaufort ≥90% under then-1 B/rune; Atbash/totient **model gate**
+under compute roof. Open: re-gate quiet plates vs **Remap roofs** (~2.0 TB);
+Atbash/totient absolute climb toward 2.0 TB Done.
 
 ## Artifacts
 

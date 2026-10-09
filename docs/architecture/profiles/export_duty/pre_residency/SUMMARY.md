@@ -14,21 +14,21 @@ Captured with
 
 **idle GPU ≠ Kernel SLO PCIe**
 
-## Fair Kernel SLO vs 896B
+## Fair Kernel SLO (diary %-of-896B)
 
 Source: `theory_fair.json` — `parcae-bench --suite theory --allow-cuda`,
-`T=1048576`, `repeats=8`. Spec peak = physical DRAM roof **896B** runes/s
-(@ 1 B cipher/rune). Done = ≥90% ≈ **806.4B**.
+`T=1048576`, `repeats=8`. Then-Spec **896B**; Remap Done for Caesar/S1/S2 is
+now ~**2.0 TB** ([`../../../hist-alphabet-remap.md`](../../../hist-alphabet-remap.md)).
 
-| Row | C | T | reps | runes/s | % of 896B | Gate | Notes |
-|-----|---|---|------|---------|-----------|------|-------|
+| Row | C | T | reps | runes/s | % of 896B (diary) | Gate (then) | Notes |
+|-----|---|---|------|---------|-------------------|-------------|-------|
 | `T.theory.caesar_bytecode` (S0) | 29 | 1048576 | 8 | **67.83B** | **7.57%** | **fail** | Interpreter; `checkpoint_50B=hit` |
-| `T.theory.compare_caesar` | 29 | 1048576 | 8 | **390.32B** | **43.56%** | **fail** | Catalog twin |
-| `T.theory.s1_lut29` (S1) | 29 | 1048576 | 8 | **395.31B** | **44.12%** | **fail** | LUT-29; ≈ twin |
+| `T.theory.compare_caesar` | 29 | 1048576 | 8 | **390.32B** | **43.56%** | **fail** | Catalog twin; Remap climb |
+| `T.theory.s1_lut29` (S1) | 29 | 1048576 | 8 | **395.31B** | **44.12%** | **fail** | LUT-29; ≈ twin; Remap climb |
 | `T.theory.progressive` (S2) | 841 | 1048576 | 8 | **257.86B** | **28.78%** | **fail** | Linear keyed; fair C=841 |
 
 Fair Kernel SLO is measured with H2D / host prepare **outside** the timer. S1 ~
-44% of roof is still compute/hist-bound, not PCIe-limited on the fair grid.
+44% of then-896B is still compute/hist-bound, not PCIe-limited on the fair grid.
 
 ## Export stress config
 

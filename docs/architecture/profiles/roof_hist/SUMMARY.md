@@ -9,16 +9,23 @@ and `parcae-bench --suite theory`.
 
 **Hardware:** NVIDIA GeForce RTX 5070 Ti (sm_120)  
 **Protocol:** `BenchTimer` cudaEvent (4 warmups + median-of-3), fair `T=1048576`  
-**Peak:** physical DRAM roof **896B** runes/s (@ 1 B cipher/rune model)
+**Peak (plate era):** physical DRAM roof **896B** runes/s (@ 1 B cipher/rune model)
+
+> **Reinterpretation (post Remap):** %-of-896B on this plate is a **diary** of the
+> decode-hist / fat-tile climb. ncu later showed DRAM SoL ~1–3%
+> ([`../cache_bound/SUMMARY.md`](../cache_bound/SUMMARY.md)). Production Caesar /
+> S1 / S2 Done now uses **Remap roofs** (~2.0 TB logical), not 896B. The famous
+> **93.5%** Caesar twin row is **not** current Done. See
+> [`../../hist-alphabet-remap.md`](../../hist-alphabet-remap.md).
 
 ## Fat-tile sweep (Caesar twin)
 
-| Tile cap (`grid.y`) | runes/s | % of 896B | Notes |
-|---------------------|---------|-----------|-------|
+| Tile cap (`grid.y`) | runes/s | % of 896B (diary) | Notes |
+|---------------------|---------|-------------------|-------|
 | **1024** (legacy) | **502.8B** | **56.1%** | Uncapped work tiles @ T=1M |
-| 256 | 724.2B | 80.8% | Stretch (≥80%) |
-| 128 | 802.8B | 89.6% | Near Done |
-| **64** | **837.3B** | **93.5%** | **Best — ≥90% Done** |
+| 256 | 724.2B | 80.8% | Stretch under then-Spec |
+| 128 | 802.8B | 89.6% | Near then-Spec Done |
+| **64** | **837.3B** | **93.5%** | Best on plate; **then** labeled Done — **superseded** by Remap roofs |
 | 32 | 743.6B | 83.0% | Past peak |
 | 16 | 698.0B | 77.9% | — |
 | 8 | 691.5B | 77.2% | — |
@@ -29,10 +36,10 @@ Scores identical across caps. **Shipped:** `HistFast::production_tile_cap = 64`.
 
 Source: `theory_fair_fat64_wired.json` (S1/S2/F.* on production clamp):
 
-| Row | runes/s | % of 896B |
-|-----|---------|-----------|
-| `T.theory.compare_caesar` | **838.1B** | **93.5%** Done |
-| `T.theory.s1_lut29` | **690.2B** | **77.0%** stretch |
+| Row | runes/s | % of 896B (diary) |
+|-----|---------|-------------------|
+| `T.theory.compare_caesar` | **838.1B** | **93.5%** (then-Done; Remap roofs superseded) |
+| `T.theory.s1_lut29` | **690.2B** | **77.0%** stretch under then-Spec |
 | `T.theory.progressive` (S2 @841) | **342.9B** | **38.3%** |
 | `T.theory.caesar_bytecode` (S0) | 61.3B | 6.8% |
 
@@ -87,10 +94,11 @@ four-pack is fully past the primer (`t0 ≥ lag`); primer/mixed packs keep
 `AutokeyRingDevice::shift` (lag dependence intact). Soft S0 on lag bind fail
 unchanged. S5 poly: `__restrict__`/`__ldg` on top of running-residue uchar4.
 
-Fair Spec: `T.theory.s4_autokey` (C=28) + `T.theory.s5_poly` (C=841) @ 896B.
+Fair Spec: `T.theory.s4_autokey` (C=28) + `T.theory.s5_poly` (C=841) now under
+**lag / column Remap roofs (~2.0 TB)** — plate %-of-896B below is diary only.
 `HistTileCap::kS4` / `kS5` default **32**. Quiet plate: S4 prod ~**530–540B**
-(~59–60% of 896B; was dsl_smart ~475B / 53%); S5 ~**550–620B** (~61–70%).
-Stretch 716.8B open. Catch2 `[cuda][hist][s4][s5][autokey][uchar4]`.
+(~27% Remap; was ~59–60% of 896B diary / dsl_smart ~475B); S5 ~**550–620B**
+(~28–31% Remap). Stretch vs Remap open. Catch2 `[cuda][hist][s4][s5][autokey][uchar4]`.
 
 ## Shared-cipher atomic climb (2026-10-07)
 
@@ -115,11 +123,11 @@ Micro-opts around hist traffic only (`add_private` untouched;
   `__restrict__` on pointers, `__ldg` on shifts + `uchar4` / tail loads
 - `chi2_finalize_kernel`: `__restrict__` + `__ldg` on probabilities
 - `BenchDslSmartSuite`: Caesar custom/compare **first** (before Atbash C=512)
-  so the 896B Done plate is not heated by shared-cipher work
+  so the Remap / diary plate is not heated by shared-cipher work
 
 Catch2 `[cuda][hist][roof][caesar][done]`: 5-sample catalog then shape block;
-prints `CAESAR_ROOF_DONE`. Hard CI = catalog stretch (≥80%); Done median is
-quiet-plate ACCEPTANCE below.
+prints `CAESAR_ROOF_DONE`. Then-era stretch (≥80% of 896B) is diary; current
+Done uses Remap roofs — see [`../../hist-alphabet-remap.md`](../../hist-alphabet-remap.md).
 
 **Plate (desktop util ~26–30%, Roblox/Discord/etc.):** Done plate ×7 → median of
 catalog medians **~786B** (~87.7%), shape **~790B** (~88.2%); median of bests

@@ -10,9 +10,10 @@ theory DSL compiles into that stack.
 | [cuda-handoff.md](cuda-handoff.md) | CPU exit criteria, twin list, parity hash procedure |
 | [cuda-abi.md](cuda-abi.md) | Device buffer shapes, SoA, interrupt encoding |
 | [cuda-build.md](cuda-build.md) | Local CUDA Toolkit / CMake notes; CI stays CPU-default |
-| [cuda-throughput.md](cuda-throughput.md) | Fused χ² ceilings (`BenchTierSpec`); catalog + theory S0/S1/S2; Kernel SLO vs campaign wall |
+| [cuda-throughput.md](cuda-throughput.md) | Fused χ² ceilings (`BenchTierSpec`); Remap roofs + dual rates; Kernel SLO vs campaign wall |
+| [hist-alphabet-remap.md](hist-alphabet-remap.md) | **Normative** once-count remap math (Mono/Spalten/Lag/Bigram); 93.5%/896B reinterpretation |
 | [cuda-profile-theory.md](cuda-profile-theory.md) | Theory / search-export nsys+ncu playbook; wall vs cudaEvent; 90% peak gate |
-| [theory-hist-transpile.md](theory-hist-transpile.md) | **Normative** theory fused-χ² strategies S0–S5; **all** incl. S0 ≥90% shape peak; wall ≠ Done |
+| [theory-hist-transpile.md](theory-hist-transpile.md) | **Normative** theory fused-χ² strategies S0–S5; ≥90% shape peak (Remap or 896B diary); wall ≠ Done |
 | [dsl-smart-hist.md](dsl-smart-hist.md) | **Normative** smart hist: normalize → ShapeId match; customs without presets at catalog speed |
 | [theory-artifact.md](../spec/theory-artifact.md) | Artifact layout: stream `emitted/` vs fused-hist `hist/` + `paths.hist_*` / `hist_plan.v0` |
 | [cuda-score-reduction.md](cuda-score-reduction.md) | Score FP / histogram reduction associativity for CUDA twins |

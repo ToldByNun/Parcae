@@ -12,12 +12,12 @@
 This document freezes **what “done” means** for theory search fused χ²: every
 hist strategy that actually runs — **including S0 bytecode** — must meet the
 **≥90% of shape `estimated_peak`** Kernel SLO gate on a quiet 5070 Ti.
-Unique-key shapes use the physical DRAM roof (`estimated_peak` = **896B**
-runes/s @ 1 B cipher/rune). Shared-cipher Atbash/totient / dsl_smart Atbash
-use the **compute roof** (**2.0 TB**) — DRAM-bound is **not** required for
-that traffic class (see [`dsl-smart-hist.md`](dsl-smart-hist.md) §4). Soft-
-fallback to S0 is allowed for coverage; it is **not** an exemption from the
-S0 peak gate.
+Production remap shapes (S1/S2/S4/S5 / ShapeInline mono) use **Remap roofs**
+(~**2.0 TB** logical runes/s) — not 896B. Hard-S0 bytecode still uses the
+physical DRAM diary (**896B** @ 1 B cipher/rune). Shared-cipher Atbash/totient
+/ dsl_smart Atbash use the **compute roof** (**2.0 TB**). Soft-fallback to S0
+is allowed for coverage; it is **not** an exemption from the S0 peak gate.
+Math + 93.5%/896B correction: [`hist-alphabet-remap.md`](hist-alphabet-remap.md).
 
 How self-written HotLoop math (no catalog API / no builtin preset) must reach
 catalog-class hist speed is normative in [`dsl-smart-hist.md`](dsl-smart-hist.md)
@@ -47,16 +47,19 @@ done(strategy) ⇔  fair_kernel_runes_per_s >= 0.90 * BenchTierSpec.estimated_pe
 
 | Situation | Score correctness | Throughput Done? |
 |-----------|-------------------|------------------|
-| Soft-fallback S0 after S1/S2/S3 emit or module load fail | Must match CPU/bytecode oracle | PRIMARY still requires **≥90% of 896B DRAM roof** via fair suite |
+| Soft-fallback S0 after S1/S2/S3 emit or module load fail | Must match CPU/bytecode oracle | PRIMARY still requires **≥90% of S0 diary peak (896B)** via fair suite |
 | Theory classified hard-S0 (autokey / prefer_branch / caps) today | Oracle parity | Same — S0 fair row must pass; specialize-away is a separate climb |
-| Fair Caesar specializes to S1 (~708B / ~79% of Spec **896B**) | Oracle OK | **Stretch** — off interpreter; Done ≈ **806B** (90% of roof) still open |
-| Hard-S0 soft-fallback (autokey / prefer_branch / caps) ~7–8% | Oracle OK | **Not Done** — interpreter remains compute-bound until S4/S3+ |
+| Fair Caesar specializes to S1 (logical RPS vs **alphabet Remap 2.0 TB**) | Oracle OK | Climb vs Remap roof; %-of-896B diary (~79%) is **not** current Done |
+| Hard-S0 soft-fallback (autokey / prefer_branch / caps) ~7–8% of 896B | Oracle OK | **Not Done** — interpreter remains compute-bound until S4/S3+ |
 
 Two parallel workstreams (implementation roadmap, not doc names):
 
-1. **Roof climb on specialized paths** — push S1 / Caesar fair / F.* from stretch (~79–93%) to **pass_tier** vs the **896B** roof. Repro: [`capture_roof_hist.ps1`](../../scripts/cuda/capture_roof_hist.ps1) + [`profiles/roof_hist/SUMMARY.md`](profiles/roof_hist/SUMMARY.md).
+1. **Remap-roof climb** — push S1 / Caesar / S2 / F.* to **pass_tier** vs Remap
+   roofs (~2.0 TB), not the superseded 896B “93.5% Done” story. Diary:
+   [`profiles/roof_hist/SUMMARY.md`](profiles/roof_hist/SUMMARY.md);
+   contract: [`hist-alphabet-remap.md`](hist-alphabet-remap.md).
 2. **Widen specialize-away** — S3/S4/S5 (+ artifact/module) so hard-S0 customs leave the interpreter, without dropping the soft-fallback gate.
-3. **Smart hist** — normalize + `ShapeId` match so customs without presets share catalog `HistFast` twins; see [`dsl-smart-hist.md`](dsl-smart-hist.md).
+3. **Smart hist** — normalize + `ShapeId` match so customs without presets share catalog remap twins; see [`dsl-smart-hist.md`](dsl-smart-hist.md).
 
 ---
 
@@ -77,25 +80,25 @@ Optional interim `checkpoint_50B` (when Spec peak ≫ 50B) is annotation only �
 
 Classify decrypt HotLoop via `TheoryHistChi2Emit::select_strategy` / emit. Prefer specialized in `GpuCandidateExport`; soft-fallback S0 keeps `export_backend=cuda`.
 
-| Id | Enum / Spec (planned or shipping) | When | Runtime twin (shipping / target) | Physical peak (DRAM roof) | ≥90% PRIMARY |
-|----|-----------------------------------|------|----------------------------------|---------------------------|--------------|
-| **S0** | `S0Bytecode` / hard-S0 soft-fallback | Soft-fallback; caps; unmatched; autokey / prefer_branch | `TheoryChi2Batch` | **896B** | **Required** (~7–8% until S4/S3+) |
-| **S1** | `S1Lut29` / `T.theory.s1_lut29` (+ fair `T.theory.caesar_bytecode` when emit matches) | Decrypt `f(x; params)` only — no stream `i`, no autokey | `TheoryHistChi2S1` | **896B** | Required (today ~79%) |
-| **S2** | `S2Uchar4Inline` / `T.theory.s2_linear` / `T.theory.progressive` | `x ± (b0 + b1·i)` (+ widened linear family over time) | `TheoryHistChi2S2` | **896B** | Required (today ~76% @ C=841 residue+tile32; stretch open) |
-| **S3** | `S3ScalarInline` / planned `T.theory.s3_*` | Uses `i` / general `x ± g(i; params)` without autokey; not simple linear S2 | `TheoryHistChi2S3` (ExprLower caps) | **896B** (same 1 B/rune roof) | Required once Spec row exists |
-| **S4** | shipping / `T.theory.s4_autokey` | `z29_autokey_shift` vigenere_lag class | `TheoryHistChi2S4` AutokeyRing+hist | **896B** | Required (fair Spec C=28) |
-| **S5** | shipping / `T.theory.s5_poly` | Low-degree poly `b0+b1·i+b2·i·i` (missing b0/b1 ⇒ 0) / bitmask_blend-class | `TheoryHistChi2S5` period-29 ks table | **896B** | Required (fair Spec C=841) |
+| Id | Enum / Spec (planned or shipping) | When | Runtime twin (shipping / target) | Done peak | ≥90% PRIMARY |
+|----|-----------------------------------|------|----------------------------------|-----------|--------------|
+| **S0** | `S0Bytecode` / hard-S0 soft-fallback | Soft-fallback; caps; unmatched; prefer_branch | `TheoryChi2Batch` | **896B** diary | **Required** (~7–8% until specialized away) |
+| **S1** | `S1Lut29` / `T.theory.s1_lut29` (+ fair Caesar when emit matches) | Decrypt `f(x; params)` only — no stream `i`, no autokey | `TheoryHistChi2S1` mono-LUT remap | alphabet Remap **2.0 TB** | Required (climb vs Remap; %-of-896B diary superseded) |
+| **S2** | `S2Uchar4Inline` / `T.theory.s2_linear` / `T.theory.progressive` | `x ± (b0 + b1·i)` | `TheoryHistChi2S2` column remap | column Remap **2.0 TB** | Required |
+| **S3** | `S3ScalarInline` / planned `T.theory.s3_*` | Uses `i` / general `x ± g(i; params)` without autokey; not simple linear S2 | `TheoryHistChi2S3` (ExprLower caps) | **896B** diary until remap row | Required once Spec row exists |
+| **S4** | shipping / `T.theory.s4_autokey` | `z29_autokey_shift` vigenere_lag class | `TheoryHistChi2S4` lag remap | lag Remap **2.0 TB** | Required (fair Spec C=28) |
+| **S5** | shipping / `T.theory.s5_poly` | Low-degree poly / bitmask_blend-class | `TheoryHistChi2S5` column remap | column Remap **2.0 TB** | Required (fair Spec C=841) |
 
 ### Shipping vs planned (honest snapshot)
 
-| Strategy | Classify | Emit specialized sources | In-lib / module launch | Fair ≥90% of DRAM roof |
+| Strategy | Classify | Emit specialized sources | In-lib / module launch | Fair ≥90% of Done peak |
 |----------|----------|--------------------------|------------------------|------------------------|
-| S0 | yes | n/a (bytecode) | yes (`TheoryChi2Batch`) | **fail** today (~69–75B ≈ 8% of 896B) |
-| S1 | yes | yes | yes | **fail** today (~396B ≈ 44% of 896B) |
-| S2 | yes (linear match) | yes when `match_s2_linear` | yes | **fail** today (~188B ≈ 21% of 896B @ C=9) |
+| S0 | yes | n/a (bytecode) | yes (`TheoryChi2Batch`) | **fail** today (~69–75B ≈ 8% of 896B diary) |
+| S1 | yes | yes | yes (CipherHistOnce + LUT remap) | climb vs **2.0 TB** Remap (not %-of-896B) |
+| S2 | yes (linear match) | yes when `match_s2_linear` | yes (ColumnHistOnce L=29) | climb vs **2.0 TB** Remap |
 | S3 | yes | yes when ExprLower within caps | yes (`TheoryHistChi2S3`) | blocked on fair Spec row |
-| S4 | **shipping** AutokeyRing twin | yes (lag plan) | yes | soft S0 on bind fail |
-| S5 | **shipping** PolyKeystream | yes (b0/b1/b2 plan) | yes (`TheoryHistChi2S5`) | soft S0 on bind fail; fair Spec `T.theory.s5_poly` |
+| S4 | **shipping** AutokeyRing twin | yes (lag plan) | yes (lag remap) | soft S0 on bind fail |
+| S5 | **shipping** PolyKeystream | yes (b0/b1/b2 plan) | yes (column remap) | soft S0 on bind fail; fair Spec `T.theory.s5_poly` |
 
 Quadratic `x ± (b0+b1·i+b2·i·i)` classifies **S5** (after linear S2 fails), not soft-fall S0.
 
@@ -184,16 +187,19 @@ Catch2 anchors (extend as strategies land): `[cuda][theory][edge]`, `[cuda][gold
 
 ---
 
-## 8. Peak model (DRAM roof + shared-cipher compute roof)
+## 8. Peak model (Remap roofs + S0 DRAM diary)
 
 `estimated_peak` is **not** a measured production quiet max. For fused hist on
-RTX 5070 Ti:
+RTX 5070 Ti (full math: [`hist-alphabet-remap.md`](hist-alphabet-remap.md)):
 
 ```text
-# Unique-key
-peak_runes/s = published_GDDR7_BW / bytes_cipher_per_rune
-             = 896e9 / 1     →  896B   (S0/S1/S2/T1/F.vigenere/…)
-             = 896e9 / 2     →  448B   (T3 bigram)
+# Remap production (S1/S2/S4/S5 / Caesar / Vigenère / …)
+peak_runes/s = kAlphabetRemapHistRoofRps | kColumnRemapHistRoofRps | kLagRemapHistRoofRps
+             ≈ 2.0e12 logical runes/s
+# Bigram remap: kBigramRemapHistRoofRps = 1.0e12
+
+# Hard-S0 / decode-hist diary
+peak_runes/s = 896e9 / 1 B/rune → 896B
 
 # Shared-cipher Atbash / totient / dsl_smart Atbash
 peak_runes/s = kSharedCipherComputeRoofRps →  2.0 TB
@@ -202,22 +208,19 @@ peak_runes/s = kSharedCipherComputeRoofRps →  2.0 TB
 
 Rules:
 
-1. Unique-key peak from **device DRAM BW** and the traffic model (bytes/rune).
-   Shared-cipher Atbash/totient peak from **identity occupancy hist**
-   (`HistOccupancyRoof`); freeze with date+GPU comment. Do **not** raise/lower
-   Spec to chase production quiet-run medians (or Atbash quiet max).
-2. Quiet fair runs measure **progress toward** the roof (`%peak`). Done =
-   ≥90% of shape `estimated_peak`.
+1. Remap peaks from CipherHistOnce / identity-hist plate class; shared-cipher
+   Atbash/totient from `HistOccupancyRoof`. Do **not** raise/lower Spec to chase
+   quiet medians. Do **not** treat historical **93.5% of 896B** as Done.
+2. Quiet fair runs measure **progress toward** `estimated_peak` (`%peak`).
 3. `%peak` **must stay ≤100**. A print **&gt;100** means the roof model is wrong —
    fix the roof, do not “absorb” a measured outlier.
-4. For shared-cipher Atbash/totient: **DRAM-bound is not required** for Done
-   (cipher L2-resident; hist atomic-bound). Unique-key rows keep DRAM-bound
-   aspiration.
+4. Remap / shared-cipher: **DRAM-bound is not required** for Done. Dual-report
+   `cipher_bytes_per_sec` vs 896 GB/s when diagnosing traffic.
 5. Append measured progress rows to [`cuda-profile-theory.md`](cuda-profile-theory.md).
    Profile dirs use descriptive tags (`s0_climb`, `s3_expr`, `s4_autokey`) — never `phase*`.
 
 Optional separate Spec row for **autokey-as-S0** only if its bytes/rune traffic
-model differs; until then it shares the 896B roof.
+model differs; until then hard-S0 shares the 896B diary.
 
 ---
 
@@ -225,15 +228,16 @@ model differs; until then it shares the 896B roof.
 
 Declare the theory-hist transpile throughput workstream complete only when **all** apply:
 
-- [ ] **S0** fair suite row(s) **pass** `pass_tier` (≥90% of **896B** DRAM roof) — today ~8%, not Done
-- [ ] **S1** and **S2** pass ≥90% of the same **896B** roof (today ~44% / ~21%)
-- [ ] **S3 / S4 / S5** each have Spec rows (same roof unless traffic differs) and pass ≥90% once implemented
+- [ ] **S0** fair suite row(s) **pass** `pass_tier` (≥90% of **896B** diary) — today ~8%, not Done
+- [ ] **S1** and **S2** pass ≥90% of their **Remap roofs** (~2.0 TB) — not %-of-896B
+- [ ] **S3 / S4 / S5** each have Spec rows (Remap or diary) and pass ≥90% once implemented
 - [ ] Soft-fallback remains correct (parity + Div0 +inf + interrupt reject)
 - [ ] Customs without presets: specialized when eligible; otherwise S0 with S0 gate green
 - [ ] Smart hist exit checklist in [`dsl-smart-hist.md`](dsl-smart-hist.md) §9 green
 - [ ] Progress log has nsys/ncu (or documented counter-permission skip) for each Perf milestone
 - [ ] Style: no namespaces; no `phase*` names
 - [ ] Campaign wall never used as Done evidence
+- [x] Remap math + 93.5%/896B correction documented in [`hist-alphabet-remap.md`](hist-alphabet-remap.md)
 
 ---
 

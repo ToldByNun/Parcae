@@ -44,17 +44,19 @@ SLO must stay within noise of pre-residency (~S1 ~400B class).
 **Verdict: PASS** (gate 1). Residual export NVTX is mostly `d2h` (31%) + warm
 `h2d` param slabs (17%); hist kernels unchanged (~1.7 ms GPU time).
 
-## Fair Kernel SLO vs 896B
+## Fair Kernel SLO (diary %-of-896B)
 
 Source: `theory_fair.json` — `parcae-bench --suite theory --allow-cuda`,
-`T=1048576`, `repeats=8`. Spec peak = physical DRAM roof **896B** runes/s
-(@ 1 B cipher/rune). Done = ≥90% ≈ **806.4B**.
+`T=1048576`, `repeats=8`. Plate below used then-Spec **896B**; current Remap
+Done for Caesar/S1/S2 is ~**2.0 TB** — see
+[`../../hist-alphabet-remap.md`](../../hist-alphabet-remap.md). Hard-S0 still
+gates on 896B diary.
 
-| Row | C | T | reps | runes/s | % of 896B | Gate | Notes |
-|-----|---|---|------|---------|-----------|------|-------|
+| Row | C | T | reps | runes/s | % of 896B (diary) | Gate (then) | Notes |
+|-----|---|---|------|---------|-------------------|-------------|-------|
 | `T.theory.caesar_bytecode` (S0) | 29 | 1048576 | 8 | **61.82B** | **6.90%** | **fail** | Interpreter; ≈ pre 67.83B (noise) |
-| `T.theory.compare_caesar` | 29 | 1048576 | 8 | **396.65B** | **44.27%** | **fail** | Catalog twin |
-| `T.theory.s1_lut29` (S1) | 29 | 1048576 | 8 | **482.40B** | **53.84%** | **fail** | LUT-29; ≥ pre ~395B |
+| `T.theory.compare_caesar` | 29 | 1048576 | 8 | **396.65B** | **44.27%** | **fail** | Catalog twin; now Remap climb |
+| `T.theory.s1_lut29` (S1) | 29 | 1048576 | 8 | **482.40B** | **53.84%** | **fail** | LUT-29; ≥ pre ~395B; Remap climb |
 | `T.theory.progressive` (S2) | 841 | 1048576 | 8 | **244.43B** | **27.28%** | **fail** | Linear keyed; ≈ pre 257.86B |
 
 Fair Kernel SLO still excludes H2D/setup. Residency did **not** regress the

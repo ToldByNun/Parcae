@@ -7,10 +7,11 @@ and [`scripts/cuda/profile_theory_hist.ps1`](../../../scripts/cuda/profile_theor
 **Toolkit / tools:** CUDA 13.3, Nsight Systems 2026.1.3, Nsight Compute 2026.2.1  
 **Metric (primary):** `BenchTimer` cudaEvent median-of-3, setup excluded  
 
-**Spec peak model (normative, reinterpreted):** physical DRAM roofline **896B**
-runes/s (@ 1 B cipher/rune). Done = ≥90% ≈ **806.4B**. Historical catalog %
-figures below that cited 392B/473B/550B peaks are **obsolete** — same measured
-runes/s, new denominator.
+**Spec peak model (this plate era):** physical DRAM diary **896B** runes/s
+(@ 1 B cipher/rune). %-of-896B columns below are **diary** for the decode-hist
+era. Production Remap Done now uses ~**2.0 TB** roofs — see
+[`../../hist-alphabet-remap.md`](../../hist-alphabet-remap.md). Historical
+catalog % that cited 392B/473B/550B peaks were already obsolete vs 896B.
 
 ## cudaEvent Kernel SLO
 
@@ -78,9 +79,10 @@ failed `C.koan1_fused` on that run — the `.ncu-rep` for affine still wrote OK.
 
 ## Acceptance reminder
 
-Done gate = **≥90% of physical DRAM roofline (896B)**. Current bytecode ~66B
-(~7.4%) and catalog Atbash ~478B (~53%) are interim datapoints — compute-bound
-(DRAM SoL ~0–3%), **not Done**.
+Hard-S0 diary gate = **≥90% of 896B**. Remap / shared-cipher Done uses Remap
+or compute roofs (~2.0 TB), not %-of-896B. Bytecode ~66B (~7.4% of 896B) and
+then-catalog Atbash ~478B are interim datapoints — compute-bound (DRAM SoL
+~0–3%), **not Done**.
 
 ## Artifacts (local / gitignored binaries)
 

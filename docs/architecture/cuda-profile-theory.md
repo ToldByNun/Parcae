@@ -4,11 +4,12 @@
 **Hardware reference:** RTX 5070 Ti (sm_120) — same plate as [`cuda-throughput.md`](cuda-throughput.md)  
 **Canonical catalog metric:** `BenchTimer` — 4 warmups + **median-of-3** `cudaEvent`, setup excluded  
 **Theory acceptance (PRIMARY):** measured ≥ **90%** of the theory-shape
-`estimated_peak`. Unique-key shapes use the physical DRAM roofline (**896B** @
-1 B cipher/rune on RTX 5070 Ti). Shared-cipher Atbash/totient use the **compute
-roof** (**2.0 TB**). Soft-fallback to S0 does not waive the S0 peak gate.
-Normative contract: [`theory-hist-transpile.md`](theory-hist-transpile.md).
-Smart customs (name-irrelevant ShapeId / stretch 80% / Done 90%):
+`estimated_peak`. Remap production (Caesar/S1/S2/S4/S5 / ShapeInline mono) uses
+**Remap roofs** (~**2.0 TB** logical; bigram **1.0 TB**) — not 896B. Hard-S0
+bytecode keeps the **896B** diary. Shared-cipher Atbash/totient use the
+**compute roof** (**2.0 TB**). Soft-fallback to S0 does not waive the S0 peak
+gate. Math: [`hist-alphabet-remap.md`](hist-alphabet-remap.md). Normative
+contract: [`theory-hist-transpile.md`](theory-hist-transpile.md). Smart customs:
 [`dsl-smart-hist.md`](dsl-smart-hist.md).
 
 **Wrapper:** [`scripts/cuda/profile_theory_hist.ps1`](../../scripts/cuda/profile_theory_hist.ps1)
@@ -296,7 +297,7 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-03 | **export_duty** | `profiles/export_duty/pre_residency/` | fair S0/S1/S2 + export stress | 29×1M fair; stress 64×65k×8 | **67.83B** S0 / **395.31B** S1 / **257.86B** S2 / twin **390.32B** | — | nsys: hist **94%** of kern; NVTX `h2d` **99%** range wall; `cudaMalloc` **94%** API | pre-residency baseline; idle GPU = host/PCIe/sync; **idle GPU ≠ Kernel SLO PCIe** |
 | 2026-10-03 | **export_duty_accept** | `profiles/export_duty/` | fair S0/S1/S2 + pipeline stress | 29×1M fair; stress 64×65k×8 | **61.82B** S0 / **482.40B** S1 / **244.43B** S2 / twin **396.65B** | — | NVTX hist **27%**; `h2d` **17%** (was 99%); `cudaMalloc` **0.2%** API; non-kernel wall **~53×** ↓ | Track A metric A **PASS**; alloc pool **skipped** |
 | 2026-10-03 | **roof_hist_fat64** | `profiles/roof_hist/` | `caesar_chi2_histogram_decrypt_kernel` | 29×1M | sweep **~830–837B** / fair suite **783.5B** (was **509B**) | — | tile sweep; scores ≡ | fat-tile **WIN** — ship `production_tile_cap=64`; stretch **87%** fair / **~93%** sweep |
-| 2026-10-03 | **roof_hist_wire** | `profiles/roof_hist/` | S1/S2/F.* + Caesar | 29×1M; S2 C=841 | Caesar **838B** / S1 **690B** / S2 **343B**; F.atbash **1525B** / F.affine **838B** | — | `HistFast::tiles_for` → fat-64; goldens green | wire fat-64; Caesar **Done** (~93.5%); S1 stretch; S0 unchanged |
+| 2026-10-03 | **roof_hist_wire** | `profiles/roof_hist/` | S1/S2/F.* + Caesar | 29×1M; S2 C=841 | Caesar **838B** / S1 **690B** / S2 **343B**; F.atbash **1525B** / F.affine **838B** | — | `HistFast::tiles_for` → fat-64; goldens green | fat-64 wire; Caesar **~93.5% of then-Spec 896B** (diary — **superseded** by Remap roofs; see [`hist-alphabet-remap.md`](hist-alphabet-remap.md)) |
 | 2026-10-03 | **s2_ks29** | `profiles/roof_hist/` | `theory_hist_chi2_s2_linear_kernel` | 841×1M | **403.1B** S2 (was **343B**) | — | shared `ks[29]` precompute | ALU cut; ~**45%** of 896B; Caesar/S1 flat |
 | 2026-10-03 | **s0_specialize** | `profiles/roof_hist/` | fair `T.theory.caesar_bytecode` → S1 | 29×1M | **707.6B** (`specialize_S1`; was ~61–68B S0) | — | emit prefer S1 in suite; export already S1/S2 | ~**79%** of 896B; ≈ S1 twin; hard-S0 unchanged |
 | 2026-10-03 | **kernel_slo_accept** | `profiles/kernel_slo/` | theory fair ×3 + slo extended ×2 | fair 29×1M; F.* grids | twin med **783B** / specialize med **681B** / S1 noisy; F.vigenere·beaufort ≥90%; Atbash·totient `%peak>100` | — | quiet ACCEPTANCE | metric B **PARTIAL PASS** — see SUMMARY |
@@ -312,14 +313,15 @@ Write-ups: [`profiles/baseline/SUMMARY.md`](profiles/baseline/SUMMARY.md),
 | 2026-10-07 | **shared_cipher_atomic_climb** | Atbash/totient + shape Atbash | `atbash_chi2_hist` / totient / shape twin | 512×1M | Atbash prod **~1.5–1.75 TB** (~76–87% of 2.0 TB); totient tile32 **~1.17–1.37 TB**; A/B 32/64/128 | — | `__restrict__`/`__ldg`; `HistTileCap::kAtbash`/`kTotient`; totient default **32** | **PARTIAL** — absolute climb vs pre-~1.1–1.6 TB; Done 1.8 TB not median-stable; Caesar tile64 untouched |
 | 2026-10-07 | **autokey_poly_uchar4** | S4/S5 + fair Spec | `theory_hist_chi2_s4_autokey` / `s5_poly` | S4 C=28; S5 C=841 @ T=1M | S4 ~**540B** (~60%); S5 ~**620B** (~70%) | — | packed prior-key `__ldg`; `HistTileCap` S4/S5 def **32**; fair Spec rows | **PARTIAL** — climb vs dsl ~53%; stretch 716.8B open; soft S0 bind fail unchanged |
 
-Physical DRAM-roofline Spec (`BenchTierSpec`, RTX 5070 Ti):
+Remap Spec (`BenchTierSpec`, RTX 5070 Ti) — diary %-of-896B plates above are
+**superseded** for Done (see [`hist-alphabet-remap.md`](hist-alphabet-remap.md)):
 
-| Theory shape | Spec id | `estimated_peak` | 90% gate | Fair cudaEvent | Status |
-|--------------|---------|------------------|----------|----------------|--------|
-| Caesar catalog twin (fat-64) | `T.theory.compare_caesar` | **896B** | **806.4B** | med-of-med **~786B** (~88%; bests **~836B** Done; quieter **~827B**) | **stretch** — dsl custom **Done**; twin median busy-noise |
-| Caesar fair (specialize S1 when eligible) | `T.theory.caesar_bytecode` | **896B** | **806.4B** | med **680.8B** (~76%, `specialize_S1`) | **not stretch** — <80% |
-| S1 LUT-29 (fat-64, resident LUT) | `T.theory.s1_lut29` | **896B** | **806.4B** | quiet **~670–733B** (~79%; bake outside timer) | **not stretch** — noise tightened; median still under 716.8B |
-| bitmask_blend / progressive S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | **896B** | **806.4B** | med **~683B** (~76% @ C=841, residue+tile32) | **not stretch** — climb from ~45%; atomic/L2 bound remains |
+| Theory shape | Spec id | `estimated_peak` | 90% gate | Fair cudaEvent (diary) | Status |
+|--------------|---------|------------------|----------|------------------------|--------|
+| Caesar catalog twin (fat-64 → Remap) | `T.theory.compare_caesar` | **2.0 TB** alphabet Remap | **1.8 TB** | med-of-med **~786B** (~39% Remap; then ~88% of 896B) | climb vs Remap; 93.5%/896B **not** Done |
+| Caesar fair (specialize S1 when eligible) | `T.theory.caesar_bytecode` | **2.0 TB** alphabet Remap | **1.8 TB** | med **680.8B** (~34% Remap; then ~76% of 896B) | climb vs Remap |
+| S1 LUT-29 (mono-LUT Remap) | `T.theory.s1_lut29` | **2.0 TB** alphabet Remap | **1.8 TB** | quiet **~670–733B** (~35% Remap; then ~79% of 896B) | climb vs Remap |
+| bitmask_blend / progressive S2 | `T.theory.s2_linear` / `T.theory.progressive` | **2.0 TB** column Remap | **1.8 TB** | med **~683B** (~34% Remap @ C=841) | climb vs Remap |
 
 Kernel SLO ACCEPTANCE (metric B): [`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md).
 

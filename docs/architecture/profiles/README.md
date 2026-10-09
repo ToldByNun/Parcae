@@ -16,6 +16,8 @@ may be committed — see
 [`dsl_smart/`](dsl_smart/) (customs without presets),
 [`traffic_model/SUMMARY.md`](traffic_model/SUMMARY.md) (Atbash/totient bytes/rune),
 and [`cache_bound/SUMMARY.md`](cache_bound/SUMMARY.md) (L2/DRAM absolute GB/s).
+Remap traffic + 93.5%/896B reinterpretation:
+[`../hist-alphabet-remap.md`](../hist-alphabet-remap.md).
 
 Wrapper: [`scripts/cuda/profile_theory_hist.ps1`](../../../scripts/cuda/profile_theory_hist.ps1)  
 Baseline capture: [`scripts/cuda/capture_theory_baseline.ps1`](../../../scripts/cuda/capture_theory_baseline.ps1)  

@@ -88,25 +88,28 @@ Notes:
 
 - Absolute DRAM is **tens of GB/s** (Affine **17.08 ≈ operator 16.9**), never near 896.
 - **bytes/rune ≪ 1** for every row: shared cipher buffer across `C` candidates → L2
-  absorbs most loads. Unique-key Spec still uses **1 B/rune** as the *logical*
-  roof for Done; physical traffic is the occupancy/L2 story.
+  absorbs most loads. This is why labeling Caesar twin **93.5% of 896B** as
+  “DRAM Done” was wrong — see [`../../hist-alphabet-remap.md`](../../hist-alphabet-remap.md).
+- Production remap Done uses **Remap roofs** (~2.0 TB logical), not 1 B/rune 896B.
+  Report dual rates: logical `C·T` vs `cipher_bytes_per_sec` (~O(T)).
 - Atbash bytes/rune **0.016** ≈ traffic_model **0.01111** (same class; small plate
-  noise / counter scope).
-- Affine L2 hit **97.6%** + DRAM **17 GB/s** while fair cudaEvent can print high
-  absolute RPS — traffic model fixed in Spec (`kHistBytesPerRuneAffineSharedCipher
-  = 0.01906` → ~47.0 TB); see [`../traffic_model/SUMMARY.md`](../traffic_model/SUMMARY.md).
+  noise / counter scope). Atbash Done = compute roof **2.0 TB** (DRAM diary ~80.7 TB).
+- Affine L2 hit **97.6%** + DRAM **17 GB/s** — decode-era Spec diary
+  (`kHistBytesPerRuneAffineSharedCipher = 0.01906` → ~47.0 TB); production Affine
+  remap Done = alphabet Remap roof. See [`../traffic_model/SUMMARY.md`](../traffic_model/SUMMARY.md).
 
-Fair cudaEvent (`T=1048576`, H2D excluded):
+Fair cudaEvent (`T=1048576`, H2D excluded) — **% of Spec peak as of plate date**
+(then 896B / Affine diary); **not** current Remap-roof `%peak`:
 
-| Spec / row | runes/s | % of Spec peak | Source |
+| Spec / row | runes/s | % of then-Spec | Source |
 |------------|---------|----------------|--------|
-| `T.theory.compare_caesar` | **749.3B** | **83.6%** | `theory_fair.json` |
-| `T.theory.caesar_bytecode` (ShapeInline) | **655.7B** | **73.2%** | `theory_fair.json` |
-| `T.theory.s1_lut29` | **418.0B** | **46.6%** | `theory_fair.json` |
-| `T.theory.progressive` (S2) | **352.9B** | **39.4%** | `theory_fair.json` |
-| `F.atbash` | **1344.4B** | **1.67%** of 80.7 TB | `catalog_slo_extended.json` |
-| `F.affine` | **885.2B** | **98.8%** | `catalog_slo_extended.json` |
-| `T1` Caesar | **555.2B** | **62.0%** | `catalog_slo_extended.json` |
+| `T.theory.compare_caesar` | **749.3B** | **83.6%** of 896B | `theory_fair.json` |
+| `T.theory.caesar_bytecode` (ShapeInline) | **655.7B** | **73.2%** of 896B | `theory_fair.json` |
+| `T.theory.s1_lut29` | **418.0B** | **46.6%** of 896B | `theory_fair.json` |
+| `T.theory.progressive` (S2) | **352.9B** | **39.4%** of 896B | `theory_fair.json` |
+| `F.atbash` | **1344.4B** | **1.67%** of 80.7 TB diary | `catalog_slo_extended.json` |
+| `F.affine` | **885.2B** | **98.8%** of Affine diary | `catalog_slo_extended.json` |
+| `T1` Caesar | **555.2B** | **62.0%** of 896B | `catalog_slo_extended.json` |
 
 (Fair plate was a single quiet pass during harness bring-up; Kernel SLO Done still
 needs multi-run medians on a dedicated quiet plate.)

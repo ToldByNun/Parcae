@@ -12,22 +12,24 @@ Captured with
 **Toolkit / tools:** CUDA 13.3, Nsight Systems 2026.1.3, Nsight Compute 2026.2.1  
 **Metric (primary):** `BenchTimer` cudaEvent median-of-3, setup excluded  
 
-## Spec peak (physical DRAM roofline)
+## Spec peak (hard-S0 DRAM diary)
 
-`estimated_peak` = **physical DRAM roofline**, not a measured quiet max:
+Hard-S0 `estimated_peak` = **physical DRAM diary**, not a measured quiet max:
 
 ```text
 896e9 B/s GDDR7 / 1 B cipher/rune = 896B runes/s
-Done (≥90%) ≈ 806.4B
+Done (≥90%) ≈ 806.4B   # S0 / soft-fallback only
 ```
 
-Canonical: [`BenchTierSpec`](../../../../include/parcae/bench/bench_tier_spec.hpp) /
-[`cuda-throughput.md`](../../cuda-throughput.md). Historical quiet S0 medians
-(~69–75B) are **progress**, not the Spec ceiling.
+Eligible Caesar specialize → S1 uses **alphabet Remap 2.0 TB**, not 896B
+([`../../hist-alphabet-remap.md`](../../hist-alphabet-remap.md)). Canonical:
+[`BenchTierSpec`](../../../../include/parcae/bench/bench_tier_spec.hpp) /
+[`cuda-throughput.md`](../../cuda-throughput.md). Quiet S0 medians (~69–75B)
+are **progress**, not the Spec ceiling.
 
 | Spec id | Peak | 90% Done gate | Notes |
 |---------|------|---------------|-------|
-| `T.theory.caesar_bytecode` | **896B** | **806.4B** | Same roof as catalog fused hist |
+| `T.theory.caesar_bytecode` (hard-S0 path) | **896B** diary | **806.4B** | Specialize-to-S1 → Remap 2.0 TB |
 
 ## Climb progress
 
@@ -40,7 +42,8 @@ Measured cudaEvent values unchanged; **% of 896B** reinterpreted.
 | **s0-climb-p2** | no net win | — | uchar4 / 32-tok / launch_bounds regressed |
 | **dram-roof** | Spec → **896B** | — | peak = physics; S0 still **not Done** |
 
-Caesar twin on the same capture: **406.62B** ≈ **45.4%** of 896B (reference only).
+Caesar twin on the same capture: **406.62B** ≈ **45.4%** of 896B diary
+(~20% of Remap 2.0 TB) — reference only.
 
 ## Artifacts (local / gitignored binaries)
 

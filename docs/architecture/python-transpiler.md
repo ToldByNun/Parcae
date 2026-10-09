@@ -231,7 +231,8 @@ SLO Done.
 **Customs without presets:** HotLoop math that is algebraically Atbash / Caesar /
 Affine / linear keystream must match a fast hist shape **without** catalog
 `TransformId` or builtin Calls — see [dsl-smart-hist.md](dsl-smart-hist.md)
-(name-irrelevant `ShapeId` ladder, Done/stretch vs 896B).
+(name-irrelevant `ShapeId` ladder, Done/stretch vs Remap or 896B diary — see
+[hist-alphabet-remap.md](hist-alphabet-remap.md)).
 
 ---
 

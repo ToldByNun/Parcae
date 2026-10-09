@@ -85,13 +85,13 @@ peaks at `T≈2^20`. Normative Done rules:
 [`dsl-smart-hist.md`](dsl-smart-hist.md). Playbook + progress log:
 [`cuda-profile-theory.md`](cuda-profile-theory.md).
 
-### Theory plateaus (physical roof)
+### Theory plateaus (Remap roofs)
 
 | Tier | Workload | Ceiling (runes/s) | SLO floor | Notes |
 |------|----------|-------------------|-----------|-------|
-| T.theory.caesar_bytecode | specialize S1 when eligible | **896B** | ≥15B | ~79% fair (`specialize_S1`); hard-S0 ~7–8% |
-| T.theory.s1_lut29 | S1 LUT-29 | **896B** | ≥15B | fair hist+finalize (LUT baked outside timer); ~75–80% |
-| T.theory.s2_linear | S2 progressive / bitmask | **896B** | ≥15B | ~76% fair @ C=841 (running residue + tile32) |
+| T.theory.caesar_bytecode | specialize S1 when eligible | **2.0 TB** alphabet Remap | ≥15B | hard-S0 still ~7–8% of **896B** diary |
+| T.theory.s1_lut29 | S1 mono-LUT remap | **2.0 TB** alphabet Remap | ≥15B | LUT baked outside fair timer |
+| T.theory.s2_linear | S2 column remap (L=29) | **2.0 TB** column Remap | ≥15B | historical %-of-896B superseded |
 
 Operator handbook: [`search-handbook.md`](search-handbook.md) § Theory URI.
 Emit API: [`theory_hist_chi2_emit.hpp`](../../include/parcae/dsl/theory_hist_chi2_emit.hpp).
@@ -111,68 +111,71 @@ cmake --build build-cuda --config Release --target parcae-bench parcae-throughpu
 ./build-cuda/tools/Release/parcae-throughput-tiers
 ```
 
-Pass rule: SLO floor **and** ≥ 90% of the **DRAM-roofline** peak for that row
-(`BenchTierSpec::pass_tier`).
+Pass rule: SLO floor **and** ≥ 90% of the shape **`estimated_peak`**
+(`BenchTierSpec::pass_tier`) — Remap roof for production once-count shapes,
+896B DRAM diary only for hard-S0 / koan stages.
 
 ## Canonical SLO configs (`BenchTierSpec`)
 
 | Tier | Workload | C | T | reps | Target (runes/s) | Ceiling |
 |------|----------|---|---|------|------------------|---------|
-| T1 | Caesar fused χ² | 29 | 1048576 | 64 | 15.00B–35.00B | **896B** (DRAM roof) |
-| T2 | multi-key / autokey / dynamic-shift (worst) | 4096 | 262144 | 8 | 3.00B–10.00B | **896B** |
-| T3 | Caesar bigram + dict | 512 | 262144 | 8 | ≥1.00B | **448B** (2 B/rune model) |
+| T1 | Caesar fused χ² (remap) | 29 | 1048576 | 64 | 15.00B–35.00B | **2.0 TB** (alphabet Remap) |
+| T2 | multi-key / autokey / dynamic-shift (worst) | 4096 | 262144 | 8 | 3.00B–10.00B | **2.0 TB** (lag Remap) |
+| T3 | Caesar bigram + dict | 512 | 262144 | 8 | ≥1.00B | **1.0 TB** (bigram Remap) |
 
 Display bands (`slo_max`) are expectations only — faster than the upper bound still
 **passes**. Failures are below the floor or below the 90% peak band.
 
 ## Reference plateaus (RTX 5070 Ti)
 
-Ceilings = **DRAM roofline** (`BenchTierSpec::dram_roofline_hist_peak` =
-**896B** for 1 B cipher/rune; T3 = **448B** for 2 B/rune). Measured runs today
-are far below 90% — that is expected until kernels are memory-bound.
+Ceilings = **Remap roofs** for production hist (see
+[`hist-alphabet-remap.md`](hist-alphabet-remap.md)). **896B** remains the
+hard-S0 / koan **diary** only. Do **not** treat historical “93.5% of 896B”
+Caesar twin as current Done — that plate used the superseded 1 B/rune model
+while ncu DRAM SoL was ~1–3%.
 
 ### SLO tiers
 
 | Tier | Workload | Ceiling (runes/s) | SLO floor |
 |------|----------|-------------------|-----------|
-| T1 | Caesar fused χ² | **896B** | ≥15B |
-| T2 | multi-key / autokey / dynamic-shift (worst) | **896B** | ≥3B |
-| T3 | Caesar bigram + dict | **448B** | ≥1B |
+| T1 | Caesar fused χ² | **2.0 TB** alphabet Remap | ≥15B |
+| T2 | multi-key / autokey / dynamic-shift (worst) | **2.0 TB** lag Remap | ≥3B |
+| T3 | Caesar bigram + dict | **1.0 TB** bigram Remap | ≥1B |
 
 ### Transform families
 
 | Tier | Workload | Ceiling (runes/s) | SLO floor |
 |------|----------|-------------------|-----------|
 | F.atbash | Atbash fused χ² (C=512 occupancy pad) | **2.0 TB** (compute roof; DRAM diary ≈80.7 TB) | ≥15B |
-| F.affine | Affine fused χ² (812 shared cipher) | **≈47.0 TB** (0.01906 B/rune ncu) | ≥15B |
-| F.vigenere | Vigenère fused χ² (key len 8) | **896B** | ≥3B |
-| F.beaufort | Beaufort fused χ² (key len 8) | **896B** | ≥3B |
+| F.affine | Affine fused χ² (812; CipherHistOnce remap) | **2.0 TB** alphabet Remap (Affine DRAM ~47 TB = diary) | ≥15B |
+| F.vigenere | Vigenère fused χ² (key len 8) | **2.0 TB** column Remap | ≥3B |
+| F.beaufort | Beaufort fused χ² (key len 8) | **2.0 TB** column Remap | ≥3B |
 | F.totient | Totient stream fused χ² (C=512) | **2.0 TB** (same compute roof as Atbash) | ≥3B |
 
 ### Compose
 
 | Tier | Workload | Ceiling (runes/s) | SLO floor |
 |------|----------|-------------------|-----------|
-| C.koan1_fused | Atbash→Caesar+shift fused χ² | **896B** | ≥15B |
-| C.koan1_stages | Atbash (async) + Caesar χ² | **896B** | ≥15B |
+| C.koan1_fused | Atbash→Caesar+shift fused χ² | **896B** (legacy diary) | ≥15B |
+| C.koan1_stages | Atbash (async) + Caesar χ² | **896B** (legacy diary) | ≥15B |
 
 ## Recalibration rule
 
-1. Unique-key peak = **physical DRAM roofline**, not measured max. Derive from
-   `device_peak_dram_bytes_per_s / bytes_per_rune` (RTX 5070 Ti → 896e9 /
-   448e9). Shared-cipher Atbash/totient peak = **compute roof**
-   (`kSharedCipherComputeRoofRps`); recalibrate only from identity occupancy
-   hist (`HistOccupancyRoof`), never from Atbash quiet max. Do **not** raise
-   or lower Spec to chase production quiet-run medians.
+1. **Remap** peaks = interim freezes (`kAlphabetRemapHistRoofRps`, …) from the
+   identity-hist / CipherHistOnce plate class — not quiet production max.
+   Recalibrate on a quiet remap plate; never chase medians into Spec.
+   **Legacy unique-key decode→hist** peak = physical DRAM roofline (896e9 /
+   bytes_per_rune). Shared-cipher Atbash/totient = compute roof
+   (`HistOccupancyRoof`), never Atbash quiet max.
 2. Run `parcae-bench --suite slo --extended --allow-cuda` (or compat
    `parcae-throughput-tiers`) on a quiet GPU to measure **progress toward**
-   that roof (`%peak`), not to redefine it.
+   that roof (`%peak`), not to redefine it. Report dual rates when diagnosing
+   DRAM (`cipher_bytes_per_sec` vs 896 GB/s).
 3. `%peak` **must stay ≤100**. If a quiet run prints **&gt;100**, the Spec
-   peak or BW assumption is wrong (wrong bytes/rune, wrong DRAM GB/s, or
-   compute roof too low) — fix the roof model, not “raise to absorb” a
-   measured outlier.
-4. PRIMARY / climb pass = **≥90% of the DRAM roof**. Below that is unfinished
-   specialize work, not a calibration problem.
+   peak or BW assumption is wrong — fix the roof model, not “raise to absorb”
+   a measured outlier.
+4. PRIMARY / climb pass = **≥90% of `estimated_peak`** (Remap or diary).
+   Below that is unfinished specialize / Remap work, not a calibration problem.
 5. If mins fall under 90% of the roof while the kernel is already memory-bound
    on ncu, check clocks / residency / traffic bytes before touching the Spec.
 
@@ -188,6 +191,7 @@ are far below 90% — that is expected until kernels are memory-bound.
 - Kernels: [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/) (`hist_fast.hpp`, `*_chi2_batch.cu`, `theory_hist_chi2_s{1,2}.*`)
 - Build notes: [cuda-build.md](cuda-build.md)
 - Theory profiling (nsys/ncu): [cuda-profile-theory.md](cuda-profile-theory.md)
+- Hist alphabet remap (Mono/Spalten/Lag/Bigram; 93.5%/896B correction): [hist-alphabet-remap.md](hist-alphabet-remap.md)
 - Theory hist transpile contract (S0–S5 ≥90% shape peak): [theory-hist-transpile.md](theory-hist-transpile.md)
 - DSL smart hist (customs without presets): [dsl-smart-hist.md](dsl-smart-hist.md)
 - Operator handbook (theory URI + dispatch): [search-handbook.md](search-handbook.md)

@@ -29,8 +29,8 @@ private:
 
 | Header | Class | Status |
 |--------|-------|--------|
-| `bench_tier_spec.hpp` | `BenchTierSpec` | Done — canonical T1–T3 C/T/reps + peak/SLO tables; unique-key **`estimated_peak` = DRAM roofline** (RTX 5070 Ti 896 GB/s → **896B** @ 1 B/rune; T3 **448B**); Atbash/totient **`estimated_peak` = compute roof 2.0 TB** (DRAM diary ≈**80.7 TB** @ 0.01111 B/rune); Affine ≈**47.0 TB** @ 0.01906 B/rune — not a measured quiet max |
-| `bench_metric.hpp` | `BenchMetric` | Done — runes/s, keys/s, median-of-3 |
+| `bench_tier_spec.hpp` | `BenchTierSpec` | Done — T1–T3 + theory peaks; Remap shapes → **`kAlphabet/Column/LagRemapHistRoofRps` ≈ 2.0 TB**, bigram **1.0 TB**; hard-S0 / koan **896B** diary; Atbash/totient compute roof **2.0 TB** (DRAM diaries ≈80.7 TB / Affine ≈47 TB not Done). Normative: [`docs/architecture/hist-alphabet-remap.md`](../../docs/architecture/hist-alphabet-remap.md) |
+| `bench_metric.hpp` | `BenchMetric` | Done — logical runes/s + optional `cipher_bytes_per_sec`; median-of-3 |
 | `bench_timer.hpp` | `BenchTimer` | Done — CPU steady_clock + CUDA cudaEvent protocol |
 | `bench_report.hpp` | `BenchReport` | Done — unified rows + JSON `--omit-timing` |
 | `bench_formatter.hpp` | `BenchFormatter` | Done — human tables (ConsoleDashboard vocab) |
