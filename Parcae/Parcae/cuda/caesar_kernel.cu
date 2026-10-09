@@ -1,41 +1,72 @@
 #include "caesar_kernel.hpp"
+
 #include "cuda_error.hpp"
 #include "device_buffer.hpp"
+#include "hist_fast.hpp"
 
 #include <cuda_runtime_api.h>
 
-namespace {
+#include <cstdint>
 
-constexpr int kThreadsPerBlock = 256;
-constexpr std::uint8_t kModulus = 29;
-
-__global__ void caesar_kernel(const std::uint8_t* in, std::uint8_t* out, std::size_t count,
-                              std::uint8_t shift, std::uint8_t encrypt) {
-    const std::size_t i =
+__global__ void caesar_uchar4_kernel(const std::uint8_t* __restrict__ in, std::uint8_t* out,
+                                     std::size_t count, std::uint8_t shift,
+                                     std::uint8_t encrypt) {
+    const std::size_t n4 = count / 4u;
+    const std::size_t tid =
         static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
         static_cast<std::size_t>(threadIdx.x);
-    if (i >= count) {
-        return;
+    const std::size_t stride =
+        static_cast<std::size_t>(blockDim.x) * static_cast<std::size_t>(gridDim.x);
+
+    const uchar4* __restrict__ in4 = reinterpret_cast<const uchar4*>(in);
+    uchar4* out4 = reinterpret_cast<uchar4*>(out);
+
+    for (std::size_t i = tid; i < n4; i += stride) {
+        const uchar4 v = __ldg(in4 + i);
+        uchar4 w;
+        if (encrypt != 0u) {
+            w.x = HistFast::enc_caesar(v.x, shift);
+            w.y = HistFast::enc_caesar(v.y, shift);
+            w.z = HistFast::enc_caesar(v.z, shift);
+            w.w = HistFast::enc_caesar(v.w, shift);
+        } else {
+            w.x = HistFast::dec_caesar(v.x, shift);
+            w.y = HistFast::dec_caesar(v.y, shift);
+            w.z = HistFast::dec_caesar(v.z, shift);
+            w.w = HistFast::dec_caesar(v.w, shift);
+        }
+        out4[i] = w;
     }
-    const std::uint8_t x = in[i];
-    if (encrypt != 0u) {
-        out[i] = static_cast<std::uint8_t>((x + shift) % kModulus);
-    } else {
-        out[i] = static_cast<std::uint8_t>((x + kModulus - shift) % kModulus);
+    for (std::size_t t = n4 * 4u + tid; t < count; t += stride) {
+        const std::uint8_t x = __ldg(in + t);
+        out[t] = encrypt != 0u ? HistFast::enc_caesar(x, shift) : HistFast::dec_caesar(x, shift);
     }
 }
 
-[[nodiscard]] Status validate_shift(std::uint8_t shift) {
-    if (shift >= kModulus) {
+__global__ void caesar_scalar_kernel(const std::uint8_t* __restrict__ in, std::uint8_t* out,
+                                     std::size_t count, std::uint8_t shift,
+                                     std::uint8_t encrypt) {
+    const std::size_t tid =
+        static_cast<std::size_t>(blockIdx.x) * static_cast<std::size_t>(blockDim.x) +
+        static_cast<std::size_t>(threadIdx.x);
+    const std::size_t stride =
+        static_cast<std::size_t>(blockDim.x) * static_cast<std::size_t>(gridDim.x);
+
+    for (std::size_t t = tid; t < count; t += stride) {
+        const std::uint8_t x = __ldg(in + t);
+        out[t] = encrypt != 0u ? HistFast::enc_caesar(x, shift) : HistFast::dec_caesar(x, shift);
+    }
+}
+
+Status CaesarKernel::validate_shift(std::uint8_t shift) {
+    if (shift >= static_cast<std::uint8_t>(HistFast::alphabet)) {
         return Status::error("CaesarKernel: shift must be in 0..28");
     }
     return Status::success();
 }
 
-} // namespace
-
-Status CaesarKernel::launch_device(const std::uint8_t* device_in, std::uint8_t* device_out,
-                                   std::size_t count, std::uint8_t shift, CudaDir direction) {
+Status CaesarKernel::launch_device_async(const std::uint8_t* device_in, std::uint8_t* device_out,
+                                         std::size_t count, std::uint8_t shift, CudaDir direction) {
     Status shift_ok = validate_shift(shift);
     if (!shift_ok.ok()) {
         return shift_ok;
@@ -44,18 +75,33 @@ Status CaesarKernel::launch_device(const std::uint8_t* device_in, std::uint8_t* 
         return Status::success();
     }
     if (device_in == nullptr || device_out == nullptr) {
-        return Status::error("CaesarKernel::launch_device null device pointer");
+        return Status::error("CaesarKernel::launch_device_async null device pointer");
     }
 
     const std::uint8_t encrypt =
         direction == CudaDir::Encrypt ? static_cast<std::uint8_t>(1) : static_cast<std::uint8_t>(0);
-    const int blocks = static_cast<int>((count + static_cast<std::size_t>(kThreadsPerBlock) - 1u) /
-                                        static_cast<std::size_t>(kThreadsPerBlock));
-    caesar_kernel<<<blocks, kThreadsPerBlock>>>(device_in, device_out, count, shift, encrypt);
+    const bool aligned = (reinterpret_cast<std::uintptr_t>(device_in) % alignof(uchar4)) == 0u &&
+                         (reinterpret_cast<std::uintptr_t>(device_out) % alignof(uchar4)) == 0u;
+    const std::size_t work = aligned ? (count + 3u) / 4u : count;
+    const int blocks =
+        static_cast<int>((work + static_cast<std::size_t>(HistFast::threads) - 1u) /
+                         static_cast<std::size_t>(HistFast::threads));
 
-    Status launch = CudaError::to_status(cudaGetLastError(), "CaesarKernel::launch_device");
-    if (!launch.ok()) {
-        return launch;
+    if (aligned) {
+        caesar_uchar4_kernel<<<blocks, HistFast::threads>>>(device_in, device_out, count, shift,
+                                                            encrypt);
+    } else {
+        caesar_scalar_kernel<<<blocks, HistFast::threads>>>(device_in, device_out, count, shift,
+                                                            encrypt);
+    }
+    return CudaError::to_status(cudaGetLastError(), "CaesarKernel::launch_device_async");
+}
+
+Status CaesarKernel::launch_device(const std::uint8_t* device_in, std::uint8_t* device_out,
+                                   std::size_t count, std::uint8_t shift, CudaDir direction) {
+    Status launched = launch_device_async(device_in, device_out, count, shift, direction);
+    if (!launched.ok()) {
+        return launched;
     }
     return CudaError::to_status(cudaDeviceSynchronize(), "CaesarKernel::launch_device sync");
 }

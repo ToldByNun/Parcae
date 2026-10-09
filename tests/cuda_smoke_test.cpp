@@ -2,9 +2,12 @@
 
 #if defined(PARCAE_HAS_CUDA)
 
+#include "cuda_error.hpp"
 #include "device_buffer.hpp"
 #include "identity_copy.hpp"
 #include "parcae_cuda.hpp"
+
+#include <cuda_runtime_api.h>
 
 #include <cstdint>
 #include <vector>
@@ -43,10 +46,39 @@ TEST_CASE("CUDA smoke identity copy empty and size mismatch", "[cuda][smoke]") {
     REQUIRE(ParcaeCuda::available());
 
     REQUIRE(IdentityCopy::launch_device(nullptr, nullptr, 0).ok());
+    REQUIRE(IdentityCopy::launch_device_async(nullptr, nullptr, 0).ok());
+    REQUIRE_FALSE(IdentityCopy::launch_device_async(nullptr, nullptr, 1).ok());
 
     std::vector<std::uint8_t> in{1, 2};
     std::vector<std::uint8_t> out(1);
     REQUIRE_FALSE(IdentityCopy::apply_host(in, out).ok());
+}
+
+TEST_CASE("CUDA smoke identity copy uchar4 lengths and async", "[cuda][smoke]") {
+    REQUIRE(ParcaeCuda::available());
+
+    const std::size_t lengths[] = {1u, 3u, 4u, 5u, 29u, 257u};
+    for (std::size_t n : lengths) {
+        std::vector<std::uint8_t> host_in(n);
+        for (std::size_t i = 0; i < n; ++i) {
+            host_in[i] = static_cast<std::uint8_t>(i % 29u);
+        }
+        StatusOr<DeviceBuffer<std::uint8_t>> device_in =
+            DeviceBuffer<std::uint8_t>::from_host(host_in);
+        REQUIRE(device_in.ok());
+        StatusOr<DeviceBuffer<std::uint8_t>> device_out =
+            DeviceBuffer<std::uint8_t>::allocate(n);
+        REQUIRE(device_out.ok());
+
+        REQUIRE(IdentityCopy::launch_device_async(device_in.value().data(),
+                                                  device_out.value().data(), n)
+                    .ok());
+        REQUIRE(CudaError::to_status(cudaDeviceSynchronize(), "identity async sync").ok());
+
+        std::vector<std::uint8_t> host_out(n);
+        REQUIRE(device_out.value().copy_to_host(host_out).ok());
+        REQUIRE(host_out == host_in);
+    }
 }
 
 #else

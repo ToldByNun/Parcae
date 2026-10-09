@@ -7,8 +7,12 @@
 #include "parcae/transform/transform_direction.hpp"
 
 #include "caesar_kernel.hpp"
+#include "cuda_error.hpp"
+#include "device_buffer.hpp"
 #include "params.hpp"
 #include "parcae_cuda.hpp"
+
+#include <cuda_runtime_api.h>
 
 #include <cstdint>
 #include <random>
@@ -100,11 +104,51 @@ TEST_CASE("CUDA caesar in-place on device", "[cuda][parity][caesar]") {
 TEST_CASE("CUDA caesar empty mismatch and bad shift", "[cuda][parity][caesar]") {
     REQUIRE(ParcaeCuda::available());
     REQUIRE(CaesarKernel::launch_device(nullptr, nullptr, 0, 0, CudaDir::Encrypt).ok());
+    REQUIRE(CaesarKernel::launch_device_async(nullptr, nullptr, 0, 0, CudaDir::Encrypt).ok());
     REQUIRE_FALSE(CaesarKernel::launch_device(nullptr, nullptr, 0, 29, CudaDir::Encrypt).ok());
+    REQUIRE_FALSE(
+        CaesarKernel::launch_device_async(nullptr, nullptr, 0, 29, CudaDir::Encrypt).ok());
+    REQUIRE_FALSE(
+        CaesarKernel::launch_device_async(nullptr, nullptr, 1, 0, CudaDir::Encrypt).ok());
 
     std::vector<std::uint8_t> in{1, 2};
     std::vector<std::uint8_t> out(1);
     REQUIRE_FALSE(CaesarKernel::apply_host(in, out, 1, CudaDir::Encrypt).ok());
+}
+
+TEST_CASE("CUDA caesar uchar4 lengths and async", "[cuda][parity][caesar]") {
+    REQUIRE(ParcaeCuda::available());
+
+    const std::uint8_t shift = 7;
+    const std::size_t lengths[] = {1u, 3u, 4u, 5u, 29u, 257u};
+    for (std::size_t n : lengths) {
+        std::vector<Index29> input;
+        input.reserve(n);
+        for (std::size_t i = 0; i < n; ++i) {
+            input.push_back(Index29{static_cast<std::uint8_t>(i % 29u)});
+        }
+        std::vector<Index29> cpu(n);
+        REQUIRE(CaesarTransform::kernel(input, cpu, Index29{shift}, TransformDirection::Encrypt)
+                    .ok());
+
+        const std::vector<std::uint8_t> host_in = to_bytes(input);
+        StatusOr<DeviceBuffer<std::uint8_t>> device_in =
+            DeviceBuffer<std::uint8_t>::from_host(host_in);
+        REQUIRE(device_in.ok());
+        StatusOr<DeviceBuffer<std::uint8_t>> device_out =
+            DeviceBuffer<std::uint8_t>::allocate(n);
+        REQUIRE(device_out.ok());
+
+        REQUIRE(CaesarKernel::launch_device_async(device_in.value().data(),
+                                                  device_out.value().data(), n, shift,
+                                                  CudaDir::Encrypt)
+                    .ok());
+        REQUIRE(CudaError::to_status(cudaDeviceSynchronize(), "caesar async sync").ok());
+
+        std::vector<std::uint8_t> host_out(n);
+        REQUIRE(device_out.value().copy_to_host(host_out).ok());
+        REQUIRE(from_bytes(host_out) == cpu);
+    }
 }
 
 #else

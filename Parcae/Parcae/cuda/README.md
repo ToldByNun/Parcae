@@ -27,11 +27,11 @@ Files:
 | `backend.hpp` | `CudaBackend` — full catalog `apply_into` / `apply_and_capture` |
 | `cuda_score.hpp` | `CudaScore` — `ScoreRegistry` twin (string-id score dispatch) |
 | `cuda_batch_score.hpp` | `CudaBatchScore` — lane scores via `CudaScore` + host `BatchOrdering` top-k |
-| `identity_copy.hpp` / `identity_copy.cu` | `IdentityCopy` — device `uint8_t` identity / smoke kernel |
+| `identity_copy.hpp` / `identity_copy.cu` | `IdentityCopy` — uchar4/`__ldg` identity + `launch_device_async` (host sync wrapper) |
 | `atbash_kernel.hpp` / `atbash_kernel.cu` | `AtbashKernel` — `out[i] = 28 - in[i]` twin |
 | `atbash_batch_kernel.hpp` / `.cu` | `AtbashBatchKernel` — shared tokens → atbash lanes (SoA) |
 | `atbash_caesar_batch_kernel.hpp` / `.cu` | `AtbashCaesarBatchKernel` — Koan-1 atbash∘caesar 29 shifts |
-| `caesar_kernel.hpp` / `caesar_kernel.cu` | `CaesarKernel` — add/sub `shift` mod 29 twin |
+| `caesar_kernel.hpp` / `caesar_kernel.cu` | `CaesarKernel` — `HistFast` enc/dec + uchar4/`launch_device_async` |
 | `caesar_batch_kernel.hpp` / `.cu` | `CaesarBatchKernel` — shared tokens + 29 shift lanes (SoA ABI v0) |
 | `z29_device.hpp` | `Z29Device` — host/device \\(\\mathbb{Z}_{29}\\) add/mul/inv |
 | `affine_kernel.hpp` / `affine_kernel.cu` | `AffineKernel` — `a·x+b` / `inv(a)·(x-b)` twin |
