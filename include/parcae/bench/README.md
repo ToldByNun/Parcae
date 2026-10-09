@@ -29,7 +29,7 @@ private:
 
 | Header | Class | Status |
 |--------|-------|--------|
-| `bench_tier_spec.hpp` | `BenchTierSpec` | Done — T1–T3 + theory peaks; Remap shapes → **`kAlphabet/Column/LagRemapHistRoofRps` ≈ 2.0 TB**, bigram **1.0 TB**; hard-S0 / koan **896B** diary; Atbash/totient compute roof **2.0 TB** (DRAM diaries ≈80.7 TB / Affine ≈47 TB not Done). Normative: [`docs/architecture/hist-alphabet-remap.md`](../../docs/architecture/hist-alphabet-remap.md) |
+| `bench_tier_spec.hpp` | `BenchTierSpec` | Done — T1–T3 + theory peaks; alphabet Remap (C≈29) **2.0 TB**; high-C / column / Atbash **30 TB**; lag interim **2.0 TB**; bigram **1.0 TB**; hard-S0 / koan **896B** diary (DRAM diaries ≈80.7 TB / Affine ≈47 TB not Done). Quiet plate: [`docs/architecture/profiles/quiet_remap/SUMMARY.md`](../../docs/architecture/profiles/quiet_remap/SUMMARY.md). Normative: [`docs/architecture/hist-alphabet-remap.md`](../../docs/architecture/hist-alphabet-remap.md) |
 | `bench_metric.hpp` | `BenchMetric` | Done — logical runes/s + optional `cipher_bytes_per_sec`; median-of-3 |
 | `bench_timer.hpp` | `BenchTimer` | Done — CPU steady_clock + CUDA cudaEvent protocol |
 | `bench_report.hpp` | `BenchReport` | Done — unified rows + JSON `--omit-timing` |

@@ -14,7 +14,8 @@ and `parcae-bench --suite theory`.
 > **Reinterpretation (post Remap):** %-of-896B on this plate is a **diary** of the
 > decode-hist / fat-tile climb. ncu later showed DRAM SoL ~1–3%
 > ([`../cache_bound/SUMMARY.md`](../cache_bound/SUMMARY.md)). Production Caesar /
-> S1 / S2 Done now uses **Remap roofs** (~2.0 TB logical), not 896B. The famous
+> S1 Done uses alphabet Remap **2.0 TB**; S2/S5 use high-C **30 TB** — see
+> [`../quiet_remap/SUMMARY.md`](../quiet_remap/SUMMARY.md). The famous
 > **93.5%** Caesar twin row is **not** current Done. See
 > [`../../hist-alphabet-remap.md`](../../hist-alphabet-remap.md).
 

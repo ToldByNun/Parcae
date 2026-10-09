@@ -29,24 +29,27 @@ TEST_CASE("BenchTierSpec shared-cipher occupancy DRAM peak is diary traffic mode
     REQUIRE(BenchTierSpec::estimated_peak("F.totient") != diary);
 }
 
-TEST_CASE("BenchTierSpec shared-cipher compute roof gates Atbash/totient Done",
+TEST_CASE("BenchTierSpec shared-cipher / high-C Remap roof gates Atbash/totient Done",
           "[bench][spec][traffic][compute_roof]") {
-    REQUIRE(BenchTierSpec::kSharedCipherComputeRoofRps == 2.0e12);
+    REQUIRE(BenchTierSpec::kHighCRemapHistRoofRps == 30.0e12);
+    REQUIRE(BenchTierSpec::kSharedCipherComputeRoofRps == BenchTierSpec::kHighCRemapHistRoofRps);
     const double roof = BenchTierSpec::shared_cipher_compute_roof_rps();
     REQUIRE(roof == BenchTierSpec::kSharedCipherComputeRoofRps);
-    // Below DRAM diary; above unique-key 896B DRAM roof.
+    REQUIRE(roof == BenchTierSpec::high_c_remap_hist_roof_rps());
+    // Below DRAM diary; above unique-key 896B DRAM roof and fair-C=29 alphabet.
     REQUIRE(roof < BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak());
     REQUIRE(roof > BenchTierSpec::dram_roofline_hist_peak());
+    REQUIRE(roof > BenchTierSpec::alphabet_remap_hist_roof_rps());
     REQUIRE(BenchTierSpec::estimated_peak("F.atbash") == roof);
     REQUIRE(BenchTierSpec::estimated_peak("F.totient") == roof);
     REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_atbash") == roof);
     REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.compare_Fatbash") == roof);
     REQUIRE(BenchTierSpec::dsl_smart_atbash.estimated_peak == roof);
     REQUIRE(BenchTierSpec::dsl_smart_compare_atbash.estimated_peak == roof);
-    // Quiet Atbash-class RPS stays ≤100 under compute roof (not DRAM diary).
-    REQUIRE(BenchTierSpec::percent_peak(1678.0e9, roof) < 100.0);
-    REQUIRE(BenchTierSpec::percent_peak(1600.0e9, roof) < 100.0);
-    REQUIRE(BenchTierSpec::percent_peak(1109.0e9, roof) < 100.0);
+    // Quiet Atbash-class Remap RPS stays ≤100 under high-C roof (not DRAM diary).
+    REQUIRE(BenchTierSpec::percent_peak(18.4e12, roof) < 100.0);
+    REQUIRE(BenchTierSpec::percent_peak(22.1e12, roof) < 100.0);
+    REQUIRE(BenchTierSpec::percent_peak(1.8e12, roof) < 100.0);
     // Column remap families use column Remap roof (not 896B DRAM).
     REQUIRE(BenchTierSpec::estimated_peak("F.vigenere") ==
             BenchTierSpec::column_remap_hist_roof_rps());
@@ -54,7 +57,7 @@ TEST_CASE("BenchTierSpec shared-cipher compute roof gates Atbash/totient Done",
 
 TEST_CASE("BenchTierSpec Remap roofs gate production hist Done", "[bench][spec][remap]") {
     REQUIRE(BenchTierSpec::kAlphabetRemapHistRoofRps == 2.0e12);
-    REQUIRE(BenchTierSpec::kColumnRemapHistRoofRps == 2.0e12);
+    REQUIRE(BenchTierSpec::kColumnRemapHistRoofRps == 30.0e12);
     REQUIRE(BenchTierSpec::kLagRemapHistRoofRps == 2.0e12);
     REQUIRE(BenchTierSpec::kBigramRemapHistRoofRps == 1.0e12);
     REQUIRE(BenchTierSpec::alphabet_remap_hist_roof_rps() ==
@@ -77,6 +80,8 @@ TEST_CASE("BenchTierSpec Remap roofs gate production hist Done", "[bench][spec][
             BenchTierSpec::lag_remap_hist_roof_rps());
     REQUIRE(BenchTierSpec::estimated_peak("T.theory.s5_poly") ==
             BenchTierSpec::column_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::estimated_peak("T.theory.compare_caesar") ==
+            BenchTierSpec::alphabet_remap_hist_roof_rps());
     REQUIRE(BenchTierSpec::estimated_peak("F.beaufort") ==
             BenchTierSpec::column_remap_hist_roof_rps());
     // Legacy decode stages stay on 896B.
@@ -94,16 +99,18 @@ TEST_CASE("BenchTierSpec Affine diary DRAM peak is not production Done",
                 .epsilon(1e-12));
     REQUIRE(diary > BenchTierSpec::dram_roofline_hist_peak());
     REQUIRE(diary < BenchTierSpec::dram_roofline_shared_cipher_occupancy_peak());
-    // Production Affine remap Done = alphabet Remap roof, not diary DRAM.
-    const double peak = BenchTierSpec::alphabet_remap_hist_roof_rps();
+    // Production Affine remap Done = high-C Remap roof, not diary DRAM / C=29 alphabet.
+    const double peak = BenchTierSpec::high_c_remap_hist_roof_rps();
     REQUIRE(BenchTierSpec::estimated_peak("F.affine") == peak);
     REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.custom_affine") == peak);
     REQUIRE(BenchTierSpec::estimated_peak("T.dsl_smart.compare_Faffine") == peak);
     REQUIRE(BenchTierSpec::dsl_smart_affine.estimated_peak == peak);
     REQUIRE(BenchTierSpec::dsl_smart_compare_affine.estimated_peak == peak);
     REQUIRE(BenchTierSpec::estimated_peak("F.affine") != diary);
-    REQUIRE(BenchTierSpec::percent_peak(1142.0e9, peak) < 100.0);
-    REQUIRE(BenchTierSpec::percent_peak(885.0e9, peak) < 100.0);
+    REQUIRE(BenchTierSpec::estimated_peak("F.affine") !=
+            BenchTierSpec::alphabet_remap_hist_roof_rps());
+    REQUIRE(BenchTierSpec::percent_peak(18.4e12, peak) < 100.0);
+    REQUIRE(BenchTierSpec::percent_peak(22.1e12, peak) < 100.0);
 }
 
 TEST_CASE("BenchTierSpec T1 config matches canonical SLO table", "[bench][spec]") {

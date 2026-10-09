@@ -1,9 +1,10 @@
 # Kernel SLO ACCEPTANCE — metric B (requiet 2026-10-06)
 
-Quiet fair Kernel SLO vs shape `estimated_peak`. Remap production (Caesar/S1/S2/…)
-uses **Remap roofs ~2.0 TB**; hard-S0 keeps **896B** diary. Atbash/totient Done
-uses shared-cipher **compute roof → 2.0 TB**. %-of-896B columns in this digest
-are **diary** unless noted — [`../../hist-alphabet-remap.md`](../../hist-alphabet-remap.md),
+Quiet fair Kernel SLO vs shape `estimated_peak`. Remap production: alphabet
+(C≈29) **2.0 TB**, high-C / column / Atbash **30 TB**, lag interim **2.0 TB**;
+hard-S0 keeps **896B** diary. %-of-896B columns in this digest are **diary**
+unless noted — [`../../hist-alphabet-remap.md`](../../hist-alphabet-remap.md),
+[`../quiet_remap/SUMMARY.md`](../quiet_remap/SUMMARY.md),
 [`../traffic_model/SUMMARY.md`](../traffic_model/SUMMARY.md).
 
 **Hardware:** NVIDIA GeForce RTX 5070 Ti (sm_120)  
@@ -23,8 +24,9 @@ are **diary** unless noted — [`../../hist-alphabet-remap.md`](../../hist-alpha
 | **Model** | `%peak` must stay ≤100 | Always — if >, fix roof model, do **not** lower Spec |
 
 Prior ncu on hist kernels: DRAM SoL ~**1–5%** (Atbash/totient ~0.4–1%). Remap /
-shared-cipher: DRAM-bound **not** required for Done. Shared-cipher Atbash/totient
-gate on the **2.0 TB** compute roof (quiet plate ~55–80% — stretch climb open).
+shared-cipher: DRAM-bound **not** required for Done. High-C Atbash/S2/S5 gate on
+**30 TB** (quiet 2026-10-09 ~61–74% — stretch/Done climb open). Fair-C=29 Caesar
+gate on **2.0 TB** (~54% quiet remap).
 
 ## Theory fair (3 quiet runs → median) — plate 2026-10-03
 
@@ -47,8 +49,9 @@ Caesar-first; tile **64**. Catch2 `[cuda][hist][roof][caesar][done]`.
 | `T.dsl_smart.custom_caesar` (×5) | Caesar-first | **~814.5B** | **90.9%** | then Done vs 896B | climb vs Remap |
 | `T.dsl_smart.compare_caesar` (×5) | Caesar-first | ~732B (noisy) | ~82% | then borderline | climb |
 
-Verdict: then-era **PARTIAL Done vs 896B** is **superseded** — Remap roofs are
-current Done; re-gate quiet plates vs **2.0 TB**.
+Verdict: then-era **PARTIAL Done vs 896B** is **superseded** — see quiet Remap
+plate [`../quiet_remap/SUMMARY.md`](../quiet_remap/SUMMARY.md) (Caesar ~1.08 TB /
+**2.0 TB** alphabet; S2/S5 ~18–22 TB / **30 TB** high-C).
 | `T.theory.caesar_bytecode` | 679.9B | 693.4B | 680.8B | **680.8B** | **76.0%** | **fail** | fail | `specialize_S1`; stable ~76–77% |
 | `T.theory.s1_lut29` | 303.4B | 487.0B | 692.2B | **487.0B** | **54.4%** | **fail** | fail | high run-to-run noise (bake inside timer) |
 

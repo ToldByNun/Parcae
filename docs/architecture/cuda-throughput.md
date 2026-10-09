@@ -17,30 +17,33 @@
 **logical** runes/s:
 
 ```text
-# Alphabet / column / lag / bigram remap (production once-count + bin remap)
-peak_runes/s = kAlphabetRemapHistRoofRps | kColumnRemapHistRoofRps |
-               kLagRemapHistRoofRps | kBigramRemapHistRoofRps
-             ≈ 2.0e12 (alphabet/column/lag interim) / 1.0e12 (bigram)
-# Not 896B — cipher traffic is O(T), not O(C·T).
+# Fair-C≈29 alphabet remap (T1 / S1 / dsl Caesar)
+peak_runes/s = kAlphabetRemapHistRoofRps = 2.0e12
+# Quiet 2026-10-09: Caesar remap/shape ~1.07–1.08 TB
 
-# Shared-cipher occupancy (F.atbash / F.totient / dsl_smart Atbash)
-peak_runes/s = kSharedCipherComputeRoofRps   # SM/atomic capacity
-             = 2.0e12                         # frozen 2026-10-06 identity hist
+# High-C once-amortized remap (Atbash/Affine/S2/S5/Vigenère/Beaufort)
+peak_runes/s = kHighCRemapHistRoofRps = 30.0e12
+             = kColumnRemapHistRoofRps = kSharedCipherComputeRoofRps
+# Quiet: Atbash ~18.4 TB; S2/S5 ~18–22 TB
+
+# Lag remap (S4 / T2) — interim until lag quiet median climbs
+peak_runes/s = kLagRemapHistRoofRps = 2.0e12   # quiet S4 ~28–29B
+
+# Bigram remap
+peak_runes/s = kBigramRemapHistRoofRps = 1.0e12
 
 # Legacy unique-key decode→hist (hard-S0 / koan stages)
 peak_runes/s = DRAM_BW / 1 B/rune = 896B
 ```
 
-Remap roofs are interim freezes from the identity-hist / CipherHistOnce plate
-class — re-calibrate on a quiet remap plate when available. DRAM occupancy
-diaries (Atbash ~80.7 TB, Affine decode ~47 TB) are **not** production Done.
-`%peak = measured / peak` is ≤ **100%** by construction. If a quiet run ever
-prints &gt;100%, the roof model is wrong — fix the model.
+Remap roofs from quiet plate [`profiles/quiet_remap/SUMMARY.md`](profiles/quiet_remap/SUMMARY.md).
+DRAM occupancy diaries (Atbash ~80.7 TB, Affine decode ~47 TB) are **not**
+production Done. `%peak = measured / peak` is ≤ **100%** by construction. If a
+quiet run ever prints &gt;100%, the roof model is wrong — fix the model.
 
 Quiet ACCEPTANCE ([`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md)):
 historical 896B %-of-peak numbers for Caesar/S1/S2 are **superseded** by Remap
-roofs after production once-count+remap. Atbash/totient Done stays the
-**compute roof** (**2.0 TB**). Hard-S0 interpreter remains ~**7–8%** of 896B.
+roofs. Hard-S0 interpreter remains ~**7–8%** of 896B.
 
 `ThroughputTiers` / `DslPeakSanity` delegate to `BenchTierSpec`
 (Catch2 `[bench][spec]` / `[dsl][peak]`).
@@ -65,7 +68,7 @@ Smart customs (self-written math without catalog API): [`dsl-smart-hist.md`](dsl
 |----------|---------|--------|---------------------|
 | Fair Caesar (specialize S1 when eligible; else S0) | `T.theory.caesar_bytecode` | S1 mono-LUT remap | **alphabet Remap 2.0 TB** |
 | S1 LUT-29 (`f(x)`-only) | `T.theory.s1_lut29` | CipherHistOnce + LUT remap | **alphabet Remap 2.0 TB** |
-| S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | ColumnHistOnce(L=29) + remap | **column Remap 2.0 TB** |
+| S2 linear | `T.theory.s2_linear` / `T.theory.progressive` | ColumnHistOnce(L=29) + remap | **column / high-C Remap 30 TB** |
 
 Fair gate: `parcae-bench --suite theory --allow-cuda` → `BenchTierSpec::pass_tier`
 (≥90% of Remap roof + `slo_min` at `T≥2^20`). Soft-fallback / hard-S0 interpreter
@@ -89,9 +92,9 @@ peaks at `T≈2^20`. Normative Done rules:
 
 | Tier | Workload | Ceiling (runes/s) | SLO floor | Notes |
 |------|----------|-------------------|-----------|-------|
-| T.theory.caesar_bytecode | specialize S1 when eligible | **2.0 TB** alphabet Remap | ≥15B | hard-S0 still ~7–8% of **896B** diary |
+| T.theory.caesar_bytecode | specialize S1 when eligible | **2.0 TB** alphabet Remap | ≥15B | quiet ~1.08 TB; hard-S0 ~7–8% of **896B** diary |
 | T.theory.s1_lut29 | S1 mono-LUT remap | **2.0 TB** alphabet Remap | ≥15B | LUT baked outside fair timer |
-| T.theory.s2_linear | S2 column remap (L=29) | **2.0 TB** column Remap | ≥15B | historical %-of-896B superseded |
+| T.theory.s2_linear | S2 column remap (L=29) | **30 TB** high-C Remap | ≥15B | quiet ~19–22 TB; %-of-896B superseded |
 
 Operator handbook: [`search-handbook.md`](search-handbook.md) § Theory URI.
 Emit API: [`theory_hist_chi2_emit.hpp`](../../include/parcae/dsl/theory_hist_chi2_emit.hpp).

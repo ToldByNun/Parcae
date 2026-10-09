@@ -52,7 +52,7 @@ TEST_CASE("Shared-cipher Atbash/totient tile A/B + restrict/ldg climb",
           "[cuda][hist][atbash][totient][atomic_climb]") {
     REQUIRE(ParcaeCuda::available());
     REQUIRE(HistFast::production_tile_cap == 64);
-    REQUIRE(HistTileCap::kSlotCount == 6);
+    REQUIRE(HistTileCap::kSlotCount == 8);
     REQUIRE(HistTileCap::slot_default(HistTileCap::kAtbash) == 64);
     REQUIRE(HistTileCap::slot_default(HistTileCap::kTotient) == 32);
     // Caesar clamp must stay independent of Atbash A/B.
@@ -212,8 +212,8 @@ TEST_CASE("Shared-cipher Atbash/totient tile A/B + restrict/ldg climb",
     // Twin class: shape ≈ catalog (busy-plate noise band).
     REQUIRE(shp_prod / atb_prod > 0.70);
     REQUIRE(shp_prod / atb_prod < 1.30);
-    // Absolute floor: pre-climb quiet class ~1.1–1.6 TB; keep above 1.0 TB stretch-noise.
-    REQUIRE(atb_prod > 1.0e12);
+    // Absolute floor: quiet Remap Atbash ~18 TB class; keep well above identity pad.
+    REQUIRE(atb_prod > 5.0e12);
 }
 
 #else

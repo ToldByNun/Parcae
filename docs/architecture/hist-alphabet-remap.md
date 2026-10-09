@@ -70,20 +70,21 @@ shapes.
 
 ## 3. Remap roofs (Done / Stretch)
 
-Interim freezes (identity-hist / CipherHistOnce plate class; re-calibrate on a
-quiet remap plate when available):
+Quiet remap plate **2026-10-09** (`profiles/quiet_remap/SUMMARY.md`):
 
-| Constant | Value | Production shapes |
-|----------|-------|-------------------|
-| `kAlphabetRemapHistRoofRps` | **2.0 TB** | T1 Caesar, S1, ShapeInline mono, Affine remap |
-| `kColumnRemapHistRoofRps` | **2.0 TB** | S2, S5, Vigenère, Beaufort |
-| `kLagRemapHistRoofRps` | **2.0 TB** | T2 CTAK class, S4 AutokeyRing |
-| `kBigramRemapHistRoofRps` | **1.0 TB** | T3 Caesar bigram-LL (Dict separate) |
-| `kSharedCipherComputeRoofRps` | **2.0 TB** | F.atbash / F.totient (same numeric freeze) |
-| `kDramRooflineHistPeak` | **896B** | hard-S0 / koan stages only |
+| Constant | Value | Fair grid | Quiet median (logical) | Production shapes |
+|----------|-------|-----------|------------------------|-------------------|
+| `kAlphabetRemapHistRoofRps` | **2.0 TB** | C≈29 | Caesar remap/shape ~**1.07–1.08 TB** | T1, S1, ShapeInline mono, dsl Caesar |
+| `kHighCRemapHistRoofRps` | **30.0 TB** | C≳512 | Atbash ~**18.4 TB**; S2 ~**19–22 TB**; S5 ~**18–21 TB** | column + Atbash/totient + Affine |
+| `kColumnRemapHistRoofRps` | **= high-C** | C=841 | (above) | S2, S5, Vigenère, Beaufort |
+| `kSharedCipherComputeRoofRps` | **= high-C** | C=512 | Atbash Remap (above) | F.atbash / F.totient |
+| `kLagRemapHistRoofRps` | **2.0 TB** interim | S4 C=28 | ~**28–29B** (climb) | T2 CTAK, S4 AutokeyRing |
+| `kBigramRemapHistRoofRps` | **1.0 TB** | T3 | — | Caesar bigram-LL (Dict separate) |
+| `kDramRooflineHistPeak` | **896B** | hard-S0 | diary | koan / interpreter only |
 
-Affine decode-era ncu (~0.01906 B/rune → ~47 TB) is **diary**, not Affine Remap
-Done. Atbash DRAM occupancy (~80.7 TB) is diary; Done = compute / Remap roof.
+Logical RPS under once-count **scales with C** when once-hist dominates wall time —
+hence separate fair-C=29 vs high-C freezes. Affine decode-era ncu (~47 TB) and
+Atbash DRAM occupancy (~80.7 TB) remain **diary**, not Done.
 
 ---
 
@@ -191,4 +192,5 @@ untouched.
 - Micro-opts (LaunchGeom / shuffle / cp.async): [`cuda-micro-opts.md`](cuda-micro-opts.md)
 - ncu traffic evidence: [`profiles/cache_bound/SUMMARY.md`](profiles/cache_bound/SUMMARY.md)
 - Historical fat-tile / 93.5% diary: [`profiles/roof_hist/SUMMARY.md`](profiles/roof_hist/SUMMARY.md)
+- Quiet Remap Spec plate: [`profiles/quiet_remap/SUMMARY.md`](profiles/quiet_remap/SUMMARY.md)
 - Profiling playbook: [`cuda-profile-theory.md`](cuda-profile-theory.md)

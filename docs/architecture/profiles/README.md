@@ -18,6 +18,7 @@ may be committed — see
 and [`cache_bound/SUMMARY.md`](cache_bound/SUMMARY.md) (L2/DRAM absolute GB/s).
 Remap traffic + 93.5%/896B reinterpretation:
 [`../hist-alphabet-remap.md`](../hist-alphabet-remap.md).
+Quiet Remap Spec plate (2026-10-09 roofs): [`quiet_remap/SUMMARY.md`](quiet_remap/SUMMARY.md).
 
 Wrapper: [`scripts/cuda/profile_theory_hist.ps1`](../../../scripts/cuda/profile_theory_hist.ps1)  
 Baseline capture: [`scripts/cuda/capture_theory_baseline.ps1`](../../../scripts/cuda/capture_theory_baseline.ps1)  

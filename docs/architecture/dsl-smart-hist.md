@@ -84,14 +84,14 @@ Prefer order when multiple apply (first match wins after normalize):
 
 | Prefer | ShapeId | Math (after normalize) | Runtime twin (target) | Spec peak class |
 |--------|---------|------------------------|-----------------------|-----------------|
-| 1 | `Atbash` | `atbash(x)` equivalent (incl. pure arith) | Shape / Family remap | compute roof **2.0 TB** (DRAM diary ≈80.7 TB) |
+| 1 | `Atbash` | `atbash(x)` equivalent (incl. pure arith) | Shape / Family remap | high-C Remap **30 TB** (DRAM diary ≈80.7 TB) |
 | 2 | `Caesar` | `x ± shift` | Shape / Caesar CipherHistOnce remap | alphabet Remap **2.0 TB** |
-| 3 | `Affine` | invertible `a·x+b` | Shape / Family CipherHistOnce remap | alphabet Remap **2.0 TB** (Affine DRAM ~47 TB = diary) |
-| 4 | `LinearKeystream` | `x ± (b0 + b1·i)` (+ widened linear) | `TheoryHistChi2S2` column remap | column Remap **2.0 TB** |
+| 3 | `Affine` | invertible `a·x+b` | Shape / Family CipherHistOnce remap | high-C Remap **30 TB** (Affine DRAM ~47 TB = diary) |
+| 4 | `LinearKeystream` | `x ± (b0 + b1·i)` (+ widened linear) | `TheoryHistChi2S2` column remap | high-C Remap **30 TB** |
 | 5 | `FxOnly` | other `f(x; params)`, no stream `i` | S1 bake → mono-LUT remap | alphabet Remap **2.0 TB** |
 | 6 | `KeyedGeneral` | uses `i`, not linear S2 | S3 expr-inline or module | **896B** diary (row when Spec exists) |
-| 7 | `Autokey` | contains `z29_autokey_shift` | S4 AutokeyRing lag remap | lag Remap **2.0 TB** |
-| 8 | `PolyKeystream` | low-degree / bitmask-like beyond linear (`b2·i²` required; missing b0/b1 ⇒ 0) | S5 column remap | column Remap **2.0 TB** |
+| 7 | `Autokey` | contains `z29_autokey_shift` | S4 AutokeyRing lag remap | lag Remap **2.0 TB** interim |
+| 8 | `PolyKeystream` | low-degree / bitmask-like beyond linear (`b2·i²` required; missing b0/b1 ⇒ 0) | S5 column remap | high-C Remap **30 TB** |
 | 9 | `Unknown` | caps / unsupported / prefer_branch (until twin) | S0 bytecode | **896B** (soft-fallback diary gate) |
 
 Export prefer order (document; implement as each lands):
@@ -173,7 +173,7 @@ Soft-fallback to S0: scores ≡ bytecode oracle; PRIMARY for that launch is the
 RPS onto Remap roofs; it does not delete the soft-fallback correctness duty.
 
 Self-written shape twins share the **same** peak class as their catalog
-counterparts (e.g. Atbash shape twin ↔ `F.atbash` compute roof **2.0 TB**;
+counterparts (e.g. Atbash shape twin ↔ `F.atbash` high-C Remap **30 TB**;
 DRAM diary in [`profiles/traffic_model/SUMMARY.md`](profiles/traffic_model/SUMMARY.md)).
 
 Metric B quiet plate: [`profiles/kernel_slo/SUMMARY.md`](profiles/kernel_slo/SUMMARY.md).  
@@ -299,8 +299,8 @@ Declare this smartness workstream complete only when **all** apply:
 - [x] Self-written Atbash / Caesar / Affine (pure arith HotLoop) → shape twin;
   scores ≡ bytecode; fair Kernel SLO in catalog twin class
   (`parcae-bench --suite dsl_smart`; noise under `profiles/dsl_smart/`)
-  — Atbash under compute roof **2.0 TB**; Caesar twin stretch-class; Affine tracks
-  catalog (~47.0 TB DRAM shared-cipher)
+  — Atbash under high-C Remap **30 TB**; Caesar twin vs alphabet **2.0 TB**; Affine
+  high-C Remap (DRAM ~47 TB diary)
 - [x] Self-written linear `x±(b0+b1·i)` → S2 (widened), not S0
 - [x] Non-linear `i` customs → S3 or module (unless caps / prefer_branch / pre-S4 autokey)
 - [x] Autokey customs → S4 AutokeyRing (vigenere_lag class; name-irrelevant)

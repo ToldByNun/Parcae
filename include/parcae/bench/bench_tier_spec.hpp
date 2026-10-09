@@ -22,9 +22,9 @@
 ///     **logical** `C·T` runes/s, not 1 B/rune DRAM. Cipher traffic is ~O(T).
 ///   - **Legacy unique-key decode→hist** (hard-S0 bytecode, koan stages):
 ///     physical **DRAM roofline** = GDDR7 BW / 1 B cipher/rune (**896B**).
-///   - **Shared-cipher occupancy** (F.atbash / F.totient / dsl_smart Atbash):
-///     **SM/atomic compute roof** (`kSharedCipherComputeRoofRps`), same numeric
-///     freeze as alphabet remap until a dedicated CipherHistOnce plate lands.
+///   - **High-C / shared-cipher remap** (F.atbash / F.totient / Affine / S2 / S5
+///     at fair C≳512): `kHighCRemapHistRoofRps` — quiet plate 2026-10-09
+///     (~18–22 TB logical); not the fair-C=29 alphabet freeze.
 /// `%peak` cannot exceed 100 by construction; if it does, the roof model is wrong.
 /// Dual rates: `BenchMetric::logical_runes_per_sec` vs `cipher_bytes_per_sec`.
 /// See `docs/architecture/cuda-throughput.md`.
@@ -59,29 +59,34 @@ public:
     static constexpr double kDramRooflineSharedCipherOccupancyPeak =
         kDramBandwidthBytesPerSec / kHistBytesPerRuneSharedCipherOccupancy;
 
-    /// Shared-cipher **compute** roof (runes/s) — Done / Stretch gate for
-    /// `F.atbash` / `F.totient` / dsl_smart Atbash. Calibrated 2026-10-06 on
-    /// RTX 5070 Ti via `HistOccupancyRoof` identity hist+finalize @ C=512 T=2^20
-    /// fat-64 (`[cuda][hist][compute_roof]`): quiet identity plate ~1.2–2.2 TB
-    /// (median ~1.6 TB). Spec freezes **2.0e12** with plate-noise headroom so
-    /// quiet Atbash (~1.1–1.7 TB) stays `%peak≤100`. Not Atbash quiet max; not
-    /// the DRAM occupancy diary (~80.7 TB). DRAM-bound is **not** required for
-    /// Done on this traffic class (cipher is L2-resident; hist is atomic-bound).
-    static constexpr double kSharedCipherComputeRoofRps = 2.0e12;
+    /// High-C Remap logical roof (runes/s) — Done / Stretch for once-amortized
+    /// grids at fair **C≳512** (Atbash/totient C=512, Affine C=812, S2/S5 C=841,
+    /// Vigenère/Beaufort). Quiet remap plate 2026-10-09 RTX 5070 Ti
+    /// (`profiles/quiet_remap/`): Atbash ~18.4 TB; S2 prod ~19.4 TB (best
+    /// ~22.1 TB); S5 prod ~18.5 TB (best ~20.7 TB). Freeze **30e12** with
+    /// Affine C=812 headroom. Not 896B DRAM; not fair-C=29 alphabet freeze.
+    /// DRAM-bound is **not** required (cipher L2-resident; once + cheap remap).
+    static constexpr double kHighCRemapHistRoofRps = 30.0e12;
 
-    /// Alphabet mono remap Done roof (logical runes/s): CipherHistOnce + C×29
-    /// bin remap + finalize (Caesar / S1 / ShapeInline mono / Affine remap).
-    /// Interim freeze = identity-hist plate class (**2.0e12**); re-calibrate on
-    /// a quiet CipherHistOnce+finalize plate when available. Not 896B DRAM.
-    static constexpr double kAlphabetRemapHistRoofRps = kSharedCipherComputeRoofRps;
+    /// Shared-cipher / occupancy-pad Done roof — same numeric freeze as high-C
+    /// Remap after production Atbash/totient CipherHistOnce+remap (was 2.0e12
+    /// identity-hist era 2026-10-06).
+    static constexpr double kSharedCipherComputeRoofRps = kHighCRemapHistRoofRps;
+
+    /// Alphabet mono remap Done roof (logical runes/s) at fair **C≈29**:
+    /// CipherHistOnce + C×29 bin remap + finalize (T1 Caesar / S1 / ShapeInline
+    /// mono / dsl_smart Caesar). Quiet plate 2026-10-09: remap/shape med
+    /// ~**1.07–1.08 TB**. Freeze **2.0e12** with plate-noise headroom. Not 896B.
+    static constexpr double kAlphabetRemapHistRoofRps = 2.0e12;
 
     /// Column period remap Done roof (logical runes/s): ColumnHistOnce(L) +
-    /// keystream/key remap (S2 / S5 / Vigenère / Beaufort). Same interim freeze.
-    static constexpr double kColumnRemapHistRoofRps = kSharedCipherComputeRoofRps;
+    /// keystream/key remap (S2 / S5 / Vigenère / Beaufort). High-C freeze.
+    static constexpr double kColumnRemapHistRoofRps = kHighCRemapHistRoofRps;
 
     /// Lag-diff / AutokeyRing remap Done roof (logical runes/s): LagDiffHistOnce
-    /// + prefix merge (S4 / CTAK). Same interim freeze.
-    static constexpr double kLagRemapHistRoofRps = kSharedCipherComputeRoofRps;
+    /// + prefix merge (S4 / CTAK). Quiet S4 C=28 plate ~28–29B — climb; keep
+    /// interim **2.0e12** until a dedicated lag quiet median lands.
+    static constexpr double kLagRemapHistRoofRps = 2.0e12;
 
     /// Bigram-LL remap Done roof (logical runes/s): BigramCountOnce + C×841 Dot
     /// (T3 / DeepScore bigram-LL). Slightly lower interim freeze (more once work).
@@ -105,9 +110,14 @@ public:
         return kDramRooflineSharedCipherOccupancyPeak;
     }
 
-    /// Done / Stretch gate for Atbash / totient / dsl_smart Atbash.
+    /// Done / Stretch gate for Atbash / totient / dsl_smart Atbash (high-C).
     [[nodiscard]] static constexpr double shared_cipher_compute_roof_rps() noexcept {
         return kSharedCipherComputeRoofRps;
+    }
+
+    /// High-C once-amortized Remap roof (Atbash / Affine / column families).
+    [[nodiscard]] static constexpr double high_c_remap_hist_roof_rps() noexcept {
+        return kHighCRemapHistRoofRps;
     }
 
     [[nodiscard]] static constexpr double alphabet_remap_hist_roof_rps() noexcept {
@@ -280,7 +290,7 @@ public:
                                                   kAlphabetRemapHistRoofRps};
 
     /// Custom Affine decrypt → ShapeInline remap; fair C=812 (a=1..28 × b=0..28).
-    /// Peak = alphabet remap roof (CipherHistOnce); Affine DRAM class is diary.
+    /// Peak = high-C Remap roof (once-amortized @ C=812); Affine DRAM is diary.
     static constexpr Tier dsl_smart_affine{"T.dsl_smart.custom_affine",
                                           "Self-written Affine decrypt → ShapeInline twin",
                                           812u,
@@ -288,7 +298,7 @@ public:
                                           4u,
                                           15.0e9,
                                           0.0,
-                                          kAlphabetRemapHistRoofRps};
+                                          kHighCRemapHistRoofRps};
 
     /// Catalog `FamilyChi2Batch` affine twin (same C/T as custom_affine).
     static constexpr Tier dsl_smart_compare_affine{"T.dsl_smart.compare_Faffine",
@@ -298,7 +308,7 @@ public:
                                                   4u,
                                                   15.0e9,
                                                   0.0,
-                                                  kAlphabetRemapHistRoofRps};
+                                                  kHighCRemapHistRoofRps};
 
     /// Custom linear `x±(b0+b1·i)` → S2 column remap; fair C=841 (=29²).
     static constexpr Tier dsl_smart_linear{"T.dsl_smart.custom_linear",
@@ -408,10 +418,10 @@ public:
             tier == "T.dsl_smart.compare_Fatbash") {
             return shared_cipher_compute_roof_rps();
         }
-        // Affine production remap (CipherHistOnce + permute).
+        // Affine production remap (CipherHistOnce + permute) — high-C fair grid.
         if (tier == "F.affine" || tier == "T.dsl_smart.custom_affine" ||
             tier == "T.dsl_smart.compare_Faffine") {
-            return alphabet_remap_hist_roof_rps();
+            return high_c_remap_hist_roof_rps();
         }
         // Column remap (Vigenère / Beaufort interrupt-free).
         if (tier == "F.vigenere" || tier == "F.beaufort") {
@@ -420,6 +430,10 @@ public:
         // Legacy decode→hist / multi-stage — physical 1 B/rune DRAM diary.
         if (tier == "C.koan1_fused" || tier == "C.koan1_stages") {
             return dram_roofline_hist_peak();
+        }
+        // Catalog Caesar twin row in theory suite (same peak as T1 / alphabet).
+        if (tier == "T.theory.compare_caesar") {
+            return alphabet_remap_hist_roof_rps();
         }
         if (tier == "T.theory.caesar_bytecode" || tier == "T.theory.s0") {
             return theory_s0_caesar.estimated_peak;

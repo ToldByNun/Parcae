@@ -78,14 +78,14 @@ TEST_CASE("HistOccupancyRoof identity vs Atbash shared-cipher plate",
                 atbash_rps, atbash_rps / identity_rps);
     std::fflush(stdout);
 
-    // Sanity: both finite and above SLO floor class. Ratio is noisy on a busy
-    // plate (identity can land above or below Atbash); keep a wide band.
+    // Identity occupancy pad vs production Atbash Remap (CipherHistOnce + mirror).
+    // Remap amortizes once-hist across C=512 → logical RPS ≫ identity pad.
     REQUIRE(identity_rps > 100.0e9);
     REQUIRE(atbash_rps > 100.0e9);
-    REQUIRE(atbash_rps / identity_rps > 0.45);
-    REQUIRE(atbash_rps / identity_rps < 1.25);
+    REQUIRE(atbash_rps / identity_rps > 2.0);
+    REQUIRE(atbash_rps / identity_rps < 20.0);
 
-    // Spec freeze must keep quiet Atbash-class RPS ≤100% of compute roof.
+    // Spec freeze must keep quiet Atbash Remap ≤100% of high-C Remap roof.
     REQUIRE(BenchTierSpec::percent_peak(atbash_rps,
                                         BenchTierSpec::shared_cipher_compute_roof_rps()) <= 100.0);
 
