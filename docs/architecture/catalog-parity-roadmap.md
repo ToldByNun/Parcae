@@ -45,7 +45,7 @@ code and test only.
 | Band | Commits | Status |
 |------|---------|--------|
 | A — Freeze sync | 1–3 | **done** |
-| B — CUDA family params | 4–8 | pending |
+| B — CUDA family params | 4–8 | **4 done**; next **5** |
 | C — Hill stream twins | 9–13 | pending |
 | D — Autokey twins | 14–19 | pending |
 | E — Grid permute twins | 20–24 | pending |
@@ -73,7 +73,7 @@ code and test only.
 
 | # | Commit | Status |
 |---|--------|--------|
-| 4 | feat(cuda): extend `CudaFamilyId` for 1.0 catalog families | pending |
+| 4 | feat(cuda): extend `CudaFamilyId` for 1.0 catalog families | **done** |
 | 5 | feat(cuda): `ComposeStageParams` matrix/order arena fields | pending |
 | 6 | feat(cuda): `CudaParamsJson` parsers for hill/autokey/grid | pending |
 | 7 | test(cuda): `[cuda][params]` coverage for new PODs/JSON | pending |

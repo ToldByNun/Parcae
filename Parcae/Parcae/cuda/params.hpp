@@ -16,6 +16,8 @@ enum class CudaDir : std::uint8_t {
 };
 
 /// Catalog family id for compose stages and backend dispatch.
+/// Values 0–7 are stable (pre-1.1.0); 8–16 are toolkit 1.0 catalog twins for
+/// `v1.1.0` CUDA catalog parity (Hill / autokey / grid-read).
 enum class CudaFamilyId : std::uint8_t {
     Identity = 0,
     Atbash = 1,
@@ -25,6 +27,15 @@ enum class CudaFamilyId : std::uint8_t {
     BeaufortKey = 5,
     TotientPrimeStream = 6,
     Compose = 7,
+    Hill2 = 8,
+    Hill3 = 9,
+    CiphertextAutokey = 10,
+    PlaintextAutokey = 11,
+    VariableDelayAutokey = 12,
+    SpiralRead = 13,
+    BoustrophedonRead = 14,
+    DiagonalRead = 15,
+    ColumnarTransposition = 16,
 };
 
 class CudaDirUtil {
@@ -68,6 +79,33 @@ public:
         }
         if (id == TransformId::compose()) {
             return CudaFamilyId::Compose;
+        }
+        if (id == TransformId::hill_2()) {
+            return CudaFamilyId::Hill2;
+        }
+        if (id == TransformId::hill_3()) {
+            return CudaFamilyId::Hill3;
+        }
+        if (id == TransformId::ciphertext_autokey()) {
+            return CudaFamilyId::CiphertextAutokey;
+        }
+        if (id == TransformId::plaintext_autokey()) {
+            return CudaFamilyId::PlaintextAutokey;
+        }
+        if (id == TransformId::variable_delay_autokey()) {
+            return CudaFamilyId::VariableDelayAutokey;
+        }
+        if (id == TransformId::spiral_read()) {
+            return CudaFamilyId::SpiralRead;
+        }
+        if (id == TransformId::boustrophedon_read()) {
+            return CudaFamilyId::BoustrophedonRead;
+        }
+        if (id == TransformId::diagonal_read()) {
+            return CudaFamilyId::DiagonalRead;
+        }
+        if (id == TransformId::columnar_transposition()) {
+            return CudaFamilyId::ColumnarTransposition;
         }
         return Status::error("CudaFamilyIdUtil: unsupported transform_id");
     }

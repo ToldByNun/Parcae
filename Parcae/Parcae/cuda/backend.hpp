@@ -109,6 +109,16 @@ public:
             StatusOr<ComposeParamsHost> compose = CudaParamsJson::compose_from_json(params);
             return apply_compose(input, output, compose.value(), interrupts.value(), dir);
         }
+        case CudaFamilyId::Hill2:
+        case CudaFamilyId::Hill3:
+        case CudaFamilyId::CiphertextAutokey:
+        case CudaFamilyId::PlaintextAutokey:
+        case CudaFamilyId::VariableDelayAutokey:
+        case CudaFamilyId::SpiralRead:
+        case CudaFamilyId::BoustrophedonRead:
+        case CudaFamilyId::DiagonalRead:
+        case CudaFamilyId::ColumnarTransposition:
+            return Status::error("CudaBackend: catalog family twin not wired yet");
         }
         return Status::error("CudaBackend: unknown CudaFamilyId");
 #else
@@ -325,6 +335,17 @@ private:
             }
             return Status::success();
         }
+        case CudaFamilyId::Hill2:
+        case CudaFamilyId::Hill3:
+        case CudaFamilyId::CiphertextAutokey:
+        case CudaFamilyId::PlaintextAutokey:
+        case CudaFamilyId::VariableDelayAutokey:
+        case CudaFamilyId::SpiralRead:
+        case CudaFamilyId::BoustrophedonRead:
+        case CudaFamilyId::DiagonalRead:
+        case CudaFamilyId::ColumnarTransposition:
+            // JSON parsers for these families land in roadmap commit 6; twins later.
+            return Status::error("CudaBackend: catalog family params not wired yet");
         }
         return Status::error("CudaBackend: unknown CudaFamilyId");
     }

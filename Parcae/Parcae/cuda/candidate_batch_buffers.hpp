@@ -328,6 +328,17 @@ private:
         case CudaFamilyId::Identity:
         case CudaFamilyId::Atbash:
             break;
+        case CudaFamilyId::Hill2:
+        case CudaFamilyId::Hill3:
+        case CudaFamilyId::CiphertextAutokey:
+        case CudaFamilyId::PlaintextAutokey:
+        case CudaFamilyId::VariableDelayAutokey:
+        case CudaFamilyId::SpiralRead:
+        case CudaFamilyId::BoustrophedonRead:
+        case CudaFamilyId::DiagonalRead:
+        case CudaFamilyId::ColumnarTransposition:
+            // No SoA batch lanes yet (stream twins / search export land later).
+            break;
         }
     }
 

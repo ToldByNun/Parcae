@@ -74,4 +74,27 @@ TEST_CASE("CUDA FamilyId from TransformId", "[cuda][params]") {
             CudaFamilyId::Caesar);
     REQUIRE(CudaFamilyIdUtil::from_transform_id(TransformId::vigenere_key()).value() ==
             CudaFamilyId::VigenereKey);
+    REQUIRE(CudaFamilyIdUtil::from_transform_id(TransformId::compose()).value() ==
+            CudaFamilyId::Compose);
+
+    REQUIRE(CudaFamilyIdUtil::from_transform_id(TransformId::hill_2()).value() ==
+            CudaFamilyId::Hill2);
+    REQUIRE(CudaFamilyIdUtil::from_transform_id(TransformId::hill_3()).value() ==
+            CudaFamilyId::Hill3);
+    REQUIRE(CudaFamilyIdUtil::from_transform_id(TransformId::ciphertext_autokey()).value() ==
+            CudaFamilyId::CiphertextAutokey);
+    REQUIRE(CudaFamilyIdUtil::from_transform_id(TransformId::plaintext_autokey()).value() ==
+            CudaFamilyId::PlaintextAutokey);
+    REQUIRE(CudaFamilyIdUtil::from_transform_id(TransformId::variable_delay_autokey()).value() ==
+            CudaFamilyId::VariableDelayAutokey);
+    REQUIRE(CudaFamilyIdUtil::from_transform_id(TransformId::spiral_read()).value() ==
+            CudaFamilyId::SpiralRead);
+    REQUIRE(CudaFamilyIdUtil::from_transform_id(TransformId::boustrophedon_read()).value() ==
+            CudaFamilyId::BoustrophedonRead);
+    REQUIRE(CudaFamilyIdUtil::from_transform_id(TransformId::diagonal_read()).value() ==
+            CudaFamilyId::DiagonalRead);
+    REQUIRE(CudaFamilyIdUtil::from_transform_id(TransformId::columnar_transposition()).value() ==
+            CudaFamilyId::ColumnarTransposition);
+
+    REQUIRE_FALSE(CudaFamilyIdUtil::from_transform_id(TransformId::unchecked("theory")).ok());
 }

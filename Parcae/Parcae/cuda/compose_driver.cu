@@ -100,6 +100,16 @@ namespace {
     }
     case CudaFamilyId::Compose:
         return Status::error("ComposeDriver: nested compose is not supported");
+    case CudaFamilyId::Hill2:
+    case CudaFamilyId::Hill3:
+    case CudaFamilyId::CiphertextAutokey:
+    case CudaFamilyId::PlaintextAutokey:
+    case CudaFamilyId::VariableDelayAutokey:
+    case CudaFamilyId::SpiralRead:
+    case CudaFamilyId::BoustrophedonRead:
+    case CudaFamilyId::DiagonalRead:
+    case CudaFamilyId::ColumnarTransposition:
+        return Status::error("ComposeDriver: catalog family stage not wired yet");
     }
     return Status::error("ComposeDriver: unknown stage family");
 }

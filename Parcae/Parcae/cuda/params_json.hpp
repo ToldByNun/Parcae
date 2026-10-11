@@ -271,6 +271,17 @@ public:
             }
             case CudaFamilyId::Compose:
                 return Status::error("compose nesting not expanded in params_json");
+            case CudaFamilyId::Hill2:
+            case CudaFamilyId::Hill3:
+            case CudaFamilyId::CiphertextAutokey:
+            case CudaFamilyId::PlaintextAutokey:
+            case CudaFamilyId::VariableDelayAutokey:
+            case CudaFamilyId::SpiralRead:
+            case CudaFamilyId::BoustrophedonRead:
+            case CudaFamilyId::DiagonalRead:
+            case CudaFamilyId::ColumnarTransposition:
+                return Status::error(
+                    "CudaParamsJson: catalog family stage params not wired yet");
             }
 
             out.stages.push_back(pod);
