@@ -27,6 +27,7 @@ theory DSL compiles into that stack.
 | [dsl-pack-d.md](dsl-pack-d.md) | **Pack D freeze** — `dsl_spec` 1.1.0, `load_page`, multi-diag, `z29_match`, Optimize in `DslCompile` |
 | [dsl-stubs.md](dsl-stubs.md) | Stubs vs compiler — only `parcae-compile` verifies |
 | [cuda-catalog-parity.md](cuda-catalog-parity.md) | **1.1.0 exit freeze** — CUDA twins for 1.0 catalog + search export + Pack D (`v1.1.0`) |
+| [catalog-parity-roadmap.md](catalog-parity-roadmap.md) | **Frozen** 1.1.0 commit list (1–62) — catalog CUDA parity + Pack D |
 | [search-engine.md](search-engine.md) | **Frozen** search engine plan — GPU ↔ candidates ↔ hypotheses loop; exit checklist |
 | [search-roadmap.md](search-roadmap.md) | **Frozen** search-engine commit list (1–52) |
 | [search-handbook.md](search-handbook.md) | Operator guide for `parcae-search-cycle` / `search_cycle` (incl. LP2 `inputs/` recipe) |
@@ -85,6 +86,8 @@ Pack D (`dsl_spec` **1.1.0** authoring pack): [`dsl-pack-d.md`](dsl-pack-d.md)
 [`bench-exit.md`](bench-exit.md) (`v0.9.0-bench`).
 
 **1.1.0 catalog CUDA parity + Pack D:** exit freeze
-[`cuda-catalog-parity.md`](cuda-catalog-parity.md) (`v1.1.0`).
+[`cuda-catalog-parity.md`](cuda-catalog-parity.md) (`v1.1.0`) | Pack D
+[`dsl-pack-d.md`](dsl-pack-d.md) | commit list
+[`catalog-parity-roadmap.md`](catalog-parity-roadmap.md).
 
 CUDA DSL emit smoke: Catch2 tag `[cuda][dsl][smoke]` — see [`cuda-build.md`](cuda-build.md).
