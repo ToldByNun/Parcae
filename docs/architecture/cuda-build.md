@@ -1,6 +1,7 @@
 # Local CUDA build notes
 
-**Status:** Twins through batch + fused search-run (roadmap through commits 38–39 docs)  
+**Status:** Twins through batch + fused search-run; toolkit **1.1.0** catalog CUDA
+parity + Pack D in progress ([`catalog-parity-roadmap.md`](catalog-parity-roadmap.md))  
 **Sources:** [`Parcae/Parcae/cuda/`](../../Parcae/Parcae/cuda/)  
 **CI:** GitHub Actions stays **CPU-only** (`PARCAE_BUILD_CUDA` unset / default `OFF`). GPU jobs are optional and local (or a future self-hosted runner).
 
@@ -13,7 +14,12 @@
 | C++20 host compiler | Same as CPU builds |
 | CMake ≥ 3.25 | Root `CMakeLists.txt`; CUDA language uses **C++20** (`CMAKE_CUDA_STANDARD 20`) |
 
-Default CMake CUDA architectures: `75;86` (override with `-DCMAKE_CUDA_ARCHITECTURES=...`).
+Default CMake CUDA architectures: **`75;86;89;120`** (Turing → Ada + Blackwell
+`sm_120` / RTX 50-series). Override with `-DCMAKE_CUDA_ARCHITECTURES=...`
+(see root [`CMakeLists.txt`](../../CMakeLists.txt)).
+
+**Hardware reference (local):** RTX 5070 Ti (`sm_120`), Ryzen 7 7800X3D,
+32 GB DDR5-6000.
 
 ## Visual Studio (day-to-day)
 
@@ -25,6 +31,11 @@ Default CMake CUDA architectures: `75;86` (override with `-DCMAKE_CUDA_ARCHITECT
    `ParcaeCudaToolkitVersion` if your install differs.
 5. The VS project defines `PARCAE_HAS_CUDA=1` on x64 and compiles  
    `parcae_cuda_stub.cu`, `identity_copy.cu`, …
+6. **Arch note (1.1.0):** [`Parcae.vcxproj`](../../Parcae/Parcae/Parcae.vcxproj)
+   `CudaCompile` currently lists `compute_75,sm_75;compute_86,sm_86` only.
+   Adding `compute_120,sm_120` (Debug + Release) is roadmap commit **8** —
+   until then prefer a CMake CUDA build for Blackwell, or override the VS
+   Code Generation property locally.
 
 Smoke entry: run the `Parcae` app (`main.cpp`) or Catch2 cases below after a CMake CUDA build.
 
@@ -74,6 +85,7 @@ Targets:
 | `[cuda][parity][vigenere]` | Skip / SUCCEED marker | `VigenereKeyKernel` vs CPU (bitmask + sorted skips) |
 | `[cuda][parity][beaufort]` | Skip / SUCCEED marker | `BeaufortKeyKernel` vs CPU (involution + skips) |
 | `[cuda][parity][totient]` | Skip / SUCCEED marker | `TotientPrimeStreamKernel` vs CPU (host shifts) |
+| `[cuda][parity][autokey][ctak]` | Skip / SUCCEED marker | `CiphertextAutokeyKernel` vs CPU (+ DeepScoreBatch formula cases) |
 | `[cuda][parity][compose]` | Skip / SUCCEED marker | `ComposeDriver` vs CPU (Koan-1 / ping-pong) |
 | `[cuda][parity][golden]` | CPU locks `data/parity/` hashes; CUDA apply skipped | `CudaBackend` vs golden `output_sha256` (manifest) |
 | `[cuda][parity][solved]` | CPU apply on locked fixture consumables | `CudaBackend` vs CPU `output_sha256` per solved page |
@@ -88,6 +100,38 @@ Targets:
 | `[cuda][batch][rank1]` | Skip / SUCCEED marker | CUDA batch apply + exact_match recovers known params |
 | `[cuda][batch][chi2][fuse]` | Skip / SUCCEED marker | Fused Caesar χ² vs CPU `ScoreRegistry` |
 | `[cuda][property]` | Skip / SUCCEED marker | Encrypt↔decrypt round-trips + CPU byte match via `CudaBackend` |
+
+#### Planned tags (toolkit 1.1.0 — catalog parity + Pack D)
+
+These tags are **locked by** [`cuda-catalog-parity.md`](cuda-catalog-parity.md) /
+[`catalog-parity-roadmap.md`](catalog-parity-roadmap.md). They are **not** all
+shipping yet; rows land with the named roadmap commits. Until then, filters may
+match zero cases. Hosted CI stays CPU-default — device rows skip when
+`PARCAE_HAS_CUDA` is unset (same pattern as existing `[cuda][parity][*]`).
+
+| Tag | Roadmap | Expected coverage when green |
+|-----|---------|------------------------------|
+| `[cuda][params]` *(extended)* | B 4–7 | New hill / autokey / grid PODs + `CudaParamsJson` |
+| `[cuda][parity][hill]` | C 9–13 | `Hill2Kernel` / `Hill3Kernel` vs CPU; odd-length / singular edges |
+| `[cuda][parity][autokey][ptak]` | D 15–16, 19 | `PlaintextAutokeyKernel` vs CPU (dense + skips) |
+| `[cuda][parity][autokey][vda]` | D 17–19 | `VariableDelayAutokeyKernel` vs CPU; lag==primer ≡ CTAK/PTAK |
+| `[cuda][parity][grid]` | E 20–24 | Spiral / boustrophedon / diagonal / columnar vs CPU |
+| `[cuda][compose]` *(extended)* | F 25–28 | Compose recipes with hill / autokey / grid stages (may share `[cuda][parity][compose]`) |
+| `[search][export][parity]` *(hill/CTAK/PTAK)* | G 29–35 | CPU↔CUDA top-k on fixed grids for extended families |
+| `[dsl][match]` | I 42–47 | `z29_match` → cascaded Select; E032 malformed; fold cases |
+| `[dsl][compile]` multi-diag | H 37–41 | ≥2 diagnostics in one compile; no ready artifact on error |
+
+Local smoke once bands land (CUDA build + GPU):
+
+```bash
+build-cuda/tests/Release/parcae_tests.exe "[cuda][parity][hill]" -s
+build-cuda/tests/Release/parcae_tests.exe "[cuda][parity][autokey]" -s
+build-cuda/tests/Release/parcae_tests.exe "[cuda][parity][grid]" -s
+build-cuda/tests/Release/parcae_tests.exe "[search][export][parity]" -s
+build/tests/Release/parcae_tests.exe "[dsl][match],[dsl][compile]"
+```
+
+Full exit tag list sync: roadmap commit **56** (after implementations are green).
 
 ### Catch2 tags (smart DSL compiler)
 
@@ -173,7 +217,7 @@ parity cases skip or stub when `PARCAE_BUILD_CUDA=OFF`.
 | `[search][batch][fuzz]` | Always | `BatchOrdering` shuffle+sort determinism |
 | `[search][cipher]` / `[search][cipher][resolve]` | Always | `WorkspaceCipher` fixture / `workspace_file` / path escape |
 | `[search][export]` / `[search][export][cpu]` | Always (CPU export) | + fused/`[cuda]` export when linked |
-| `[search][export][parity]` | CPU top-k ids always | CPU↔CUDA top-k on Tier-A (`[cuda]` / `[a-warning]`) |
+| `[search][export][parity]` | CPU top-k ids always | CPU↔CUDA top-k on Tier-A (`[cuda]` / `[a-warning]`); **1.1.0:** also hill / CTAK / PTAK when Band G lands |
 | `[search][export][compose][parity]` | CPU compose smoke always | CPU vs fused Atbash∘Caesar / ComposeDriver (`[cuda]` when linked) |
 | `[search][bridge]` / `[search][bridge][score]` | Always | `HypothesisBridge` ingest / score / status |
 | `[search][scheduler]` | Always (CPU `run_once`) | CUDA backend rejected unless built+allowed |
@@ -244,5 +288,7 @@ include/parcae/run/     SearchRun metrics / console / CUDA sweeps
 
 ABI: [cuda-abi.md](cuda-abi.md) · Twins: [cuda-handoff.md](cuda-handoff.md) ·
 Reference: [cuda-reference.md](cuda-reference.md) · Throughput: [cuda-throughput.md](cuda-throughput.md) ·
-Roadmap: [cuda-roadmap.md](cuda-roadmap.md) · Search: [search-engine.md](search-engine.md) /
-[search-handbook.md](search-handbook.md)
+Roadmap: [cuda-roadmap.md](cuda-roadmap.md) · Catalog 1.1.0:
+[cuda-catalog-parity.md](cuda-catalog-parity.md) /
+[catalog-parity-roadmap.md](catalog-parity-roadmap.md) · Search:
+[search-engine.md](search-engine.md) / [search-handbook.md](search-handbook.md)

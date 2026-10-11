@@ -44,7 +44,7 @@ code and test only.
 
 | Band | Commits | Status |
 |------|---------|--------|
-| A — Freeze sync | 1–3 | **1 done**; next **2** |
+| A — Freeze sync | 1–3 | **done** |
 | B — CUDA family params | 4–8 | pending |
 | C — Hill stream twins | 9–13 | pending |
 | D — Autokey twins | 14–19 | pending |
@@ -64,8 +64,8 @@ code and test only.
 | # | Commit | Status |
 |---|--------|--------|
 | 1 | docs: add 1.1.0 commit roadmap mirror (**this**) + architecture README pointer | **done** |
-| 2 | docs: correct cuda-catalog-parity cpu-export checkbox (`[x]` → `[ ]` until code lands) | pending |
-| 3 | docs: cuda-build arches list includes sm_120 (75;86;89;120) + Catch2 tag section prep | pending |
+| 2 | docs: correct cuda-catalog-parity cpu-export checkbox (`[x]` → `[ ]` until code lands) | **done** |
+| 3 | docs: cuda-build arches list includes sm_120 (75;86;89;120) + Catch2 tag section prep | **done** |
 
 ---
 
