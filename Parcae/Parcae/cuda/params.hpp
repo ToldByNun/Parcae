@@ -146,7 +146,44 @@ public:
     std::uint32_t prime_start_index = 0;
 };
 
-/// One compose stage. Key bytes referenced by offset into `ComposeParamsHost` arena.
+/// VDA feedback mode (matches `VariableDelayAutokeyTransform::Mode`).
+/// CTAK / PTAK stages ignore this field (key arena only).
+enum class CudaAutokeyMode : std::uint8_t {
+    Ciphertext = 0,
+    Plaintext = 1,
+};
+
+/// Variable-delay autokey: prime lag ≥ 2 + ciphertext/plaintext feedback mode.
+class VariableDelayAutokeyParams {
+public:
+    std::uint32_t lag = 2;
+    CudaAutokeyMode mode = CudaAutokeyMode::Ciphertext;
+};
+
+/// Grid-read dimensions + option flags (spiral / boustrophedon / diagonal).
+/// Gather/scatter order indices live in `ComposeParamsHost::order_arena` at
+/// `[order_begin, order_begin + order_len)`. Columnar key bytes use `key_arena`.
+class GridReadParams {
+public:
+    std::uint32_t rows = 0;
+    std::uint32_t cols = 0;
+    /// `spiral_read`: 0 = inward (default), 1 = outward.
+    std::uint8_t spiral_outward = 0;
+    /// `boustrophedon_read`: 0 = first row L→R, 1 = first row R→L.
+    std::uint8_t boustrophedon_rtl = 0;
+    /// `diagonal_read`: 0 = main diagonals, 1 = anti-diagonals.
+    std::uint8_t diagonal_anti = 0;
+    std::uint8_t pad = 0;
+};
+
+/// One compose stage. Arena bytes referenced by offsets into `ComposeParamsHost`.
+///
+/// | Family | Arenas / PODs |
+/// |--------|----------------|
+/// | Vigenère / Beaufort / CTAK / PTAK / columnar key | `key_begin`/`key_len` → `key_arena` |
+/// | Hill2 / Hill3 | `matrix_begin`/`matrix_len` (4 or 9) → `matrix_arena` |
+/// | Spiral / boustrophedon / diagonal / columnar | `order_*` → `order_arena`; `grid` dims/flags |
+/// | VDA | `key_*` + `vda.lag` / `vda.mode` |
 class ComposeStageParams {
 public:
     CudaFamilyId family = CudaFamilyId::Identity;
@@ -154,16 +191,26 @@ public:
     CaesarParams caesar{};
     AffineParams affine{};
     TotientParams totient{};
+    VariableDelayAutokeyParams vda{};
+    GridReadParams grid{};
     std::uint32_t key_begin = 0;
     std::uint32_t key_len = 0;
+    std::uint32_t matrix_begin = 0;
+    std::uint32_t matrix_len = 0;
+    std::uint32_t order_begin = 0;
+    std::uint32_t order_len = 0;
 };
 
 static_assert(sizeof(CaesarParams) == 1, "CaesarParams must stay POD-sized");
 static_assert(sizeof(AffineParams) == 2, "AffineParams must stay tightly packed");
+static_assert(sizeof(VariableDelayAutokeyParams) == 8, "VDA params must stay tightly packed");
+static_assert(sizeof(GridReadParams) == 12, "GridReadParams must stay tightly packed");
 static_assert(std::is_trivially_copyable_v<CaesarParams>);
 static_assert(std::is_trivially_copyable_v<AffineParams>);
 static_assert(std::is_trivially_copyable_v<KeyParams>);
 static_assert(std::is_trivially_copyable_v<TotientParams>);
+static_assert(std::is_trivially_copyable_v<VariableDelayAutokeyParams>);
+static_assert(std::is_trivially_copyable_v<GridReadParams>);
 static_assert(std::is_trivially_copyable_v<ComposeStageParams>);
 
 #endif // PARAMS_HPP

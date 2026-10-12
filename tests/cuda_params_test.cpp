@@ -61,6 +61,52 @@ TEST_CASE("CUDA POD params compose atbash_then_caesar", "[cuda][params]") {
     REQUIRE(compose.value().stages[1].direction == CudaDir::Encrypt);
     REQUIRE(compose.value().stages[1].caesar.shift == 3);
     REQUIRE(compose.value().key_arena.empty());
+    REQUIRE(compose.value().matrix_arena.empty());
+    REQUIRE(compose.value().order_arena.empty());
+    REQUIRE(compose.value().stages[0].matrix_len == 0);
+    REQUIRE(compose.value().stages[0].order_len == 0);
+    REQUIRE(compose.value().stages[0].grid.rows == 0);
+    REQUIRE(compose.value().stages[0].vda.lag == 2);
+    REQUIRE(compose.value().stages[0].vda.mode == CudaAutokeyMode::Ciphertext);
+}
+
+TEST_CASE("ComposeStageParams catalog arena fields default and pack", "[cuda][params]") {
+    ComposeStageParams stage;
+    REQUIRE(stage.matrix_begin == 0);
+    REQUIRE(stage.matrix_len == 0);
+    REQUIRE(stage.order_begin == 0);
+    REQUIRE(stage.order_len == 0);
+    REQUIRE(stage.grid.rows == 0);
+    REQUIRE(stage.grid.cols == 0);
+    REQUIRE(stage.grid.spiral_outward == 0);
+    REQUIRE(stage.grid.boustrophedon_rtl == 0);
+    REQUIRE(stage.grid.diagonal_anti == 0);
+    REQUIRE(stage.vda.lag == 2);
+    REQUIRE(stage.vda.mode == CudaAutokeyMode::Ciphertext);
+
+    ComposeParamsHost host;
+    host.matrix_arena = {1, 0, 0, 1};
+    host.order_arena = {0u, 1u, 2u, 3u};
+    stage.family = CudaFamilyId::Hill2;
+    stage.matrix_begin = 0;
+    stage.matrix_len = 4;
+    host.stages.push_back(stage);
+
+    ComposeStageParams grid_stage;
+    grid_stage.family = CudaFamilyId::SpiralRead;
+    grid_stage.grid.rows = 2;
+    grid_stage.grid.cols = 2;
+    grid_stage.grid.spiral_outward = 1;
+    grid_stage.order_begin = 0;
+    grid_stage.order_len = 4;
+    host.stages.push_back(grid_stage);
+
+    REQUIRE(host.stages.size() == 2);
+    REQUIRE(host.matrix_arena.size() == 4);
+    REQUIRE(host.order_arena.size() == 4);
+    REQUIRE(host.stages[0].matrix_len == 4);
+    REQUIRE(host.stages[1].order_len == 4);
+    REQUIRE(host.stages[1].grid.spiral_outward == 1);
 }
 
 TEST_CASE("CUDA Dir matches TransformDirection", "[cuda][params]") {

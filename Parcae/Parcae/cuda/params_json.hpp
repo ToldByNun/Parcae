@@ -24,11 +24,17 @@ public:
     }
 };
 
-/// Host-owned compose recipe: stages + flat key arena for keyed stages.
+/// Host-owned compose recipe: stages + flat arenas for keyed / matrix / order stages.
+///
+/// - `key_arena`: Index29 key bytes (Vigenère, Beaufort, CTAK, PTAK, VDA, columnar)
+/// - `matrix_arena`: row-major ℤ₂₉ matrix entries (Hill2 len 4, Hill3 len 9)
+/// - `order_arena`: uint32 gather indices into row-major slots (grid-read families)
 class ComposeParamsHost {
 public:
     std::vector<ComposeStageParams> stages;
     std::vector<std::uint8_t> key_arena;
+    std::vector<std::uint8_t> matrix_arena;
+    std::vector<std::uint32_t> order_arena;
 };
 
 /// Host JSON ↔ POD converters for CUDA twin params.
