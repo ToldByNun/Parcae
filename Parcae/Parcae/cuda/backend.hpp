@@ -335,17 +335,76 @@ private:
             }
             return Status::success();
         }
-        case CudaFamilyId::Hill2:
-        case CudaFamilyId::Hill3:
-        case CudaFamilyId::CiphertextAutokey:
-        case CudaFamilyId::PlaintextAutokey:
-        case CudaFamilyId::VariableDelayAutokey:
-        case CudaFamilyId::SpiralRead:
-        case CudaFamilyId::BoustrophedonRead:
-        case CudaFamilyId::DiagonalRead:
-        case CudaFamilyId::ColumnarTransposition:
-            // JSON parsers for these families land in roadmap commit 6; twins later.
-            return Status::error("CudaBackend: catalog family params not wired yet");
+        case CudaFamilyId::Hill2: {
+            StatusOr<CudaParamsJson::HillMatrixHost> matrix =
+                CudaParamsJson::hill2_from_json(params);
+            if (!matrix.ok()) {
+                return matrix.status();
+            }
+            return Status::success();
+        }
+        case CudaFamilyId::Hill3: {
+            StatusOr<CudaParamsJson::HillMatrixHost> matrix =
+                CudaParamsJson::hill3_from_json(params);
+            if (!matrix.ok()) {
+                return matrix.status();
+            }
+            return Status::success();
+        }
+        case CudaFamilyId::CiphertextAutokey: {
+            StatusOr<KeyParamsHost> key = CudaParamsJson::ciphertext_autokey_from_json(params);
+            if (!key.ok()) {
+                return key.status();
+            }
+            return Status::success();
+        }
+        case CudaFamilyId::PlaintextAutokey: {
+            StatusOr<KeyParamsHost> key = CudaParamsJson::plaintext_autokey_from_json(params);
+            if (!key.ok()) {
+                return key.status();
+            }
+            return Status::success();
+        }
+        case CudaFamilyId::VariableDelayAutokey: {
+            StatusOr<CudaParamsJson::VariableDelayAutokeyHost> vda =
+                CudaParamsJson::variable_delay_autokey_from_json(params);
+            if (!vda.ok()) {
+                return vda.status();
+            }
+            return Status::success();
+        }
+        case CudaFamilyId::SpiralRead: {
+            StatusOr<CudaParamsJson::GridReadHost> grid =
+                CudaParamsJson::spiral_read_from_json(params);
+            if (!grid.ok()) {
+                return grid.status();
+            }
+            return Status::success();
+        }
+        case CudaFamilyId::BoustrophedonRead: {
+            StatusOr<CudaParamsJson::GridReadHost> grid =
+                CudaParamsJson::boustrophedon_read_from_json(params);
+            if (!grid.ok()) {
+                return grid.status();
+            }
+            return Status::success();
+        }
+        case CudaFamilyId::DiagonalRead: {
+            StatusOr<CudaParamsJson::GridReadHost> grid =
+                CudaParamsJson::diagonal_read_from_json(params);
+            if (!grid.ok()) {
+                return grid.status();
+            }
+            return Status::success();
+        }
+        case CudaFamilyId::ColumnarTransposition: {
+            StatusOr<CudaParamsJson::GridReadHost> grid =
+                CudaParamsJson::columnar_transposition_from_json(params);
+            if (!grid.ok()) {
+                return grid.status();
+            }
+            return Status::success();
+        }
         }
         return Status::error("CudaBackend: unknown CudaFamilyId");
     }

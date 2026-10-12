@@ -144,3 +144,126 @@ TEST_CASE("CUDA FamilyId from TransformId", "[cuda][params]") {
 
     REQUIRE_FALSE(CudaFamilyIdUtil::from_transform_id(TransformId::unchecked("theory")).ok());
 }
+
+TEST_CASE("CUDA POD params hill2 / hill3 from JSON", "[cuda][params]") {
+    SECTION("hill2 identity matrix") {
+        StatusOr<CudaParamsJson::HillMatrixHost> m =
+            CudaParamsJson::hill2_from_json(nlohmann::json{{"matrix", {1, 0, 0, 1}}});
+        REQUIRE(m.ok());
+        REQUIRE(m.value().entries == std::vector<std::uint8_t>{1, 0, 0, 1});
+        REQUIRE(CudaParamsJson::hill_to_json(m.value()) ==
+                nlohmann::json{{"matrix", {1, 0, 0, 1}}});
+    }
+    SECTION("hill2 singular rejected") {
+        REQUIRE_FALSE(
+            CudaParamsJson::hill2_from_json(nlohmann::json{{"matrix", {1, 0, 0, 0}}}).ok());
+    }
+    SECTION("hill3") {
+        StatusOr<CudaParamsJson::HillMatrixHost> m = CudaParamsJson::hill3_from_json(
+            nlohmann::json{{"matrix", {1, 0, 0, 0, 1, 0, 0, 0, 1}}});
+        REQUIRE(m.ok());
+        REQUIRE(m.value().entries.size() == 9);
+        REQUIRE_FALSE(CudaParamsJson::hill3_from_json(
+                          nlohmann::json{{"matrix", {1, 0, 0, 0, 0, 0, 0, 0, 0}}})
+                          .ok());
+    }
+}
+
+TEST_CASE("CUDA POD params autokey families from JSON", "[cuda][params]") {
+    SECTION("ctak / ptak key") {
+        const nlohmann::json json{{"key_indices", {3, 5}}};
+        StatusOr<KeyParamsHost> ctak = CudaParamsJson::ciphertext_autokey_from_json(json);
+        StatusOr<KeyParamsHost> ptak = CudaParamsJson::plaintext_autokey_from_json(json);
+        REQUIRE(ctak.ok());
+        REQUIRE(ptak.ok());
+        REQUIRE(ctak.value().key == std::vector<std::uint8_t>{3, 5});
+        REQUIRE_FALSE(
+            CudaParamsJson::ciphertext_autokey_from_json(nlohmann::json{{"key_indices", {}}})
+                .ok());
+    }
+    SECTION("vda lag and mode") {
+        StatusOr<CudaParamsJson::VariableDelayAutokeyHost> vda =
+            CudaParamsJson::variable_delay_autokey_from_json(
+                nlohmann::json{{"key_indices", {1, 2}}, {"lag", 2}, {"mode", "plaintext"}});
+        REQUIRE(vda.ok());
+        REQUIRE(vda.value().vda.lag == 2);
+        REQUIRE(vda.value().vda.mode == CudaAutokeyMode::Plaintext);
+        REQUIRE_FALSE(CudaParamsJson::variable_delay_autokey_from_json(
+                          nlohmann::json{{"key_indices", {1}}, {"lag", 4}})
+                          .ok());
+        StatusOr<CudaParamsJson::VariableDelayAutokeyHost> by_index =
+            CudaParamsJson::variable_delay_autokey_from_json(
+                nlohmann::json{{"key_indices", {7}}, {"lag_prime_index", 0}});
+        REQUIRE(by_index.ok());
+        REQUIRE(by_index.value().vda.lag == 2);
+    }
+}
+
+TEST_CASE("CUDA POD params grid-read from JSON", "[cuda][params]") {
+    SECTION("spiral 2x2 inward") {
+        StatusOr<CudaParamsJson::GridReadHost> g =
+            CudaParamsJson::spiral_read_from_json(nlohmann::json{{"rows", 2}, {"cols", 2}});
+        REQUIRE(g.ok());
+        REQUIRE(g.value().grid.rows == 2);
+        REQUIRE(g.value().grid.cols == 2);
+        REQUIRE(g.value().grid.spiral_outward == 0);
+        REQUIRE(g.value().order.size() == 4);
+        REQUIRE(g.value().order[0] == 0);
+    }
+    SECTION("boustrophedon rtl") {
+        StatusOr<CudaParamsJson::GridReadHost> g = CudaParamsJson::boustrophedon_read_from_json(
+            nlohmann::json{{"rows", 2}, {"cols", 2}, {"first_row", "rtl"}});
+        REQUIRE(g.ok());
+        REQUIRE(g.value().grid.boustrophedon_rtl == 1);
+        REQUIRE(g.value().order.size() == 4);
+    }
+    SECTION("diagonal anti") {
+        StatusOr<CudaParamsJson::GridReadHost> g = CudaParamsJson::diagonal_read_from_json(
+            nlohmann::json{{"rows", 2}, {"cols", 2}, {"anti", true}});
+        REQUIRE(g.ok());
+        REQUIRE(g.value().grid.diagonal_anti == 1);
+    }
+    SECTION("columnar") {
+        StatusOr<CudaParamsJson::GridReadHost> g = CudaParamsJson::columnar_transposition_from_json(
+            nlohmann::json{{"rows", 2}, {"key_indices", {1, 0}}});
+        REQUIRE(g.ok());
+        REQUIRE(g.value().grid.cols == 2);
+        REQUIRE(g.value().columnar_key.key == std::vector<std::uint8_t>{1, 0});
+        REQUIRE(g.value().order.size() == 4);
+    }
+}
+
+TEST_CASE("CUDA compose stages append hill autokey grid arenas", "[cuda][params]") {
+    const nlohmann::json json{
+        {"stages",
+         {
+             {{"transform_id", "hill_2"},
+              {"direction", "decrypt"},
+              {"params", {{"matrix", {1, 0, 0, 1}}}}},
+             {{"transform_id", "ciphertext_autokey"},
+              {"direction", "decrypt"},
+              {"params", {{"key_indices", {3, 5}}}}},
+             {{"transform_id", "spiral_read"},
+              {"direction", "decrypt"},
+              {"params", {{"rows", 2}, {"cols", 2}, {"spiral", "outward"}}}},
+         }},
+    };
+    StatusOr<ComposeParamsHost> compose = CudaParamsJson::compose_from_json(json);
+    REQUIRE(compose.ok());
+    REQUIRE(compose.value().stages.size() == 3);
+    REQUIRE(compose.value().stages[0].family == CudaFamilyId::Hill2);
+    REQUIRE(compose.value().stages[0].matrix_len == 4);
+    REQUIRE(compose.value().matrix_arena == std::vector<std::uint8_t>{1, 0, 0, 1});
+    REQUIRE(compose.value().stages[1].family == CudaFamilyId::CiphertextAutokey);
+    REQUIRE(compose.value().stages[1].key_len == 2);
+    REQUIRE(compose.value().key_arena == std::vector<std::uint8_t>{3, 5});
+    REQUIRE(compose.value().stages[2].family == CudaFamilyId::SpiralRead);
+    REQUIRE(compose.value().stages[2].grid.spiral_outward == 1);
+    REQUIRE(compose.value().stages[2].order_len == 4);
+    REQUIRE(compose.value().order_arena.size() == 4);
+    REQUIRE_FALSE(CudaParamsJson::compose_from_json(
+                      nlohmann::json{{"stages",
+                                      {{{"transform_id", "compose"},
+                                        {"params", {{"stages", nlohmann::json::array()}}}}}}})
+                      .ok());
+}
