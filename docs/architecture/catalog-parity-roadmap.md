@@ -35,8 +35,8 @@ titles, or CI job names.
 code and test only.
 
 **Hardware reference (local CUDA):** RTX 5070 Ti (`sm_120`), Ryzen 7 7800X3D,
-32 GB DDR5-6000. CMake default arches include `120`; VS project must gain
-`sm_120` in this cut (commit **8**). Hosted CI stays CPU-default.
+32 GB DDR5-6000. CMake and VS `CudaCompile` both include `sm_120`. Hosted CI
+stays CPU-default.
 
 ---
 
@@ -45,8 +45,8 @@ code and test only.
 | Band | Commits | Status |
 |------|---------|--------|
 | A — Freeze sync | 1–3 | **done** |
-| B — CUDA family params | 4–8 | **4–7 done**; next **8** |
-| C — Hill stream twins | 9–13 | pending |
+| B — CUDA family params | 4–8 | **done** |
+| C — Hill stream twins | 9–13 | next **9** |
 | D — Autokey twins | 14–19 | pending |
 | E — Grid permute twins | 20–24 | pending |
 | F — ComposeDriver | 25–28 | pending |
@@ -77,7 +77,7 @@ code and test only.
 | 5 | feat(cuda): `ComposeStageParams` matrix/order arena fields | **done** |
 | 6 | feat(cuda): `CudaParamsJson` parsers for hill/autokey/grid | **done** |
 | 7 | test(cuda): `[cuda][params]` coverage for new PODs/JSON | **done** |
-| 8 | build(cuda): register new kernel sources; add `sm_120` to `Parcae.vcxproj` CudaCompile | pending |
+| 8 | build(cuda): register new kernel sources; add `sm_120` to `Parcae.vcxproj` CudaCompile | **done** |
 
 ---
 

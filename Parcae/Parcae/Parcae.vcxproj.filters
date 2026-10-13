@@ -89,6 +89,21 @@
     <ClInclude Include="cuda\ciphertext_autokey_kernel.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
+    <ClInclude Include="cuda\plaintext_autokey_kernel.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="cuda\variable_delay_autokey_kernel.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="cuda\hill2_kernel.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="cuda\hill3_kernel.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="cuda\grid_permute_kernel.hpp">
+      <Filter>cuda</Filter>
+    </ClInclude>
     <ClInclude Include="cuda\autokey_ctak_device.hpp">
       <Filter>cuda</Filter>
     </ClInclude>
@@ -176,6 +191,21 @@
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\ciphertext_autokey_kernel.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\plaintext_autokey_kernel.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\variable_delay_autokey_kernel.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\hill2_kernel.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\hill3_kernel.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda\grid_permute_kernel.cu">
       <Filter>cuda</Filter>
     </CudaCompile>
     <CudaCompile Include="cuda\vigenere_batch_kernel.cu">

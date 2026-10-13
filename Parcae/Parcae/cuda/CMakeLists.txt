@@ -44,6 +44,11 @@ set(PARCAE_CUDA_SOURCES
   hist_fast_parity.cu
   deep_score_batch.cu
   ciphertext_autokey_kernel.cu
+  plaintext_autokey_kernel.cu
+  variable_delay_autokey_kernel.cu
+  hill2_kernel.cu
+  hill3_kernel.cu
+  grid_permute_kernel.cu
   z29_matrix_device_ops.cu
 )
 

@@ -31,11 +31,9 @@ Default CMake CUDA architectures: **`75;86;89;120`** (Turing → Ada + Blackwell
    `ParcaeCudaToolkitVersion` if your install differs.
 5. The VS project defines `PARCAE_HAS_CUDA=1` on x64 and compiles  
    `parcae_cuda_stub.cu`, `identity_copy.cu`, …
-6. **Arch note (1.1.0):** [`Parcae.vcxproj`](../../Parcae/Parcae/Parcae.vcxproj)
-   `CudaCompile` currently lists `compute_75,sm_75;compute_86,sm_86` only.
-   Adding `compute_120,sm_120` (Debug + Release) is roadmap commit **8** —
-   until then prefer a CMake CUDA build for Blackwell, or override the VS
-   Code Generation property locally.
+6. **Arch note:** [`Parcae.vcxproj`](../../Parcae/Parcae/Parcae.vcxproj)
+   `CudaCompile` targets `compute_75,sm_75;compute_86,sm_86;compute_120,sm_120`
+   (Debug + Release) — matches CMake default arches including Blackwell.
 
 Smoke entry: run the `Parcae` app (`main.cpp`) or Catch2 cases below after a CMake CUDA build.
 

@@ -124,7 +124,7 @@
     </ClCompile>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <CodeGeneration>compute_75,sm_75;compute_86,sm_86</CodeGeneration>
+      <CodeGeneration>compute_75,sm_75;compute_86,sm_86;compute_120,sm_120</CodeGeneration>
       <AdditionalIncludeDirectories>$(ParcaeIncludeDir);$(ProjectDir)cuda;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Defines>PARCAE_HAS_CUDA=1</Defines>
     </CudaCompile>
@@ -149,7 +149,7 @@
     </ClCompile>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <CodeGeneration>compute_75,sm_75;compute_86,sm_86</CodeGeneration>
+      <CodeGeneration>compute_75,sm_75;compute_86,sm_86;compute_120,sm_120</CodeGeneration>
       <AdditionalIncludeDirectories>$(ParcaeIncludeDir);$(ProjectDir)cuda;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Defines>PARCAE_HAS_CUDA=1</Defines>
     </CudaCompile>
@@ -187,6 +187,11 @@
     <ClInclude Include="cuda\affine_batch_kernel.hpp" />
     <ClInclude Include="cuda\vigenere_key_kernel.hpp" />
     <ClInclude Include="cuda\ciphertext_autokey_kernel.hpp" />
+    <ClInclude Include="cuda\plaintext_autokey_kernel.hpp" />
+    <ClInclude Include="cuda\variable_delay_autokey_kernel.hpp" />
+    <ClInclude Include="cuda\hill2_kernel.hpp" />
+    <ClInclude Include="cuda\hill3_kernel.hpp" />
+    <ClInclude Include="cuda\grid_permute_kernel.hpp" />
     <ClInclude Include="cuda\autokey_ctak_device.hpp" />
     <ClInclude Include="cuda\vigenere_batch_kernel.hpp" />
     <ClInclude Include="cuda\beaufort_key_kernel.hpp" />
@@ -219,6 +224,11 @@
     <CudaCompile Include="cuda\affine_batch_kernel.cu" />
     <CudaCompile Include="cuda\vigenere_key_kernel.cu" />
     <CudaCompile Include="cuda\ciphertext_autokey_kernel.cu" />
+    <CudaCompile Include="cuda\plaintext_autokey_kernel.cu" />
+    <CudaCompile Include="cuda\variable_delay_autokey_kernel.cu" />
+    <CudaCompile Include="cuda\hill2_kernel.cu" />
+    <CudaCompile Include="cuda\hill3_kernel.cu" />
+    <CudaCompile Include="cuda\grid_permute_kernel.cu" />
     <CudaCompile Include="cuda\vigenere_batch_kernel.cu" />
     <CudaCompile Include="cuda\beaufort_key_kernel.cu" />
     <CudaCompile Include="cuda\totient_prime_stream_kernel.cu" />
