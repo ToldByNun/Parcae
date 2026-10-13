@@ -267,3 +267,143 @@ TEST_CASE("CUDA compose stages append hill autokey grid arenas", "[cuda][params]
                                         {"params", {{"stages", nlohmann::json::array()}}}}}}})
                       .ok());
 }
+
+TEST_CASE("CUDA catalog params JSON edge rejects", "[cuda][params][edge]") {
+    SECTION("hill wrong length / range / unknown field") {
+        REQUIRE_FALSE(
+            CudaParamsJson::hill2_from_json(nlohmann::json{{"matrix", {1, 0, 0}}}).ok());
+        REQUIRE_FALSE(
+            CudaParamsJson::hill2_from_json(nlohmann::json{{"matrix", {1, 0, 0, 29}}}).ok());
+        REQUIRE_FALSE(CudaParamsJson::hill2_from_json(
+                          nlohmann::json{{"matrix", {1, 0, 0, 1}}, {"extra", 1}})
+                          .ok());
+        REQUIRE_FALSE(CudaParamsJson::hill2_from_json(nlohmann::json::array()).ok());
+        REQUIRE_FALSE(
+            CudaParamsJson::hill3_from_json(nlohmann::json{{"matrix", {1, 0, 0, 0, 1, 0, 0, 0}}})
+                .ok());
+    }
+
+    SECTION("autokey unknown field / OOB / vda lag rules") {
+        REQUIRE_FALSE(CudaParamsJson::ciphertext_autokey_from_json(
+                          nlohmann::json{{"key_indices", {1}}, {"shift", 1}})
+                          .ok());
+        REQUIRE_FALSE(
+            CudaParamsJson::plaintext_autokey_from_json(nlohmann::json{{"key_indices", {29}}})
+                .ok());
+        REQUIRE_FALSE(CudaParamsJson::variable_delay_autokey_from_json(
+                          nlohmann::json{{"key_indices", {1}}, {"lag", 2}, {"lag_prime_index", 0}})
+                          .ok());
+        REQUIRE_FALSE(
+            CudaParamsJson::variable_delay_autokey_from_json(nlohmann::json{{"key_indices", {1}}})
+                .ok());
+        REQUIRE_FALSE(CudaParamsJson::variable_delay_autokey_from_json(
+                          nlohmann::json{{"key_indices", {1}}, {"lag", 1}})
+                          .ok());
+        REQUIRE_FALSE(CudaParamsJson::variable_delay_autokey_from_json(
+                          nlohmann::json{{"key_indices", {1}}, {"lag", 2}, {"mode", "otp"}})
+                          .ok());
+        StatusOr<CudaParamsJson::VariableDelayAutokeyHost> ok_latin =
+            CudaParamsJson::variable_delay_autokey_from_json(
+                nlohmann::json{{"key_indices", {1}}, {"key_latin", "A"}, {"lag", 3}});
+        REQUIRE(ok_latin.ok());
+        REQUIRE(ok_latin.value().vda.lag == 3);
+        REQUIRE(ok_latin.value().vda.mode == CudaAutokeyMode::Ciphertext);
+    }
+
+    SECTION("grid dims / flags / columnar") {
+        REQUIRE_FALSE(
+            CudaParamsJson::spiral_read_from_json(nlohmann::json{{"rows", 0}, {"cols", 2}}).ok());
+        REQUIRE_FALSE(
+            CudaParamsJson::spiral_read_from_json(nlohmann::json{{"rows", 2}}).ok());
+        REQUIRE_FALSE(CudaParamsJson::spiral_read_from_json(
+                          nlohmann::json{{"rows", 2}, {"cols", 2}, {"spiral", "sideways"}})
+                          .ok());
+        REQUIRE_FALSE(CudaParamsJson::boustrophedon_read_from_json(
+                          nlohmann::json{{"rows", 2}, {"cols", 2}, {"first_row", "up"}})
+                          .ok());
+        REQUIRE_FALSE(CudaParamsJson::diagonal_read_from_json(
+                          nlohmann::json{{"rows", 2}, {"cols", 2}, {"anti", 1}})
+                          .ok());
+        REQUIRE_FALSE(CudaParamsJson::columnar_transposition_from_json(
+                          nlohmann::json{{"rows", 2}, {"key_indices", nlohmann::json::array()}})
+                          .ok());
+        REQUIRE_FALSE(CudaParamsJson::columnar_transposition_from_json(
+                          nlohmann::json{{"rows", 2}, {"key_indices", {1}}, {"foo", true}})
+                          .ok());
+
+        StatusOr<CudaParamsJson::GridReadHost> row =
+            CudaParamsJson::spiral_read_from_json(nlohmann::json{{"rows", 1}, {"cols", 4}});
+        REQUIRE(row.ok());
+        REQUIRE(row.value().order.size() == 4);
+
+        StatusOr<CudaParamsJson::GridReadHost> col =
+            CudaParamsJson::spiral_read_from_json(nlohmann::json{{"rows", 4}, {"cols", 1}});
+        REQUIRE(col.ok());
+        REQUIRE(col.value().order.size() == 4);
+    }
+}
+
+TEST_CASE("CUDA compose multi-family arena offsets and reject bad stage", "[cuda][params][edge]") {
+    SECTION("accumulating arenas across hill3 ptak vda columnar") {
+        const nlohmann::json json{
+            {"stages",
+             {
+                 {{"transform_id", "hill_3"},
+                  {"params", {{"matrix", {1, 0, 0, 0, 1, 0, 0, 0, 1}}}}},
+                 {{"transform_id", "plaintext_autokey"}, {"params", {{"key_indices", {2, 4}}}}},
+                 {{"transform_id", "variable_delay_autokey"},
+                  {"params", {{"key_indices", {9}}, {"lag", 2}, {"mode", "ciphertext"}}}},
+                 {{"transform_id", "columnar_transposition"},
+                  {"params", {{"rows", 2}, {"key_indices", {0, 1}}}}},
+                 {{"transform_id", "boustrophedon_read"},
+                  {"params", {{"rows", 2}, {"cols", 2}, {"first_row", "ltr"}}}},
+                 {{"transform_id", "diagonal_read"},
+                  {"params", {{"rows", 2}, {"cols", 2}, {"anti", false}}}},
+             }},
+        };
+        StatusOr<ComposeParamsHost> compose = CudaParamsJson::compose_from_json(json);
+        REQUIRE(compose.ok());
+        REQUIRE(compose.value().stages.size() == 6);
+
+        REQUIRE(compose.value().stages[0].family == CudaFamilyId::Hill3);
+        REQUIRE(compose.value().stages[0].matrix_begin == 0);
+        REQUIRE(compose.value().stages[0].matrix_len == 9);
+        REQUIRE(compose.value().matrix_arena.size() == 9);
+
+        REQUIRE(compose.value().stages[1].family == CudaFamilyId::PlaintextAutokey);
+        REQUIRE(compose.value().stages[1].key_begin == 0);
+        REQUIRE(compose.value().stages[1].key_len == 2);
+
+        REQUIRE(compose.value().stages[2].family == CudaFamilyId::VariableDelayAutokey);
+        REQUIRE(compose.value().stages[2].key_begin == 2);
+        REQUIRE(compose.value().stages[2].key_len == 1);
+        REQUIRE(compose.value().stages[2].vda.lag == 2);
+        REQUIRE(compose.value().key_arena == std::vector<std::uint8_t>{2, 4, 9, 0, 1});
+
+        REQUIRE(compose.value().stages[3].family == CudaFamilyId::ColumnarTransposition);
+        REQUIRE(compose.value().stages[3].key_begin == 3);
+        REQUIRE(compose.value().stages[3].key_len == 2);
+        REQUIRE(compose.value().stages[3].order_begin == 0);
+        REQUIRE(compose.value().stages[3].order_len == 4);
+
+        REQUIRE(compose.value().stages[4].family == CudaFamilyId::BoustrophedonRead);
+        REQUIRE(compose.value().stages[4].order_begin == 4);
+        REQUIRE(compose.value().stages[4].order_len == 4);
+        REQUIRE(compose.value().stages[4].grid.boustrophedon_rtl == 0);
+
+        REQUIRE(compose.value().stages[5].family == CudaFamilyId::DiagonalRead);
+        REQUIRE(compose.value().stages[5].order_begin == 8);
+        REQUIRE(compose.value().stages[5].order_len == 4);
+        REQUIRE(compose.value().order_arena.size() == 12);
+    }
+
+    SECTION("bad stage params fail whole compose") {
+        const nlohmann::json bad{
+            {"stages",
+             nlohmann::json::array(
+                 {{{"transform_id", "atbash"}, {"params", nlohmann::json::object()}},
+                  {{"transform_id", "hill_2"}, {"params", {{"matrix", {1, 0, 0, 0}}}}}})}};
+        StatusOr<ComposeParamsHost> compose = CudaParamsJson::compose_from_json(bad);
+        REQUIRE_FALSE(compose.ok());
+    }
+}

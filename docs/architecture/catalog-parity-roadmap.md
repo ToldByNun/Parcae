@@ -45,7 +45,7 @@ code and test only.
 | Band | Commits | Status |
 |------|---------|--------|
 | A — Freeze sync | 1–3 | **done** |
-| B — CUDA family params | 4–8 | **4–6 done**; next **7** |
+| B — CUDA family params | 4–8 | **4–7 done**; next **8** |
 | C — Hill stream twins | 9–13 | pending |
 | D — Autokey twins | 14–19 | pending |
 | E — Grid permute twins | 20–24 | pending |
@@ -76,7 +76,7 @@ code and test only.
 | 4 | feat(cuda): extend `CudaFamilyId` for 1.0 catalog families | **done** |
 | 5 | feat(cuda): `ComposeStageParams` matrix/order arena fields | **done** |
 | 6 | feat(cuda): `CudaParamsJson` parsers for hill/autokey/grid | **done** |
-| 7 | test(cuda): `[cuda][params]` coverage for new PODs/JSON | pending |
+| 7 | test(cuda): `[cuda][params]` coverage for new PODs/JSON | **done** |
 | 8 | build(cuda): register new kernel sources; add `sm_120` to `Parcae.vcxproj` CudaCompile | pending |
 
 ---
