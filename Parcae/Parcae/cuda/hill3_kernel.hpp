@@ -10,10 +10,15 @@
 #include <span>
 
 /// CUDA twin of `Hill3Transform::kernel` (3×3 ℤ₂₉ block multiply).
-/// Scaffold for toolkit 1.1.0 — device path lands in catalog-parity roadmap C.
+/// Encrypt: `M·v`; decrypt: `M⁻¹·v`. Interrupt policy unused (block cipher).
+///
+/// `device_matrix` / `host_matrix` are 9 row-major ℤ₂₉ entries. Callers MUST
+/// pass an invertible key (host-validated); device launch trusts that contract.
+/// Input length MUST be a multiple of 3. In-place OK. `launch_device_async`
+/// does not synchronize; `launch_device` / `apply_host` sync (host convenience,
+/// not SLO).
 class Hill3Kernel {
 public:
-    /// `device_matrix` is 9 row-major ℤ₂₉ entries (invertible key; host-validated).
     [[nodiscard]] static Status launch_device(const std::uint8_t* device_in,
                                               std::uint8_t* device_out, std::size_t count,
                                               const std::uint8_t* device_matrix, CudaDir direction);
@@ -30,6 +35,8 @@ public:
 
 private:
     Hill3Kernel() = delete;
+
+    [[nodiscard]] static Status validate_matrix(std::span<const std::uint8_t> host_matrix);
 };
 
 #endif // HILL3_KERNEL_HPP

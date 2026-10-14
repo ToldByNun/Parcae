@@ -91,7 +91,7 @@ Declare toolkit **1.1.0** complete when **all required** boxes below are green
 
 ### Transform twins (bit-identity)
 
-- [ ] `Hill2Kernel` / `Hill3Kernel` stream twins on `Z29Matrix{2,3}Device`
+- [x] `Hill2Kernel` / `Hill3Kernel` stream twins on `Z29Matrix{2,3}Device`
 - [ ] `CiphertextAutokeyKernel` wired through `CudaBackend` (kernel already exists)
 - [ ] `PlaintextAutokeyKernel` twin
 - [ ] `VariableDelayAutokeyKernel` twin (`L == p` mode matches CTAK/PTAK)
