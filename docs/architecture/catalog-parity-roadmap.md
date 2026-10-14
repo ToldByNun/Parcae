@@ -46,7 +46,7 @@ stays CPU-default.
 |------|---------|--------|
 | A — Freeze sync | 1–3 | **done** |
 | B — CUDA family params | 4–8 | **done** |
-| C — Hill stream twins | 9–13 | next **11** |
+| C — Hill stream twins | 9–13 | next **12** |
 | D — Autokey twins | 14–19 | pending |
 | E — Grid permute twins | 20–24 | pending |
 | F — ComposeDriver | 25–28 | pending |
@@ -87,7 +87,7 @@ stays CPU-default.
 |---|--------|--------|
 | 9 | feat(cuda): `Hill2Kernel` stream twin on `Z29Matrix2Device` | **done** |
 | 10 | feat(cuda): `Hill3Kernel` stream twin on `Z29Matrix3Device` | **done** |
-| 11 | test(cuda): `[cuda][parity][hill]` bit-identity and length/singular edges | pending |
+| 11 | test(cuda): `[cuda][parity][hill]` bit-identity and length/singular edges | **done** |
 | 12 | feat(cuda): wire Hill into `CudaBackend` apply_into/prepare_params | pending |
 | 13 | test(cuda): Hill via `CudaBackend` matches `Hill2`/`Hill3Transform` | pending |
 

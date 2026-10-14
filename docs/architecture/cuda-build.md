@@ -84,6 +84,7 @@ Targets:
 | `[cuda][parity][beaufort]` | Skip / SUCCEED marker | `BeaufortKeyKernel` vs CPU (involution + skips) |
 | `[cuda][parity][totient]` | Skip / SUCCEED marker | `TotientPrimeStreamKernel` vs CPU (host shifts) |
 | `[cuda][parity][autokey][ctak]` | Skip / SUCCEED marker | `CiphertextAutokeyKernel` vs CPU (+ DeepScoreBatch formula cases) |
+| `[cuda][parity][hill]` | Skip / SUCCEED marker | `Hill2Kernel` / `Hill3Kernel` vs CPU; odd-length / singular edges |
 | `[cuda][parity][compose]` | Skip / SUCCEED marker | `ComposeDriver` vs CPU (Koan-1 / ping-pong) |
 | `[cuda][parity][golden]` | CPU locks `data/parity/` hashes; CUDA apply skipped | `CudaBackend` vs golden `output_sha256` (manifest) |
 | `[cuda][parity][solved]` | CPU apply on locked fixture consumables | `CudaBackend` vs CPU `output_sha256` per solved page |
@@ -110,7 +111,6 @@ match zero cases. Hosted CI stays CPU-default — device rows skip when
 | Tag | Roadmap | Expected coverage when green |
 |-----|---------|------------------------------|
 | `[cuda][params]` *(extended)* | B 4–7 | New hill / autokey / grid PODs + `CudaParamsJson` |
-| `[cuda][parity][hill]` | C 9–13 | `Hill2Kernel` / `Hill3Kernel` vs CPU; odd-length / singular edges |
 | `[cuda][parity][autokey][ptak]` | D 15–16, 19 | `PlaintextAutokeyKernel` vs CPU (dense + skips) |
 | `[cuda][parity][autokey][vda]` | D 17–19 | `VariableDelayAutokeyKernel` vs CPU; lag==primer ≡ CTAK/PTAK |
 | `[cuda][parity][grid]` | E 20–24 | Spiral / boustrophedon / diagonal / columnar vs CPU |
