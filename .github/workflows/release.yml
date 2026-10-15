@@ -81,7 +81,7 @@ jobs:
           mkdir -p release
           packaging/build_source.sh --out release --version "${{ needs.meta.outputs.version }}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-source
           path: release/*.tar.gz
@@ -125,7 +125,7 @@ jobs:
           packaging/windows/build_installer.sh --flavor cpu --stage stage-cpu --out release --version "${VERSION}"
           packaging/windows/build_installer.sh --flavor full --stage stage-full --out release --version "${VERSION}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-windows-cpu
           path: release/*.exe
@@ -182,7 +182,7 @@ jobs:
           packaging/linux/build_appimage.sh --flavor cpu --stage stage-cpu --out release --version "${VERSION}"
           packaging/linux/build_appimage.sh --flavor full --stage stage-full --out release --version "${VERSION}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-linux-cpu
           path: |
@@ -240,7 +240,7 @@ jobs:
           packaging/windows/build_installer.sh --flavor cuda --stage stage-cuda --out release --version "${VERSION}"
           packaging/windows/build_installer.sh --flavor full --stage stage-full --out release --version "${VERSION}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-windows-cuda
           path: release/*.exe
@@ -277,7 +277,7 @@ jobs:
             packaging/linux/build_appimage.sh --flavor cuda --stage stage-cuda --out release --version "${VERSION}"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-linux-cuda
           path: |
@@ -340,7 +340,7 @@ jobs:
           fi
 
       - name: Upload release/ tree artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-folder
           path: release/
